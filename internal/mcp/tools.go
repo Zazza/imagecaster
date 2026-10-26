@@ -375,6 +375,7 @@ func RegisterTools(s *Server) {
 			"model":         prop("модель SD title (ветка 2)", "string"),
 			"seed":          prop("фиксированный сид", "integer"),
 			"resolution_id": prop("id разрешения (ветка 1)", "integer"),
+			"full_size":     prop("полный размер без preview-уменьшения (ветка 1, по умолчанию false)", "boolean"),
 			"width":         prop("ширина (ветка 2, по умолчанию 512)", "integer"),
 			"height":        prop("высота (ветка 2, по умолчанию 512)", "integer"),
 			"sampler":       prop("сэмплер (ветка 2)", "string"),
@@ -413,6 +414,7 @@ func RegisterTools(s *Server) {
 				if rid := optInt(args, "resolution_id"); rid != nil && *rid > 0 {
 					gp.ResolutionID = rid
 				}
+				gp.FullSize = argBool(args, "full_size")
 				res, err := s.deps.Gen.GenerateImage(gp)
 				if err != nil {
 					return "", err
