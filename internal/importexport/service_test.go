@@ -38,15 +38,21 @@ func (m *mockSDService) GetSchedulers() ([]sd.Scheduler, error)      { return ni
 func (m *mockSDService) GetUpscalers() ([]sd.Upscaler, error)        { return nil, nil }
 func (m *mockSDService) GetVAEs() ([]sd.VAE, error)                  { return nil, nil }
 func (m *mockSDService) GetLoRAs() ([]sd.LoRA, error)                { return m.loras, m.err }
-func (m *mockSDService) GetOptions() (map[string]interface{}, error)  { return nil, nil }
-func (m *mockSDService) GetProgress() (*sd.ProgressResponse, error)   { return nil, nil }
-func (m *mockSDService) Interrupt() error                             { return nil }
-func (m *mockSDService) HealthCheck() error                           { return nil }
-func (m *mockSDService) SetURL(baseURL string)                        {}
-func (m *mockSDService) SetModel(modelName string) error              { return nil }
-func (m *mockSDService) SetVAE(vaeName string) error                  { return nil }
-func (m *mockSDService) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) { return "", nil }
-func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error)         { return nil, nil }
+func (m *mockSDService) GetOptions() (map[string]interface{}, error) { return nil, nil }
+func (m *mockSDService) GetProgress() (*sd.ProgressResponse, error)  { return nil, nil }
+func (m *mockSDService) Interrupt() error                            { return nil }
+func (m *mockSDService) HealthCheck() error                          { return nil }
+func (m *mockSDService) SetURL(baseURL string)                       {}
+func (m *mockSDService) SetModel(modelName string) error             { return nil }
+func (m *mockSDService) SetModelWithModules(modelName string, modules []string) error {
+	return nil
+}
+func (m *mockSDService) SetVAE(vaeName string) error                 { return nil }
+func (m *mockSDService) SetOption(key, value string) error           { return nil }
+func (m *mockSDService) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
+	return "", nil
+}
+func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
 
 func openTestDB(t *testing.T) *preset.DB {
 	t.Helper()
@@ -431,9 +437,9 @@ func TestImportItems_WithTypeName(t *testing.T) {
 func TestImportItems_InvalidSteps_Table(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		preset  PresetData
-		errMsg  string
+		name   string
+		preset PresetData
+		errMsg string
 	}{
 		{
 			"steps_zero",
@@ -542,13 +548,13 @@ func TestImportItems_ValidOptionalFields(t *testing.T) {
 	bs := 4
 	bc := 2
 	items := []PresetData{{
-		Name:                   "full-optional",
-		Steps:                  30,
-		CfgScale:               7.5,
-		DenoisingStrength:      &ds,
-		ClipSkip:               &cs,
-		BatchSize:              &bs,
-		BatchCount:             &bc,
+		Name:              "full-optional",
+		Steps:             30,
+		CfgScale:          7.5,
+		DenoisingStrength: &ds,
+		ClipSkip:          &cs,
+		BatchSize:         &bs,
+		BatchCount:        &bc,
 	}}
 	result, err := svc.ImportItems(items)
 	require.NoError(t, err)

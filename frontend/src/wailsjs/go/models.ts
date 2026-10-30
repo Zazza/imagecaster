@@ -59,6 +59,22 @@ export namespace generation {
 	        this.resolution_id = source["resolution_id"];
 	    }
 	}
+	export class EditImageParams {
+	    image_base64: string;
+	    instruction: string;
+	    seed?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditImageParams(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.image_base64 = source["image_base64"];
+	        this.instruction = source["instruction"];
+	        this.seed = source["seed"];
+	    }
+	}
 	export class GenerateCompoundImageParams {
 	    compound_preset_id: number;
 	    extra_prompt: string;
@@ -244,6 +260,7 @@ export namespace generation {
 	    quality_redenoise_skipped?: boolean;
 	    effective_prompt: string;
 	    effective_negative_prompt: string;
+	    edit_reference_reset_failed?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateImageResult(source);
@@ -261,6 +278,7 @@ export namespace generation {
 	        this.quality_redenoise_skipped = source["quality_redenoise_skipped"];
 	        this.effective_prompt = source["effective_prompt"];
 	        this.effective_negative_prompt = source["effective_negative_prompt"];
+	        this.edit_reference_reset_failed = source["edit_reference_reset_failed"];
 	    }
 	}
 	export class GenerateSDPromptParams {

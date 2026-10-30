@@ -1,0 +1,374 @@
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { api } from '../api.js'
+import { parseSeedInput } from '../seed.js'
+import { t } from '../i18n/index.js'
+import { MAX_IMAGE_SIZE } from '../constants.js'
+import { useGenerationProgress } from '../composables/useGenerationProgress.js'
+import ImageViewer from './ImageViewer.vue'
+
+const uploadedImage = ref('')
+const uploadedImageMime = ref('image/png')
+const instruction = ref('')
+const seedInput = ref('')
+const generatingImage = ref(false)
+const generatedImage = ref('')
+const resetFailed = ref(false)
+const error = ref('')
+const isDragOver = ref(false)
+const showViewer = ref(false)
+const { sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+
+const imageSrc = computed(() => {
+  if (!generatedImage.value) return ''
+  if (generatedImage.value.startsWith('/api/')) return generatedImage.value
+  return 'data:image/png;base64,' + generatedImage.value
+})
+
+const canGenerate = computed(() => !!uploadedImage.value && !!instruction.value.trim() && !generatingImage.value)
+
+function setSource(base64, mime) {
+  uploadedImage.value = base64
+  uploadedImageMime.value = mime || 'image/png'
+  error.value = ''
+}
+
+async function uploadImage() {
+  try {
+    const base64 = await api.readImageFile()
+    if (base64) setSource(base64, 'image/png')
+  } catch (e) {
+    error.value = String(e)
+  }
+}
+
+let lastImageReqId = 0
+
+async function useLastImage() {
+  const reqId = ++lastImageReqId
+  try {
+    const item = await api.getActiveSessionItem()
+    if (reqId !== lastImageReqId) return
+    if (item) {
+      const b64 = await api.getSessionImage(item.id)
+      if (reqId !== lastImageReqId) return
+      if (b64) {
+        setSource(b64, 'image/png')
+      } else {
+        error.value = t('fi.error_no_session_image')
+      }
+    } else {
+      error.value = t('fi.error_no_active_item')
+    }
+  } catch (e) {
+    if (reqId === lastImageReqId) error.value = String(e)
+  }
+}
+
+async function pasteFromClipboard() {
+  try {
+    const base64 = await api.readClipboardImage()
+    if (base64) setSource(base64, 'image/png')
+  } catch (e) {
+    error.value = String(e)
+  }
+}
+
+function handlePaste(e) {
+  const items = e.clipboardData?.items
+  if (!items) return
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault()
+      const file = item.getAsFile()
+      if (!file) continue
+      if (file.size > MAX_IMAGE_SIZE) {
+        error.value = t('fi.error_image_too_large')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1]
+        const mime = reader.result.split(':')[1]?.split(';')[0] || 'image/png'
+        if (base64) setSource(base64, mime)
+      }
+      reader.readAsDataURL(file)
+      return
+    }
+  }
+}
+
+function onDrop(e) {
+  isDragOver.value = false
+  const file = e.dataTransfer?.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    error.value = t('fi.error_drop_image')
+    return
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    error.value = t('fi.error_image_too_large')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const base64 = reader.result.split(',')[1]
+    const mime = reader.result.split(':')[1]?.split(';')[0] || 'image/png'
+    if (base64) setSource(base64, mime)
+  }
+  reader.readAsDataURL(file)
+}
+
+function clearImage() {
+  uploadedImage.value = ''
+  uploadedImageMime.value = 'image/png'
+  generatedImage.value = ''
+  resetFailed.value = false
+  error.value = ''
+}
+
+let genReqId = 0
+
+async function generate() {
+  if (generatingImage.value) return
+  if (!uploadedImage.value) {
+    error.value = t('edit.error_no_image')
+    return
+  }
+  const instr = instruction.value.trim()
+  if (!instr) {
+    error.value = t('edit.error_no_instruction')
+    return
+  }
+  generatingImage.value = true
+  generatedImage.value = ''
+  resetFailed.value = false
+  error.value = ''
+  resetProgress()
+  const reqId = ++genReqId
+  try {
+    const seedVal = parseSeedInput(seedInput.value)
+    const result = await api.editImage({
+      image_base64: uploadedImage.value,
+      instruction: instr,
+      seed: seedVal,
+    })
+    if (reqId !== genReqId) return
+    if (result?.image) {
+      generatedImage.value = result.image
+      resetFailed.value = !!result.edit_reference_reset_failed
+    }
+  } catch (e) {
+    if (reqId === genReqId) error.value = String(e)
+  } finally {
+    if (reqId === genReqId) generatingImage.value = false
+  }
+}
+
+async function downloadImage() {
+  if (!generatedImage.value) return
+  try {
+    const defaultName = 'sd-studio-edit-' + Date.now() + '.png'
+    if (generatedImage.value.startsWith('/api/')) {
+      const resp = await fetch(generatedImage.value)
+      const blob = await resp.blob()
+      const reader = new FileReader()
+      reader.onload = async () => {
+        const b64 = reader.result.split(',')[1]
+        await api.saveImage(b64, defaultName)
+      }
+      reader.readAsDataURL(blob)
+    } else {
+      await api.saveImage(generatedImage.value, defaultName)
+    }
+  } catch (e) {
+    error.value = t('fi.error_save', { error: String(e) })
+  }
+}
+
+function useResult() {
+  if (!generatedImage.value) return
+  setSource(generatedImage.value, 'image/png')
+  generatedImage.value = ''
+  resetFailed.value = false
+}
+
+function onKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canGenerate.value) {
+    e.preventDefault()
+    generate()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('paste', handlePaste)
+  document.addEventListener('keydown', onKeydown)
+  api.getSettings().then(s => {
+    if (s?.edit_instruction) instruction.value = s.edit_instruction
+  }).catch(() => {})
+})
+
+onUnmounted(() => {
+  document.removeEventListener('paste', handlePaste)
+  document.removeEventListener('keydown', onKeydown)
+  api.updateSettings({ edit_instruction: instruction.value }).catch(() => {})
+})
+</script>
+
+<template>
+  <div>
+    <div class="page-header">
+      <h1 class="page-title">{{ t('edit.title') }}</h1>
+    </div>
+
+    <div v-if="error === 'interrupted'" class="status status-warning">{{ t('progress.interrupted') }}</div>
+    <div v-else-if="error" class="status status-error">{{ error }}</div>
+
+    <div class="generate-layout">
+      <div class="generate-section">
+        <div class="card">
+          <div
+            v-if="!uploadedImage"
+            class="drop-zone"
+            :class="{ 'drop-zone-active': isDragOver }"
+            @dragover.prevent="isDragOver = true"
+            @dragleave="isDragOver = false"
+            @drop.prevent="onDrop"
+            @click="uploadImage()"
+          >
+            <div style="font-size: 32px; color: var(--text-dim);">&#128444;</div>
+            <p style="color: var(--text-dim); margin-top: 8px;">{{ t('edit.drop_image') }}</p>
+          </div>
+
+          <div v-else class="source-container">
+            <img :src="'data:' + uploadedImageMime + ';base64,' + uploadedImage" alt="Source" class="source-img" />
+          </div>
+
+          <div v-if="uploadedImage" class="fi-btn-row">
+            <button class="btn btn-sm btn-secondary" @click="uploadImage">{{ t('edit.btn_change') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="useLastImage">{{ t('edit.btn_last') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="pasteFromClipboard">{{ t('edit.btn_paste') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="clearImage">{{ t('edit.btn_clear') }}</button>
+          </div>
+          <div v-else class="fi-btn-row" style="margin-top: 8px;">
+            <button class="btn btn-sm btn-secondary" @click="useLastImage">{{ t('edit.btn_last') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="pasteFromClipboard">{{ t('edit.btn_paste') }}</button>
+          </div>
+
+          <div class="model-note">{{ t('edit.model_note') }}</div>
+
+          <div class="form-group">
+            <label class="form-label">{{ t('edit.instruction_label') }}</label>
+            <textarea data-testid="edit-instruction" class="form-textarea" v-model="instruction" rows="4" maxlength="2000" :placeholder="t('edit.instruction_placeholder')"></textarea>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('edit.instruction_hint') }}</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">{{ t('edit.seed_label') }}</label>
+            <input data-testid="edit-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
+          </div>
+
+          <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="width: 100%; justify-content: center; padding: 12px;" @click="generate" :disabled="!canGenerate">
+            <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
+              <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+              {{ t('edit.generating') }}
+            </span>
+            <span v-else>{{ t('edit.btn_generate') }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="generate-section">
+        <div class="generate-image-area">
+          <div v-if="generatingImage" style="text-align: center; padding: 24px;">
+            <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" style="max-width: 100%; border-radius: var(--radius-sm); opacity: 0.6; image-rendering: pixelated;" />
+            <span v-else class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></span>
+            <p style="margin-top: 12px; color: var(--text-dim);">{{ t('edit.generating') }}</p>
+            <div v-if="sdProgress && sdProgress.progress > 0" style="margin-top: 12px; max-width: 300px; margin-left: auto; margin-right: auto;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="color: var(--text-dim); font-size: 12px;">{{ Math.round(sdProgress.progress * 100) }}%</span>
+                <span style="color: var(--text-dim); font-size: 12px;">{{ t('progress.sd_step', { current: Math.round(sdProgress.progress * sdProgress.steps), total: sdProgress.steps }) }}
+                  <span v-if="sdProgress.etaRelative > 0"> — ~{{ Math.ceil(sdProgress.etaRelative) }}s</span>
+                </span>
+              </div>
+              <div style="background: var(--surface-2); border-radius: 4px; overflow: hidden; height: 6px;">
+                <div :style="{ width: (sdProgress.progress * 100) + '%', background: 'var(--accent)', height: '100%', transition: 'width 0.3s' }"></div>
+              </div>
+              <button class="btn btn-sm btn-secondary" @click="interruptGeneration" style="margin-top: 8px; font-size: 11px;">{{ t('progress.btn_interrupt') }}</button>
+            </div>
+          </div>
+          <div v-else-if="generatedImage" style="width: 100%; padding: 12px;">
+            <div v-if="resetFailed" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
+              {{ t('edit.reset_failed') }}
+            </div>
+            <img :src="imageSrc" alt="Edited" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="showViewer = true" />
+            <div style="display: flex; gap: 8px; margin-top: 12px; justify-content: center; flex-wrap: wrap;">
+              <button class="btn btn-secondary btn-sm" @click="downloadImage">{{ t('edit.btn_download') }}</button>
+              <button class="btn btn-secondary btn-sm" @click="useResult">{{ t('edit.btn_use_result') }}</button>
+              <button class="btn btn-secondary btn-sm" @click="generate">{{ t('edit.btn_regenerate') }}</button>
+            </div>
+          </div>
+          <div v-else class="generate-placeholder">
+            <div class="generate-placeholder-icon">&#9744;</div>
+            <p>{{ t('fi.placeholder_image') }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ImageViewer v-if="showViewer" :image-base64="generatedImage" @close="showViewer = false" />
+  </div>
+</template>
+
+<style scoped>
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.drop-zone:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.drop-zone-active {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.fi-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.source-container {
+  display: flex;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+}
+.source-img {
+  max-height: 400px;
+  max-width: 100%;
+  display: block;
+  border-radius: var(--radius-sm);
+}
+.model-note {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  display: inline-block;
+}
+</style>

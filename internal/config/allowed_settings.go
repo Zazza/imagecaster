@@ -24,7 +24,7 @@ var AllowedSettings = map[string]bool{
 	"gen_extra_prompt": true, "gen_extra_negative": true,
 	"gen_description": true, "gen_type_id": true,
 	"gen_mode": true, "gen_compound_preset_id": true,
-	"gen_custom_steps": true,
+	"gen_custom_steps":  true,
 	"gen_resolution_id": true, "gen_hires_profile_id": true,
 	"batch_preset_id": true, "batch_compound_preset_id": true, "batch_mode": true,
 	"batch_prompt": true, "batch_negative": true, "batch_count": true, "batch_output_folder": true,
@@ -37,5 +37,6 @@ var AllowedSettings = map[string]bool{
 	"fi_gen_mode": true, "fi_denoising": true, "fi_extra_negative": true, "fi_analyze_mode": true,
 	"fi_quality_mode": true, "fi_hires_profile_id": true,
 	"fi_mask_padding": true, "fi_mask_feather": true,
-	"theme": true, "file_browser_path": true,
+	"edit_instruction": true,
+	"theme":            true, "file_browser_path": true,
 }

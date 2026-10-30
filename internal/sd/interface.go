@@ -15,7 +15,9 @@ type Service interface {
 	HealthCheck() error
 	SetURL(baseURL string)
 	SetModel(modelName string) error
+	SetModelWithModules(modelName string, modules []string) error
 	SetVAE(vaeName string) error
+	SetOption(key, value string) error
 	UpscaleImage(base64Img string, upscaler string, scale float64) (string, error)
 	MemoryInfo() (*MemoryStats, error)
 }

@@ -111,7 +111,11 @@ func (m *guardSD) Interrupt() error                            { return nil }
 func (m *guardSD) HealthCheck() error                          { return nil }
 func (m *guardSD) SetURL(baseURL string)                       {}
 func (m *guardSD) SetModel(modelName string) error             { return nil }
+func (m *guardSD) SetModelWithModules(modelName string, modules []string) error {
+	return nil
+}
 func (m *guardSD) SetVAE(vaeName string) error                 { return nil }
+func (m *guardSD) SetOption(key, value string) error           { return nil }
 
 func (m *guardSD) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
 	return "", fmt.Errorf("not implemented")

@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
-import { Sparkles, Sliders, Settings, RotateCcw, Download, FolderOpen, Sun, Moon, ImagePlus, Columns } from 'lucide-vue-next'
+import { Sparkles, Sliders, Settings, RotateCcw, Download, FolderOpen, Sun, Moon, ImagePlus, Columns, Wand2 } from 'lucide-vue-next'
 import { api } from './api.js'
 import { t, setLocale, locale } from './i18n/index.js'
 import UnifiedPresetsPage from './components/UnifiedPresetsPage.vue'
 import UnifiedGeneratePage from './components/UnifiedGeneratePage.vue'
 import GenerateFromImagePage from './components/GenerateFromImagePage.vue'
+import EditPage from './components/EditPage.vue'
 import ComparePage from './components/ComparePage.vue'
 import ExportPage from './components/ExportPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
@@ -151,6 +152,9 @@ onUnmounted(() => {
           <a class="sidebar-link" :class="{ active: page === 'remix' }" @click="page = 'remix'">
             <ImagePlus :size="16" class="icon" /> {{ t('app.nav_remix') }}
           </a>
+          <a class="sidebar-link" :class="{ active: page === 'edit' }" @click="page = 'edit'">
+            <Wand2 :size="16" class="icon" /> {{ t('app.nav_edit') }}
+          </a>
           <a class="sidebar-link" :class="{ active: page === 'compare' }" @click="page = 'compare'">
             <Columns :size="16" class="icon" /> {{ t('app.nav_compare') }}
           </a>
@@ -192,6 +196,7 @@ onUnmounted(() => {
       <template v-if="page !== 'settings'">
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey + '-' + generateKey" :initial-tab="generateTab" :resetting="isResetting" />
         <GenerateFromImagePage v-else-if="page === 'remix'" />
+        <EditPage v-else-if="page === 'edit'" />
         <ExportPage v-else-if="page === 'export'" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />
         <component v-else-if="page !== 'compare'" :is="currentPage" />

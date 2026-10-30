@@ -130,6 +130,10 @@ export function DownloadServerModel(arg1, arg2, arg3) {
   return window['go']['main']['App']['DownloadServerModel'](arg1, arg2, arg3);
 }
 
+export function EditImage(arg1) {
+  return window['go']['main']['App']['EditImage'](arg1);
+}
+
 export function EnqueueCompareItem(arg1, arg2) {
   return window['go']['main']['App']['EnqueueCompareItem'](arg1, arg2);
 }

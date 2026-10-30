@@ -114,16 +114,17 @@ type GenerateImageParams struct {
 }
 
 type GenerateImageResult struct {
-	Image                   string          `json:"image"`
-	Parameters              json.RawMessage `json:"parameters"`
-	Info                    json.RawMessage `json:"info"`
-	IsPreview               bool            `json:"is_preview"`
-	HiresFixSkipped         bool            `json:"hires_fix_skipped"`
-	HiresFixManual          bool            `json:"hires_fix_manual"`
-	QualityUpscaleSkipped   bool            `json:"quality_upscale_skipped,omitempty"`
-	QualityRedenoiseSkipped bool            `json:"quality_redenoise_skipped,omitempty"`
-	EffectivePrompt         string          `json:"effective_prompt"`
-	EffectiveNegativePrompt string          `json:"effective_negative_prompt"`
+	Image                    string          `json:"image"`
+	Parameters               json.RawMessage `json:"parameters"`
+	Info                     json.RawMessage `json:"info"`
+	IsPreview                bool            `json:"is_preview"`
+	HiresFixSkipped          bool            `json:"hires_fix_skipped"`
+	HiresFixManual           bool            `json:"hires_fix_manual"`
+	QualityUpscaleSkipped    bool            `json:"quality_upscale_skipped,omitempty"`
+	QualityRedenoiseSkipped  bool            `json:"quality_redenoise_skipped,omitempty"`
+	EffectivePrompt          string          `json:"effective_prompt"`
+	EffectiveNegativePrompt  string          `json:"effective_negative_prompt"`
+	EditReferenceResetFailed bool            `json:"edit_reference_reset_failed,omitempty"`
 }
 
 type UpscaleImageParams struct {
@@ -214,19 +215,19 @@ func ValidateCustomSteps(steps []CustomStep) error {
 }
 
 type GenerateFromImageParams struct {
-	ImageBase64         string  `json:"image_base64"`
-	Mode                string  `json:"mode"`
-	GenMode             string  `json:"gen_mode"`
-	OutputMode          string  `json:"output_mode,omitempty"`
-	PresetID            int64   `json:"preset_id"`
-	CompoundPresetID    int64   `json:"compound_preset_id"`
-	DenoisingStrength   float64 `json:"denoising_strength"`
-	Tags                string  `json:"tags"`
-	ExtraNegativePrompt string  `json:"extra_negative_prompt"`
-	MaskBase64          string  `json:"mask_base64"`
-	MaskBlur            int     `json:"mask_blur"`
-	InpaintFill         int     `json:"inpaint_fill"`
-	InpaintFullRes      bool    `json:"inpaint_full_res"`
+	ImageBase64         string           `json:"image_base64"`
+	Mode                string           `json:"mode"`
+	GenMode             string           `json:"gen_mode"`
+	OutputMode          string           `json:"output_mode,omitempty"`
+	PresetID            int64            `json:"preset_id"`
+	CompoundPresetID    int64            `json:"compound_preset_id"`
+	DenoisingStrength   float64          `json:"denoising_strength"`
+	Tags                string           `json:"tags"`
+	ExtraNegativePrompt string           `json:"extra_negative_prompt"`
+	MaskBase64          string           `json:"mask_base64"`
+	MaskBlur            int              `json:"mask_blur"`
+	InpaintFill         int              `json:"inpaint_fill"`
+	InpaintFullRes      bool             `json:"inpaint_full_res"`
 	RemoveObject        bool             `json:"remove_object"`
 	ResolutionID        *int64           `json:"resolution_id,omitempty"`
 	HiresProfileID      *int64           `json:"hires_profile_id,omitempty"`
@@ -267,6 +268,7 @@ type Service struct {
 	sdPollingCancel context.CancelFunc
 	sdPollingDone   chan struct{}
 	sdInterrupted   bool
+	editMu          sync.Mutex
 }
 
 func New(
@@ -802,11 +804,18 @@ func (s *Service) resolveHires(hiresProfileID *int64) (enabled bool, upscale *fl
 	return true, &h.Upscale, &h.DenoisingStrength, upscaler
 }
 
-func (s *Service) prepareSDContext(p *preset.Preset, logPrefix string) {
+func (s *Service) setModel(modelName string, logPrefix string) error {
+	if err := s.sd.SetModelWithModules(modelName, forgeModulesForModel(modelName)); err != nil {
+		return fmt.Errorf("%s: set model %q: %w", logPrefix, modelName, err)
+	}
+	return nil
+}
+
+func (s *Service) prepareSDContext(p *preset.Preset, logPrefix string) error {
 	s.guard.EnsureHeadroom(p.ModelName, logPrefix)
 	if p.ModelName != "" {
-		if err := s.sd.SetModel(p.ModelName); err != nil {
-			s.log.Warn("%s: set model %q: %s", logPrefix, p.ModelName, err)
+		if err := s.setModel(p.ModelName, logPrefix); err != nil {
+			return err
 		}
 	}
 	if p.VAE != "" {
@@ -818,6 +827,7 @@ func (s *Service) prepareSDContext(p *preset.Preset, logPrefix string) {
 			s.log.Warn("%s: set vae automatic: %s", logPrefix, err)
 		}
 	}
+	return nil
 }
 
 type hiresFallbackResult struct {
@@ -1010,7 +1020,9 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 	prompt := bp.Prompt
 	negativePrompt := bp.NegativePrompt
 
-	s.prepareSDContext(p, "generate")
+	if err := s.prepareSDContext(p, "generate"); err != nil {
+		return nil, err
+	}
 
 	samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
 
@@ -1198,14 +1210,20 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 			}
 			p = loaded
 			item.Name = p.Name
-			s.prepareSDContext(p, fmt.Sprintf("test preset #%d", idx+1))
+			if err := s.prepareSDContext(p, fmt.Sprintf("test preset #%d", idx+1)); err != nil {
+				item.Error = err.Error()
+				results = append(results, item)
+				continue
+			}
 		} else {
 			modelTitle := params.SelectedModels[idx]
 			s.guard.EnsureHeadroom(modelTitle, fmt.Sprintf("test model #%d", idx+1))
-			if err := s.sd.SetModel(modelTitle); err != nil {
-				s.log.Warn("set model %q: %s", modelTitle, err)
-			}
 			item.Name = modelTitle
+			if err := s.setModel(modelTitle, fmt.Sprintf("test model #%d", idx+1)); err != nil {
+				item.Error = err.Error()
+				results = append(results, item)
+				continue
+			}
 		}
 
 		if p.Sampler == "" {
@@ -1506,7 +1524,9 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 		if p.ClipSkip != nil {
 			clipSkip = *p.ClipSkip
 		}
-		s.prepareSDContext(p, "upscale")
+		if err := s.prepareSDContext(p, "upscale"); err != nil {
+			return nil, err
+		}
 	}
 
 	denoisingStrength := 0.4
@@ -1581,7 +1601,9 @@ func (s *Service) UpscalePreview(params UpscalePreviewParams) (*GenerateImageRes
 
 	negativePrompt = s.kids.ApplyNegative(negativePrompt)
 
-	s.prepareSDContext(p, "upscale-preview")
+	if err := s.prepareSDContext(p, "upscale-preview"); err != nil {
+		return nil, err
+	}
 
 	samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
 

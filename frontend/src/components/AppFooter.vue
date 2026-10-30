@@ -67,6 +67,7 @@ const sourceLabels = {
   'upscale-preview': 'UpscaleP',
   'remove': 'Remove',
   'file-browser': 'Browser',
+  'edit': 'Edit',
 }
 
 function chainSteps(item) {

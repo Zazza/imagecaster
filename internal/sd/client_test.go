@@ -897,6 +897,129 @@ func TestSetModel(t *testing.T) {
 	}
 }
 
+func TestSetModelWithModules_SendsBothKeys(t *testing.T) {
+	var requestCount int32
+	var receivedBody map[string]json.RawMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/sdapi/v1/options" {
+			t.Errorf("path = %s, want /sdapi/v1/options", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		atomic.AddInt32(&requestCount, 1)
+		json.NewDecoder(r.Body).Decode(&receivedBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	c := New(server.URL)
+	c.httpClient = server.Client()
+
+	err := c.SetModelWithModules("moss_image_sft_bf16", []string{
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors",
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors",
+	})
+	if err != nil {
+		t.Fatalf("SetModelWithModules returned unexpected error: %v", err)
+	}
+	if n := atomic.LoadInt32(&requestCount); n != 1 {
+		t.Fatalf("request count = %d, want exactly 1 (both keys in a single atomic POST)", n)
+	}
+	modelRaw, ok := receivedBody["sd_model_checkpoint"]
+	if !ok {
+		t.Fatalf("sd_model_checkpoint key missing from request body")
+	}
+	var modelName string
+	if err := json.Unmarshal(modelRaw, &modelName); err != nil {
+		t.Fatalf("sd_model_checkpoint is not a JSON string: %v", err)
+	}
+	if modelName != "moss_image_sft_bf16" {
+		t.Errorf("sd_model_checkpoint = %q, want %q", modelName, "moss_image_sft_bf16")
+	}
+	modulesRaw, ok := receivedBody["forge_additional_modules"]
+	if !ok {
+		t.Fatalf("forge_additional_modules key missing from request body")
+	}
+	var modules []string
+	if err := json.Unmarshal(modulesRaw, &modules); err != nil {
+		t.Fatalf("forge_additional_modules is not a JSON array: %v", err)
+	}
+	wantModules := []string{
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors",
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors",
+	}
+	if len(modules) != len(wantModules) {
+		t.Fatalf("forge_additional_modules len = %d, want %d (%v)", len(modules), len(wantModules), modules)
+	}
+	for i := range wantModules {
+		if modules[i] != wantModules[i] {
+			t.Errorf("forge_additional_modules[%d] = %q, want %q", i, modules[i], wantModules[i])
+		}
+	}
+}
+
+func TestSetModelWithModules_NilModulesSendsEmptyArray(t *testing.T) {
+	var receivedBody map[string]json.RawMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/sdapi/v1/options" {
+			t.Errorf("path = %s, want /sdapi/v1/options", r.URL.Path)
+		}
+		json.NewDecoder(r.Body).Decode(&receivedBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	c := New(server.URL)
+	c.httpClient = server.Client()
+
+	err := c.SetModelWithModules("z-image-turbo", nil)
+	if err != nil {
+		t.Fatalf("SetModelWithModules returned unexpected error: %v", err)
+	}
+	modulesRaw, ok := receivedBody["forge_additional_modules"]
+	if !ok {
+		t.Fatalf("forge_additional_modules key missing from request body")
+	}
+	if got := strings.TrimSpace(string(modulesRaw)); got != "[]" {
+		t.Errorf("forge_additional_modules = %s, want [] (JSON null breaks Forge)", got)
+	}
+}
+
+func TestSetModelWithModules_NonOKStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{name: "bad_request_400", status: http.StatusBadRequest},
+		{name: "server_error_500", status: http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+			}))
+			defer server.Close()
+
+			c := New(server.URL)
+			c.httpClient = server.Client()
+
+			err := c.SetModelWithModules("moss_image_sft_bf16", nil)
+			if err == nil {
+				t.Fatalf("SetModelWithModules with status %d returned nil error, want error (fail-closed)", tt.status)
+			}
+			if !strings.Contains(err.Error(), "set model") {
+				t.Errorf("error = %q, want it to contain %q", err.Error(), "set model")
+			}
+		})
+	}
+}
+
 func TestSetVAE(t *testing.T) {
 	var receivedBody map[string]string
 

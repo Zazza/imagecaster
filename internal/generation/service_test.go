@@ -1,6 +1,7 @@
 package generation
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -8,7 +9,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,23 +97,24 @@ func (m *mockLLM) AnalyzeImageDescribe(model, prompt, imageBase64 string, maxTok
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *mockLLM) GetModels() ([]llm.LLMModel, error)    { return nil, nil }
-func (m *mockLLM) HealthCheck() error                      { return nil }
-func (m *mockLLM) SetURL(baseURL string)                   {}
-func (m *mockLLM) SetBackend(backend string)                {}
-func (m *mockLLM) SetBackendConfig(cfg llm.BackendConfig)   {}
-func (m *mockLLM) Backend() string                          { return "" }
-func (m *mockLLM) ListLoaded() ([]llm.LoadedModel, error)   { return nil, nil }
-func (m *mockLLM) UnloadAll(ctx context.Context) error      { return nil }
+func (m *mockLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
+func (m *mockLLM) HealthCheck() error                     { return nil }
+func (m *mockLLM) SetURL(baseURL string)                  {}
+func (m *mockLLM) SetBackend(backend string)              {}
+func (m *mockLLM) SetBackendConfig(cfg llm.BackendConfig) {}
+func (m *mockLLM) Backend() string                        { return "" }
+func (m *mockLLM) ListLoaded() ([]llm.LoadedModel, error) { return nil, nil }
+func (m *mockLLM) UnloadAll(ctx context.Context) error    { return nil }
 
 type mockSD struct {
-	mu       sync.Mutex
-	txt2img  func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error)
-	img2img  func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error)
-	upscale  func(base64Img string, upscaler string, scale float64) (string, error)
-	setModel func(modelName string) error
-	setVAE   func(vaeName string) error
-	progress func() (*sd.ProgressResponse, error)
+	mu              sync.Mutex
+	txt2img         func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error)
+	img2img         func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error)
+	upscale         func(base64Img string, upscaler string, scale float64) (string, error)
+	setModel        func(modelName string) error
+	setModelModules func(modelName string, modules []string) error
+	setVAE          func(vaeName string) error
+	progress        func() (*sd.ProgressResponse, error)
 }
 
 func (m *mockSD) Txt2Img(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
@@ -136,12 +137,12 @@ func (m *mockSD) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *mockSD) GetModels() ([]sd.SDModel, error)          { return nil, nil }
-func (m *mockSD) GetSamplers() ([]sd.Sampler, error)        { return nil, nil }
-func (m *mockSD) GetSchedulers() ([]sd.Scheduler, error)    { return nil, nil }
-func (m *mockSD) GetUpscalers() ([]sd.Upscaler, error)      { return nil, nil }
-func (m *mockSD) GetVAEs() ([]sd.VAE, error)                { return nil, nil }
-func (m *mockSD) GetLoRAs() ([]sd.LoRA, error)              { return nil, nil }
+func (m *mockSD) GetModels() ([]sd.SDModel, error)            { return nil, nil }
+func (m *mockSD) GetSamplers() ([]sd.Sampler, error)          { return nil, nil }
+func (m *mockSD) GetSchedulers() ([]sd.Scheduler, error)      { return nil, nil }
+func (m *mockSD) GetUpscalers() ([]sd.Upscaler, error)        { return nil, nil }
+func (m *mockSD) GetVAEs() ([]sd.VAE, error)                  { return nil, nil }
+func (m *mockSD) GetLoRAs() ([]sd.LoRA, error)                { return nil, nil }
 func (m *mockSD) GetOptions() (map[string]interface{}, error) { return nil, nil }
 
 func (m *mockSD) GetProgress() (*sd.ProgressResponse, error) {
@@ -154,8 +155,8 @@ func (m *mockSD) GetProgress() (*sd.ProgressResponse, error) {
 	return &sd.ProgressResponse{}, nil
 }
 
-func (m *mockSD) Interrupt() error { return nil }
-func (m *mockSD) HealthCheck() error { return nil }
+func (m *mockSD) Interrupt() error      { return nil }
+func (m *mockSD) HealthCheck() error    { return nil }
 func (m *mockSD) SetURL(baseURL string) {}
 
 func (m *mockSD) SetModel(modelName string) error {
@@ -164,6 +165,16 @@ func (m *mockSD) SetModel(modelName string) error {
 	m.mu.Unlock()
 	if fn != nil {
 		return fn(modelName)
+	}
+	return nil
+}
+
+func (m *mockSD) SetModelWithModules(modelName string, modules []string) error {
+	m.mu.Lock()
+	fn := m.setModelModules
+	m.mu.Unlock()
+	if fn != nil {
+		return fn(modelName, modules)
 	}
 	return nil
 }
@@ -188,6 +199,7 @@ func (m *mockSD) UpscaleImage(base64Img string, upscaler string, scale float64) 
 	return "", fmt.Errorf("not implemented")
 }
 func (m *mockSD) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
+func (m *mockSD) SetOption(key, value string) error    { return nil }
 
 type mockEmitter struct {
 	mu     sync.Mutex
@@ -225,8 +237,8 @@ func (m *mockSettings) ApplyLLMConfig(mode string) {
 }
 
 type mockSessions struct {
-	mu     sync.Mutex
-	items  []sessionItem
+	mu    sync.Mutex
+	items []sessionItem
 }
 
 type sessionItem struct {
@@ -858,7 +870,7 @@ func TestGenerateImage_SetsModelAndVAE(t *testing.T) {
 
 	var setModelCalled, setVAECalled bool
 	sdSvc := &mockSD{
-		setModel: func(modelName string) error {
+		setModelModules: func(modelName string, modules []string) error {
 			setModelCalled = true
 			assert.Equal(t, "sd-xl", modelName)
 			return nil
@@ -882,13 +894,113 @@ func TestGenerateImage_SetsModelAndVAE(t *testing.T) {
 	assert.True(t, setVAECalled)
 }
 
+func TestForgeModulesForModel(t *testing.T) {
+	t.Parallel()
+
+	mossModules := []string{
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors",
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors",
+	}
+
+	tests := []struct {
+		name  string
+		model string
+		want  []string
+	}{
+		{name: "moss_model_gets_modules", model: "moss_image_sft_bf16", want: mossModules},
+		{name: "moss_match_case_insensitive", model: "MOSS_Image_SFT_BF16.SAFETENSORS", want: mossModules},
+		{name: "z_image_aio_no_modules", model: "z-image-turbo-fp8-aio.safetensors", want: []string{}},
+		{name: "flux_no_modules", model: "flux1-dev-fp8", want: []string{}},
+		{name: "empty_model_no_modules", model: "", want: []string{}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := forgeModulesForModel(tc.model)
+			require.NotNil(t, got)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGenerateImage_SetModelFailsClosed(t *testing.T) {
+	t.Parallel()
+	db := openTestDB(t)
+	makeTestPreset(t, db, &preset.Preset{
+		Name:           "set-model-fail",
+		Prompt:         "1girl",
+		NegativePrompt: "lowres",
+		Sampler:        "Euler a",
+		Steps:          20,
+		CfgScale:       7.0,
+		ModelName:      "sd-xl",
+	})
+
+	txt2imgCalled := false
+	sdSvc := &mockSD{
+		setModelModules: func(modelName string, modules []string) error {
+			return fmt.Errorf("forge unavailable")
+		},
+		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
+			txt2imgCalled = true
+			return &sd.Txt2ImgResponse{Images: []string{"img"}}, nil
+		},
+	}
+
+	svc := newTestService(t, db, &mockLLM{}, sdSvc)
+	svc.ctx = context.Background()
+
+	_, err := svc.GenerateImage(GenerateImageParams{PresetID: 1})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "set model")
+	assert.False(t, txt2imgCalled, "generation must not reach txt2img when set model fails")
+}
+
+func TestGenerateImage_MossModelGetsForgeModules(t *testing.T) {
+	t.Parallel()
+	db := openTestDB(t)
+	makeTestPreset(t, db, &preset.Preset{
+		Name:           "moss-preset",
+		Prompt:         "1girl",
+		NegativePrompt: "lowres",
+		Sampler:        "Euler a",
+		Steps:          20,
+		CfgScale:       7.0,
+		ModelName:      "moss_image_sft_bf16",
+	})
+
+	var gotModules []string
+	sdSvc := &mockSD{
+		setModelModules: func(modelName string, modules []string) error {
+			assert.Equal(t, "moss_image_sft_bf16", modelName)
+			gotModules = modules
+			return nil
+		},
+		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
+			return &sd.Txt2ImgResponse{Images: []string{"img"}}, nil
+		},
+	}
+
+	svc := newTestService(t, db, &mockLLM{}, sdSvc)
+	svc.ctx = context.Background()
+
+	_, err := svc.GenerateImage(GenerateImageParams{PresetID: 1})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors",
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors",
+	}, gotModules)
+}
+
 func TestGenerateImage_VAEFallback(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		presetVAE    string
-		expectedVAE  string
+		name        string
+		presetVAE   string
+		expectedVAE string
 	}{
 		{
 			name:        "explicit_vae_passed_through",
@@ -1331,6 +1443,46 @@ func TestTestGenerate_Success(t *testing.T) {
 	assert.Equal(t, "model-v1", results[0].ModelName)
 }
 
+func TestTestGenerate_ModelsBranchSetModelError(t *testing.T) {
+	t.Parallel()
+	db := openTestDB(t)
+
+	sdSvc := &mockSD{
+		setModelModules: func(modelName string, modules []string) error {
+			if modelName == "moss_image_sft_bf16" {
+				return fmt.Errorf("forge modules unavailable")
+			}
+			return nil
+		},
+		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
+			return &sd.Txt2ImgResponse{
+				Images: []string{"z-image-result"},
+				Info:   json.RawMessage(`{"seed": 7, "sd_model_name": "z-image-turbo"}`),
+			}, nil
+		},
+	}
+
+	svc := newTestService(t, db, &mockLLM{}, sdSvc)
+	svc.ctx = context.Background()
+
+	results, err := svc.TestGenerate(TestGenerateParams{
+		Mode:           "models",
+		SelectedModels: []string{"moss_image_sft_bf16", "z-image-turbo"},
+		Prompt:         "1girl",
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	assert.Equal(t, "moss_image_sft_bf16", results[0].Name)
+	assert.Contains(t, results[0].Error, "set model")
+	assert.Empty(t, results[0].Image)
+
+	assert.Equal(t, "z-image-turbo", results[1].Name)
+	assert.Empty(t, results[1].Error)
+	assert.Equal(t, "z-image-result", results[1].Image)
+	assert.Equal(t, "z-image-turbo", results[1].ModelName)
+}
+
 func TestTestGenerate_PresetNotFound(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
@@ -1437,11 +1589,11 @@ func TestExtractEmbeddedNegative(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		prompt            string
-		negativePrompt    string
-		expectedPrompt    string
-		expectedNegative  string
+		name             string
+		prompt           string
+		negativePrompt   string
+		expectedPrompt   string
+		expectedNegative string
 	}{
 		{
 			"no embedded negative",
@@ -1509,13 +1661,13 @@ func TestGetPreviewDimensions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		previewMode    string
-		previewW       string
-		previewH       string
-		presetW        int
-		presetH        int
-		expectPreview  bool
+		name          string
+		previewMode   string
+		previewW      string
+		previewH      string
+		presetW       int
+		presetH       int
+		expectPreview bool
 	}{
 		{"preview off", "false", "", "", 512, 512, false},
 		{"preview on square", "true", "512", "512", 1024, 1024, true},
@@ -1678,9 +1830,9 @@ func TestGenerateFromImage_Validation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		params  GenerateFromImageParams
-		errMsg  string
+		name   string
+		params GenerateFromImageParams
+		errMsg string
 	}{
 		{"empty image", GenerateFromImageParams{ImageBase64: ""}, "image is required"},
 		{"invalid gen_mode", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "bad"}, "gen_mode must be preset or compound"},
@@ -2316,7 +2468,7 @@ func TestGenerateImage_OverrideModel_SetsModel(t *testing.T) {
 
 	var setModels []string
 	sdSvc := &mockSD{
-		setModel: func(modelName string) error {
+		setModelModules: func(modelName string, modules []string) error {
 			setModels = append(setModels, modelName)
 			return nil
 		},

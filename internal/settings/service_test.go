@@ -116,10 +116,12 @@ func (m *mockSDService) SetURL(baseURL string) {
 	m.setURLCalled = true
 	m.setURLVal = baseURL
 }
-func (m *mockSDService) SetModel(string) error { return nil }
-func (m *mockSDService) SetVAE(string) error   { return nil }
+func (m *mockSDService) SetModel(string) error                                { return nil }
+func (m *mockSDService) SetModelWithModules(string, []string) error           { return nil }
+func (m *mockSDService) SetVAE(string) error                                  { return nil }
+func (m *mockSDService) SetOption(key, value string) error                    { return nil }
 func (m *mockSDService) UpscaleImage(string, string, float64) (string, error) { return "", nil }
-func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
+func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error)                 { return nil, nil }
 
 func testService(t *testing.T, llmSvc *mockLLMService, sdSvc *mockSDService) (*Service, *preset.DB) {
 	t.Helper()
@@ -324,13 +326,13 @@ func TestUpdateSettings_AllowedSettings(t *testing.T) {
 	svc, _ := testService(t, llmSvc, sdSvc)
 
 	data := map[string]string{
-		"llm_url":        "http://new-llm:4000",
-		"sd_url":         "http://new-sd:9000",
-		"llm_model":      "new-model",
+		"llm_url":         "http://new-llm:4000",
+		"sd_url":          "http://new-sd:9000",
+		"llm_model":       "new-model",
 		"sd_prompt_model": "new-prompt-model",
-		"vision_model":   "new-vision",
-		"llm_backend":    "ollama",
-		"kids_mode":      "true",
+		"vision_model":    "new-vision",
+		"llm_backend":     "ollama",
+		"kids_mode":       "true",
 	}
 
 	err := svc.UpdateSettings(data)
@@ -394,8 +396,8 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 
 	data := map[string]string{
-		"llm_num_ctx":   "8192",
-		"llm_num_gpu":   "1",
+		"llm_num_ctx":    "8192",
+		"llm_num_gpu":    "1",
 		"llm_max_tokens": "512",
 		"preview_width":  "1024",
 		"preview_height": "768",
@@ -418,7 +420,7 @@ func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 
 	data := map[string]string{
-		"llm_num_ctx": "abc",
+		"llm_num_ctx":   "abc",
 		"preview_width": "-100",
 	}
 
@@ -436,8 +438,8 @@ func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 
 	data := map[string]string{
-		"llm_num_ctx":    "",
-		"preview_width":  "",
+		"llm_num_ctx":   "",
+		"preview_width": "",
 	}
 
 	err := svc.UpdateSettings(data)

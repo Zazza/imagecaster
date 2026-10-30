@@ -2,6 +2,14 @@
 
 All notable changes to SD Studio are documented here.
 
+## [Unreleased]
+
+### Changed
+- **Forge additional modules are now managed by the app (local Forge patch removed)**: switching the SD model sends a single atomic `POST /sdapi/v1/options` carrying both `sd_model_checkpoint` and `forge_additional_modules` (new `sd.Client.SetModelWithModules`), via a single `Service.setModel` helper used by every model switch (Generate, queue, From Image, pipelines, upscale, Test, MCP, Edit). Models matching "moss" get the fixed text-encoder + VAE module pair (constants in `internal/generation/edit.go`); everything else explicitly resets the list to empty — so the hand-patched `modules_forge/main_entry.py` on the Forge Neo backend is no longer needed and has been reverted to stock (verified on the live server: z-image → flux → moss → z-image swaps, the moss generation suite and the Edit flow all pass without the patch). A failed model/module switch now fails the generation instead of only logging a warning — the queue retries such jobs per its recovery policy instead of silently generating with the previous model.
+
+### Added
+- **Edit mode (instruction-based image editing)**: new `EditImage` binding sends the source image to img2img on the fixed `moss_image_sft_bf16` model with the Forge `moss_do_reference` option set to `Moss-Image-Edit` (enabled right before the request, always reset to `Disable` afterwards — if the reset fails the result carries `edit_reference_reset_failed: true`). The prompt is built as `<lora:Moss_Edit_LoRA:1.0>Change only {instruction}. Keep the person, face, pose, background and composition unchanged.`; sampler settings are fixed (Euler/Simple, 30 steps, CFG 4.0, denoise 1.0), the source dimensions are rounded to a multiple of 16 (floor 64) with proportional downscale when a side exceeds 2048, and the instruction goes through kids-mode input filtering (max 2000 chars). The result lands in the session history with an "Edit: …" label; the reference option is also reset in a background goroutine at app startup so a crashed run can't leave the backend in edit mode. The last instruction persists via the new `edit_instruction` setting. New "Edit" page in the sidebar (Create group): drop/paste/last-generated source, instruction textarea (persisted, max 2000 chars), optional seed, live SD progress with interrupt, download / regenerate / "edit the result" (output becomes the next source) actions and a warning banner when `edit_reference_reset_failed` is set; session items from edits are labeled "Edit" in the footer history.
+
 ## [0.9.8] — 2026-10-12
 
 ### Fixed

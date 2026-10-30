@@ -106,6 +106,7 @@ func (a *App) startup(ctx context.Context) {
 	a.log.InstallBridge()
 	a.gen.SetContext(ctx)
 	a.queueSvc.Start(ctx)
+	go a.gen.ResetMossReference()
 	a.restoreWindowLayout()
 }
 
@@ -297,6 +298,7 @@ type TestGenerateResultItem = generation.TestGenerateResultItem
 type UpscalePreviewParams = generation.UpscalePreviewParams
 type GenerateCompoundImageParams = generation.GenerateCompoundImageParams
 type GenerateFromImageParams = generation.GenerateFromImageParams
+type EditImageParams = generation.EditImageParams
 type TestCompoundGenerateParams = generation.TestCompoundGenerateParams
 type PresetOverrides = generation.PresetOverrides
 
@@ -354,6 +356,10 @@ func (a *App) GenerateCompoundImage(params GenerateCompoundImageParams) (*Genera
 
 func (a *App) GenerateFromImage(params GenerateFromImageParams) (*GenerateImageResult, error) {
 	return a.gen.GenerateFromImage(params)
+}
+
+func (a *App) EditImage(params EditImageParams) (*GenerateImageResult, error) {
+	return a.gen.EditImage(params)
 }
 
 func (a *App) TestCompoundGenerate(params TestCompoundGenerateParams) ([]TestGenerateResultItem, error) {
@@ -486,7 +492,6 @@ func (a *App) FastSaveImage(base64Data, filename, format string) (string, error)
 func (a *App) GetSDModels() ([]sd.SDModel, error) {
 	return a.sd.GetModels()
 }
-
 
 func (a *App) GetSDSamplers() ([]sd.Sampler, error) {
 	return a.sd.GetSamplers()

@@ -62,6 +62,7 @@ function clearImage() {
 }
 
 function handlePaste(e) {
+  if (!props.active) return
   const items = e.clipboardData?.items
   if (!items) return
   for (const item of items) {

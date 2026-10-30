@@ -75,6 +75,8 @@ export function DiscoverServers():Promise<Array<serverclient.DiscoveredServer>>;
 
 export function DownloadServerModel(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function EditImage(arg1:generation.EditImageParams):Promise<generation.GenerateImageResult>;
+
 export function EnqueueCompareItem(arg1:generation.TestGenerateParams,arg2:number):Promise<number>;
 
 export function EnqueueCompound(arg1:generation.GenerateCompoundImageParams):Promise<number>;

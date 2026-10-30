@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,12 @@ const (
 	generationTimeout   = 600 * time.Second
 	maxResponseBodySize = 50 * 1024 * 1024
 )
+
+var base64SnippetRe = regexp.MustCompile(`[A-Za-z0-9+/=]{120,}`)
+
+func redactBase64(s string) string {
+	return base64SnippetRe.ReplaceAllString(s, "<redacted>")
+}
 
 type Client struct {
 	baseURL    string
@@ -175,6 +182,30 @@ func (c *Client) SetModel(modelName string) error {
 	return nil
 }
 
+func (c *Client) SetModelWithModules(modelName string, modules []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	if modules == nil {
+		modules = []string{}
+	}
+	body, _ := json.Marshal(map[string]any{"sd_model_checkpoint": modelName, "forge_additional_modules": modules})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/sdapi/v1/options", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("set model: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("set model: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return fmt.Errorf("set model %q: status %d", modelName, resp.StatusCode)
+	}
+	return nil
+}
+
 func isRetryableError(err error, statusCode int) bool {
 	if statusCode == http.StatusServiceUnavailable || statusCode == http.StatusBadGateway || statusCode == http.StatusInternalServerError || statusCode == http.StatusGatewayTimeout {
 		return true
@@ -307,7 +338,7 @@ func (c *Client) doPostOnce(url string, body []byte) (*Txt2ImgResponse, error) {
 	if err != nil {
 		if resp != nil {
 			if respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize)); readErr == nil && len(respBody) > 0 {
-				return nil, fmt.Errorf("%w\nSD response: %s", err, string(respBody))
+				return nil, fmt.Errorf("%w\nSD response: %s", err, redactBase64(string(respBody)))
 			}
 		}
 		return nil, err
@@ -319,11 +350,11 @@ func (c *Client) doPostOnce(url string, body []byte) (*Txt2ImgResponse, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		reqSnippet := string(body)
+		reqSnippet := redactBase64(string(body))
 		if len(reqSnippet) > 512 {
 			reqSnippet = reqSnippet[:512] + fmt.Sprintf("... (%d bytes total)", len(body))
 		}
-		return nil, fmt.Errorf("API error %d: %s\nRequest: %s", resp.StatusCode, string(respBody), reqSnippet)
+		return nil, fmt.Errorf("API error %d: %s\nRequest: %s", resp.StatusCode, redactBase64(string(respBody)), reqSnippet)
 	}
 
 	var result Txt2ImgResponse
@@ -485,6 +516,27 @@ func (c *Client) SetVAE(vaeName string) error {
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, resp.Body)
 		return fmt.Errorf("set vae %q: status %d", vaeName, resp.StatusCode)
+	}
+	return nil
+}
+
+func (c *Client) SetOption(key, value string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	body, _ := json.Marshal(map[string]string{key: value})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/sdapi/v1/options", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("set option: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("set option: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return fmt.Errorf("set option %q: status %d", key, resp.StatusCode)
 	}
 	return nil
 }

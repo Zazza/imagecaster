@@ -483,7 +483,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		negativePrompt = s.buildPrompts("", promptResult.NegativePrompt, "", "", params.ExtraNegativePrompt).NegativePrompt
 	}
 
-	s.prepareSDContext(p, "from-image")
+	if err := s.prepareSDContext(p, "from-image"); err != nil {
+		return nil, err
+	}
 
 	samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
 
@@ -733,7 +735,9 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 		prompt := bp.Prompt
 		negativePrompt := bp.NegativePrompt
 
-		s.prepareSDContext(p, fmt.Sprintf("from-image compound step %d", stepIdx+1))
+		if err := s.prepareSDContext(p, fmt.Sprintf("from-image compound step %d", stepIdx+1)); err != nil {
+			return nil, err
+		}
 		samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
 		width, height := s.resolveStepResolution(step, p, params.ResolutionID)
 
@@ -881,7 +885,9 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		prompt := bp.Prompt
 		negativePrompt := bp.NegativePrompt
 
-		s.prepareSDContext(p, fmt.Sprintf("compound step %d", stepIdx+1))
+		if err := s.prepareSDContext(p, fmt.Sprintf("compound step %d", stepIdx+1)); err != nil {
+			return nil, err
+		}
 		samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
 		width, height := s.resolveStepResolution(step, p, params.ResolutionID)
 
@@ -1018,7 +1024,10 @@ func (s *Service) TestCompoundGenerate(params TestCompoundGenerateParams) ([]Tes
 			prompt := bp.Prompt
 			negPrompt := bp.NegativePrompt
 
-			s.prepareSDContext(p, fmt.Sprintf("test compound step %d", stepIdx+1))
+			if err := s.prepareSDContext(p, fmt.Sprintf("test compound step %d", stepIdx+1)); err != nil {
+				item.Error = err.Error()
+				break
+			}
 
 			samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
 
