@@ -114,7 +114,6 @@ type mockSD struct {
 	setModel        func(modelName string) error
 	setModelModules func(modelName string, modules []string) error
 	setVAE          func(vaeName string) error
-	setOption       func(key, value string) error
 	getUpscalers    func() ([]sd.Upscaler, error)
 	progress        func() (*sd.ProgressResponse, error)
 }
@@ -210,16 +209,6 @@ func (m *mockSD) UpscaleImage(base64Img string, upscaler string, scale float64) 
 	return "", fmt.Errorf("not implemented")
 }
 func (m *mockSD) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
-
-func (m *mockSD) SetOption(key, value string) error {
-	m.mu.Lock()
-	fn := m.setOption
-	m.mu.Unlock()
-	if fn != nil {
-		return fn(key, value)
-	}
-	return nil
-}
 
 type mockEmitter struct {
 	mu     sync.Mutex

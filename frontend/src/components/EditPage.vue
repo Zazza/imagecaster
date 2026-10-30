@@ -17,17 +17,29 @@ const loraRows = ref([])
 const serverLoras = ref([])
 const lorasLoaded = ref(false)
 const loraLoadError = ref(false)
+const allPresets = ref([])
+const stylesLoadError = ref(false)
+const stylePresetId = ref(0)
+const denoiseInput = ref(0.65)
 const qualityMode = ref(false)
 const selectedResolutionId = ref(null)
 const generatingImage = ref(false)
 const generatedImage = ref('')
-const resetFailed = ref(false)
 const qualityUpscaleSkipped = ref(false)
 const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
 const isDragOver = ref(false)
 const showViewer = ref(false)
 const { sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+
+const stylePresets = computed(() => {
+  const list = Array.isArray(allPresets.value) ? allPresets.value : []
+  return list.filter((p) => (p?.model_name || '').toLowerCase().includes('moss'))
+})
+
+const selectedStyle = computed(() => stylePresets.value.find((p) => p.id === stylePresetId.value) || null)
+
+const selectedStyleLoras = computed(() => parseLoras(selectedStyle.value?.loras || ''))
 
 const imageSrc = computed(() => {
   if (!generatedImage.value) return ''
@@ -165,7 +177,6 @@ function clearImage() {
   uploadedImage.value = ''
   uploadedImageMime.value = 'image/png'
   generatedImage.value = ''
-  resetFailed.value = false
   error.value = ''
 }
 
@@ -184,7 +195,6 @@ async function generate() {
   }
   generatingImage.value = true
   generatedImage.value = ''
-  resetFailed.value = false
   qualityUpscaleSkipped.value = false
   qualityRedenoiseSkipped.value = false
   error.value = ''
@@ -197,6 +207,9 @@ async function generate() {
       instruction: instr,
       seed: seedVal,
     }
+    if (stylePresetId.value) params.style_preset_id = stylePresetId.value
+    const dn = Number(denoiseInput.value)
+    if (Number.isFinite(dn) && dn > 0) params.denoising_strength = dn
     const loras = editLorasPayload()
     if (loras.length) params.loras = loras
     if (qualityMode.value && selectedResolutionId.value) {
@@ -207,7 +220,6 @@ async function generate() {
     if (reqId !== genReqId) return
     if (result?.image) {
       generatedImage.value = result.image
-      resetFailed.value = !!result.edit_reference_reset_failed
       qualityUpscaleSkipped.value = !!result.quality_upscale_skipped
       qualityRedenoiseSkipped.value = !!result.quality_redenoise_skipped
     }
@@ -243,7 +255,6 @@ function useResult() {
   if (!generatedImage.value) return
   setSource(generatedImage.value, 'image/png')
   generatedImage.value = ''
-  resetFailed.value = false
 }
 
 function onKeydown(e) {
@@ -258,17 +269,24 @@ let settingsRestored = false
 onMounted(() => {
   document.addEventListener('paste', handlePaste)
   document.addEventListener('keydown', onKeydown)
+  const presetsReq = api.listPresets().then(list => {
+    allPresets.value = list || []
+  }).catch(() => {
+    stylesLoadError.value = true
+  })
   api.getSettings().then(async s => {
     if (s?.edit_instruction) instruction.value = s.edit_instruction
     if (s?.edit_loras) loraRows.value = parseLoras(s.edit_loras)
     if (s?.edit_quality_mode) qualityMode.value = s.edit_quality_mode === 'true'
-    if (s?.edit_resolution_id) {
-      const rid = Number(s.edit_resolution_id)
-      if (Number.isFinite(rid) && rid > 0) {
-        try {
-          const list = await api.listResolutions()
-          if ((list || []).find(r => r.id === rid)) selectedResolutionId.value = rid
-        } catch {}
+    if (s?.edit_denoise) {
+      const dn = Number(s.edit_denoise)
+      if (Number.isFinite(dn)) denoiseInput.value = Math.min(Math.max(dn, 0.3), 1)
+    }
+    if (s?.edit_style_preset_id) {
+      const spid = Number(s.edit_style_preset_id)
+      if (Number.isFinite(spid) && spid > 0) {
+        await presetsReq.catch(() => {})
+        if (stylePresets.value.find(p => p.id === spid)) stylePresetId.value = spid
       }
     }
     settingsRestored = true
@@ -284,6 +302,8 @@ onUnmounted(() => {
     edit_loras: JSON.stringify(editLorasPayload()),
     edit_quality_mode: qualityMode.value ? 'true' : 'false',
     edit_resolution_id: selectedResolutionId.value ? String(selectedResolutionId.value) : '',
+    edit_style_preset_id: stylePresetId.value ? String(stylePresetId.value) : '',
+    edit_denoise: String(denoiseInput.value),
   }).catch(() => {})
 })
 </script>
@@ -339,6 +359,27 @@ onUnmounted(() => {
           <div class="form-group">
             <label class="form-label">{{ t('edit.seed_label') }}</label>
             <input data-testid="edit-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-style-select">{{ t('edit.style_label') }}</label>
+            <select id="edit-style-select" data-testid="edit-style-select" class="form-select" v-model="stylePresetId">
+              <option :value="0">{{ t('edit.style_none') }}</option>
+              <option v-for="p in stylePresets" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+            <div v-if="stylesLoadError" style="font-size: 11px; color: var(--status-warn, #e6a23c); margin-top: 4px;">{{ t('overrides.load_error') }}</div>
+            <div v-if="selectedStyle" style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+              {{ t('edit.style_hint') }}
+              <span v-if="selectedStyleLoras.length" style="display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+                <span v-for="l in selectedStyleLoras" :key="l.name + '@' + l.weight" class="style-lora-badge">{{ l.name }}@{{ l.weight }}</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-denoise-range">{{ t('edit.denoise_label') }}: <span data-testid="edit-denoise-value">{{ Number(denoiseInput).toFixed(2) }}</span></label>
+            <input id="edit-denoise-range" data-testid="edit-denoise-range" type="range" v-model.number="denoiseInput" min="0.3" max="1" step="0.05" style="width: 100%; accent-color: var(--accent);" />
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('edit.denoise_hint') }}</div>
           </div>
 
           <details class="edit-loras" @toggle="onLorasToggle">
@@ -400,9 +441,6 @@ onUnmounted(() => {
             </div>
           </div>
           <div v-else-if="generatedImage" style="width: 100%; padding: 12px;">
-            <div v-if="resetFailed" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
-              {{ t('edit.reset_failed') }}
-            </div>
             <div v-if="qualityUpscaleSkipped" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
               {{ t('fi.quality_upscale_skipped') }}
             </div>
@@ -519,6 +557,14 @@ onUnmounted(() => {
 }
 .lora-hint {
   font-size: 11px;
+  color: var(--text-dim);
+}
+.style-lora-badge {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  font-size: 10px;
   color: var(--text-dim);
 }
 </style>

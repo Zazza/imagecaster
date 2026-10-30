@@ -47,8 +47,7 @@ func (m *mockSDService) SetModel(modelName string) error             { return ni
 func (m *mockSDService) SetModelWithModules(modelName string, modules []string) error {
 	return nil
 }
-func (m *mockSDService) SetVAE(vaeName string) error                 { return nil }
-func (m *mockSDService) SetOption(key, value string) error           { return nil }
+func (m *mockSDService) SetVAE(vaeName string) error { return nil }
 func (m *mockSDService) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
 	return "", nil
 }

@@ -39,5 +39,6 @@ var AllowedSettings = map[string]bool{
 	"fi_mask_padding": true, "fi_mask_feather": true,
 	"edit_instruction": true, "edit_loras": true,
 	"edit_quality_mode": true, "edit_resolution_id": true,
+	"edit_style_preset_id": true, "edit_denoise": true,
 	"theme":            true, "file_browser_path": true,
 }

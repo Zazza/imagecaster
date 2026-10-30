@@ -62,9 +62,11 @@ export namespace generation {
 	export class EditImageParams {
 	    image_base64: string;
 	    instruction: string;
+	    style_preset_id?: number;
 	    loras?: preset.LoRAEntry[];
 	    output_mode?: string;
 	    resolution_id?: number;
+	    denoising_strength?: number;
 	    seed?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -75,9 +77,11 @@ export namespace generation {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.image_base64 = source["image_base64"];
 	        this.instruction = source["instruction"];
+	        this.style_preset_id = source["style_preset_id"];
 	        this.loras = this.convertValues(source["loras"], preset.LoRAEntry);
 	        this.output_mode = source["output_mode"];
 	        this.resolution_id = source["resolution_id"];
+	        this.denoising_strength = source["denoising_strength"];
 	        this.seed = source["seed"];
 	    }
 	
@@ -284,7 +288,6 @@ export namespace generation {
 	    quality_redenoise_skipped?: boolean;
 	    effective_prompt: string;
 	    effective_negative_prompt: string;
-	    edit_reference_reset_failed?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateImageResult(source);
@@ -302,7 +305,6 @@ export namespace generation {
 	        this.quality_redenoise_skipped = source["quality_redenoise_skipped"];
 	        this.effective_prompt = source["effective_prompt"];
 	        this.effective_negative_prompt = source["effective_negative_prompt"];
-	        this.edit_reference_reset_failed = source["edit_reference_reset_failed"];
 	    }
 	}
 	export class GenerateSDPromptParams {

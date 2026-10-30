@@ -115,17 +115,16 @@ type GenerateImageParams struct {
 }
 
 type GenerateImageResult struct {
-	Image                    string          `json:"image"`
-	Parameters               json.RawMessage `json:"parameters"`
-	Info                     json.RawMessage `json:"info"`
-	IsPreview                bool            `json:"is_preview"`
-	HiresFixSkipped          bool            `json:"hires_fix_skipped"`
-	HiresFixManual           bool            `json:"hires_fix_manual"`
-	QualityUpscaleSkipped    bool            `json:"quality_upscale_skipped,omitempty"`
-	QualityRedenoiseSkipped  bool            `json:"quality_redenoise_skipped,omitempty"`
-	EffectivePrompt          string          `json:"effective_prompt"`
-	EffectiveNegativePrompt  string          `json:"effective_negative_prompt"`
-	EditReferenceResetFailed bool            `json:"edit_reference_reset_failed,omitempty"`
+	Image                   string          `json:"image"`
+	Parameters              json.RawMessage `json:"parameters"`
+	Info                    json.RawMessage `json:"info"`
+	IsPreview               bool            `json:"is_preview"`
+	HiresFixSkipped         bool            `json:"hires_fix_skipped"`
+	HiresFixManual          bool            `json:"hires_fix_manual"`
+	QualityUpscaleSkipped   bool            `json:"quality_upscale_skipped,omitempty"`
+	QualityRedenoiseSkipped bool            `json:"quality_redenoise_skipped,omitempty"`
+	EffectivePrompt         string          `json:"effective_prompt"`
+	EffectiveNegativePrompt string          `json:"effective_negative_prompt"`
 }
 
 type UpscaleImageParams struct {

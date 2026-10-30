@@ -17,14 +17,15 @@ import (
 
 const (
 	mossEditModel             = "moss_image_sft_bf16"
-	mossReferenceOption       = "moss_do_reference"
-	mossReferenceOn           = "Moss-Image-Edit"
-	mossReferenceOff          = "Disable"
 	mossEditSteps             = 30
 	mossEditCfgScale          = 4.0
 	mossEditSampler           = "Euler"
 	mossEditScheduler         = "Simple"
-	mossEditDenoise           = 1.0
+	mossEditDenoise           = 0.65
+	mossEditMinDenoise        = 0.05
+	mossEditMaxDenoise        = 1.0
+	mossEditMaxStyleSteps     = 50
+	mossEditMaxStyleCfg       = 10.0
 	mossEditAlign             = 16
 	mossEditMaxDim            = 2048
 	mossEditLabelMax          = 60
@@ -52,19 +53,32 @@ func forgeModulesForModel(model string) []string {
 }
 
 type EditImageParams struct {
-	ImageBase64  string             `json:"image_base64"`
-	Instruction  string             `json:"instruction"`
-	Loras        []preset.LoRAEntry `json:"loras,omitempty"`
-	OutputMode   string             `json:"output_mode,omitempty"`
-	ResolutionID *int64             `json:"resolution_id,omitempty"`
-	Seed         *int64             `json:"seed,omitempty"`
+	ImageBase64       string             `json:"image_base64"`
+	Instruction       string             `json:"instruction"`
+	StylePresetID     int64              `json:"style_preset_id,omitempty"`
+	Loras             []preset.LoRAEntry `json:"loras,omitempty"`
+	OutputMode        string             `json:"output_mode,omitempty"`
+	ResolutionID      *int64             `json:"resolution_id,omitempty"`
+	DenoisingStrength *float64           `json:"denoising_strength,omitempty"`
+	Seed              *int64             `json:"seed,omitempty"`
 }
 
-func buildEditPrompt(instruction string, loras []preset.LoRAEntry) string {
+type editStyle struct {
+	presetID int64
+	tags     string
+	loras    []preset.LoRAEntry
+	steps    int
+	cfg      float64
+}
+
+func buildEditPrompt(instruction string, styleTags string, loras []preset.LoRAEntry) string {
 	var b strings.Builder
 	b.WriteString(editLoRATag)
 	for _, l := range loras {
 		b.WriteString(fmt.Sprintf(" <lora:%s:%g>", l.Name, l.Weight))
+	}
+	if styleTags != "" {
+		b.WriteString(" " + styleTags + ". ")
 	}
 	b.WriteString("Change only " + instruction + editPromptSuffix)
 	return b.String()
@@ -102,6 +116,49 @@ func sanitizeEditLoras(loras []preset.LoRAEntry) ([]preset.LoRAEntry, error) {
 		out = append(out, preset.LoRAEntry{Name: name, Weight: w})
 	}
 	return out, nil
+}
+
+func sanitizeStyleTags(tags string) string {
+	tags = loraTagPrefixRe.ReplaceAllString(stripAngleTags(tags), "")
+	tags = strings.TrimSpace(strings.Trim(tags, ", \n\r\t"))
+	if len([]rune(tags)) > mossEditMaxInstructionLen {
+		tags = truncateRunes(tags, mossEditMaxInstructionLen)
+	}
+	return tags
+}
+
+func (s *Service) loadEditStyle(presetID int64) (*editStyle, error) {
+	if presetID <= 0 {
+		return nil, nil
+	}
+	p, err := s.db.Get(presetID)
+	if err != nil {
+		return nil, fmt.Errorf("style preset not found: %w", err)
+	}
+	if !config.ModelMatchesCSV(p.ModelName, "moss") {
+		return nil, fmt.Errorf("style preset %q must use a moss model, got %q", p.Name, p.ModelName)
+	}
+	st := &editStyle{
+		presetID: p.ID,
+		tags:     sanitizeStyleTags(p.Prompt),
+		steps:    mossEditSteps,
+		cfg:      mossEditCfgScale,
+	}
+	if p.Loras != "" {
+		var loras []preset.LoRAEntry
+		if err := json.Unmarshal([]byte(p.Loras), &loras); err != nil {
+			s.log.Warn("edit style %q: invalid loras json, ignoring: %s", p.Name, err)
+		} else {
+			st.loras = loras
+		}
+	}
+	if p.Steps > 0 && p.Steps <= mossEditMaxStyleSteps {
+		st.steps = p.Steps
+	}
+	if p.CfgScale > 0 && p.CfgScale <= mossEditMaxStyleCfg {
+		st.cfg = p.CfgScale
+	}
+	return st, nil
 }
 
 func stripAngleTags(s string) string {
@@ -176,9 +233,30 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if params.OutputMode == "quality" && (params.ResolutionID == nil || *params.ResolutionID <= 0) {
 		return nil, fmt.Errorf("quality output mode requires resolution")
 	}
-	loras, err := sanitizeEditLoras(params.Loras)
+	style, err := s.loadEditStyle(params.StylePresetID)
 	if err != nil {
 		return nil, err
+	}
+	combinedLoras := params.Loras
+	if style != nil {
+		if len(style.loras)+len(params.Loras) > mossEditMaxLoras {
+			return nil, fmt.Errorf("too many loras: style %d + own %d > max %d", len(style.loras), len(params.Loras), mossEditMaxLoras)
+		}
+		combinedLoras = append(append([]preset.LoRAEntry{}, style.loras...), params.Loras...)
+	}
+	loras, err := sanitizeEditLoras(combinedLoras)
+	if err != nil {
+		return nil, err
+	}
+	denoise := mossEditDenoise
+	if params.DenoisingStrength != nil && !math.IsNaN(*params.DenoisingStrength) && !math.IsInf(*params.DenoisingStrength, 0) {
+		denoise = math.Min(math.Max(*params.DenoisingStrength, mossEditMinDenoise), mossEditMaxDenoise)
+	}
+	steps := mossEditSteps
+	cfg := mossEditCfgScale
+	if style != nil {
+		steps = style.steps
+		cfg = style.cfg
 	}
 
 	s.editMu.Lock()
@@ -198,23 +276,6 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if err := s.sd.SetVAE("Automatic"); err != nil {
 		s.log.Warn("edit: reset vae: %s", err)
 	}
-	if err := s.sd.SetOption(mossReferenceOption, mossReferenceOn); err != nil {
-		if rerr := s.sd.SetOption(mossReferenceOption, mossReferenceOff); rerr != nil {
-			s.log.Warn("edit: disable moss reference after failed enable: %s", rerr)
-		}
-		return nil, fmt.Errorf("enable edit reference: %w", err)
-	}
-
-	var result *GenerateImageResult
-	defer func() {
-		derr := s.sd.SetOption(mossReferenceOption, mossReferenceOff)
-		if derr != nil {
-			s.log.Warn("edit: disable moss reference: %s", derr)
-		}
-		if result != nil {
-			result.EditReferenceResetFailed = derr != nil
-		}
-	}()
 
 	srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
 	if srcW <= 0 || srcH <= 0 {
@@ -222,10 +283,13 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 	width, height := alignEditSize(srcW, srcH)
 
-	prompt := buildEditPrompt(instruction, loras)
+	styleTags := ""
+	if style != nil {
+		styleTags = style.tags
+	}
+	prompt := buildEditPrompt(instruction, styleTags, loras)
 	batchSize := 1
 	batchCount := 1
-	denoise := mossEditDenoise
 
 	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
 		InitImages:        []string{params.ImageBase64},
@@ -233,8 +297,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		NegativePrompt:    s.kids.ApplyNegative(""),
 		SamplerName:       mossEditSampler,
 		Scheduler:         mossEditScheduler,
-		Steps:             mossEditSteps,
-		CfgScale:          mossEditCfgScale,
+		Steps:             steps,
+		CfgScale:          cfg,
 		Width:             width,
 		Height:            height,
 		Seed:              params.Seed,
@@ -261,41 +325,37 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	finalInfo := resp.Info
 	upscaleSkipped := false
 	redenoiseSkipped := false
-	refResetFailed := false
 	if params.OutputMode == "quality" {
-		if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
-			s.log.Warn("edit: disable moss reference before quality failed, skipping quality: %s", err)
-			refResetFailed = true
-			upscaleSkipped = true
-			redenoiseSkipped = true
-		} else {
-			qualityReq := sd.Txt2ImgRequest{
-				Prompt:         prompt,
-				NegativePrompt: s.kids.ApplyNegative(""),
-				SamplerName:    mossEditSampler,
-				Scheduler:      mossEditScheduler,
-				Steps:          mossEditSteps,
-				CfgScale:       mossEditCfgScale,
-				Width:          width,
-				Height:         height,
-				Seed:           params.Seed,
-			}
-			qImg, qInfo, qUpSkipped, qRdSkipped, qErr := s.editQualityPostProcess(finalImage, qualityReq, width, height, params.ResolutionID)
-			if qErr != nil {
-				return nil, qErr
-			}
-			finalImage = qImg
-			if qInfo != nil {
-				finalInfo = qInfo
-			}
-			upscaleSkipped = qUpSkipped
-			redenoiseSkipped = qRdSkipped
+		qualityReq := sd.Txt2ImgRequest{
+			Prompt:         prompt,
+			NegativePrompt: s.kids.ApplyNegative(""),
+			SamplerName:    mossEditSampler,
+			Scheduler:      mossEditScheduler,
+			Steps:          steps,
+			CfgScale:       cfg,
+			Width:          width,
+			Height:         height,
+			Seed:           params.Seed,
 		}
+		qImg, qInfo, qUpSkipped, qRdSkipped, qErr := s.editQualityPostProcess(finalImage, qualityReq, width, height, params.ResolutionID)
+		if qErr != nil {
+			return nil, qErr
+		}
+		finalImage = qImg
+		if qInfo != nil {
+			finalInfo = qInfo
+		}
+		upscaleSkipped = qUpSkipped
+		redenoiseSkipped = qRdSkipped
 	}
 
 	genMeta := &preset.GenerationMeta{
 		Label: "Edit: " + truncateRunes(instruction, mossEditLabelMax),
 		Model: mossEditModel,
+	}
+	if style != nil {
+		pid := style.presetID
+		genMeta.PresetID = &pid
 	}
 	if params.OutputMode == "quality" {
 		var lorasJSON string
@@ -312,15 +372,14 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		}, upscaleSkipped, redenoiseSkipped)
 	}
 
-	result = &GenerateImageResult{
-		Image:                    finalImage,
-		Parameters:               resp.Parameters,
-		Info:                     finalInfo,
-		IsPreview:                false,
-		EffectivePrompt:          prompt,
-		QualityUpscaleSkipped:    upscaleSkipped,
-		QualityRedenoiseSkipped:  redenoiseSkipped,
-		EditReferenceResetFailed: refResetFailed,
+	result := &GenerateImageResult{
+		Image:                   finalImage,
+		Parameters:              resp.Parameters,
+		Info:                    finalInfo,
+		IsPreview:               false,
+		EffectivePrompt:         prompt,
+		QualityUpscaleSkipped:   upscaleSkipped,
+		QualityRedenoiseSkipped: redenoiseSkipped,
 	}
 	s.sessions.AddToSession(finalImage, finalInfo, "edit", false, genMeta)
 	return result, nil
@@ -330,13 +389,4 @@ func (s *Service) editQualityPostProcess(base64Img string, req sd.Txt2ImgRequest
 	fitW, fitH := s.fitImageToResolution(srcW, srcH, resolutionID)
 	targetW, targetH := alignEditSize(fitW, fitH)
 	return s.qualityUpscaleRedenoise(base64Img, req, srcW, srcH, targetW, targetH, "edit quality")
-}
-
-func (s *Service) ResetMossReference() {
-	if err := s.sd.HealthCheck(); err != nil {
-		return
-	}
-	if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
-		s.log.Warn("reset moss reference: %s", err)
-	}
 }
