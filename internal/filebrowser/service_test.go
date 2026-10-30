@@ -217,7 +217,7 @@ func TestReadFileAsBase64_FileTooLarge(t *testing.T) {
 
 	f, err := os.Create(path)
 	require.NoError(t, err)
-	require.NoError(t, f.Truncate(16*1024*1024 + 1))
+	require.NoError(t, f.Truncate(16*1024*1024+1))
 	require.NoError(t, f.Close())
 
 	_, err = ReadFileAsBase64(path)
@@ -341,7 +341,7 @@ func TestReadThumbnail_FileTooLarge(t *testing.T) {
 
 	f, err := os.Create(path)
 	require.NoError(t, err)
-	require.NoError(t, f.Truncate(16*1024*1024 + 1))
+	require.NoError(t, f.Truncate(16*1024*1024+1))
 	require.NoError(t, f.Close())
 
 	_, err = ReadThumbnail(path)

@@ -7,9 +7,9 @@ import (
 )
 
 type Service struct {
-	store      *Store
-	worker     *Worker
-	emit       EventEmitter
+	store       *Store
+	worker      *Worker
+	emit        EventEmitter
 	interruptFn func()
 }
 
@@ -142,4 +142,3 @@ func (s *Service) ResumePausedJobs() (int, error) {
 func (s *Service) HasPausedJobs() (bool, error) {
 	return s.store.HasPausedJobs()
 }
-

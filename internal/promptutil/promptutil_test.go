@@ -166,11 +166,11 @@ func TestTruncateRepetitive_StopsRepetition(t *testing.T) {
 func TestSplitCompositeSampler_SplitsWhenComposite(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name            string
-		sampler         string
-		scheduleType    string
-		wantSampler     string
-		wantSchedule    string
+		name         string
+		sampler      string
+		scheduleType string
+		wantSampler  string
+		wantSchedule string
 	}{
 		{"sampler with Karras", "Euler a Karras", "", "Euler a", "Karras"},
 		{"sampler with Exponential", "DPM++ 2M Exponential", "", "DPM++ 2M", "Exponential"},

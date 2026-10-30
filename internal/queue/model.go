@@ -3,21 +3,21 @@ package queue
 type JobType string
 
 const (
-	JobTxt2Img      JobType = "txt2img"
-	JobFromImage    JobType = "from_image"
-	JobCompound     JobType = "compound"
-	JobCompareItem  JobType = "compare_item"
+	JobTxt2Img     JobType = "txt2img"
+	JobFromImage   JobType = "from_image"
+	JobCompound    JobType = "compound"
+	JobCompareItem JobType = "compare_item"
 )
 
 type JobStatus string
 
 const (
-	StatusPending    JobStatus = "pending"
-	StatusRunning    JobStatus = "running"
-	StatusCompleted  JobStatus = "completed"
-	StatusFailed     JobStatus = "failed"
-	StatusCancelled  JobStatus = "cancelled"
-	StatusPaused     JobStatus = "paused"
+	StatusPending   JobStatus = "pending"
+	StatusRunning   JobStatus = "running"
+	StatusCompleted JobStatus = "completed"
+	StatusFailed    JobStatus = "failed"
+	StatusCancelled JobStatus = "cancelled"
+	StatusPaused    JobStatus = "paused"
 )
 
 type Job struct {

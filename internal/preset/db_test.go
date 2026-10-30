@@ -15,9 +15,9 @@ func testDB(t *testing.T) *DB {
 	return db
 }
 
-func intPtr(v int64) *int64    { return &v }
+func intPtr(v int64) *int64       { return &v }
 func floatPtr(v float64) *float64 { return &v }
-func boolPtr(v bool) *bool     { return &v }
+func boolPtr(v bool) *bool        { return &v }
 
 func TestOpen_MemoryDB(t *testing.T) {
 	t.Parallel()
@@ -39,24 +39,24 @@ func TestPreset_CreateAndGet(t *testing.T) {
 	tid := int64(10)
 
 	p := &Preset{
-		Name:                   "test preset",
-		PresetType:             "portrait",
-		Prompt:                 "a beautiful landscape",
-		NegativePrompt:         "ugly, blurry",
-		Sampler:                "Euler a",
-		ScheduleType:           "Karras",
-		Steps:                  30,
-		CfgScale:               7.5,
-		ModelName:              "model_v1",
-		Seed:                   &seed,
-		DenoisingStrength:      &ds,
-		ClipSkip:               &cs,
-		BatchSize:              &bs,
-		BatchCount:             &bc,
-		VAE:                    "vae-ft-mse",
-		TypeID:                 &tid,
-		Tags:                   "landscape, nature",
-		Loras:                  "detail_enhancer:0.8",
+		Name:              "test preset",
+		PresetType:        "portrait",
+		Prompt:            "a beautiful landscape",
+		NegativePrompt:    "ugly, blurry",
+		Sampler:           "Euler a",
+		ScheduleType:      "Karras",
+		Steps:             30,
+		CfgScale:          7.5,
+		ModelName:         "model_v1",
+		Seed:              &seed,
+		DenoisingStrength: &ds,
+		ClipSkip:          &cs,
+		BatchSize:         &bs,
+		BatchCount:        &bc,
+		VAE:               "vae-ft-mse",
+		TypeID:            &tid,
+		Tags:              "landscape, nature",
+		Loras:             "detail_enhancer:0.8",
 	}
 
 	err := db.Create(p)

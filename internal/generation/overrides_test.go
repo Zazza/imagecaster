@@ -14,14 +14,14 @@ func strPtr(v string) *string { return &v }
 
 func overrideTestPreset() preset.Preset {
 	return preset.Preset{
-		Name:           "test-preset",
-		Sampler:        "Euler a",
-		ScheduleType:   "Karras",
-		Steps:          20,
-		CfgScale:       7.0,
-		ClipSkip:       intPtr(1),
-		ModelName:      "sd-xl",
-		Loras:          `[{"name":"test-lora","weight":0.8}]`,
+		Name:         "test-preset",
+		Sampler:      "Euler a",
+		ScheduleType: "Karras",
+		Steps:        20,
+		CfgScale:     7.0,
+		ClipSkip:     intPtr(1),
+		ModelName:    "sd-xl",
+		Loras:        `[{"name":"test-lora","weight":0.8}]`,
 	}
 }
 

@@ -13,7 +13,7 @@ func scanExportPreset(scanner interface{ Scan(...any) error }, ep *ExportPreset)
 }
 
 func (d *DB) ListExportPresets() ([]ExportPreset, error) {
-	rows, err := d.db.Query(`SELECT `+exportPresetColumns+` FROM export_presets ORDER BY created_at ASC`)
+	rows, err := d.db.Query(`SELECT ` + exportPresetColumns + ` FROM export_presets ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
 	}

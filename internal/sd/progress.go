@@ -17,7 +17,7 @@ type ProgressResponse struct {
 		JobCount int    `json:"job_count"`
 		JobNo    int    `json:"job_no"`
 		Sampling struct {
-			Steps       int     `json:"steps"`
+			Steps       int    `json:"steps"`
 			SamplerName string `json:"sampler_name"`
 		} `json:"sampling"`
 	} `json:"state"`

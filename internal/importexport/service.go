@@ -72,15 +72,15 @@ type ExportImageParams struct {
 }
 
 type CompoundExportFile struct {
-	Version    int                   `json:"version"`
-	ExportedAt time.Time             `json:"exported_at"`
-	Pipelines  []CompoundExportData  `json:"pipelines"`
+	Version    int                  `json:"version"`
+	ExportedAt time.Time            `json:"exported_at"`
+	Pipelines  []CompoundExportData `json:"pipelines"`
 }
 
 type CompoundExportData struct {
-	Name        string                    `json:"name"`
-	Description string                    `json:"description"`
-	Steps       []CompoundStepExportData  `json:"steps"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Steps       []CompoundStepExportData `json:"steps"`
 }
 
 type CompoundStepExportData struct {
@@ -140,24 +140,24 @@ func (s *Service) PrepareExportData(ids []int64) ([]PresetData, error) {
 			}
 		}
 		result[i] = PresetData{
-			Name:                   p.Name,
-			PresetType:             p.PresetType,
-			TypeName:               typeName,
-			Prompt:                 p.Prompt,
-			NegativePrompt:         p.NegativePrompt,
-			Sampler:                p.Sampler,
-			ScheduleType:           p.ScheduleType,
-			Steps:                  p.Steps,
-			CfgScale:               p.CfgScale,
-			ModelName:              p.ModelName,
-			Seed:                   p.Seed,
-			DenoisingStrength:      p.DenoisingStrength,
-			ClipSkip:               p.ClipSkip,
-			BatchSize:              p.BatchSize,
-			BatchCount:             p.BatchCount,
-			VAE:                    p.VAE,
-			Tags:                   p.Tags,
-			Loras:                  p.Loras,
+			Name:              p.Name,
+			PresetType:        p.PresetType,
+			TypeName:          typeName,
+			Prompt:            p.Prompt,
+			NegativePrompt:    p.NegativePrompt,
+			Sampler:           p.Sampler,
+			ScheduleType:      p.ScheduleType,
+			Steps:             p.Steps,
+			CfgScale:          p.CfgScale,
+			ModelName:         p.ModelName,
+			Seed:              p.Seed,
+			DenoisingStrength: p.DenoisingStrength,
+			ClipSkip:          p.ClipSkip,
+			BatchSize:         p.BatchSize,
+			BatchCount:        p.BatchCount,
+			VAE:               p.VAE,
+			Tags:              p.Tags,
+			Loras:             p.Loras,
 		}
 	}
 
@@ -313,23 +313,23 @@ func (s *Service) ImportItems(items []PresetData) ([]preset.Preset, error) {
 	for i, item := range items {
 		sampler, scheduleType := promptutil.SplitCompositeSampler(item.Sampler, item.ScheduleType)
 		p := preset.Preset{
-			Name:                   item.Name,
-			PresetType:             item.PresetType,
-			Prompt:                 item.Prompt,
-			NegativePrompt:         item.NegativePrompt,
-			Sampler:                sampler,
-			ScheduleType:           scheduleType,
-			Steps:                  item.Steps,
-			CfgScale:               item.CfgScale,
-			ModelName:              item.ModelName,
-			Seed:                   item.Seed,
-			DenoisingStrength:      item.DenoisingStrength,
-			ClipSkip:               item.ClipSkip,
-			BatchSize:              item.BatchSize,
-			BatchCount:             item.BatchCount,
-			VAE:                    item.VAE,
-			Tags:                   item.Tags,
-			Loras:                  item.Loras,
+			Name:              item.Name,
+			PresetType:        item.PresetType,
+			Prompt:            item.Prompt,
+			NegativePrompt:    item.NegativePrompt,
+			Sampler:           sampler,
+			ScheduleType:      scheduleType,
+			Steps:             item.Steps,
+			CfgScale:          item.CfgScale,
+			ModelName:         item.ModelName,
+			Seed:              item.Seed,
+			DenoisingStrength: item.DenoisingStrength,
+			ClipSkip:          item.ClipSkip,
+			BatchSize:         item.BatchSize,
+			BatchCount:        item.BatchCount,
+			VAE:               item.VAE,
+			Tags:              item.Tags,
+			Loras:             item.Loras,
 		}
 
 		typeName := item.TypeName
@@ -549,24 +549,24 @@ func (s *Service) PrepareCompoundExportData(ids []int64) ([]CompoundExportData, 
 					}
 				}
 				pd = PresetData{
-					Name:                   p.Name,
-					PresetType:             p.PresetType,
-					TypeName:               typeName,
-					Prompt:                 p.Prompt,
-					NegativePrompt:         p.NegativePrompt,
-					Sampler:                p.Sampler,
-					ScheduleType:           p.ScheduleType,
-					Steps:                  p.Steps,
-					CfgScale:               p.CfgScale,
-					ModelName:              p.ModelName,
-					Seed:                   p.Seed,
-					DenoisingStrength:      p.DenoisingStrength,
-					ClipSkip:               p.ClipSkip,
-					BatchSize:              p.BatchSize,
-					BatchCount:             p.BatchCount,
-					VAE:                    p.VAE,
-					Tags:                   p.Tags,
-					Loras:                  p.Loras,
+					Name:              p.Name,
+					PresetType:        p.PresetType,
+					TypeName:          typeName,
+					Prompt:            p.Prompt,
+					NegativePrompt:    p.NegativePrompt,
+					Sampler:           p.Sampler,
+					ScheduleType:      p.ScheduleType,
+					Steps:             p.Steps,
+					CfgScale:          p.CfgScale,
+					ModelName:         p.ModelName,
+					Seed:              p.Seed,
+					DenoisingStrength: p.DenoisingStrength,
+					ClipSkip:          p.ClipSkip,
+					BatchSize:         p.BatchSize,
+					BatchCount:        p.BatchCount,
+					VAE:               p.VAE,
+					Tags:              p.Tags,
+					Loras:             p.Loras,
 				}
 			}
 			var loras string
@@ -686,24 +686,24 @@ func (s *Service) ImportCompoundItems(items []CompoundExportData) ([]preset.Comp
 
 			sampler, scheduleType := promptutil.SplitCompositeSampler(pd.Sampler, pd.ScheduleType)
 			p := preset.Preset{
-				Name:                   pd.Name,
-				PresetType:             pd.PresetType,
-				Prompt:                 pd.Prompt,
-				NegativePrompt:         pd.NegativePrompt,
-				Sampler:                sampler,
-				ScheduleType:           scheduleType,
-				Steps:                  pd.Steps,
-				CfgScale:               pd.CfgScale,
-				ModelName:              pd.ModelName,
-				Seed:                   pd.Seed,
-				DenoisingStrength:      pd.DenoisingStrength,
-				ClipSkip:               pd.ClipSkip,
-				BatchSize:              pd.BatchSize,
-				BatchCount:             pd.BatchCount,
-				VAE:                    pd.VAE,
-				Tags:                   pd.Tags,
-				Loras:                  pd.Loras,
-				TypeID:                 typeID,
+				Name:              pd.Name,
+				PresetType:        pd.PresetType,
+				Prompt:            pd.Prompt,
+				NegativePrompt:    pd.NegativePrompt,
+				Sampler:           sampler,
+				ScheduleType:      scheduleType,
+				Steps:             pd.Steps,
+				CfgScale:          pd.CfgScale,
+				ModelName:         pd.ModelName,
+				Seed:              pd.Seed,
+				DenoisingStrength: pd.DenoisingStrength,
+				ClipSkip:          pd.ClipSkip,
+				BatchSize:         pd.BatchSize,
+				BatchCount:        pd.BatchCount,
+				VAE:               pd.VAE,
+				Tags:              pd.Tags,
+				Loras:             pd.Loras,
+				TypeID:            typeID,
 			}
 			existing, err := s.db.FindExactPreset(&p)
 			if err != nil {

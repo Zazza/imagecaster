@@ -18,7 +18,7 @@ func scanHiresProfile(scanner interface{ Scan(...any) error }, h *HiresProfile) 
 }
 
 func (d *DB) ListHiresProfiles() ([]HiresProfile, error) {
-	rows, err := d.db.Query(`SELECT `+hiresProfileColumns+` FROM hires_profiles ORDER BY created_at ASC`)
+	rows, err := d.db.Query(`SELECT ` + hiresProfileColumns + ` FROM hires_profiles ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
 	}

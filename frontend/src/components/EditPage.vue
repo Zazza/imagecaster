@@ -21,13 +21,12 @@ const loraLoadError = ref(false)
 const allPresets = ref([])
 const stylesLoadError = ref(false)
 const stylePresetId = ref(0)
-const denoiseInput = ref(0.65)
 const qualityMode = ref(false)
 const selectedResolutionId = ref(null)
 const generatingImage = ref(false)
 const generatedImage = ref('')
 const effectivePrompt = ref('')
-const lastInstruction = ref('')
+const resetFailed = ref(false)
 const qualityUpscaleSkipped = ref(false)
 const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
@@ -199,7 +198,7 @@ async function generate() {
   generatingImage.value = true
   generatedImage.value = ''
   effectivePrompt.value = ''
-  lastInstruction.value = instr
+  resetFailed.value = false
   qualityUpscaleSkipped.value = false
   qualityRedenoiseSkipped.value = false
   error.value = ''
@@ -213,8 +212,6 @@ async function generate() {
       seed: seedVal,
     }
     if (stylePresetId.value) params.style_preset_id = stylePresetId.value
-    const dn = Number(denoiseInput.value)
-    if (Number.isFinite(dn) && dn > 0) params.denoising_strength = dn
     const loras = editLorasPayload()
     if (loras.length) params.loras = loras
     if (qualityMode.value && selectedResolutionId.value) {
@@ -226,6 +223,7 @@ async function generate() {
     if (result?.image) {
       generatedImage.value = result.image
       effectivePrompt.value = result.effective_prompt || ''
+      resetFailed.value = !!result.edit_reference_reset_failed
       qualityUpscaleSkipped.value = !!result.quality_upscale_skipped
       qualityRedenoiseSkipped.value = !!result.quality_redenoise_skipped
     }
@@ -235,13 +233,6 @@ async function generate() {
     if (reqId === genReqId) generatingImage.value = false
   }
 }
-
-const translationFailed = computed(() => {
-  if (!effectivePrompt.value || !lastInstruction.value) return false
-  if (! /[^\x00-\x7F]/.test(lastInstruction.value)) return false
-  const probe = lastInstruction.value.trim().slice(0, 15)
-  return probe && effectivePrompt.value.includes(probe)
-})
 
 function copyEffectivePrompt() {
   if (effectivePrompt.value) navigator.clipboard.writeText(effectivePrompt.value).catch(() => {})
@@ -298,10 +289,6 @@ onMounted(() => {
     if (s?.edit_instruction) instruction.value = s.edit_instruction
     if (s?.edit_loras) loraRows.value = parseLoras(s.edit_loras)
     if (s?.edit_quality_mode) qualityMode.value = s.edit_quality_mode === 'true'
-    if (s?.edit_denoise) {
-      const dn = Number(s.edit_denoise)
-      if (Number.isFinite(dn)) denoiseInput.value = Math.min(Math.max(dn, 0.3), 1)
-    }
     if (s?.edit_style_preset_id) {
       const spid = Number(s.edit_style_preset_id)
       if (Number.isFinite(spid) && spid > 0) {
@@ -324,7 +311,6 @@ onUnmounted(() => {
     edit_quality_mode: qualityMode.value ? 'true' : 'false',
     edit_resolution_id: selectedResolutionId.value ? String(selectedResolutionId.value) : '',
     edit_style_preset_id: stylePresetId.value ? String(stylePresetId.value) : '',
-    edit_denoise: String(denoiseInput.value),
   }).catch(() => {})
 })
 </script>
@@ -397,12 +383,6 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="edit-denoise-range">{{ t('edit.denoise_label') }}: <span data-testid="edit-denoise-value">{{ Number(denoiseInput).toFixed(2) }}</span></label>
-            <input id="edit-denoise-range" data-testid="edit-denoise-range" type="range" v-model.number="denoiseInput" min="0.3" max="1" step="0.05" style="width: 100%; accent-color: var(--accent);" />
-            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('edit.denoise_hint') }}</div>
-          </div>
-
           <details class="edit-loras" @toggle="onLorasToggle">
             <summary>{{ t('edit.loras') }}</summary>
             <div class="edit-loras-body">
@@ -462,8 +442,8 @@ onUnmounted(() => {
             </div>
           </div>
           <div v-else-if="generatedImage" style="width: 100%; padding: 12px;">
-            <div v-if="translationFailed" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
-              {{ t('edit.translation_failed') }}
+            <div v-if="resetFailed" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
+              {{ t('edit.reset_failed') }}
             </div>
             <div v-if="qualityUpscaleSkipped" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
               {{ t('fi.quality_upscale_skipped') }}

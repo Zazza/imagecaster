@@ -51,6 +51,7 @@ func (m *mockSDService) SetVAE(vaeName string) error { return nil }
 func (m *mockSDService) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
 	return "", nil
 }
+func (m *mockSDService) SetOption(key, value string) error    { return nil }
 func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
 
 func openTestDB(t *testing.T) *preset.DB {

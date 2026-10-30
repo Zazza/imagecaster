@@ -520,6 +520,27 @@ func (c *Client) SetVAE(vaeName string) error {
 	return nil
 }
 
+func (c *Client) SetOption(key, value string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	body, _ := json.Marshal(map[string]string{key: value})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/sdapi/v1/options", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("set option: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("set option: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return fmt.Errorf("set option %q: status %d", key, resp.StatusCode)
+	}
+	return nil
+}
+
 type LoRA struct {
 	Name string `json:"name"`
 	Path string `json:"path"`

@@ -18,7 +18,7 @@ func scanResolution(scanner interface{ Scan(...any) error }, r *Resolution) erro
 }
 
 func (d *DB) ListResolutions() ([]Resolution, error) {
-	rows, err := d.db.Query(`SELECT `+resolutionColumns+` FROM resolutions ORDER BY created_at ASC`)
+	rows, err := d.db.Query(`SELECT ` + resolutionColumns + ` FROM resolutions ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
 	}

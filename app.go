@@ -106,6 +106,7 @@ func (a *App) startup(ctx context.Context) {
 	a.log.InstallBridge()
 	a.gen.SetContext(ctx)
 	a.queueSvc.Start(ctx)
+	go a.gen.ResetMossReference()
 	a.restoreWindowLayout()
 }
 

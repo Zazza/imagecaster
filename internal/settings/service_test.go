@@ -120,6 +120,7 @@ func (m *mockSDService) SetModel(string) error                                { 
 func (m *mockSDService) SetModelWithModules(string, []string) error           { return nil }
 func (m *mockSDService) SetVAE(string) error                                  { return nil }
 func (m *mockSDService) UpscaleImage(string, string, float64) (string, error) { return "", nil }
+func (m *mockSDService) SetOption(key, value string) error                    { return nil }
 func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error)                 { return nil, nil }
 
 func testService(t *testing.T, llmSvc *mockLLMService, sdSvc *mockSDService) (*Service, *preset.DB) {

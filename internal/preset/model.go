@@ -1,28 +1,28 @@
 package preset
 
 type Preset struct {
-	ID             int64   `json:"id"`
-	Name           string  `json:"name"`
-	PresetType     string  `json:"preset_type"`
-	Prompt         string  `json:"prompt"`
-	NegativePrompt string  `json:"negative_prompt"`
-	Sampler        string  `json:"sampler"`
-	ScheduleType   string  `json:"schedule_type"`
-	Steps          int     `json:"steps"`
-	CfgScale       float64 `json:"cfg_scale"`
-	ModelName              string   `json:"model_name"`
-	Seed                   *int64   `json:"seed"`
-	DenoisingStrength      *float64 `json:"denoising_strength"`
-	ClipSkip               *int     `json:"clip_skip"`
-	BatchSize              *int     `json:"batch_size"`
-	BatchCount             *int     `json:"batch_count"`
-	VAE                    string   `json:"vae"`
-	TypeID                 *int64   `json:"type_id"`
-	Tags                   string   `json:"tags"`
-	Loras                  string   `json:"loras"`
-	IsBundled              bool     `json:"is_bundled"`
-	CreatedAt              string   `json:"created_at"`
-	UpdatedAt              string   `json:"updated_at"`
+	ID                int64    `json:"id"`
+	Name              string   `json:"name"`
+	PresetType        string   `json:"preset_type"`
+	Prompt            string   `json:"prompt"`
+	NegativePrompt    string   `json:"negative_prompt"`
+	Sampler           string   `json:"sampler"`
+	ScheduleType      string   `json:"schedule_type"`
+	Steps             int      `json:"steps"`
+	CfgScale          float64  `json:"cfg_scale"`
+	ModelName         string   `json:"model_name"`
+	Seed              *int64   `json:"seed"`
+	DenoisingStrength *float64 `json:"denoising_strength"`
+	ClipSkip          *int     `json:"clip_skip"`
+	BatchSize         *int     `json:"batch_size"`
+	BatchCount        *int     `json:"batch_count"`
+	VAE               string   `json:"vae"`
+	TypeID            *int64   `json:"type_id"`
+	Tags              string   `json:"tags"`
+	Loras             string   `json:"loras"`
+	IsBundled         bool     `json:"is_bundled"`
+	CreatedAt         string   `json:"created_at"`
+	UpdatedAt         string   `json:"updated_at"`
 }
 
 type PresetType struct {
@@ -106,7 +106,7 @@ type StepMeta struct {
 }
 
 type SessionInfo struct {
-	ID        int64 `json:"id"`
+	ID        int64  `json:"id"`
 	Name      string `json:"name"`
 	ItemCount int    `json:"item_count"`
 	CreatedAt string `json:"created_at"`
