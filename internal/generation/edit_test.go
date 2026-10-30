@@ -689,3 +689,97 @@ func TestAlignEditSize(t *testing.T) {
 		})
 	}
 }
+
+func TestAlignEditSizeCapped(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		w, h         int
+		cap          int
+		wantW, wantH int
+	}{
+		{name: "phone portrait 1360x2048 to edit canvas", w: 1360, h: 2048, cap: 1408, wantW: 928, wantH: 1408},
+		{name: "small source untouched", w: 832, h: 1248, cap: 1408, wantW: 832, wantH: 1248},
+		{name: "square big", w: 2048, h: 2048, cap: 1408, wantW: 1408, wantH: 1408},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gotW, gotH := alignEditSizeCapped(tt.w, tt.h, tt.cap)
+			assert.Equal(t, tt.wantW, gotW)
+			assert.Equal(t, tt.wantH, gotH)
+		})
+	}
+}
+
+func TestEditImage_BigSourceEditsOnCanvasAndRestoresResolution(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	var mu sync.Mutex
+	var editReq sd.Img2ImgRequest
+	upscaleCalls := 0
+	var upscaleScale float64
+
+	sdSvc := &mockSD{}
+	sdSvc.getUpscalers = func() ([]sd.Upscaler, error) {
+		return []sd.Upscaler{{Name: "ESRGAN"}}, nil
+	}
+	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		editReq = req
+		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
+	}
+	sdSvc.upscale = func(base64Img, upscaler string, scale float64) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		upscaleCalls++
+		upscaleScale = scale
+		return "restored-b64", nil
+	}
+	svc := newTestService(t, db, &mockLLM{}, sdSvc)
+
+	result, err := svc.EditImage(EditImageParams{
+		ImageBase64: makePNGBase64(t, 2048, 4096),
+		Instruction: "the pants to a skirt",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Equal(t, 704, editReq.Width)
+	assert.Equal(t, 1408, editReq.Height)
+	assert.Equal(t, 1, upscaleCalls)
+	assert.InDelta(t, float64(1024)/float64(704), upscaleScale, 0.001)
+	assert.Equal(t, "restored-b64", result.Image)
+}
+
+func TestEditImage_SmallSourceNoRestoreUpscale(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	upscaleCalls := 0
+	sdSvc := &mockSD{}
+	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+		assert.LessOrEqual(t, req.Width, 1408)
+		assert.LessOrEqual(t, req.Height, 1408)
+		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
+	}
+	sdSvc.upscale = func(base64Img, upscaler string, scale float64) (string, error) {
+		upscaleCalls++
+		return "must-not-be-called", nil
+	}
+	svc := newTestService(t, db, &mockLLM{}, sdSvc)
+
+	result, err := svc.EditImage(EditImageParams{
+		ImageBase64: makePNGBase64(t, 832, 1248),
+		Instruction: "the pants to a skirt",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 0, upscaleCalls)
+	assert.Equal(t, "edited-b64", result.Image)
+}

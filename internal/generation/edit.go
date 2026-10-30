@@ -28,6 +28,7 @@ const (
 	mossEditMaxStyleCfg       = 10.0
 	mossEditAlign             = 16
 	mossEditMaxDim            = 2048
+	mossEditCanvasMax         = 1408
 	mossEditLabelMax          = 60
 	mossEditMaxInstructionLen = 2000
 	mossEditMaxLoras          = 8
@@ -235,8 +236,12 @@ func truncateRunes(s string, max int) string {
 }
 
 func alignEditSize(w, h int) (int, int) {
-	if w > mossEditMaxDim || h > mossEditMaxDim {
-		scale := float64(mossEditMaxDim) / float64(max(w, h))
+	return alignEditSizeCapped(w, h, mossEditMaxDim)
+}
+
+func alignEditSizeCapped(w, h, maxDim int) (int, int) {
+	if w > maxDim || h > maxDim {
+		scale := float64(maxDim) / float64(max(w, h))
 		w = int(float64(w) * scale)
 		h = int(float64(h) * scale)
 	}
@@ -327,7 +332,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if srcW <= 0 || srcH <= 0 {
 		return nil, errors.New("decode image size: invalid image")
 	}
-	width, height := alignEditSize(srcW, srcH)
+	fullW, fullH := alignEditSize(srcW, srcH)
+	width, height := alignEditSizeCapped(srcW, srcH, mossEditCanvasMax)
 
 	styleTags := ""
 	if style != nil {
@@ -393,6 +399,15 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		}
 		upscaleSkipped = qUpSkipped
 		redenoiseSkipped = qRdSkipped
+	} else if fullW > width || fullH > height {
+		upscaler := s.resolveQualityUpscaler()
+		scale := float64(fullW) / float64(width)
+		s.log.Info("edit: restore source resolution %.2fx to %dx%d (%s)", scale, fullW, fullH, upscaler)
+		if up, uerr := s.upscaleWithFallback(finalImage, scale, fullW, fullH, upscaler); uerr != nil {
+			s.log.Warn("edit: restore resolution failed, keeping edit canvas %dx%d: %s", width, height, uerr)
+		} else {
+			finalImage = up
+		}
 	}
 
 	genMeta := &preset.GenerationMeta{
