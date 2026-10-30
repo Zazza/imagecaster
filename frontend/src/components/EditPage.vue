@@ -572,11 +572,16 @@ onUnmounted(() => {
   font-size: 10px;
   color: var(--text-dim);
 }
-.edit-result-img {
+.generate-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.generate-image-area .edit-result-img {
   display: block;
   margin: 0 auto;
   max-width: 100%;
   max-height: 70vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
 }
 .edit-effective-prompt {
