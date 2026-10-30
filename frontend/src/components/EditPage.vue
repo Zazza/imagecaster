@@ -451,7 +451,7 @@ onUnmounted(() => {
             <div v-if="qualityRedenoiseSkipped" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
               {{ t('fi.quality_redenoise_skipped') }}
             </div>
-            <img :src="imageSrc" alt="Edited" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="showViewer = true" />
+            <img :src="imageSrc" alt="Edited" class="img-fade-in edit-result-img" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="showViewer = true" />
             <div style="display: flex; gap: 8px; margin-top: 12px; justify-content: center; flex-wrap: wrap;">
               <button class="btn btn-secondary btn-sm" @click="downloadImage">{{ t('edit.btn_download') }}</button>
               <button class="btn btn-secondary btn-sm" @click="useResult">{{ t('edit.btn_use_result') }}</button>
@@ -571,6 +571,13 @@ onUnmounted(() => {
   padding: 1px 6px;
   font-size: 10px;
   color: var(--text-dim);
+}
+.edit-result-img {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
 }
 .edit-effective-prompt {
   margin-top: 8px;
