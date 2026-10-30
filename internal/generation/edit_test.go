@@ -524,6 +524,100 @@ func TestEditImage_StripsResidualLoraTagInInstruction(t *testing.T) {
 	assert.Contains(t, result.EffectivePrompt, "hair red")
 }
 
+func TestEditImage_TranslatesNonEnglishInstruction(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	var llmCalled bool
+	var capturedSystem, capturedUser string
+	llmSvc := &mockLLM{}
+	llmSvc.chatFn = func(model, systemPrompt, userMessage string, temperature float64, maxTokens int) (string, error) {
+		llmCalled = true
+		capturedSystem = systemPrompt
+		capturedUser = userMessage
+		return "\"the blue floral dress to a long red evening gown\"\nextra line", nil
+	}
+	var capturedPrompt string
+	sessions := &mockSessions{}
+	sdSvc := &mockSD{}
+	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+		capturedPrompt = req.Prompt
+		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
+	}
+	svc := newTestService(t, db, llmSvc, sdSvc)
+	svc.sessions = sessions
+
+	result, err := svc.EditImage(EditImageParams{
+		ImageBase64: tinyPNGBase64(t),
+		Instruction: "замени синее платье на длинное красное вечернее",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	assert.True(t, llmCalled)
+	assert.Equal(t, "замени синее платье на длинное красное вечернее", capturedUser)
+	assert.Contains(t, capturedSystem, "English")
+	assert.Contains(t, capturedPrompt, "Change only the blue floral dress to a long red evening gown.")
+	assert.NotContains(t, capturedPrompt, "замени")
+	require.Len(t, sessions.items, 1)
+	assert.Contains(t, sessions.items[0].meta.Label, "замени")
+}
+
+func TestEditImage_AsciiInstructionSkipsTranslation(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	llmSvc := &mockLLM{}
+	llmSvc.chatFn = func(model, systemPrompt, userMessage string, temperature float64, maxTokens int) (string, error) {
+		t.Error("LLM must not be called for ASCII instructions")
+		return "should not be used", nil
+	}
+	sdSvc := &mockSD{}
+	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+		assert.Contains(t, req.Prompt, "Change only make the dress red.")
+		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
+	}
+	svc := newTestService(t, db, llmSvc, sdSvc)
+
+	_, err := svc.EditImage(EditImageParams{
+		ImageBase64: tinyPNGBase64(t),
+		Instruction: "make the dress red",
+	})
+	require.NoError(t, err)
+}
+
+func TestEditImage_TranslationFailureFallsBackToOriginal(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	llmSvc := &mockLLM{}
+	llmSvc.chatFn = func(model, systemPrompt, userMessage string, temperature float64, maxTokens int) (string, error) {
+		return "", fmt.Errorf("llm down")
+	}
+	var capturedPrompt string
+	sdSvc := &mockSD{}
+	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+		capturedPrompt = req.Prompt
+		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
+	}
+	svc := newTestService(t, db, llmSvc, sdSvc)
+
+	_, err := svc.EditImage(EditImageParams{
+		ImageBase64: tinyPNGBase64(t),
+		Instruction: "замени платье на красное",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, capturedPrompt, "замени платье на красное")
+}
+
+func TestSanitizeTranslatedInstruction(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "clean phrase", sanitizeTranslatedInstruction("\"clean phrase\"\n"))
+	assert.Equal(t, "no tags", sanitizeTranslatedInstruction("<lora:evil:1>no tags"))
+	assert.Equal(t, "sneaky:1 stripped prefix", sanitizeTranslatedInstruction("<lora:sneaky:1 stripped prefix"))
+}
+
 func TestResolveQualityUpscaler(t *testing.T) {
 	t.Parallel()
 

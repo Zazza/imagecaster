@@ -43,6 +43,10 @@ const (
 
 var loraTagPrefixRe = regexp.MustCompile(`(?i)<lora:`)
 
+const editTranslateMaxTokens = 1024
+
+const editTranslateSystemPrompt = "You prepare image-edit instructions for an instruction-based image editor that only understands English. Rewrite the user's instruction as one short concrete English phrase saying exactly WHAT changes and WHAT it becomes (e.g. \"the blue floral dress to a long red evening gown\"). Keep the user's intent, do not invent changes, do not add commentary. Output only the phrase."
+
 var mossForgeModules = []string{mossTEModulePath, mossVAEModulePath}
 
 func forgeModulesForModel(model string) []string {
@@ -161,6 +165,46 @@ func (s *Service) loadEditStyle(presetID int64) (*editStyle, error) {
 	return st, nil
 }
 
+func isASCII(s string) bool {
+	for _, r := range s {
+		if r > 127 {
+			return false
+		}
+	}
+	return true
+}
+
+func sanitizeTranslatedInstruction(out string) string {
+	out = strings.TrimSpace(stripAngleTags(out))
+	out = loraTagPrefixRe.ReplaceAllString(out, "")
+	if idx := strings.IndexByte(out, '\n'); idx >= 0 {
+		out = out[:idx]
+	}
+	out = strings.TrimSpace(strings.Trim(out, "\"'`"))
+	return out
+}
+
+func (s *Service) translateEditInstruction(instruction string) string {
+	if isASCII(instruction) {
+		return instruction
+	}
+	model := s.getGenerateModel()
+	if model == "" || model == "default" {
+		return instruction
+	}
+	out, err := s.llm.Chat(model, editTranslateSystemPrompt, instruction, 0.3, editTranslateMaxTokens)
+	if err != nil {
+		s.log.Warn("edit: translate instruction failed, using original: %s", err)
+		return instruction
+	}
+	out = sanitizeTranslatedInstruction(out)
+	if out == "" || strings.Contains(out, "<think") || len([]rune(out)) > mossEditMaxInstructionLen {
+		s.log.Warn("edit: translate instruction produced empty or oversized result, using original")
+		return instruction
+	}
+	return out
+}
+
 func stripAngleTags(s string) string {
 	var b strings.Builder
 	for {
@@ -227,6 +271,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if filterErr != nil {
 		return nil, filterErr
 	}
+	originalInstruction := instruction
+	instruction = s.translateEditInstruction(instruction)
 	if params.OutputMode != "" && params.OutputMode != "standard" && params.OutputMode != "quality" {
 		return nil, fmt.Errorf("output_mode must be standard or quality")
 	}
@@ -350,7 +396,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 
 	genMeta := &preset.GenerationMeta{
-		Label: "Edit: " + truncateRunes(instruction, mossEditLabelMax),
+		Label: "Edit: " + truncateRunes(originalInstruction, mossEditLabelMax),
 		Model: mossEditModel,
 	}
 	if style != nil {
