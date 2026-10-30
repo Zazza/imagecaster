@@ -233,6 +233,7 @@ export const ru = {
   'edit.generating': 'Редактирование...',
   'edit.error_no_image': 'Сначала загрузите фото',
   'edit.error_no_instruction': 'Опишите правку в инструкции',
+  'edit.translation_failed': 'LLM не ответил — инструкция НЕ переведена, а модель правки понимает только английский. Повторите генерацию или напишите инструкцию по-английски',
   'edit.btn_download': 'Скачать',
   'edit.btn_regenerate': 'Перегенерировать',
   'edit.btn_use_result': 'Править результат',

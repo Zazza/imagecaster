@@ -238,6 +238,7 @@ export const en = {
   'edit.generating': 'Editing...',
   'edit.error_no_image': 'Upload a photo first',
   'edit.error_no_instruction': 'Describe the edit in the instruction',
+  'edit.translation_failed': 'The LLM did not respond — the instruction was NOT translated, and the edit model understands English only. Retry or write the instruction in English',
   'edit.btn_download': 'Download',
   'edit.btn_regenerate': 'Regenerate',
   'edit.btn_use_result': 'Edit the Result',

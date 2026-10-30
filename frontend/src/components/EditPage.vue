@@ -26,6 +26,8 @@ const qualityMode = ref(false)
 const selectedResolutionId = ref(null)
 const generatingImage = ref(false)
 const generatedImage = ref('')
+const effectivePrompt = ref('')
+const lastInstruction = ref('')
 const qualityUpscaleSkipped = ref(false)
 const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
@@ -196,6 +198,8 @@ async function generate() {
   }
   generatingImage.value = true
   generatedImage.value = ''
+  effectivePrompt.value = ''
+  lastInstruction.value = instr
   qualityUpscaleSkipped.value = false
   qualityRedenoiseSkipped.value = false
   error.value = ''
@@ -221,6 +225,7 @@ async function generate() {
     if (reqId !== genReqId) return
     if (result?.image) {
       generatedImage.value = result.image
+      effectivePrompt.value = result.effective_prompt || ''
       qualityUpscaleSkipped.value = !!result.quality_upscale_skipped
       qualityRedenoiseSkipped.value = !!result.quality_redenoise_skipped
     }
@@ -229,6 +234,17 @@ async function generate() {
   } finally {
     if (reqId === genReqId) generatingImage.value = false
   }
+}
+
+const translationFailed = computed(() => {
+  if (!effectivePrompt.value || !lastInstruction.value) return false
+  if (! /[^\x00-\x7F]/.test(lastInstruction.value)) return false
+  const probe = lastInstruction.value.trim().slice(0, 15)
+  return probe && effectivePrompt.value.includes(probe)
+})
+
+function copyEffectivePrompt() {
+  if (effectivePrompt.value) navigator.clipboard.writeText(effectivePrompt.value).catch(() => {})
 }
 
 async function downloadImage() {
@@ -446,6 +462,9 @@ onUnmounted(() => {
             </div>
           </div>
           <div v-else-if="generatedImage" style="width: 100%; padding: 12px;">
+            <div v-if="translationFailed" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
+              {{ t('edit.translation_failed') }}
+            </div>
             <div v-if="qualityUpscaleSkipped" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
               {{ t('fi.quality_upscale_skipped') }}
             </div>
@@ -458,6 +477,7 @@ onUnmounted(() => {
               <button class="btn btn-secondary btn-sm" @click="useResult">{{ t('edit.btn_use_result') }}</button>
               <button class="btn btn-secondary btn-sm" @click="generate">{{ t('edit.btn_regenerate') }}</button>
             </div>
+            <div v-if="effectivePrompt" data-testid="edit-effective-prompt" class="edit-effective-prompt" :title="effectivePrompt" @click="copyEffectivePrompt">{{ effectivePrompt }}</div>
           </div>
           <div v-else class="generate-placeholder">
             <div class="generate-placeholder-icon">&#9744;</div>
@@ -571,5 +591,17 @@ onUnmounted(() => {
   padding: 1px 6px;
   font-size: 10px;
   color: var(--text-dim);
+}
+.edit-effective-prompt {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.edit-effective-prompt:hover {
+  color: var(--text);
 }
 </style>
