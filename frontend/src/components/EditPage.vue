@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
 import { t } from '../i18n/index.js'
@@ -265,10 +266,13 @@ function onKeydown(e) {
 }
 
 let settingsRestored = false
+let offSessionSelected = null
 
 onMounted(() => {
   document.addEventListener('paste', handlePaste)
   document.addEventListener('keydown', onKeydown)
+  offSessionSelected = EventsOn("session:selected", () => { useLastImage() })
+  if (!uploadedImage.value) useLastImage()
   const presetsReq = api.listPresets().then(list => {
     allPresets.value = list || []
   }).catch(() => {
@@ -296,6 +300,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('paste', handlePaste)
   document.removeEventListener('keydown', onKeydown)
+  if (offSessionSelected) offSessionSelected()
   if (!settingsRestored) return
   api.updateSettings({
     edit_instruction: instruction.value,

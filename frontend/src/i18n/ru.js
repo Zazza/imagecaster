@@ -596,6 +596,7 @@ export const ru = {
 
   'viewer.full_size': 'Полный размер',
   'viewer.remix': 'Ремикс',
+  'viewer.edit': 'Правка',
   'viewer.export': 'Экспорт',
   'viewer.delete': 'Удалить',
   'viewer.confirm_delete': 'Подтвердите удаление',

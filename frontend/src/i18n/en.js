@@ -621,6 +621,7 @@ export const en = {
   // ImageViewer.vue
   'viewer.full_size': 'Full size',
   'viewer.remix': 'Remix',
+  'viewer.edit': 'Edit',
   'viewer.export': 'Export',
   'viewer.delete': 'Delete',
   'viewer.confirm_delete': 'Confirm Delete',

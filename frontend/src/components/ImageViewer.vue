@@ -11,7 +11,7 @@ const props = defineProps({
   showActions: { type: Boolean, default: false },
   confirmDelete: { type: Boolean, default: false },
 })
-const emit = defineEmits(['close', 'prev', 'next', 'remix', 'export', 'delete'])
+const emit = defineEmits(['close', 'prev', 'next', 'remix', 'edit', 'export', 'delete'])
 
 const promptExpanded = ref(false)
 const infoExpanded = ref(false)
@@ -277,6 +277,7 @@ onUnmounted(() => {
       >&#9432;</button>
       <template v-if="showActions && !infoExpanded">
         <button class="image-viewer-tool-btn" @click="$emit('remix')">{{ t('viewer.remix') }}</button>
+        <button class="image-viewer-tool-btn" @click="$emit('edit')">{{ t('viewer.edit') }}</button>
         <button class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.export') }}</button>
         <button
           class="image-viewer-tool-btn tool-danger"
@@ -340,6 +341,7 @@ onUnmounted(() => {
         </div>
         <div v-if="showActions" class="viewer-actions">
           <button class="btn btn-primary btn-sm" @click="$emit('remix')">{{ t('viewer.remix') }}</button>
+          <button class="btn btn-secondary btn-sm" @click="$emit('edit')">{{ t('viewer.edit') }}</button>
           <button class="btn btn-secondary btn-sm" @click="$emit('export')">{{ t('viewer.export') }}</button>
           <button class="btn btn-danger btn-sm" @click="$emit('delete')">{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</button>
         </div>
