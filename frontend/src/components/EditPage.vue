@@ -4,16 +4,26 @@ import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
 import { t } from '../i18n/index.js'
 import { MAX_IMAGE_SIZE } from '../constants.js'
+import { parseLoras, sanitizeWeight } from '../loraOverride.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import ImageViewer from './ImageViewer.vue'
+import ResolutionSelector from './ResolutionSelector.vue'
 
 const uploadedImage = ref('')
 const uploadedImageMime = ref('image/png')
 const instruction = ref('')
 const seedInput = ref('')
+const loraRows = ref([])
+const serverLoras = ref([])
+const lorasLoaded = ref(false)
+const loraLoadError = ref(false)
+const qualityMode = ref(false)
+const selectedResolutionId = ref(null)
 const generatingImage = ref(false)
 const generatedImage = ref('')
 const resetFailed = ref(false)
+const qualityUpscaleSkipped = ref(false)
+const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
 const isDragOver = ref(false)
 const showViewer = ref(false)
@@ -26,6 +36,38 @@ const imageSrc = computed(() => {
 })
 
 const canGenerate = computed(() => !!uploadedImage.value && !!instruction.value.trim() && !generatingImage.value)
+
+function addLora() {
+  if (loraRows.value.length >= 8) return
+  loraRows.value.push({ name: '', weight: 0.6 })
+}
+
+function removeLora(idx) {
+  loraRows.value.splice(idx, 1)
+}
+
+async function loadLoras() {
+  if (lorasLoaded.value) return
+  lorasLoaded.value = true
+  loraLoadError.value = false
+  try {
+    const lor = await api.getLoRAs()
+    serverLoras.value = lor || []
+  } catch (e) {
+    loraLoadError.value = true
+    lorasLoaded.value = false
+  }
+}
+
+function onLorasToggle(e) {
+  if (e.target.open) loadLoras()
+}
+
+function editLorasPayload() {
+  return loraRows.value
+    .filter((r) => r && typeof r.name === 'string' && r.name.trim())
+    .map((r) => ({ name: r.name.trim(), weight: sanitizeWeight(r.weight) }))
+}
 
 function setSource(base64, mime) {
   uploadedImage.value = base64
@@ -143,20 +185,31 @@ async function generate() {
   generatingImage.value = true
   generatedImage.value = ''
   resetFailed.value = false
+  qualityUpscaleSkipped.value = false
+  qualityRedenoiseSkipped.value = false
   error.value = ''
   resetProgress()
   const reqId = ++genReqId
   try {
     const seedVal = parseSeedInput(seedInput.value)
-    const result = await api.editImage({
+    const params = {
       image_base64: uploadedImage.value,
       instruction: instr,
       seed: seedVal,
-    })
+    }
+    const loras = editLorasPayload()
+    if (loras.length) params.loras = loras
+    if (qualityMode.value && selectedResolutionId.value) {
+      params.output_mode = 'quality'
+      params.resolution_id = selectedResolutionId.value
+    }
+    const result = await api.editImage(params)
     if (reqId !== genReqId) return
     if (result?.image) {
       generatedImage.value = result.image
       resetFailed.value = !!result.edit_reference_reset_failed
+      qualityUpscaleSkipped.value = !!result.quality_upscale_skipped
+      qualityRedenoiseSkipped.value = !!result.quality_redenoise_skipped
     }
   } catch (e) {
     if (reqId === genReqId) error.value = String(e)
@@ -200,18 +253,38 @@ function onKeydown(e) {
   }
 }
 
+let settingsRestored = false
+
 onMounted(() => {
   document.addEventListener('paste', handlePaste)
   document.addEventListener('keydown', onKeydown)
-  api.getSettings().then(s => {
+  api.getSettings().then(async s => {
     if (s?.edit_instruction) instruction.value = s.edit_instruction
+    if (s?.edit_loras) loraRows.value = parseLoras(s.edit_loras)
+    if (s?.edit_quality_mode) qualityMode.value = s.edit_quality_mode === 'true'
+    if (s?.edit_resolution_id) {
+      const rid = Number(s.edit_resolution_id)
+      if (Number.isFinite(rid) && rid > 0) {
+        try {
+          const list = await api.listResolutions()
+          if ((list || []).find(r => r.id === rid)) selectedResolutionId.value = rid
+        } catch {}
+      }
+    }
+    settingsRestored = true
   }).catch(() => {})
 })
 
 onUnmounted(() => {
   document.removeEventListener('paste', handlePaste)
   document.removeEventListener('keydown', onKeydown)
-  api.updateSettings({ edit_instruction: instruction.value }).catch(() => {})
+  if (!settingsRestored) return
+  api.updateSettings({
+    edit_instruction: instruction.value,
+    edit_loras: JSON.stringify(editLorasPayload()),
+    edit_quality_mode: qualityMode.value ? 'true' : 'false',
+    edit_resolution_id: selectedResolutionId.value ? String(selectedResolutionId.value) : '',
+  }).catch(() => {})
 })
 </script>
 
@@ -268,6 +341,35 @@ onUnmounted(() => {
             <input data-testid="edit-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
           </div>
 
+          <details class="edit-loras" @toggle="onLorasToggle">
+            <summary>{{ t('edit.loras') }}</summary>
+            <div class="edit-loras-body">
+              <div v-if="loraLoadError" style="font-size: 11px; color: var(--status-warn, #e6a23c);">{{ t('overrides.load_error') }}</div>
+              <div class="lora-head">
+                <button data-testid="edit-lora-add" type="button" class="btn btn-sm btn-secondary" @click="addLora">{{ t('edit.loras_add') }}</button>
+              </div>
+              <div v-for="(row, idx) in loraRows" :key="idx" class="lora-row">
+                <input data-testid="edit-lora-name" class="form-input" type="text" v-model="row.name" list="edit-lora-names" :placeholder="t('edit.loras_name')" :aria-label="t('edit.loras_name')" />
+                <input data-testid="edit-lora-weight" class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :aria-label="t('edit.loras_weight')" />
+                <button data-testid="edit-lora-remove" type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLora(idx)" :aria-label="t('edit.loras_remove')">&times;</button>
+              </div>
+              <div class="lora-hint">{{ t('edit.loras_hint') }}</div>
+            </div>
+          </details>
+          <datalist id="edit-lora-names">
+            <option v-for="l in serverLoras" :key="l.name" :value="l.name" />
+          </datalist>
+
+          <div class="form-group">
+            <ResolutionSelector v-model="selectedResolutionId" :none-label="t('fi.resolution_original')" />
+            <label :style="{ display: 'flex', alignItems: 'center', gap: '6px', cursor: selectedResolutionId ? 'pointer' : 'not-allowed', opacity: selectedResolutionId ? 1 : 0.5, marginTop: '8px' }">
+              <input data-testid="edit-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="!selectedResolutionId" style="accent-color: var(--accent);" />
+              <span style="font-size: 12px;">{{ t('edit.quality_mode') }}</span>
+            </label>
+            <div v-if="qualityMode && selectedResolutionId" style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('edit.quality_hint') }}</div>
+            <div v-else-if="!selectedResolutionId" style="font-size: 11px; color: var(--accent); margin-top: 2px;">{{ t('edit.quality_needs_resolution') }}</div>
+          </div>
+
           <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="width: 100%; justify-content: center; padding: 12px;" @click="generate" :disabled="!canGenerate">
             <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
               <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
@@ -300,6 +402,12 @@ onUnmounted(() => {
           <div v-else-if="generatedImage" style="width: 100%; padding: 12px;">
             <div v-if="resetFailed" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
               {{ t('edit.reset_failed') }}
+            </div>
+            <div v-if="qualityUpscaleSkipped" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
+              {{ t('fi.quality_upscale_skipped') }}
+            </div>
+            <div v-if="qualityRedenoiseSkipped" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
+              {{ t('fi.quality_redenoise_skipped') }}
             </div>
             <img :src="imageSrc" alt="Edited" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="showViewer = true" />
             <div style="display: flex; gap: 8px; margin-top: 12px; justify-content: center; flex-wrap: wrap;">
@@ -370,5 +478,47 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   padding: 4px 8px;
   display: inline-block;
+}
+.edit-loras {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.edit-loras summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 8px 12px;
+  user-select: none;
+}
+.edit-loras summary:hover {
+  color: var(--text);
+}
+.edit-loras-body {
+  padding: 4px 12px 12px;
+}
+.lora-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+.lora-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.lora-row .form-input[type='text'] {
+  flex: 1;
+}
+.lora-row .form-input[type='number'] {
+  flex: 0 0 90px;
+}
+.lora-remove {
+  padding: 4px 10px;
+}
+.lora-hint {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 </style>

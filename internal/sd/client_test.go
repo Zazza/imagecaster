@@ -1,9 +1,9 @@
 package sd
 
 import (
-	"fmt"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -1020,6 +1020,60 @@ func TestSetModelWithModules_NonOKStatus(t *testing.T) {
 	}
 }
 
+func TestUpscaleImage_PostsToExtraSingleImage(t *testing.T) {
+	var receivedPath string
+	var receivedBody map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		json.NewDecoder(r.Body).Decode(&receivedBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, `{"image": "upscaled-data"}`)
+	}))
+	defer server.Close()
+
+	c := New(server.URL)
+	c.httpClient = server.Client()
+
+	out, err := c.UpscaleImage("input-data", "ESRGAN", 2.0)
+	if err != nil {
+		t.Fatalf("UpscaleImage returned unexpected error: %v", err)
+	}
+	if out != "upscaled-data" {
+		t.Errorf("image = %q, want %q", out, "upscaled-data")
+	}
+	// Forge Neo serves the extras endpoint as /sdapi/v1/extra-single-image;
+	// extra-single-img returns 404 and quality mode silently degraded to CatmullRom.
+	if receivedPath != "/sdapi/v1/extra-single-image" {
+		t.Errorf("path = %s, want /sdapi/v1/extra-single-image", receivedPath)
+	}
+	if receivedBody["upscaler_1"] != "ESRGAN" {
+		t.Errorf("upscaler_1 = %v, want ESRGAN", receivedBody["upscaler_1"])
+	}
+	if receivedBody["upscaling_resize"] != 2.0 {
+		t.Errorf("upscaling_resize = %v, want 2", receivedBody["upscaling_resize"])
+	}
+}
+
+func TestUpscaleImage_NonOKStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	c := New(server.URL)
+	c.httpClient = server.Client()
+
+	_, err := c.UpscaleImage("input-data", "ESRGAN", 2.0)
+	if err == nil {
+		t.Fatal("UpscaleImage with status 404 returned nil error, want error")
+	}
+	if !strings.Contains(err.Error(), "status 404") {
+		t.Errorf("error = %q, want it to contain %q", err.Error(), "status 404")
+	}
+}
+
 func TestSetVAE(t *testing.T) {
 	var receivedBody map[string]string
 
@@ -1046,8 +1100,8 @@ func TestSetVAE(t *testing.T) {
 
 func TestGetOptions(t *testing.T) {
 	wantOpts := map[string]interface{}{
-		"sd_model_checkpoint": "v1-5-pruned-emaonly",
-		"sd_vae":              "auto",
+		"sd_model_checkpoint":      "v1-5-pruned-emaonly",
+		"sd_vae":                   "auto",
 		"CLIP_stop_at_last_layers": float64(1),
 	}
 

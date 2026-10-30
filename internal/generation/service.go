@@ -36,9 +36,10 @@ const (
 
 const (
 	qualityRedenoise = 0.35
-	qualityUpscaler  = "R-ESRGAN 4x+"
 	maxCustomSteps   = 8
 )
+
+var qualityUpscalerPreferences = []string{"R-ESRGAN 4x+", "ESRGAN"}
 
 // --- Interfaces ---
 
@@ -444,34 +445,71 @@ func (s *Service) manualHiresUpscale(base64Img string, req sd.Txt2ImgRequest, sc
 	return s.img2imgRedenoise(upscaledB64, req, targetW, targetH, denoiseStrength)
 }
 
+func (s *Service) resolveQualityUpscaler() string {
+	upscalers, err := s.sd.GetUpscalers()
+	if err != nil {
+		s.log.Warn("quality upscaler: list failed, falling back to resize: %s", err)
+		return ""
+	}
+	for _, pref := range qualityUpscalerPreferences {
+		for _, u := range upscalers {
+			if u.Name == pref {
+				return u.Name
+			}
+		}
+	}
+	s.log.Warn("quality upscaler: none of %v available, falling back to resize", qualityUpscalerPreferences)
+	return ""
+}
+
 func (s *Service) qualityPostProcess(base64Img string, req sd.Txt2ImgRequest, srcW, srcH int, resolutionID *int64) (string, json.RawMessage, bool, bool, error) {
 	targetW, targetH := s.fitImageToResolution(srcW, srcH, resolutionID)
+	return s.qualityUpscaleRedenoise(base64Img, req, srcW, srcH, targetW, targetH, "from-image quality")
+}
+
+func (s *Service) qualityUpscaleRedenoise(base64Img string, req sd.Txt2ImgRequest, srcW, srcH, targetW, targetH int, logPrefix string) (string, json.RawMessage, bool, bool, error) {
 	scale := 1.0
 	if srcW > 0 {
 		scale = float64(targetW) / float64(srcW)
 	}
-	s.log.Info("from-image quality: upscale %.2fx to %dx%d (%s)", scale, targetW, targetH, qualityUpscaler)
-	upscaledB64, err := s.upscaleWithFallback(base64Img, scale, targetW, targetH, qualityUpscaler)
+	upscaler := s.resolveQualityUpscaler()
+	s.log.Info("%s: upscale %.2fx to %dx%d (%s)", logPrefix, scale, targetW, targetH, upscaler)
+	upscaledB64, err := s.upscaleWithFallback(base64Img, scale, targetW, targetH, upscaler)
 	if err != nil {
-		s.log.Warn("from-image quality: upscale failed, using base image: %s", err)
-		return base64Img, nil, true, false, nil
+		s.log.Warn("%s: upscale failed, using base image: %s", logPrefix, err)
+		return base64Img, nil, true, true, nil
 	}
 	hrResult, err := s.img2imgRedenoise(upscaledB64, req, targetW, targetH, qualityRedenoise)
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return "", nil, false, false, ierr
 		}
-		s.log.Warn("from-image quality: redenoise failed, using upscaled image: %s", err)
+		s.log.Warn("%s: redenoise failed, using upscaled image: %s", logPrefix, err)
 		return upscaledB64, nil, false, true, nil
 	}
 	if len(hrResult.Images) == 0 {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return "", nil, false, false, ierr
 		}
-		s.log.Warn("from-image quality: redenoise returned no image, using upscaled image")
+		s.log.Warn("%s: redenoise returned no image, using upscaled image", logPrefix)
 		return upscaledB64, nil, false, true, nil
 	}
 	return hrResult.Images[0], hrResult.Info, false, false, nil
+}
+
+func buildQualityChain(base preset.StepMeta, upscaleSkipped, redenoiseSkipped bool) []preset.StepMeta {
+	chain := []preset.StepMeta{base}
+	if !upscaleSkipped {
+		chain = append(chain, preset.StepMeta{Op: "upscale"})
+	}
+	if !redenoiseSkipped {
+		rd := qualityRedenoise
+		chain = append(chain, preset.StepMeta{Op: "redenoise", Denoise: &rd})
+	}
+	for i := range chain {
+		chain[i].Step = i + 1
+	}
+	return chain
 }
 
 // --- Helpers ---

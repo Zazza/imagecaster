@@ -1,9 +1,13 @@
 package generation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"regexp"
 	"strings"
+	"unicode"
 
 	"go-sd/internal/config"
 	"go-sd/internal/filebrowser"
@@ -25,6 +29,9 @@ const (
 	mossEditMaxDim            = 2048
 	mossEditLabelMax          = 60
 	mossEditMaxInstructionLen = 2000
+	mossEditMaxLoras          = 8
+	mossEditMaxLoraWeight     = 2.0
+	mossEditMaxLoraNameLen    = 200
 
 	editLoRATag      = "<lora:Moss_Edit_LoRA:1.0>"
 	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged."
@@ -32,6 +39,8 @@ const (
 	mossTEModulePath  = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors"
 	mossVAEModulePath = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors"
 )
+
+var loraTagPrefixRe = regexp.MustCompile(`(?i)<lora:`)
 
 var mossForgeModules = []string{mossTEModulePath, mossVAEModulePath}
 
@@ -43,13 +52,56 @@ func forgeModulesForModel(model string) []string {
 }
 
 type EditImageParams struct {
-	ImageBase64 string `json:"image_base64"`
-	Instruction string `json:"instruction"`
-	Seed        *int64 `json:"seed,omitempty"`
+	ImageBase64  string             `json:"image_base64"`
+	Instruction  string             `json:"instruction"`
+	Loras        []preset.LoRAEntry `json:"loras,omitempty"`
+	OutputMode   string             `json:"output_mode,omitempty"`
+	ResolutionID *int64             `json:"resolution_id,omitempty"`
+	Seed         *int64             `json:"seed,omitempty"`
 }
 
-func buildEditPrompt(instruction string) string {
-	return editLoRATag + "Change only " + instruction + editPromptSuffix
+func buildEditPrompt(instruction string, loras []preset.LoRAEntry) string {
+	var b strings.Builder
+	b.WriteString(editLoRATag)
+	for _, l := range loras {
+		b.WriteString(fmt.Sprintf(" <lora:%s:%g>", l.Name, l.Weight))
+	}
+	b.WriteString("Change only " + instruction + editPromptSuffix)
+	return b.String()
+}
+
+func sanitizeEditLoras(loras []preset.LoRAEntry) ([]preset.LoRAEntry, error) {
+	if len(loras) == 0 {
+		return nil, nil
+	}
+	if len(loras) > mossEditMaxLoras {
+		return nil, fmt.Errorf("too many loras (max %d)", mossEditMaxLoras)
+	}
+	out := make([]preset.LoRAEntry, 0, len(loras))
+	for _, l := range loras {
+		name := strings.TrimSpace(l.Name)
+		if name == "" {
+			return nil, errors.New("lora name is required")
+		}
+		if strings.ContainsAny(name, "<>:") || strings.ContainsFunc(name, unicode.IsControl) {
+			return nil, fmt.Errorf("invalid lora name %q", truncateRunes(name, 40))
+		}
+		if len([]rune(name)) > mossEditMaxLoraNameLen {
+			return nil, fmt.Errorf("lora name too long (max %d characters)", mossEditMaxLoraNameLen)
+		}
+		w := l.Weight
+		if math.IsNaN(w) || math.IsInf(w, 0) {
+			w = 0.6
+		}
+		if w < 0 {
+			w = 0
+		}
+		if w > mossEditMaxLoraWeight {
+			w = mossEditMaxLoraWeight
+		}
+		out = append(out, preset.LoRAEntry{Name: name, Weight: w})
+	}
+	return out, nil
 }
 
 func stripAngleTags(s string) string {
@@ -106,6 +158,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		return nil, fmt.Errorf("image too large (max 16 MB)")
 	}
 	instruction := strings.TrimSpace(stripAngleTags(params.Instruction))
+	instruction = loraTagPrefixRe.ReplaceAllString(instruction, "")
 	if instruction == "" {
 		return nil, fmt.Errorf("instruction is required")
 	}
@@ -116,6 +169,16 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	instruction, filterErr = s.kids.FilterInput(instruction)
 	if filterErr != nil {
 		return nil, filterErr
+	}
+	if params.OutputMode != "" && params.OutputMode != "standard" && params.OutputMode != "quality" {
+		return nil, fmt.Errorf("output_mode must be standard or quality")
+	}
+	if params.OutputMode == "quality" && (params.ResolutionID == nil || *params.ResolutionID <= 0) {
+		return nil, fmt.Errorf("quality output mode requires resolution")
+	}
+	loras, err := sanitizeEditLoras(params.Loras)
+	if err != nil {
+		return nil, err
 	}
 
 	s.editMu.Lock()
@@ -144,11 +207,12 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 
 	var result *GenerateImageResult
 	defer func() {
-		if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
-			s.log.Warn("edit: disable moss reference: %s", err)
-			if result != nil {
-				result.EditReferenceResetFailed = true
-			}
+		derr := s.sd.SetOption(mossReferenceOption, mossReferenceOff)
+		if derr != nil {
+			s.log.Warn("edit: disable moss reference: %s", derr)
+		}
+		if result != nil {
+			result.EditReferenceResetFailed = derr != nil
 		}
 	}()
 
@@ -158,7 +222,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 	width, height := alignEditSize(srcW, srcH)
 
-	prompt := buildEditPrompt(instruction)
+	prompt := buildEditPrompt(instruction, loras)
 	batchSize := 1
 	batchCount := 1
 	denoise := mossEditDenoise
@@ -193,18 +257,79 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		return nil, errors.New("no image generated (edit)")
 	}
 
-	result = &GenerateImageResult{
-		Image:           resp.Images[0],
-		Parameters:      resp.Parameters,
-		Info:            resp.Info,
-		IsPreview:       false,
-		EffectivePrompt: prompt,
+	finalImage := resp.Images[0]
+	finalInfo := resp.Info
+	upscaleSkipped := false
+	redenoiseSkipped := false
+	refResetFailed := false
+	if params.OutputMode == "quality" {
+		if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
+			s.log.Warn("edit: disable moss reference before quality failed, skipping quality: %s", err)
+			refResetFailed = true
+			upscaleSkipped = true
+			redenoiseSkipped = true
+		} else {
+			qualityReq := sd.Txt2ImgRequest{
+				Prompt:         prompt,
+				NegativePrompt: s.kids.ApplyNegative(""),
+				SamplerName:    mossEditSampler,
+				Scheduler:      mossEditScheduler,
+				Steps:          mossEditSteps,
+				CfgScale:       mossEditCfgScale,
+				Width:          width,
+				Height:         height,
+				Seed:           params.Seed,
+			}
+			qImg, qInfo, qUpSkipped, qRdSkipped, qErr := s.editQualityPostProcess(finalImage, qualityReq, width, height, params.ResolutionID)
+			if qErr != nil {
+				return nil, qErr
+			}
+			finalImage = qImg
+			if qInfo != nil {
+				finalInfo = qInfo
+			}
+			upscaleSkipped = qUpSkipped
+			redenoiseSkipped = qRdSkipped
+		}
 	}
-	s.sessions.AddToSession(resp.Images[0], resp.Info, "edit", false, &preset.GenerationMeta{
+
+	genMeta := &preset.GenerationMeta{
 		Label: "Edit: " + truncateRunes(instruction, mossEditLabelMax),
 		Model: mossEditModel,
-	})
+	}
+	if params.OutputMode == "quality" {
+		var lorasJSON string
+		if len(loras) > 0 {
+			if b, merr := json.Marshal(loras); merr == nil {
+				lorasJSON = string(b)
+			}
+		}
+		genMeta.Chain = buildQualityChain(preset.StepMeta{
+			Op:      "base",
+			Model:   mossEditModel,
+			Denoise: &denoise,
+			Loras:   lorasJSON,
+		}, upscaleSkipped, redenoiseSkipped)
+	}
+
+	result = &GenerateImageResult{
+		Image:                    finalImage,
+		Parameters:               resp.Parameters,
+		Info:                     finalInfo,
+		IsPreview:                false,
+		EffectivePrompt:          prompt,
+		QualityUpscaleSkipped:    upscaleSkipped,
+		QualityRedenoiseSkipped:  redenoiseSkipped,
+		EditReferenceResetFailed: refResetFailed,
+	}
+	s.sessions.AddToSession(finalImage, finalInfo, "edit", false, genMeta)
 	return result, nil
+}
+
+func (s *Service) editQualityPostProcess(base64Img string, req sd.Txt2ImgRequest, srcW, srcH int, resolutionID *int64) (string, json.RawMessage, bool, bool, error) {
+	fitW, fitH := s.fitImageToResolution(srcW, srcH, resolutionID)
+	targetW, targetH := alignEditSize(fitW, fitH)
+	return s.qualityUpscaleRedenoise(base64Img, req, srcW, srcH, targetW, targetH, "edit quality")
 }
 
 func (s *Service) ResetMossReference() {

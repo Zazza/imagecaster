@@ -37,6 +37,7 @@ var AllowedSettings = map[string]bool{
 	"fi_gen_mode": true, "fi_denoising": true, "fi_extra_negative": true, "fi_analyze_mode": true,
 	"fi_quality_mode": true, "fi_hires_profile_id": true,
 	"fi_mask_padding": true, "fi_mask_feather": true,
-	"edit_instruction": true,
+	"edit_instruction": true, "edit_loras": true,
+	"edit_quality_mode": true, "edit_resolution_id": true,
 	"theme":            true, "file_browser_path": true,
 }

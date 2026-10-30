@@ -62,6 +62,9 @@ export namespace generation {
 	export class EditImageParams {
 	    image_base64: string;
 	    instruction: string;
+	    loras?: preset.LoRAEntry[];
+	    output_mode?: string;
+	    resolution_id?: number;
 	    seed?: number;
 	
 	    static createFrom(source: any = {}) {
@@ -72,8 +75,29 @@ export namespace generation {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.image_base64 = source["image_base64"];
 	        this.instruction = source["instruction"];
+	        this.loras = this.convertValues(source["loras"], preset.LoRAEntry);
+	        this.output_mode = source["output_mode"];
+	        this.resolution_id = source["resolution_id"];
 	        this.seed = source["seed"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class GenerateCompoundImageParams {
 	    compound_preset_id: number;
@@ -981,6 +1005,20 @@ export namespace preset {
 	        this.upscaler = source["upscaler"];
 	        this.is_builtin = source["is_builtin"];
 	        this.created_at = source["created_at"];
+	    }
+	}
+	export class LoRAEntry {
+	    name: string;
+	    weight: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoRAEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.weight = source["weight"];
 	    }
 	}
 	

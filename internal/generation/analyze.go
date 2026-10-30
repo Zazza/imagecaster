@@ -587,25 +587,13 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			Model:    p.ModelName,
 		}
 		if params.OutputMode == "quality" {
-			var chain []preset.StepMeta
-			chain = append(chain, preset.StepMeta{
+			genMeta.Chain = buildQualityChain(preset.StepMeta{
 				Preset:  p.Name,
 				Model:   p.ModelName,
 				Loras:   p.Loras,
 				Op:      "base",
 				Denoise: &denoising,
-			})
-			if !upscaleSkipped {
-				chain = append(chain, preset.StepMeta{Op: "upscale"})
-			}
-			if !redenoiseSkipped {
-				rd := qualityRedenoise
-				chain = append(chain, preset.StepMeta{Op: "redenoise", Denoise: &rd})
-			}
-			for i := range chain {
-				chain[i].Step = i + 1
-			}
-			genMeta.Chain = chain
+			}, upscaleSkipped, redenoiseSkipped)
 		}
 		img := &GenerateImageResult{
 			Image:                   finalImage,

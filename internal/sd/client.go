@@ -582,7 +582,7 @@ func (c *Client) UpscaleImage(base64Img string, upscaler string, scale float64) 
 		"extras_upscaler_2_visibility": 0,
 		"upscale_first":                false,
 	})
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.baseURL+"/sdapi/v1/extra-single-img", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.baseURL+"/sdapi/v1/extra-single-image", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("upscale image: %w", err)
 	}
@@ -593,8 +593,13 @@ func (c *Client) UpscaleImage(base64Img string, upscaler string, scale float64) 
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		return "", fmt.Errorf("upscale image: status %d", resp.StatusCode)
+	}
+
 	var result ExtraImageResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodySize)).Decode(&result); err != nil {
 		return "", fmt.Errorf("decode upscale response: %w", err)
 	}
 	if result.Image == "" {

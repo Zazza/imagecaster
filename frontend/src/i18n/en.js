@@ -237,6 +237,15 @@ export const en = {
   'edit.btn_download': 'Download',
   'edit.btn_regenerate': 'Regenerate',
   'edit.btn_use_result': 'Edit the Result',
+  'edit.loras': 'LoRA',
+  'edit.loras_add': '+ Add LoRA',
+  'edit.loras_name': 'Name',
+  'edit.loras_weight': 'Weight',
+  'edit.loras_remove': 'Remove LoRA',
+  'edit.loras_hint': 'Applied after the built-in edit LoRA (max 8, weight 0–2)',
+  'edit.quality_mode': 'Quality mode',
+  'edit.quality_hint': 'After the edit: ESRGAN upscale to the selected resolution + redenoise (slower)',
+  'edit.quality_needs_resolution': 'Pick a resolution — the result will be upscaled to it',
 
   // SettingsPage.vue
   'settings.title': 'Settings',

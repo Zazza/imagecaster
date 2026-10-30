@@ -114,6 +114,8 @@ type mockSD struct {
 	setModel        func(modelName string) error
 	setModelModules func(modelName string, modules []string) error
 	setVAE          func(vaeName string) error
+	setOption       func(key, value string) error
+	getUpscalers    func() ([]sd.Upscaler, error)
 	progress        func() (*sd.ProgressResponse, error)
 }
 
@@ -140,10 +142,19 @@ func (m *mockSD) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 func (m *mockSD) GetModels() ([]sd.SDModel, error)            { return nil, nil }
 func (m *mockSD) GetSamplers() ([]sd.Sampler, error)          { return nil, nil }
 func (m *mockSD) GetSchedulers() ([]sd.Scheduler, error)      { return nil, nil }
-func (m *mockSD) GetUpscalers() ([]sd.Upscaler, error)        { return nil, nil }
 func (m *mockSD) GetVAEs() ([]sd.VAE, error)                  { return nil, nil }
 func (m *mockSD) GetLoRAs() ([]sd.LoRA, error)                { return nil, nil }
 func (m *mockSD) GetOptions() (map[string]interface{}, error) { return nil, nil }
+
+func (m *mockSD) GetUpscalers() ([]sd.Upscaler, error) {
+	m.mu.Lock()
+	fn := m.getUpscalers
+	m.mu.Unlock()
+	if fn != nil {
+		return fn()
+	}
+	return nil, nil
+}
 
 func (m *mockSD) GetProgress() (*sd.ProgressResponse, error) {
 	m.mu.Lock()
@@ -199,7 +210,16 @@ func (m *mockSD) UpscaleImage(base64Img string, upscaler string, scale float64) 
 	return "", fmt.Errorf("not implemented")
 }
 func (m *mockSD) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
-func (m *mockSD) SetOption(key, value string) error    { return nil }
+
+func (m *mockSD) SetOption(key, value string) error {
+	m.mu.Lock()
+	fn := m.setOption
+	m.mu.Unlock()
+	if fn != nil {
+		return fn(key, value)
+	}
+	return nil
+}
 
 type mockEmitter struct {
 	mu     sync.Mutex
@@ -246,6 +266,7 @@ type sessionItem struct {
 	info        json.RawMessage
 	source      string
 	isPreview   bool
+	meta        *preset.GenerationMeta
 }
 
 func (m *mockSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
@@ -256,6 +277,7 @@ func (m *mockSessions) AddToSession(imageBase64 string, info json.RawMessage, so
 		info:        info,
 		source:      source,
 		isPreview:   isPreview,
+		meta:        meta,
 	})
 	return int64(len(m.items))
 }
@@ -2777,10 +2799,11 @@ func TestQualityPostProcess(t *testing.T) {
 			img2imgFn: func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 				return nil, fmt.Errorf("img2img must not run")
 			},
-			wantImg:            "not-valid-base64!!!",
-			wantUpscaleSkipped: true,
-			wantUpscaleCalls:   1,
-			wantImg2ImgCalls:   0,
+			wantImg:              "not-valid-base64!!!",
+			wantUpscaleSkipped:   true,
+			wantRedenoiseSkipped: true,
+			wantUpscaleCalls:     1,
+			wantImg2ImgCalls:     0,
 		},
 		{
 			name:   "redenoise error keeps upscaled image",
@@ -2844,6 +2867,9 @@ func TestQualityPostProcess(t *testing.T) {
 			upscaleCalls := 0
 			img2imgCalls := 0
 			sdSvc := &mockSD{
+				getUpscalers: func() ([]sd.Upscaler, error) {
+					return []sd.Upscaler{{Name: "R-ESRGAN 4x+"}}, nil
+				},
 				upscale: func(base64Img string, upscaler string, scale float64) (string, error) {
 					upscaleCalls++
 					return tt.upscaleFn(base64Img, upscaler, scale)
@@ -2913,6 +2939,9 @@ func TestQualityPostProcess_Params(t *testing.T) {
 			var capturedI2I sd.Img2ImgRequest
 
 			sdSvc := &mockSD{
+				getUpscalers: func() ([]sd.Upscaler, error) {
+					return []sd.Upscaler{{Name: "R-ESRGAN 4x+"}}, nil
+				},
 				upscale: func(base64Img string, upscaler string, scale float64) (string, error) {
 					capturedUpscaleImg = base64Img
 					capturedUpscaler = upscaler
