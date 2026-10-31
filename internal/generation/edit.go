@@ -55,6 +55,7 @@ type EditImageParams struct {
 	ImageBase64   string             `json:"image_base64"`
 	Instruction   string             `json:"instruction"`
 	StylePresetID int64              `json:"style_preset_id,omitempty"`
+	StyleTags     bool               `json:"style_tags,omitempty"`
 	Loras         []preset.LoRAEntry `json:"loras,omitempty"`
 	OutputMode    string             `json:"output_mode,omitempty"`
 	ResolutionID  *int64             `json:"resolution_id,omitempty"`
@@ -279,7 +280,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	width, height := alignEditSize(srcW, srcH)
 
 	styleTags := ""
-	if style != nil {
+	if style != nil && params.StyleTags {
 		styleTags = style.tags
 	}
 	prompt := buildEditPrompt(instruction, styleTags, loras)

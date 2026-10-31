@@ -63,6 +63,7 @@ export namespace generation {
 	    image_base64: string;
 	    instruction: string;
 	    style_preset_id?: number;
+	    style_tags?: boolean;
 	    loras?: preset.LoRAEntry[];
 	    output_mode?: string;
 	    resolution_id?: number;
@@ -77,6 +78,7 @@ export namespace generation {
 	        this.image_base64 = source["image_base64"];
 	        this.instruction = source["instruction"];
 	        this.style_preset_id = source["style_preset_id"];
+	        this.style_tags = source["style_tags"];
 	        this.loras = this.convertValues(source["loras"], preset.LoRAEntry);
 	        this.output_mode = source["output_mode"];
 	        this.resolution_id = source["resolution_id"];

@@ -376,7 +376,7 @@ func TestEditImage_StylePreset(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	assert.Equal(t, "<lora:Moss_Edit_LoRA:1.0> <lora:Moss_DMD_8step:1> <lora:Detail_Boost_Moss:0.8> <lora:Extra_Lora:0.5> moss_xvstyle, RAW photo, film grain. Change only make hair red"+editPromptSuffix, capturedReq.Prompt)
+	assert.Equal(t, "<lora:Moss_Edit_LoRA:1.0> <lora:Moss_DMD_8step:1> <lora:Detail_Boost_Moss:0.8> <lora:Extra_Lora:0.5>Change only make hair red"+editPromptSuffix, capturedReq.Prompt)
 	assert.Equal(t, mossEditSteps, capturedReq.Steps)
 	assert.InDelta(t, mossEditCfgScale, capturedReq.CfgScale, 1e-9)
 
@@ -385,6 +385,40 @@ func TestEditImage_StylePreset(t *testing.T) {
 	require.NotNil(t, meta)
 	require.NotNil(t, meta.PresetID)
 	assert.Equal(t, style.ID, *meta.PresetID)
+}
+
+func TestEditImage_StyleTagsOptIn(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	style := makeTestPreset(t, db, &preset.Preset{
+		Name:      "Moss Film Real",
+		ModelName: "moss_image_sft_bf16",
+		Prompt:    "moss_xvstyle, RAW photo",
+	})
+
+	var mu sync.Mutex
+	var capturedReq sd.Img2ImgRequest
+	sdSvc := &mockSD{}
+	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		capturedReq = req
+		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
+	}
+	svc := newTestService(t, db, &mockLLM{}, sdSvc)
+
+	_, err := svc.EditImage(EditImageParams{
+		ImageBase64:   tinyPNGBase64(t),
+		Instruction:   "make hair red",
+		StylePresetID: style.ID,
+		StyleTags:     true,
+	})
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Contains(t, capturedReq.Prompt, "moss_xvstyle, RAW photo. Change only")
 }
 
 func TestEditImage_QualityPipeline(t *testing.T) {

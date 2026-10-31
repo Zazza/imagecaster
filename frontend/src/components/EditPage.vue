@@ -21,6 +21,7 @@ const loraLoadError = ref(false)
 const allPresets = ref([])
 const stylesLoadError = ref(false)
 const stylePresetId = ref(0)
+const styleTags = ref(false)
 const qualityMode = ref(false)
 const selectedResolutionId = ref(null)
 const generatingImage = ref(false)
@@ -211,7 +212,10 @@ async function generate() {
       instruction: instr,
       seed: seedVal,
     }
-    if (stylePresetId.value) params.style_preset_id = stylePresetId.value
+    if (stylePresetId.value) {
+      params.style_preset_id = stylePresetId.value
+      if (styleTags.value) params.style_tags = true
+    }
     const loras = editLorasPayload()
     if (loras.length) params.loras = loras
     if (qualityMode.value && selectedResolutionId.value) {
@@ -289,6 +293,7 @@ onMounted(() => {
     if (s?.edit_instruction) instruction.value = s.edit_instruction
     if (s?.edit_loras) loraRows.value = parseLoras(s.edit_loras)
     if (s?.edit_quality_mode) qualityMode.value = s.edit_quality_mode === 'true'
+    if (s?.edit_style_tags) styleTags.value = s.edit_style_tags === 'true'
     if (s?.edit_style_preset_id) {
       const spid = Number(s.edit_style_preset_id)
       if (Number.isFinite(spid) && spid > 0) {
@@ -311,6 +316,7 @@ onUnmounted(() => {
     edit_quality_mode: qualityMode.value ? 'true' : 'false',
     edit_resolution_id: selectedResolutionId.value ? String(selectedResolutionId.value) : '',
     edit_style_preset_id: stylePresetId.value ? String(stylePresetId.value) : '',
+    edit_style_tags: styleTags.value ? 'true' : 'false',
   }).catch(() => {})
 })
 </script>
@@ -375,6 +381,10 @@ onUnmounted(() => {
               <option v-for="p in stylePresets" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
             <div v-if="stylesLoadError" style="font-size: 11px; color: var(--status-warn, #e6a23c); margin-top: 4px;">{{ t('overrides.load_error') }}</div>
+            <label v-if="selectedStyle" style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-top: 6px;">
+              <input data-testid="edit-style-tags" type="checkbox" v-model="styleTags" style="accent-color: var(--accent);" />
+              <span style="font-size: 11px;">{{ t('edit.style_tags') }}</span>
+            </label>
             <div v-if="selectedStyle" style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
               {{ t('edit.style_hint') }}
               <span v-if="selectedStyleLoras.length" style="display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
