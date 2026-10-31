@@ -34,7 +34,7 @@ const (
 	mossEditMaxLoraNameLen    = 200
 
 	editLoRATag      = "<lora:Moss_Edit_LoRA:1.0>"
-	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged."
+	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo."
 
 	mossTEModulePath  = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors"
 	mossVAEModulePath = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors"
@@ -144,7 +144,13 @@ func (s *Service) loadEditStyle(presetID int64) (*editStyle, error) {
 		if err := json.Unmarshal([]byte(p.Loras), &loras); err != nil {
 			s.log.Warn("edit style %q: invalid loras json, ignoring: %s", p.Name, err)
 		} else {
-			st.loras = loras
+			for _, l := range loras {
+				if strings.Contains(strings.ToLower(l.Name), "dmd") {
+					s.log.Info("edit style %q: skip lora %q (distillation loras degrade edit quality at the fixed 30-step CFG 4 contract)", p.Name, l.Name)
+					continue
+				}
+				st.loras = append(st.loras, l)
+			}
 		}
 	}
 	return st, nil

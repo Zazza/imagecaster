@@ -160,7 +160,7 @@ func TestLoadEditStyle(t *testing.T) {
 			Prompt:    "moss_xvstyle, RAW photo <lora:sneaky:1>",
 			Steps:     8,
 			CfgScale:  1.0,
-			Loras:     `[{"name": "Moss_DMD_8step", "weight": 1.0}]`,
+			Loras:     `[{"name": "Detail_Boost_Moss", "weight": 0.8}, {"name": "Moss_DMD_8step", "weight": 1.0}]`,
 		})
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
 		st, err := svc.loadEditStyle(p.ID)
@@ -169,7 +169,7 @@ func TestLoadEditStyle(t *testing.T) {
 		assert.Equal(t, p.ID, st.presetID)
 		assert.Equal(t, "moss_xvstyle, RAW photo", st.tags)
 		require.Len(t, st.loras, 1)
-		assert.Equal(t, "Moss_DMD_8step", st.loras[0].Name)
+		assert.Equal(t, "Detail_Boost_Moss", st.loras[0].Name)
 	})
 }
 
@@ -376,7 +376,7 @@ func TestEditImage_StylePreset(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	assert.Equal(t, "<lora:Moss_Edit_LoRA:1.0> <lora:Moss_DMD_8step:1> <lora:Detail_Boost_Moss:0.8> <lora:Extra_Lora:0.5>Change only make hair red"+editPromptSuffix, capturedReq.Prompt)
+	assert.Equal(t, "<lora:Moss_Edit_LoRA:1.0> <lora:Detail_Boost_Moss:0.8> <lora:Extra_Lora:0.5>Change only make hair red"+editPromptSuffix, capturedReq.Prompt)
 	assert.Equal(t, mossEditSteps, capturedReq.Steps)
 	assert.InDelta(t, mossEditCfgScale, capturedReq.CfgScale, 1e-9)
 
