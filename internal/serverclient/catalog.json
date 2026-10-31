@@ -2,9 +2,14 @@
   "llm_generate": [
     {
       "name": "qwen3:8b",
-      "description": "Best overall — fast, great instruction following, dual-mode (think/no-think)",
+      "description": "Best overall - fast, great instruction following, dual-mode (think/no-think)",
       "size_gb": 5.2,
       "recommended": true
+    },
+    {
+      "name": "qwen2.5:14b",
+      "description": "Stable, no thinking tags - clean output for prompt generation",
+      "size_gb": 9.0
     },
     {
       "name": "qwen3:14b",
@@ -12,130 +17,242 @@
       "size_gb": 9.0
     },
     {
-      "name": "gemma3:12b",
-      "description": "Excellent text quality, good instruction following",
-      "size_gb": 8.1
-    },
-    {
-      "name": "phi4-mini",
-      "description": "Ultra-lightweight for weak hardware, decent quality",
-      "size_gb": 2.7
-    },
-    {
-      "name": "qwen2.5:14b",
-      "description": "Stable, no thinking tags — clean output for prompt generation",
-      "size_gb": 9.0
+      "name": "gpt-oss:20b",
+      "description": "OpenAI open-weights, strong instruction following and prompt rewriting",
+      "size_gb": 12.1
     }
   ],
   "llm_vision": [
     {
-      "name": "minicpm-v:latest",
-      "description": "Best vision — OCR, objects, colors, details",
-      "size_gb": 5.5,
+      "name": "qwen2.5vl:7b",
+      "description": "Strong vision+text, fast, good for image analysis",
+      "size_gb": 5.0,
       "recommended": true
     },
     {
-      "name": "qwen2.5vl:7b",
-      "description": "Strong vision+text, fast, good for image analysis",
-      "size_gb": 5.0
+      "name": "minicpm-v:latest",
+      "description": "Compact vision - OCR, objects, colors, details",
+      "size_gb": 5.5
     },
     {
       "name": "gemma3:12b",
-      "description": "Multimodal — native image understanding",
+      "description": "Multimodal - native image understanding",
       "size_gb": 8.1
-    },
-    {
-      "name": "llava:13b",
-      "description": "Classic vision+language, good scene description",
-      "size_gb": 8.0
-    },
-    {
-      "name": "moondream2:latest",
-      "description": "Lightweight vision for weak hardware",
-      "size_gb": 1.7
     }
   ],
   "sd_models": [
     {
+      "name": "z-image-turbo-fp8-aio",
+      "base": "Z-Image",
+      "category": "Photorealism / Turbo",
+      "description": "Tongyi Z-Image Turbo, all-in-one fp8 - 8 steps, CFG 1, ~3 s per image after load. The workhorse",
+      "size_gb": 9.6,
+      "recommended": true,
+      "url": "https://huggingface.co/Elena2810/z-image-turbo-fp8-aio/resolve/main/z-image-turbo-fp8-aio.safetensors"
+    },
+    {
+      "name": "moss_image_sft_bf16",
+      "base": "Moss-Image",
+      "category": "Photorealism / Instruction editing",
+      "description": "OpenMOSS 5B SFT - photorealistic people, native instruction editing (Edit mode). Needs TE+VAE modules placed manually into text_encoder/ and VAE/ dirs (see Comfy-Org/MOSS-Image repo)",
+      "size_gb": 9.5,
+      "recommended": true,
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors"
+    },
+    {
+      "name": "flux1-dev-fp8",
+      "base": "Flux.1",
+      "category": "Photorealism / Prose prompts",
+      "description": "FLUX.1 dev fp8 single file - best prose-prompt following. Gated on Hugging Face (accept license, download manually or with a token)",
+      "size_gb": 11.9,
+      "recommended": true
+    },
+    {
       "name": "juggernautXL_ragnarokBy",
       "base": "SDXL",
       "category": "Photorealism",
-      "description": "Versatile photorealism — landscapes, characters, objects",
-      "url": "https://civitai.com/api/download/models/1759168",
-      "size_gb": 6.5,
-      "recommended": true
+      "description": "Versatile photorealism - landscapes, characters, objects",
+      "size_gb": 6.6,
+      "url": "https://civitai.com/api/download/models/1759168"
     },
     {
       "name": "photon_v1",
       "base": "SDXL",
       "category": "Photorealism",
       "description": "Cinematic, film-like look",
-      "url": "https://huggingface.co/sam749/Photon-v1/resolve/main/photon_v1.safetensors",
-      "size_gb": 6.5
+      "size_gb": 2.0,
+      "url": "https://huggingface.co/sam749/Photon-v1/resolve/main/photon_v1.safetensors"
     },
     {
       "name": "realisticVisionV60B1_v51HyperVAE",
       "base": "SD 1.5",
       "category": "Photorealism",
-      "description": "Portraits and headshots",
-      "url": "https://huggingface.co/numeraz/realisticvisionv60B1/resolve/main/realisticVisionV60B1_v51VAE.safetensors",
-      "size_gb": 2.1
+      "description": "Portraits and headshots, fast on low VRAM",
+      "size_gb": 2.0,
+      "url": "https://huggingface.co/numeraz/realisticvisionv60B1/resolve/main/realisticVisionV60B1_v51VAE.safetensors"
     },
     {
       "name": "epicrealism_naturalSinRC1VAE",
       "base": "SD 1.5",
       "category": "Photorealism",
-      "description": "Cinematic, dramatic scenes",
-      "url": "https://huggingface.co/philz1337x/epicrealism/resolve/main/epicrealism_naturalSinRC1VAE.safetensors",
-      "size_gb": 2.1
+      "description": "Natural skin, soft light portraits",
+      "size_gb": 2.0,
+      "url": "https://huggingface.co/philz1337x/epicrealism/resolve/main/epicrealism_naturalSinRC1VAE.safetensors"
+    },
+    {
+      "name": "chilloutmix_v10",
+      "base": "SD 1.5",
+      "category": "Photorealism",
+      "description": "Korean-style realistic portraits",
+      "size_gb": 2.0
+    },
+    {
+      "name": "cyberrealistic_final",
+      "base": "SD 1.5",
+      "category": "Photorealism",
+      "description": "Universal photorealism, solid anatomy",
+      "size_gb": 2.0
     },
     {
       "name": "dreamshaper_8",
       "base": "SD 1.5",
-      "category": "Universal",
-      "description": "Fantasy, illustration, concept art",
-      "url": "https://huggingface.co/digiplay/DreamShaper_8/resolve/main/dreamshaper_8.safetensors",
-      "size_gb": 2.1
+      "category": "Versatile",
+      "description": "All-round styles from photo to illustration",
+      "size_gb": 2.0,
+      "url": "https://huggingface.co/digiplay/DreamShaper_8/resolve/main/dreamshaper_8.safetensors"
     },
     {
-      "name": "flux_dev",
-      "base": "FLUX",
-      "category": "Universal",
-      "description": "Next-gen, superior prompt adherence",
-      "size_gb": 12.0
-    },
-    {
-      "name": "revAnimated_v2Rebirth",
-      "base": "SD 1.5",
-      "category": "Anime",
-      "description": "Classic anime style",
-      "url": "https://huggingface.co/s6yx/ReV_Animated/resolve/main/revAnimated_v2Rebirth.safetensors",
-      "size_gb": 2.1
-    },
-    {
-      "name": "neoMoeDreamxl_v10",
+      "name": "epicrealismXL_pureFix",
       "base": "SDXL",
-      "category": "Anime",
-      "description": "Moe/soft anime style",
+      "category": "Photorealism",
+      "description": "SDXL realistic people, clean output",
+      "size_gb": 6.5
+    },
+    {
+      "name": "jaggedBrushworksXL_v10",
+      "base": "SDXL",
+      "category": "Painterly",
+      "description": "Expressive painterly brushwork looks",
+      "size_gb": 6.5
+    },
+    {
+      "name": "leosamsHelloworldXL_helloworldXL70",
+      "base": "SDXL",
+      "category": "3D / Render",
+      "description": "Helloworld XL - semi-3D renders and stylized characters",
+      "size_gb": 6.5
+    },
+    {
+      "name": "zavychromaxl_v100",
+      "base": "SDXL",
+      "category": "Cinematic",
+      "description": "Chroma XL - rich cinematic color",
+      "size_gb": 6.5
+    },
+    {
+      "name": "babesByStableYogiPony_v60FP16",
+      "base": "Pony XL",
+      "category": "Photorealism / Pony",
+      "description": "Pony-based photoreal people",
+      "size_gb": 6.5
+    },
+    {
+      "name": "ponyDiffusionV6XL_v6StartWithThisOne",
+      "base": "Pony XL",
+      "category": "Anime / Pony",
+      "description": "Pony V6 base - huge style ecosystem",
+      "size_gb": 6.5
+    },
+    {
+      "name": "realismByStableYogi_ponyV3VAE",
+      "base": "Pony XL",
+      "category": "Photorealism / Pony",
+      "description": "Realism tuned on Pony",
+      "size_gb": 6.5
+    },
+    {
+      "name": "revEnginePonyxl_v10",
+      "base": "Pony XL",
+      "category": "Stylized / Pony",
+      "description": "Stylized renders on Pony base",
+      "size_gb": 6.5
+    },
+    {
+      "name": "riMixPONYIllustrious_riMixV2",
+      "base": "Pony/Illustrious",
+      "category": "Anime realism",
+      "description": "Anime-realism hybrid blend",
+      "size_gb": 6.5
+    },
+    {
+      "name": "fnReal25DNoobxl_v10",
+      "base": "Illustrious",
+      "category": "2.5D",
+      "description": "2.5D semi-realistic characters",
+      "size_gb": 6.5
+    },
+    {
+      "name": "illustriousRealismBy_v10VAE",
+      "base": "Illustrious",
+      "category": "Anime realism",
+      "description": "Realistic people on Illustrious base",
+      "size_gb": 6.5
+    },
+    {
+      "name": "realismIllustriousBy_v55FP16",
+      "base": "Illustrious",
+      "category": "Anime realism",
+      "description": "Realism blend, v55",
       "size_gb": 6.5
     },
     {
       "name": "veloriamixIllustrious_v20",
       "base": "Illustrious",
       "category": "Anime",
-      "description": "Detailed illustration style",
+      "description": "Veloria mix - stylized anime characters",
+      "size_gb": 6.8
+    },
+    {
+      "name": "t00nBL00MXL_v10",
+      "base": "Illustrious",
+      "category": "Cartoon",
+      "description": "Bold cartoon/toon looks",
       "size_gb": 6.5
+    },
+    {
+      "name": "veteAnthroAnime_v02",
+      "base": "Illustrious",
+      "category": "Anthro",
+      "description": "Anthro/furry anime characters",
+      "size_gb": 6.5
+    },
+    {
+      "name": "revAnimated_v2Rebirth",
+      "base": "SD 1.5",
+      "category": "Anime",
+      "description": "Classic anime look",
+      "size_gb": 4.0,
+      "url": "https://huggingface.co/s6yx/ReV_Animated/resolve/main/revAnimated_v2Rebirth.safetensors"
     }
   ],
   "lora": [
+    {
+      "name": "Moss_Edit_LoRA",
+      "base": "Moss-Image",
+      "category": "Instruction editing",
+      "default_weight": 1.0,
+      "description": "Official edit LoRA for the Edit mode (reference KV instruction editing)",
+      "size_mb": 297,
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/loras/moss_image_edit_lora_rank_64_bf16.safetensors"
+    },
     {
       "name": "add-detail-xl",
       "base": "SDXL",
       "category": "Detail & Quality",
       "default_weight": 0.7,
       "description": "Increases detail and sharpness",
-      "url": "https://huggingface.co/LyliaEngine/add-detail-xl/resolve/main/add-detail-xl.safetensors",
-      "size_mb": 136
+      "size_mb": 136,
+      "url": "https://huggingface.co/LyliaEngine/add-detail-xl/resolve/main/add-detail-xl.safetensors"
     },
     {
       "name": "Add_Details_v1.2",
@@ -154,109 +271,13 @@
       "size_mb": 136
     },
     {
-      "name": "SDXL_FILM_PHOTOGRAPHY_STYLE_V1",
-      "base": "SDXL",
-      "category": "Photography",
-      "default_weight": 0.6,
-      "description": "Film photography style",
-      "size_mb": 136
-    },
-    {
-      "name": "Anamorphic film style v2.5",
-      "base": "SDXL",
-      "category": "Photography",
-      "default_weight": 0.5,
-      "description": "Anamorphic cinematic look",
-      "size_mb": 136
-    },
-    {
-      "name": "closeupface-v1",
-      "base": "SDXL",
-      "category": "Portraits",
-      "default_weight": 0.7,
-      "description": "Enhanced close-up face details",
-      "size_mb": 136
-    },
-    {
       "name": "hairdetailer",
-      "base": "SD 1.5",
-      "category": "Portraits",
-      "default_weight": 0.7,
-      "description": "Detailed hair rendering",
-      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/release/hairdetailer.safetensors",
-      "size_mb": 144
-    },
-    {
-      "name": "realistic hands",
-      "base": "SD 1.5",
-      "category": "Portraits",
+      "base": "SD 1.5/SDXL",
+      "category": "Detail",
       "default_weight": 0.6,
-      "description": "Better hand rendering",
-      "size_mb": 144
-    },
-    {
-      "name": "Super_Eye_Detailer_By_Stable_Yogi_SDPD0",
-      "base": "SD 1.5",
-      "category": "Portraits",
-      "default_weight": 0.7,
-      "description": "Enhanced eye details",
-      "size_mb": 144
-    },
-    {
-      "name": "celshading",
-      "base": "SD 1.5",
-      "category": "Style",
-      "default_weight": 0.7,
-      "description": "Cel-shading style",
-      "size_mb": 144
-    },
-    {
-      "name": "watercolor",
-      "base": "SD 1.5",
-      "category": "Style",
-      "default_weight": 0.8,
-      "description": "Watercolor painting effect",
-      "size_mb": 144
-    },
-    {
-      "name": "pixel-art-xl-v1.1",
-      "base": "SDXL",
-      "category": "Style",
-      "default_weight": 0.9,
-      "description": "Pixel art style",
-      "size_mb": 136
-    },
-    {
-      "name": "comicStrips",
-      "base": "SD 1.5",
-      "category": "Style",
-      "default_weight": 0.7,
-      "description": "Comic strip style",
-      "size_mb": 144
-    },
-    {
-      "name": "CyberPunkAI",
-      "base": "SD 1.5",
-      "category": "Style",
-      "default_weight": 0.6,
-      "description": "Cyberpunk aesthetic",
-      "size_mb": 144
-    },
-    {
-      "name": "Dramatic Lighting Slider",
-      "base": "SD 1.5",
-      "category": "Lighting",
-      "default_weight": 0.5,
-      "description": "Dramatic lighting effects",
-      "size_mb": 144
-    },
-    {
-      "name": "dynamic_shot_42_rim_light",
-      "base": "SDXL",
-      "category": "Lighting",
-      "default_weight": 0.6,
-      "description": "Dynamic rim lighting",
-      "size_mb": 136
+      "description": "Hair strand detail",
+      "size_mb": 68,
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/release/hairdetailer.safetensors"
     }
   ]
 }

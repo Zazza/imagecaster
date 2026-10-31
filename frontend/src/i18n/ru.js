@@ -1,5 +1,5 @@
 export const ru = {
-  'app.title': 'SD Studio',
+  'app.title': 'Imagecaster',
   'app.nav_create': 'Создание',
   'app.nav_generate': 'Генерация',
   'app.nav_remix': 'Ремикс',
@@ -283,6 +283,14 @@ export const ru = {
   'settings.cannot_load_llm': 'Не удалось загрузить модели — {label} запущен?',
 
   'settings.section_preview': 'Генерация превью',
+    'settings.section_memory_guard': 'Memory Guard (видеопамять)',
+  'settings.heavy_models': 'Тяжёлые модели (CSV)',
+  'settings.heavy_models_default': 'flux,z-image,moss',
+  'settings.heavy_models_hint': 'Подстроки имён моделей, которым нужен больший запас VRAM (12 ГБ вместо 8 ГБ): перед ними LLM выгружается агрессивнее',
+  'settings.prose_models': 'Модели с прозой-промптом (CSV)',
+  'settings.prose_models_hint': 'Подстроки имён моделей, для которых инструкция конвертера пишет связный текст вместо SD-тегов',
+  'settings.llm_auto_unload': 'Выгружать LLM при нехватке VRAM',
+  'settings.llm_auto_unload_hint': 'Перед тяжёлой генерацией автоматически выгружать модели LLM из видеопамяти, если её мало; выгрузка происходит только если она реально помогает',
   'settings.generation_saved': 'Настройки сохранены.',
   'settings.enabled': 'Включено',
   'settings.disabled': 'Выключено',
@@ -328,7 +336,7 @@ export const ru = {
 
   'settings.label_connection_mode': 'Режим подключения',
   'settings.mode_direct': 'Напрямую',
-  'settings.mode_server': 'SD Studio Server',
+  'settings.mode_server': 'Imagecaster Server',
   'settings.label_server_url': 'Адрес сервера',
   'settings.btn_discover': 'Сканировать сеть',
   'settings.btn_discovering': 'Сканирование...',

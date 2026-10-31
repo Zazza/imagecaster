@@ -3,7 +3,7 @@ package generation
 import (
 	"strings"
 
-	"go-sd/internal/preset"
+	"github.com/Zazza/imagecaster/internal/preset"
 )
 
 const (

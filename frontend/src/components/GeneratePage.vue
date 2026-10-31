@@ -541,7 +541,7 @@ async function downloadImage() {
   try {
     const b64 = await resolveImageBase64()
     if (!b64) return
-    const defaultName = 'sd-studio-' + Date.now() + '.png'
+    const defaultName = 'imagecaster-' + Date.now() + '.png'
     const savedPath = await api.saveImage(b64, defaultName)
     if (savedPath) {
       error.value = ''
@@ -552,7 +552,7 @@ async function downloadImage() {
 }
 
 function openFastSaveModal() {
-  fastSaveFilename.value = 'sd-studio-' + Date.now()
+  fastSaveFilename.value = 'imagecaster-' + Date.now()
   showFastSaveModal.value = true
 }
 

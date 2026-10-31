@@ -9,10 +9,10 @@ import (
 	"strings"
 	"unicode"
 
-	"go-sd/internal/config"
-	"go-sd/internal/filebrowser"
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 const (

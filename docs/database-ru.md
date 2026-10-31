@@ -1,6 +1,6 @@
 [English](database-en.md) | [Русский](database-ru.md)
 
-# SD Studio — База данных
+# Imagecaster — База данных
 
 ## SQLite
 

@@ -8,12 +8,12 @@ import (
 	"strings"
 	"sync"
 
-	"go-sd/internal/config"
-	"go-sd/internal/llm"
-	"go-sd/internal/logger"
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
-	"go-sd/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/serverclient"
 )
 
 type ServiceInfo struct {

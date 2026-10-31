@@ -24,9 +24,9 @@ type Config struct {
 	DefaultHeight   int
 }
 
-const DefaultHeavyModels = "flux,z-image,qwen-image,chroma,hunyuan"
+const DefaultHeavyModels = "flux,z-image,moss"
 
-const DefaultProseModels = "flux,z-image,qwen-image,chroma,hunyuan"
+const DefaultProseModels = "flux,z-image,moss"
 
 func ModelMatchesCSV(modelName, csv string) bool {
 	name := strings.ToLower(strings.TrimSpace(modelName))

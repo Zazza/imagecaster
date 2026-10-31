@@ -1,4 +1,4 @@
-module go-sd
+module github.com/Zazza/imagecaster
 
 go 1.25.0
 

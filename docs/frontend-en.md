@@ -1,6 +1,6 @@
 [English](frontend-en.md) | [Русский](frontend-ru.md)
 
-# SD Studio — Frontend (Vue 3)
+# Imagecaster — Frontend (Vue 3)
 
 ## Structure
 
@@ -13,11 +13,12 @@ frontend/src/
 ├── components/
 │   ├── GeneratePage.vue           # Main generation (txt2img)
 │   ├── GenerateFromImagePage.vue  # Generation from image
+│   ├── EditPage.vue                # Edit mode — instruction-based editing
+│   ├── ComparePage.vue             # Side-by-side preset/model comparison
 │   ├── PresetsPage.vue            # Preset management
 │   ├── UnifiedPresetsPage.vue     # Unified: presets + types + compounds
 │   ├── PresetForm.vue             # Preset create/edit form
 │   ├── SettingsPage.vue           # Settings (LLM, SD, prompts)
-│   ├── BatchPage.vue              # Batch generation
 │   ├── TestPage.vue               # Test generation
 │   ├── ExportPage.vue             # Image export
 │   ├── FileBrowserPage.vue        # File browser
@@ -166,7 +167,6 @@ Application settings. Tabs:
 - **Image Browser:** default folder
 - **Kids Mode:** PIN, categories
 
-### BatchPage.vue
 Batch generation from files in a folder.
 
 **Flow:**

@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"unicode/utf8"
 
-	"go-sd/internal/preset"
+	"github.com/Zazza/imagecaster/internal/preset"
 
 	xdraw "golang.org/x/image/draw"
 )

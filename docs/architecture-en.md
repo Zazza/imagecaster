@@ -1,6 +1,6 @@
 [English](architecture-en.md) | [Русский](architecture-ru.md)
 
-# SD Studio — Architecture
+# Imagecaster — Architecture
 
 ## Stack
 
@@ -110,7 +110,7 @@ The `server/` package is a standalone Go service for managing AI infrastructure:
 
 ```
 ┌─────────────────────────────────────────┐
-│           SD Studio Server               │
+│           Imagecaster Server               │
 ├────────┬──────────┬──────────┬──────────┤
 │Process │  GPU     │  Health  │   TUI    │
 │Manager │ Monitor  │ Monitor  │Dashboard │
@@ -127,7 +127,7 @@ The `server/` package is a standalone Go service for managing AI infrastructure:
 - **GPU Proxy** — priority queue with VRAM cooldown (prevents OOM on low-VRAM GPUs)
 - **Health Monitoring** — periodic HTTP checks for all services
 - **TUI** — terminal dashboard via bubbletea with service status and controls
-- **mDNS** — automatic service discovery via `_sd-studio._tcp`
+- **mDNS** — automatic service discovery via `_imagecaster._tcp`
 - **Model Management** — download/delete SD checkpoints and LLM models
 - **Backend Switching** — switch between A1111 and Forge at runtime
 - **Installer** — automatic installation of Python, SD WebUI, Ollama

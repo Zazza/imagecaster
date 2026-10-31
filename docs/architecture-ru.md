@@ -1,6 +1,6 @@
 [English](architecture-en.md) | [Русский](architecture-ru.md)
 
-# SD Studio — Архитектура
+# Imagecaster — Архитектура
 
 ## Стек
 
@@ -110,7 +110,7 @@ Backend → Frontend коммуникация через `runtime.EventsEmit(ctx
 
 ```
 ┌─────────────────────────────────────────┐
-│           SD Studio Server               │
+│           Imagecaster Server               │
 ├────────┬──────────┬──────────┬──────────┤
 │Process │  GPU     │  Health  │   TUI    │
 │Manager │ Monitor  │ Monitor  │Dashboard │
@@ -127,7 +127,7 @@ Backend → Frontend коммуникация через `runtime.EventsEmit(ctx
 - **GPU-прокси** — приоритетная очередь с VRAM cooldown (предотвращает OOM на GPU с малой VRAM)
 - **Мониторинг здоровья** — периодические HTTP-проверки всех сервисов
 - **TUI** — терминальный дашборд на bubbletea со статусом сервисов и управлением
-- **mDNS** — автоматическое обнаружение сервисов через `_sd-studio._tcp`
+- **mDNS** — автоматическое обнаружение сервисов через `_imagecaster._tcp`
 - **Управление моделями** — загрузка/удаление SD-чекпоинтов и LLM-моделей
 - **Переключение бэкендов** — переключение между A1111 и Forge во время работы
 - **Установщик** — автоматическая установка Python, SD WebUI, Ollama

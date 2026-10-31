@@ -1,6 +1,6 @@
 [English](backend-en.md) | [Русский](backend-ru.md)
 
-# SD Studio — Backend (Go)
+# Imagecaster — Backend (Go)
 
 ## Конструкторы (Dependency Injection)
 

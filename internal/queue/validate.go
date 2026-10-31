@@ -3,7 +3,7 @@ package queue
 import (
 	"fmt"
 
-	"go-sd/internal/generation"
+	"github.com/Zazza/imagecaster/internal/generation"
 )
 
 func validateJobParams(jobType JobType, params any) error {

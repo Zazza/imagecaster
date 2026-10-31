@@ -1,6 +1,6 @@
 [English](setup-en.md) | [Русский](setup-ru.md)
 
-# SD Studio — Руководство по настройке сервисов
+# Imagecaster — Руководство по настройке сервисов
 
 ## Содержание
 
@@ -8,13 +8,13 @@
 - [Ollama](#ollama)
 - [LM Studio](#lm-studio)
 - [llama.cpp](#llamacpp)
-- [SD Studio Server](#sd-studio-server)
+- [Imagecaster Server](#imagecaster-server)
 
 ---
 
 ## Stable Diffusion WebUI
 
-Движок генерации изображений. SD Studio подключается через REST API. Поддерживаются два варианта: **A1111** (стандартный) и **Forge** (ускоренный).
+Движок генерации изображений. Imagecaster подключается через REST API. Поддерживаются два варианта: **A1111** (стандартный) и **Forge** (ускоренный).
 
 ### Вариант 1: A1111 (стандартный, рекомендуется)
 
@@ -48,9 +48,11 @@ Windows:
 webui.bat --listen --api --enable-insecure-extension-access
 ```
 
-> **Известная проблема Forge:** Hires Fix может вызывать ошибку `argument of type 'NoneType' is not iterable`. SD Studio автоматически повторит генерацию без Hires Fix и покажет предупреждение. Для полноценной работы Hires Fix используйте A1111.
+> **Известная проблема Forge:** Hires Fix может вызывать ошибку `argument of type 'NoneType' is not iterable`. Imagecaster автоматически повторит генерацию без Hires Fix и покажет предупреждение. Для полноценной работы Hires Fix используйте A1111.
 
 > **Модели Z-Image:** бандл-семейство пресетов `(Z-Image)` использует чекпоинты `z-image-turbo`. Оригинальный Forge эту архитектуру **не поддерживает** — нужен форк с поддержкой Z-Image (например, [sd-webui-forge-classic, ветка `neo`](https://github.com/Haoming02/sd-webui-forge-classic)); это замена «как есть» с тем же REST API. Остальные бандл-семейства работают на любом из бэкендов выше.
+
+> **Модель Moss-Image (режим правки):** для редактирования по инструкции нужен чекпоинт `moss_image_sft_bf16` и Forge Neo (reference-движок). Чекпоинт скачивается из каталога (Настройки → Каталог); текстовый энкодер `qwen35_9b_int8_convrot.safetensors` и VAE `flux2-vae_small.safetensors` положите вручную в `models/text_encoder/` и `models/VAE/` (репозиторий Comfy-Org/MOSS-Image). Приложение подключает модули автоматически при смене модели.
 
 ### Флаги
 
@@ -81,7 +83,7 @@ LoRA -> `models/Lora/`, VAE -> `models/VAE/`.
 
 ## Ollama
 
-Локальный LLM-сервер. SD Studio использует его для генерации промптов и анализа изображений.
+Локальный LLM-сервер. Imagecaster использует его для генерации промптов и анализа изображений.
 
 ### Установка
 
@@ -145,7 +147,7 @@ Environment="OLLAMA_HOST=0.0.0.0:11434"
 curl http://localhost:11434/api/tags
 ```
 
-В SD Studio -> Настройки -> Подключение: выберите **Ollama**, URL `http://localhost:11434`.
+В Imagecaster -> Настройки -> Подключение: выберите **Ollama**, URL `http://localhost:11434`.
 
 ---
 
@@ -178,7 +180,7 @@ GUI-приложение для LLM. Проще в настройке, чем Ol
 curl http://localhost:1234/v1/models
 ```
 
-В SD Studio -> Настройки -> Подключение: выберите **LM Studio**, URL `http://localhost:1234`.
+В Imagecaster -> Настройки -> Подключение: выберите **LM Studio**, URL `http://localhost:1234`.
 
 ---
 
@@ -236,13 +238,13 @@ brew install llama.cpp
 curl http://localhost:8081/v1/models
 ```
 
-В SD Studio -> Настройки -> Подключение: выберите **llama.cpp**, URL `http://localhost:8081`.
+В Imagecaster -> Настройки -> Подключение: выберите **llama.cpp**, URL `http://localhost:8081`.
 
 > **Примечание:** llama.cpp не поддерживает переключение моделей через API. Модель задаётся при запуске сервера.
 
 ---
 
-## SD Studio Server
+## Imagecaster Server
 
 Автономный сервис для автоматического управления всеми AI-компонентами (SD WebUI, Ollama) — установка, запуск, мониторинг, оптимизация GPU и управление моделями. Идеально для headless-развертываний и серверов.
 
@@ -250,7 +252,7 @@ curl http://localhost:8081/v1/models
 
 ```bash
 cd server
-go build -o sd-studio-server .
+go build -o imagecaster-server .
 ```
 
 Или через Docker:
@@ -261,7 +263,7 @@ docker compose up --build
 ### Первый запуск
 
 ```bash
-./sd-studio-server --data ~/sd-studio-server
+./imagecaster-server --data ~/imagecaster-server
 ```
 
 При первом запуске интерактивный мастер настройки проведёт через:
@@ -275,7 +277,7 @@ docker compose up --build
 
 ```yaml
 port: 8080
-data_dir: ~/sd-studio-server
+data_dir: ~/imagecaster-server
 active_sd: forge
 mdns: true
 proxy:
@@ -294,10 +296,10 @@ proxy:
 
 | Режим | Команда | Описание |
 |-------|---------|----------|
-| TUI (интерактивный) | `./sd-studio-server` | Терминальный дашборд с управлением сервисами |
-| Headless | `./sd-studio-server --headless` | Только вывод логов, без TUI |
-| Кастомный порт | `./sd-studio-server --port 9090` | Переопределить HTTP-порт |
-| Кастомный конфиг | `./sd-studio-server --config /path/to/config.yaml` | Использовать указанный файл конфигурации |
+| TUI (интерактивный) | `./imagecaster-server` | Терминальный дашборд с управлением сервисами |
+| Headless | `./imagecaster-server --headless` | Только вывод логов, без TUI |
+| Кастомный порт | `./imagecaster-server --port 9090` | Переопределить HTTP-порт |
+| Кастомный конфиг | `./imagecaster-server --config /path/to/config.yaml` | Использовать указанный файл конфигурации |
 
 ### GPU Proxy
 
@@ -326,7 +328,7 @@ proxy:
 
 ### Обнаружение через mDNS
 
-При `mdns: true` сервер анонсирует себя как `_sd-studio._tcp` в локальной сети. Десктопные приложения могут автоматически обнаруживать сервер.
+При `mdns: true` сервер анонсирует себя как `_imagecaster._tcp` в локальной сети. Десктопные приложения могут автоматически обнаруживать сервер.
 
 ### Проверка
 
@@ -338,10 +340,10 @@ curl http://localhost:8080/
 
 ## Краткая справка
 
-| Сервис | Порт по умолчанию | URL в SD Studio |
+| Сервис | Порт по умолчанию | URL в Imagecaster |
 |--------|-------------------|-----------------|
 | Stable Diffusion | 7860 | `http://localhost:7860` |
 | Ollama | 11434 | `http://localhost:11434` |
 | LM Studio | 1234 | `http://localhost:1234` |
 | llama.cpp | 8081 | `http://localhost:8081` |
-| SD Studio Server | 8080 | `http://localhost:8080` |
+| Imagecaster Server | 8080 | `http://localhost:8080` |

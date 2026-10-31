@@ -1,6 +1,6 @@
 export const en = {
   // App.vue — Sidebar
-  'app.title': 'SD Studio',
+  'app.title': 'Imagecaster',
   'app.nav_create': 'Create',
   'app.nav_generate': 'Generate',
   'app.nav_remix': 'Remix',
@@ -291,6 +291,14 @@ export const en = {
 
   // Generation tab
   'settings.section_preview': 'Preview Generation',
+    'settings.section_memory_guard': 'Memory Guard (VRAM)',
+  'settings.heavy_models': 'Heavy models (CSV)',
+  'settings.heavy_models_default': 'flux,z-image,moss',
+  'settings.heavy_models_hint': 'Model name substrings that need a bigger VRAM headroom (12 GB instead of 8 GB): the LLM is unloaded more aggressively before them',
+  'settings.prose_models': 'Prose-prompt models (CSV)',
+  'settings.prose_models_hint': 'Model name substrings for which the converter instruction writes flowing prose instead of SD tags',
+  'settings.llm_auto_unload': 'Unload the LLM when VRAM is low',
+  'settings.llm_auto_unload_hint': 'Automatically unload LLM models from VRAM before heavy generation when memory is tight; the unload only happens when it actually helps',
   'settings.generation_saved': 'Settings saved.',
   'settings.enabled': 'Enabled',
   'settings.disabled': 'Disabled',
@@ -340,7 +348,7 @@ export const en = {
   // Server mode
   'settings.label_connection_mode': 'Connection Mode',
   'settings.mode_direct': 'Direct',
-  'settings.mode_server': 'SD Studio Server',
+  'settings.mode_server': 'Imagecaster Server',
   'settings.label_server_url': 'Server Address',
   'settings.btn_discover': 'Scan Network',
   'settings.btn_discovering': 'Scanning...',

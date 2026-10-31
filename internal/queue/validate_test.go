@@ -3,7 +3,7 @@ package queue
 import (
 	"testing"
 
-	"go-sd/internal/generation"
+	"github.com/Zazza/imagecaster/internal/generation"
 )
 
 func TestValidateJobParams(t *testing.T) {

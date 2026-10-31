@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"go-sd/internal/llm"
-	"go-sd/internal/logger"
-	"go-sd/internal/sd"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 var (
@@ -405,7 +405,7 @@ func TestMemoryGuard_IsHeavy(t *testing.T) {
 		want        bool
 	}{
 		{name: "default flux substring", model: "flux1-dev-fp8", want: true},
-		{name: "default qwen-image substring", model: "QWEN-Image-Turbo", want: true},
+		{name: "default moss substring", model: "moss_image_sft_bf16", want: true},
 		{name: "default no match", model: "epicrealismXL_pureFix", want: false},
 		{name: "empty model name", model: "", want: false},
 		{name: "custom setting overrides default list", model: "flux1-dev-fp8", heavyModels: "megatron", want: false},

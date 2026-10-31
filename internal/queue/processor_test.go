@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"go-sd/internal/generation"
+	"github.com/Zazza/imagecaster/internal/generation"
 )
 
 func TestProcessGeneration_QualityFlagsInJobResult(t *testing.T) {

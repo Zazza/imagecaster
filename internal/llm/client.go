@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"go-sd/internal/promptutil"
+	"github.com/Zazza/imagecaster/internal/promptutil"
 )
 
 const maxLLMResponseBodySize = 10 * 1024 * 1024

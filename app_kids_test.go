@@ -6,11 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"go-sd/internal/config"
-	"go-sd/internal/llm"
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
-	"go-sd/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/serverclient"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

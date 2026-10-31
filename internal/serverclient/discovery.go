@@ -43,7 +43,7 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 	searchCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := resolver.Browse(searchCtx, "_sd-studio._tcp", "local.", entries); err != nil {
+	if err := resolver.Browse(searchCtx, "_imagecaster._tcp", "local.", entries); err != nil {
 		return nil, fmt.Errorf("mDNS browse: %w", err)
 	}
 

@@ -1,8 +1,11 @@
 # Changelog
 
-All notable changes to SD Studio are documented here.
+All notable changes to Imagecaster are documented here.
 
-## [Unreleased]
+## [1.0.0] — 2026-10-31
+
+### Project
+- **Renamed from SD Studio to Imagecaster** — the name now says what the tool does: it casts images from your words. Repository is [Zazza/imagecaster](https://github.com/Zazza/imagecaster) (GitHub redirects the old `sd-ai` URLs), the Go module path, binary (`imagecaster`) and all docs follow; the [sd-ai-server](https://github.com/Zazza/sd-ai-server) companion keeps its name.
 
 ### Added
 - **Edit mode (instruction-based image editing)**: new `EditImage` binding runs a true reference edit on the fixed `moss_image_sft_bf16` model. The Forge Neo `moss_do_reference` option (`Moss-Image-Edit`) makes the backend inject the source image's latent into attention (reference KV at timestep zero), so the model changes what the instruction asks for and keeps the person, face, pose and scene — verified live on a 1360×2048 photo (pants→skirt applied, face untouched), and Russian instructions work natively (Qwen text encoder). The reference option is enabled right before the request and reset after it (a failed reset flags the result with `edit_reference_reset_failed`; a startup goroutine also resets it). The prompt is built as `<lora:Moss_Edit_LoRA:1.0>[style LoRAs][user LoRAs][style tags] Change only {instruction}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo` — the palette clause is a live-verified upgrade (a same-seed A/B moved the new garment's color/lighting match from 5/10 ("pasted on", flat light) to 8/10 (folds, window highlight, scene-consistent light)). with fixed sampler settings (Euler/Simple, 30 steps, CFG 4.0, denoise 1.0 — the reference engine reconstructs from the source instead of redrawing freely), dimensions aligned to /16 capped at 2048, kids-mode filtering and angle-tag/`<lora:`-prefix stripping on the instruction. The result lands in the session history with an "Edit: …" label; the effective prompt is shown under the result; the instruction persists via `edit_instruction`. New "Edit" page: drop/paste/last-generated source, instruction, optional seed, style selector, LoRA panel, quality checkbox, live SD progress with interrupt, download / regenerate / "edit the result" actions.

@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"go-sd/internal/config"
-	"go-sd/internal/llm"
-	"go-sd/internal/logger"
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 const (

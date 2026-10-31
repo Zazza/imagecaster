@@ -6,16 +6,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"go-sd/internal/config"
-	"go-sd/internal/generation"
-	"go-sd/internal/kids"
-	"go-sd/internal/llm"
-	"go-sd/internal/logger"
-	"go-sd/internal/mcp"
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
-	"go-sd/internal/serverclient"
-	"go-sd/internal/settings"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/kids"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/mcp"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/settings"
 )
 
 func main() {

@@ -1,6 +1,6 @@
 [English](algorithms-en.md) | [Русский](algorithms-ru.md)
 
-# SD Studio — Algorithms and Data Flows
+# Imagecaster — Algorithms and Data Flows
 
 ## 1. Txt2Img — Generation from Scratch
 

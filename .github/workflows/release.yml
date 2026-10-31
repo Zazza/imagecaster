@@ -62,19 +62,19 @@ jobs:
 
       - name: Package (macOS)
         if: matrix.goos == 'darwin'
-        run: tar czf sd-studio-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C build/bin sd-studio.app
+        run: tar czf imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C build/bin imagecaster.app
 
       - name: Package (Linux)
         if: matrix.goos == 'linux'
-        run: tar czf sd-studio-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C build/bin sd-studio
+        run: tar czf imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C build/bin imagecaster
 
       - name: Package (Windows)
         if: matrix.ext == '.zip'
         shell: pwsh
-        run: Compress-Archive -Path build/bin/sd-studio.exe -DestinationPath sd-studio-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+        run: Compress-Archive -Path build/bin/imagecaster.exe -DestinationPath imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.zip
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            sd-studio-${{ matrix.goos }}-${{ matrix.goarch }}.*
+            imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.*

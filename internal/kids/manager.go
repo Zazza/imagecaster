@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"go-sd/internal/config"
+	"github.com/Zazza/imagecaster/internal/config"
 )
 
 const (

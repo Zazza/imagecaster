@@ -547,7 +547,7 @@ async function generate() {
 async function downloadImage() {
   if (!generatedImage.value) return
   try {
-    const defaultName = 'sd-studio-from-image-' + Date.now() + '.png'
+    const defaultName = 'imagecaster-from-image-' + Date.now() + '.png'
     if (generatedImage.value.startsWith('/api/')) {
       const resp = await fetch(generatedImage.value)
       const blob = await resp.blob()

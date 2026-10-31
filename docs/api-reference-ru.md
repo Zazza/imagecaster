@@ -1,6 +1,6 @@
 [English](api-reference-en.md) | [Русский](api-reference-ru.md)
 
-# SD Studio — API Reference (Wails Bindings)
+# Imagecaster — API Reference (Wails Bindings)
 
 ## Общие типы
 
@@ -82,6 +82,33 @@ EventsOn("remove:stage", (stage) => { ... })         // "analyzing" | "generatin
 ```
 
 ---
+
+---
+
+### EditImage
+Редактирование фотографии по инструкции (режим правки, модель moss на Forge Neo с reference-движком).
+
+```typescript
+api.editImage(params: EditImageParams)
+  → Promise<GenerateImageResult>
+```
+
+```typescript
+interface EditImageParams {
+  image_base64: string              // Обязательно, до 16 МБ
+  instruction: string               // Обязательно, любой язык, до 2000 символов
+  style_preset_id: number           // Опционально: moss-пресет (вклад: только LoRA)
+  style_tags: boolean               // Опционально: применять и теги стиля (по умолчанию выкл)
+  loras: Array<{name, weight}>      // Опционально: до 8 пользовательских LoRA (стек + стиль)
+  output_mode: "" | "standard" | "quality"  // quality требует resolution_id
+  resolution_id: number             // Целевой бокс для quality-режима
+  seed: number                      // Опционально
+}
+```
+
+Промпт собирается как `<lora:Moss_Edit_LoRA:1.0>[LoRA стиля][LoRA пользователя][теги стиля] Change only {инструкция}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` Опция `moss_do_reference` включается перед запросом и сбрасывается после; при сбое сброса результат несёт `edit_reference_reset_failed: true`.
+
+**Прямой путь без очереди** (как TestGenerate); сериализация через мьютекс на сервисе.
 
 ### GenerateSDPrompt
 Генерация SD-промпта через LLM.

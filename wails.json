@@ -1,13 +1,15 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "sd-studio",
-  "outputfilename": "sd-studio",
+  "name": "imagecaster",
+  "outputfilename": "imagecaster",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "wailsjsdir": "./frontend/src",
-  "ldflags": ["-X main.version={{.Version}}"],
+  "ldflags": [
+    "-X main.version={{.Version}}"
+  ],
   "author": {
     "name": "dsamotoy"
   }

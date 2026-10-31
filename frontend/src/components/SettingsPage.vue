@@ -111,6 +111,29 @@ const generationForm = reactive({
 const generationSaved = ref(false)
 const generationError = ref('')
 
+const memoryForm = reactive({
+  heavy_models: '',
+  prose_models: '',
+  llm_auto_unload: true,
+})
+const memorySaved = ref(false)
+const memoryError = ref('')
+
+async function saveMemoryGuard() {
+  memorySaved.value = false
+  memoryError.value = ''
+  try {
+    await api.updateSettings({
+      heavy_models: memoryForm.heavy_models.trim(),
+      prose_models: memoryForm.prose_models.trim(),
+      llm_auto_unload: memoryForm.llm_auto_unload ? 'true' : 'false',
+    })
+    memorySaved.value = true
+  } catch (e) {
+    memoryError.value = String(e)
+  }
+}
+
 const promptInstruction = ref('')
 const promptInstructionSaved = ref(false)
 const promptInstructionError = ref('')
@@ -159,6 +182,9 @@ async function loadSettings() {
     loadConnectionLLMModels()
     kidsMode.value = await api.isKidsModeActive()
     loadKidsCategories()
+    memoryForm.heavy_models = settings.heavy_models || ''
+    memoryForm.prose_models = settings.prose_models || ''
+    memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
     generationForm.preview_mode = settings.preview_mode === 'true'
     generationForm.preview_width = parseInt(settings.preview_width) || 512
     generationForm.preview_height = parseInt(settings.preview_height) || 512
@@ -784,7 +810,7 @@ onMounted(loadSettings)
             @mouseenter="$event.target.style.borderColor = 'var(--accent)'"
             @mouseleave="$event.target.style.borderColor = 'var(--border)'"
           >
-            <div style="color: var(--text-bright); font-size: 13px; font-weight: 500;">{{ srv.name || 'SD Studio Server' }}</div>
+            <div style="color: var(--text-bright); font-size: 13px; font-weight: 500;">{{ srv.name || 'Imagecaster Server' }}</div>
             <div style="color: var(--text-dim); font-size: 12px;">{{ srv.ip_address }}:{{ srv.port }}</div>
           </div>
         </div>
@@ -1090,6 +1116,27 @@ onMounted(loadSettings)
 
     <!-- Advanced Tab — changes in server mode -->
     <div v-if="activeTab === 'advanced'">
+      <div class="card" style="margin-bottom: 16px;">
+        <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.section_memory_guard') }}</h3>
+        <div v-if="memorySaved" class="status status-success" style="margin-bottom: 12px;">{{ t('settings.saved_immediate') }}</div>
+        <div v-if="memoryError" class="status status-error" style="margin-bottom: 12px;">{{ memoryError }}</div>
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.heavy_models') }}</label>
+          <input data-testid="settings-heavy-models" class="form-input" type="text" v-model="memoryForm.heavy_models" :placeholder="t('settings.heavy_models_default')" />
+          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('settings.heavy_models_hint') }}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.prose_models') }}</label>
+          <input data-testid="settings-prose-models" class="form-input" type="text" v-model="memoryForm.prose_models" :placeholder="t('settings.heavy_models_default')" />
+          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('settings.prose_models_hint') }}</div>
+        </div>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 12px;">
+          <input data-testid="settings-llm-auto-unload" type="checkbox" v-model="memoryForm.llm_auto_unload" style="accent-color: var(--accent);" />
+          <span style="font-size: 13px;">{{ t('settings.llm_auto_unload') }}</span>
+        </label>
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px;">{{ t('settings.llm_auto_unload_hint') }}</div>
+        <button class="btn btn-primary btn-sm" @click="saveMemoryGuard">{{ t('settings.btn_save_params') }}</button>
+      </div>
       <!-- Direct mode: read-only SD models/LoRAs -->
       <template v-if="connectionMode === 'direct'">
         <div v-if="sdError" class="status status-error">{{ sdError }}</div>

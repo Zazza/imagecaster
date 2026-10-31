@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go-sd/internal/generation"
+	"github.com/Zazza/imagecaster/internal/generation"
 )
 
 type Processor interface {

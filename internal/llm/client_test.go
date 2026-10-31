@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"go-sd/internal/promptutil"
+	"github.com/Zazza/imagecaster/internal/promptutil"
 )
 
 func TestTruncateRepetitive(t *testing.T) {

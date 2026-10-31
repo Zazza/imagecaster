@@ -14,12 +14,12 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 
-	"go-sd/internal/config"
-	"go-sd/internal/filebrowser"
-	"go-sd/internal/llm"
-	"go-sd/internal/preset"
-	"go-sd/internal/promptutil"
-	"go-sd/internal/sd"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/promptutil"
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 // --- AnalyzeImage ---

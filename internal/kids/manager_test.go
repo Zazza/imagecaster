@@ -3,7 +3,7 @@ package kids
 import (
 	"testing"
 
-	"go-sd/internal/preset"
+	"github.com/Zazza/imagecaster/internal/preset"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

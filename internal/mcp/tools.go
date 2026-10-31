@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"go-sd/internal/filebrowser"
-	"go-sd/internal/generation"
-	"go-sd/internal/preset"
+	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/preset"
 )
 
 func RegisterTools(s *Server) {
 	s.Register(Tool{
 		Name:        "status",
-		Description: "Статус SD Studio: доступность SD/LLM, текущая модель SD, прогресс генерации, kids mode, путь к БД и папке артефактов.",
+		Description: "Статус Imagecaster: доступность SD/LLM, текущая модель SD, прогресс генерации, kids mode, путь к БД и папке артефактов.",
 		InputSchema: props(nil),
 		Handler: func(s *Server, _ map[string]any) (string, error) {
 			res := map[string]any{

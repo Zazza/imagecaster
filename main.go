@@ -15,12 +15,12 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 
-	"go-sd/internal/config"
-	"go-sd/internal/llm"
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
-	"go-sd/internal/serverclient"
-	"go-sd/internal/settings"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/settings"
 )
 
 var version = "dev"
@@ -76,7 +76,7 @@ func main() {
 	imgHandler := &imageFileHandler{db: presets, dataDir: filepath.Dir(cfg.DBPath)}
 
 	if err := wails.Run(&options.App{
-		Title:     "SD Studio",
+		Title:     "Imagecaster",
 		Width:     1280,
 		Height:    800,
 		Frameless: false,

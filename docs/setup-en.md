@@ -1,6 +1,6 @@
 [English](setup-en.md) | [Русский](setup-ru.md)
 
-# SD Studio — Service Setup Guide
+# Imagecaster — Service Setup Guide
 
 ## Contents
 
@@ -8,13 +8,13 @@
 - [Ollama](#ollama)
 - [LM Studio](#lm-studio)
 - [llama.cpp](#llamacpp)
-- [SD Studio Server](#sd-studio-server)
+- [Imagecaster Server](#imagecaster-server)
 
 ---
 
 ## Stable Diffusion WebUI
 
-Image generation engine. SD Studio connects via REST API. Two variants are supported: **A1111** (standard) and **Forge** (faster).
+Image generation engine. Imagecaster connects via REST API. Two variants are supported: **A1111** (standard) and **Forge** (faster).
 
 ### Option 1: A1111 (standard, recommended)
 
@@ -48,9 +48,11 @@ Windows:
 webui.bat --listen --api --enable-insecure-extension-access
 ```
 
-> **Known Forge issue:** Hires Fix may trigger `argument of type 'NoneType' is not iterable` error. SD Studio automatically retries generation without Hires Fix and shows a warning. For full Hires Fix support, use A1111.
+> **Known Forge issue:** Hires Fix may trigger `argument of type 'NoneType' is not iterable` error. Imagecaster automatically retries generation without Hires Fix and shows a warning. For full Hires Fix support, use A1111.
 
 > **Z-Image models:** the bundled `(Z-Image)` preset family uses `z-image-turbo` checkpoints. The original Forge does **not** support this architecture — use a fork with Z-Image support (e.g. [sd-webui-forge-classic, `neo` branch](https://github.com/Haoming02/sd-webui-forge-classic)); it is a drop-in replacement speaking the same REST API. All other bundled preset families work on any of the backends above.
+
+> **Moss-Image model (Edit mode):** instruction editing needs the `moss_image_sft_bf16` checkpoint and Forge Neo (the reference engine). The checkpoint downloads from the catalog (Settings → Catalog); place the `qwen35_9b_int8_convrot.safetensors` text encoder and the `flux2-vae_small.safetensors` VAE manually into `models/text_encoder/` and `models/VAE/` (the Comfy-Org/MOSS-Image repo). The app wires the modules automatically when switching models.
 
 ### Flags
 
@@ -81,7 +83,7 @@ LoRA -> `models/Lora/`, VAE -> `models/VAE/`.
 
 ## Ollama
 
-Local LLM server. SD Studio uses it for prompt generation and image analysis.
+Local LLM server. Imagecaster uses it for prompt generation and image analysis.
 
 ### Installation
 
@@ -145,7 +147,7 @@ Environment="OLLAMA_HOST=0.0.0.0:11434"
 curl http://localhost:11434/api/tags
 ```
 
-In SD Studio -> Settings -> Connection: select **Ollama**, URL `http://localhost:11434`.
+In Imagecaster -> Settings -> Connection: select **Ollama**, URL `http://localhost:11434`.
 
 ---
 
@@ -178,7 +180,7 @@ In LM Studio: Settings -> Advanced -> **Enable CORS** and set server host to `0.
 curl http://localhost:1234/v1/models
 ```
 
-In SD Studio -> Settings -> Connection: select **LM Studio**, URL `http://localhost:1234`.
+In Imagecaster -> Settings -> Connection: select **LM Studio**, URL `http://localhost:1234`.
 
 ---
 
@@ -236,13 +238,13 @@ Download `.gguf` files from [HuggingFace](https://huggingface.co/models?search=g
 curl http://localhost:8081/v1/models
 ```
 
-In SD Studio -> Settings -> Connection: select **llama.cpp**, URL `http://localhost:8081`.
+In Imagecaster -> Settings -> Connection: select **llama.cpp**, URL `http://localhost:8081`.
 
 > **Note:** llama.cpp does not support model switching via API. The model is set at server startup.
 
 ---
 
-## SD Studio Server
+## Imagecaster Server
 
 A standalone service that automatically manages all AI components (SD WebUI, Ollama) — installation, startup, health monitoring, GPU optimization, and model management. Ideal for headless or server deployments.
 
@@ -250,7 +252,7 @@ A standalone service that automatically manages all AI components (SD WebUI, Oll
 
 ```bash
 cd server
-go build -o sd-studio-server .
+go build -o imagecaster-server .
 ```
 
 Or use Docker:
@@ -261,7 +263,7 @@ docker compose up --build
 ### First Run
 
 ```bash
-./sd-studio-server --data ~/sd-studio-server
+./imagecaster-server --data ~/imagecaster-server
 ```
 
 On first run, an interactive setup wizard will guide you through:
@@ -275,7 +277,7 @@ Configuration is stored in `{data-dir}/server-config.yaml`:
 
 ```yaml
 port: 8080
-data_dir: ~/sd-studio-server
+data_dir: ~/imagecaster-server
 active_sd: forge
 mdns: true
 proxy:
@@ -294,10 +296,10 @@ proxy:
 
 | Mode | Command | Description |
 |------|---------|-------------|
-| TUI (interactive) | `./sd-studio-server` | Terminal dashboard with service controls |
-| Headless | `./sd-studio-server --headless` | Log output only, no TUI |
-| Custom port | `./sd-studio-server --port 9090` | Override HTTP port |
-| Custom config | `./sd-studio-server --config /path/to/config.yaml` | Use specific config file |
+| TUI (interactive) | `./imagecaster-server` | Terminal dashboard with service controls |
+| Headless | `./imagecaster-server --headless` | Log output only, no TUI |
+| Custom port | `./imagecaster-server --port 9090` | Override HTTP port |
+| Custom config | `./imagecaster-server --config /path/to/config.yaml` | Use specific config file |
 
 ### GPU Proxy
 
@@ -326,7 +328,7 @@ When `proxy.enabled: true`, the server acts as a smart reverse proxy:
 
 ### mDNS Discovery
 
-When `mdns: true`, the server advertises itself as `_sd-studio._tcp` on the local network. Desktop apps can auto-discover the server.
+When `mdns: true`, the server advertises itself as `_imagecaster._tcp` on the local network. Desktop apps can auto-discover the server.
 
 ### Verification
 
@@ -338,10 +340,10 @@ curl http://localhost:8080/
 
 ## Quick Reference
 
-| Service | Default Port | SD Studio URL |
+| Service | Default Port | Imagecaster URL |
 |---------|-------------|---------------|
 | Stable Diffusion | 7860 | `http://localhost:7860` |
 | Ollama | 11434 | `http://localhost:11434` |
 | LM Studio | 1234 | `http://localhost:1234` |
 | llama.cpp | 8081 | `http://localhost:8081` |
-| SD Studio Server | 8080 | `http://localhost:8080` |
+| Imagecaster Server | 8080 | `http://localhost:8080` |

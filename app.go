@@ -17,20 +17,20 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"go-sd/internal/clipboard"
-	"go-sd/internal/config"
-	"go-sd/internal/filebrowser"
-	"go-sd/internal/generation"
-	"go-sd/internal/importexport"
-	"go-sd/internal/kids"
-	"go-sd/internal/llm"
-	"go-sd/internal/logger"
-	"go-sd/internal/preset"
-	"go-sd/internal/queue"
-	"go-sd/internal/sd"
-	"go-sd/internal/serverclient"
-	"go-sd/internal/session"
-	"go-sd/internal/settings"
+	"github.com/Zazza/imagecaster/internal/clipboard"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/importexport"
+	"github.com/Zazza/imagecaster/internal/kids"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/queue"
+	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/session"
+	"github.com/Zazza/imagecaster/internal/settings"
 )
 
 type appEmitter struct {
@@ -400,7 +400,7 @@ func (a *App) SaveImage(base64Data, defaultName string) (string, error) {
 	}
 
 	if defaultName == "" {
-		defaultName = "sd-studio-image.png"
+		defaultName = "imagecaster-image.png"
 	}
 	if !strings.HasSuffix(strings.ToLower(defaultName), ".png") {
 		defaultName += ".png"
@@ -443,7 +443,7 @@ func (a *App) FastSaveImage(base64Data, filename, format string) (string, error)
 	}
 
 	if filename == "" {
-		filename = "sd-studio-image"
+		filename = "imagecaster-image"
 	}
 
 	ext := ".jpg"
@@ -608,7 +608,7 @@ func (a *App) ExportPresets(ids []int64) (string, error) {
 		return "", err
 	}
 	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		DefaultFilename: "sd-studio-presets.json",
+		DefaultFilename: "imagecaster-presets.json",
 		Filters: []runtime.FileFilter{
 			{DisplayName: "JSON Files", Pattern: "*.json"},
 		},
@@ -628,7 +628,7 @@ func (a *App) PreparePresetsExport(ids []int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return a.saveWithDialog("sd-studio-presets.json", jsonBytes)
+	return a.saveWithDialog("imagecaster-presets.json", jsonBytes)
 }
 
 func (a *App) OpenImportFile() (*ImportPreview, error) {
@@ -677,7 +677,7 @@ func (a *App) ExportCompoundPresets(ids []int64) (string, error) {
 		return "", err
 	}
 	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		DefaultFilename: "sd-studio-pipelines.json",
+		DefaultFilename: "imagecaster-pipelines.json",
 		Filters: []runtime.FileFilter{
 			{DisplayName: "JSON Files", Pattern: "*.json"},
 		},
@@ -697,7 +697,7 @@ func (a *App) PrepareCompoundPresetsExport(ids []int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return a.saveWithDialog("sd-studio-pipelines.json", jsonBytes)
+	return a.saveWithDialog("imagecaster-pipelines.json", jsonBytes)
 }
 
 func (a *App) OpenImportCompoundFile() (*CompoundImportPreview, error) {

@@ -18,7 +18,7 @@ import (
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 
-	"go-sd/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/filebrowser"
 )
 
 func (s *Server) saveArtifact(name, slug, imgB64 string, info json.RawMessage) (string, error) {

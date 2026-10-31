@@ -18,13 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"go-sd/internal/config"
-	"go-sd/internal/kids"
-	"go-sd/internal/llm"
-	"go-sd/internal/logger"
-	"go-sd/internal/preset"
-	"go-sd/internal/promptutil"
-	"go-sd/internal/sd"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/kids"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/promptutil"
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 type mockLLM struct {
@@ -354,6 +354,37 @@ func makePNGBase64(t *testing.T, w, h int) string {
 	var buf bytes.Buffer
 	require.NoError(t, png.Encode(&buf, img))
 	return base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+func TestLLMGenerateAndParse_EmptyResponseFails(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	llmSvc := &mockLLM{}
+	llmSvc.genSDPromptFn = func(systemPrompt, userMessage, presetType, model string, maxTokens int) (string, error) {
+		return "", nil
+	}
+	svc := newTestService(t, db, llmSvc, &mockSD{})
+
+	_, _, err := svc.llmGenerateAndParse("sys", "user", "anime", "test-model", 256)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty response")
+}
+
+func TestLLMGenerateAndParse_GarbageNonEmptyStaysGraceful(t *testing.T) {
+	t.Parallel()
+
+	db := openTestDB(t)
+	llmSvc := &mockLLM{}
+	llmSvc.genSDPromptFn = func(systemPrompt, userMessage, presetType, model string, maxTokens int) (string, error) {
+		return "not json at all, just prose", nil
+	}
+	svc := newTestService(t, db, llmSvc, &mockSD{})
+
+	res, raw, err := svc.llmGenerateAndParse("sys", "user", "anime", "test-model", 256)
+	require.NoError(t, err)
+	assert.Empty(t, res.Prompt)
+	assert.Equal(t, "not json at all, just prose", raw)
 }
 
 func TestGenerateSDPrompt_InvalidPresetID(t *testing.T) {

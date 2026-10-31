@@ -18,13 +18,13 @@ import (
 	"sync"
 	"time"
 
-	"go-sd/internal/config"
-	"go-sd/internal/kids"
-	"go-sd/internal/llm"
-	"go-sd/internal/logger"
-	"go-sd/internal/preset"
-	"go-sd/internal/promptutil"
-	"go-sd/internal/sd"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/kids"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/promptutil"
+	"github.com/Zazza/imagecaster/internal/sd"
 
 	xdraw "golang.org/x/image/draw"
 )
@@ -929,6 +929,9 @@ func (s *Service) llmGenerateAndParse(systemPrompt, userMessage, presetType, mod
 		if err := json.Unmarshal([]byte(promptutil.ExtractJSON(raw)), &res); err == nil {
 			return res, raw, nil
 		}
+	}
+	if strings.TrimSpace(raw) == "" {
+		return GenerateSDPromptResult{}, raw, fmt.Errorf("LLM returned an empty response — check the model, context length and max_tokens settings")
 	}
 	return GenerateSDPromptResult{}, raw, nil
 }

@@ -245,7 +245,7 @@ function copyEffectivePrompt() {
 async function downloadImage() {
   if (!generatedImage.value) return
   try {
-    const defaultName = 'sd-studio-edit-' + Date.now() + '.png'
+    const defaultName = 'imagecaster-edit-' + Date.now() + '.png'
     if (generatedImage.value.startsWith('/api/')) {
       const resp = await fetch(generatedImage.value)
       const blob = await resp.blob()

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 func (s *Service) resolveStepResolution(step preset.CompoundPresetStep, p *preset.Preset, fallbackResolutionID *int64) (width int, height int) {

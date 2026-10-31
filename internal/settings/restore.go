@@ -3,11 +3,11 @@ package settings
 import (
 	"fmt"
 
-	"go-sd/internal/config"
-	"go-sd/internal/llm"
-	"go-sd/internal/preset"
-	"go-sd/internal/sd"
-	"go-sd/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/serverclient"
 )
 
 func Restore(db *preset.DB, cfg *config.Config, llmSvc llm.Service, sdSvc sd.Service, srvClient *serverclient.Client) {
