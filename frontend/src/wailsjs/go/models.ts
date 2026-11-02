@@ -61,6 +61,7 @@ export namespace generation {
 	}
 	export class EditImageParams {
 	    image_base64: string;
+	    reference_image_base64?: string;
 	    instruction: string;
 	    style_preset_id?: number;
 	    style_tags?: boolean;
@@ -76,6 +77,7 @@ export namespace generation {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.image_base64 = source["image_base64"];
+	        this.reference_image_base64 = source["reference_image_base64"];
 	        this.instruction = source["instruction"];
 	        this.style_preset_id = source["style_preset_id"];
 	        this.style_tags = source["style_tags"];

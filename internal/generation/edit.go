@@ -27,6 +27,7 @@ const (
 	mossEditDenoise           = 1.0
 	mossEditAlign             = 16
 	mossEditMaxDim            = 2048
+	mossEditStitchMaxDim      = 768
 	mossEditLabelMax          = 60
 	mossEditMaxInstructionLen = 2000
 	mossEditMaxLoras          = 8
@@ -52,14 +53,15 @@ func forgeModulesForModel(model string) []string {
 }
 
 type EditImageParams struct {
-	ImageBase64   string             `json:"image_base64"`
-	Instruction   string             `json:"instruction"`
-	StylePresetID int64              `json:"style_preset_id,omitempty"`
-	StyleTags     bool               `json:"style_tags,omitempty"`
-	Loras         []preset.LoRAEntry `json:"loras,omitempty"`
-	OutputMode    string             `json:"output_mode,omitempty"`
-	ResolutionID  *int64             `json:"resolution_id,omitempty"`
-	Seed          *int64             `json:"seed,omitempty"`
+	ImageBase64          string             `json:"image_base64"`
+	ReferenceImageBase64 string             `json:"reference_image_base64,omitempty"`
+	Instruction          string             `json:"instruction"`
+	StylePresetID        int64              `json:"style_preset_id,omitempty"`
+	StyleTags            bool               `json:"style_tags,omitempty"`
+	Loras                []preset.LoRAEntry `json:"loras,omitempty"`
+	OutputMode           string             `json:"output_mode,omitempty"`
+	ResolutionID         *int64             `json:"resolution_id,omitempty"`
+	Seed                 *int64             `json:"seed,omitempty"`
 }
 
 type editStyle struct {
@@ -186,8 +188,12 @@ func truncateRunes(s string, max int) string {
 }
 
 func alignEditSize(w, h int) (int, int) {
-	if w > mossEditMaxDim || h > mossEditMaxDim {
-		scale := float64(mossEditMaxDim) / float64(max(w, h))
+	return alignEditSizeCapped(w, h, mossEditMaxDim)
+}
+
+func alignEditSizeCapped(w, h, maxDim int) (int, int) {
+	if w > maxDim || h > maxDim {
+		scale := float64(maxDim) / float64(max(w, h))
 		w = int(float64(w) * scale)
 		h = int(float64(h) * scale)
 	}
@@ -208,6 +214,9 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 	if len(params.ImageBase64) > MaxImageBase64Len {
 		return nil, fmt.Errorf("image too large (max 16 MB)")
+	}
+	if len(params.ReferenceImageBase64) > MaxImageBase64Len {
+		return nil, fmt.Errorf("reference image too large (max 16 MB)")
 	}
 	instruction := strings.TrimSpace(stripAngleTags(params.Instruction))
 	instruction = loraTagPrefixRe.ReplaceAllString(instruction, "")
@@ -255,6 +264,9 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 
 	s.guard.EnsureHeadroom(mossEditModel, "edit")
 
+	if params.ReferenceImageBase64 != "" {
+		s.refreshModelVRAM(mossEditModel)
+	}
 	if err := s.setModel(mossEditModel, "edit"); err != nil {
 		return nil, fmt.Errorf("moss_image_sft_bf16 not available on SD backend: %w", err)
 	}
@@ -294,7 +306,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	batchCount := 1
 	denoise := mossEditDenoise
 
-	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	baseReq := sd.Img2ImgRequest{
 		InitImages:        []string{params.ImageBase64},
 		Prompt:            prompt,
 		NegativePrompt:    s.kids.ApplyNegative(""),
@@ -310,7 +322,13 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		BatchCount:        &batchCount,
 		DoNotSaveImages:   true,
 		DoNotSaveGrid:     true,
-	})
+	}
+	if params.ReferenceImageBase64 != "" {
+		baseReq.AlwaysonScripts = map[string]sd.AlwaysOn{
+			"imagestitch integrated": {Args: []any{true, []string{params.ReferenceImageBase64}, mossEditStitchMaxDim}},
+		}
+	}
+	resp, err := s.sd.Img2Img(baseReq)
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return nil, ierr
@@ -406,5 +424,19 @@ func (s *Service) ResetMossReference() {
 	}
 	if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
 		s.log.Warn("reset moss reference: %s", err)
+	}
+}
+
+func (s *Service) refreshModelVRAM(modelName string) {
+	stats, err := s.sd.MemoryInfo()
+	if err != nil {
+		return
+	}
+	if stats == nil || stats.CUDA.System.Free > 4.5*(1<<30) {
+		return
+	}
+	s.log.Info("edit try-on: low VRAM (%.1f GiB free), refreshing model to clear cache", stats.CUDA.System.Free/(1<<30))
+	if err := s.sd.SetModelWithModules(modelName, forgeModulesForModel(modelName)); err != nil {
+		s.log.Warn("edit try-on: model refresh failed: %s", err)
 	}
 }

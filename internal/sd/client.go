@@ -468,27 +468,32 @@ func (c *Client) GetVAEs() ([]VAE, error) {
 }
 
 type Img2ImgRequest struct {
-	InitImages            []string `json:"init_images"`
-	Prompt                string   `json:"prompt"`
-	NegativePrompt        string   `json:"negative_prompt"`
-	SamplerName           string   `json:"sampler_name"`
-	Scheduler             string   `json:"scheduler,omitempty"`
-	Steps                 int      `json:"steps"`
-	CfgScale              float64  `json:"cfg_scale"`
-	Width                 int      `json:"width"`
-	Height                int      `json:"height"`
-	Seed                  *int64   `json:"seed,omitempty"`
-	DenoisingStrength     *float64 `json:"denoising_strength,omitempty"`
-	ClipSkip              *int     `json:"clip_skip,omitempty"`
-	BatchSize             *int     `json:"batch_size,omitempty"`
-	BatchCount            *int     `json:"n_iter,omitempty"`
-	Mask                  string   `json:"mask,omitempty"`
-	MaskBlur              int      `json:"mask_blur,omitempty"`
-	InpaintingFill        int      `json:"inpainting_fill,omitempty"`
-	InpaintFullRes        bool     `json:"inpaint_full_res,omitempty"`
-	InpaintFullResPadding int      `json:"inpaint_full_res_padding,omitempty"`
-	DoNotSaveImages       bool     `json:"do_not_save_images"`
-	DoNotSaveGrid         bool     `json:"do_not_save_grid"`
+	InitImages            []string            `json:"init_images"`
+	Prompt                string              `json:"prompt"`
+	NegativePrompt        string              `json:"negative_prompt"`
+	SamplerName           string              `json:"sampler_name"`
+	Scheduler             string              `json:"scheduler,omitempty"`
+	Steps                 int                 `json:"steps"`
+	CfgScale              float64             `json:"cfg_scale"`
+	Width                 int                 `json:"width"`
+	Height                int                 `json:"height"`
+	Seed                  *int64              `json:"seed,omitempty"`
+	DenoisingStrength     *float64            `json:"denoising_strength,omitempty"`
+	ClipSkip              *int                `json:"clip_skip,omitempty"`
+	BatchSize             *int                `json:"batch_size,omitempty"`
+	BatchCount            *int                `json:"n_iter,omitempty"`
+	Mask                  string              `json:"mask,omitempty"`
+	MaskBlur              int                 `json:"mask_blur,omitempty"`
+	InpaintingFill        int                 `json:"inpainting_fill,omitempty"`
+	InpaintFullRes        bool                `json:"inpaint_full_res,omitempty"`
+	InpaintFullResPadding int                 `json:"inpaint_full_res_padding,omitempty"`
+	DoNotSaveImages       bool                `json:"do_not_save_images"`
+	DoNotSaveGrid         bool                `json:"do_not_save_grid"`
+	AlwaysonScripts       map[string]AlwaysOn `json:"alwayson_scripts,omitempty"`
+}
+
+type AlwaysOn struct {
+	Args []any `json:"args"`
 }
 
 func (c *Client) Img2Img(req Img2ImgRequest) (*Txt2ImgResponse, error) {

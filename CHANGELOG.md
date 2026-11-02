@@ -2,6 +2,11 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [Unreleased]
+
+### Added
+- **Virtual try-on in Edit mode**: load a garment photo (shop screenshot, catalog image) alongside your photo and the model tries it on — no instruction needed (one is generated automatically; you can still write your own). Powered by the Forge Neo ImageStitch reference mechanism: the garment image is encoded as a second reference and injected alongside the source photo. Before a try-on, the app checks free VRAM and refreshes the model to clear cached memory when the GPU is tight. The instruction field becomes optional when a reference item is loaded.
+
 ## [1.0.1] — 2026-11-02
 
 ### Added

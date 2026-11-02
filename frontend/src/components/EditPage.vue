@@ -11,6 +11,8 @@ import ImageViewer from './ImageViewer.vue'
 import ResolutionSelector from './ResolutionSelector.vue'
 
 const uploadedImage = ref('')
+const referenceImage = ref('')
+const isRefDragOver = ref(false)
 const uploadedImageMime = ref('image/png')
 const instruction = ref('')
 const seedInput = ref('')
@@ -50,7 +52,7 @@ const imageSrc = computed(() => {
   return 'data:image/png;base64,' + generatedImage.value
 })
 
-const canGenerate = computed(() => !!uploadedImage.value && !!instruction.value.trim() && !generatingImage.value)
+const canGenerate = computed(() => !!uploadedImage.value && (!!instruction.value.trim() || !!referenceImage.value) && !generatingImage.value)
 
 function addLora() {
   if (loraRows.value.length >= 8) return
@@ -82,6 +84,46 @@ function editLorasPayload() {
   return loraRows.value
     .filter((r) => r && typeof r.name === 'string' && r.name.trim())
     .map((r) => ({ name: r.name.trim(), weight: sanitizeWeight(r.weight) }))
+}
+
+function setReference(base64) {
+  referenceImage.value = base64
+  error.value = ''
+}
+
+async function uploadReference() {
+  try {
+    const base64 = await api.readImageFile()
+    if (base64) setReference(base64)
+  } catch (e) {
+    error.value = String(e)
+  }
+}
+
+async function pasteReference() {
+  try {
+    const base64 = await api.readClipboardImage()
+    if (base64) setReference(base64)
+  } catch (e) {
+    error.value = String(e)
+  }
+}
+
+function onRefDrop(e) {
+  isRefDragOver.value = false
+  const file = e.dataTransfer?.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) return
+  if (file.size > MAX_IMAGE_SIZE) {
+    error.value = t('fi.error_image_too_large')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const base64 = reader.result.split(',')[1]
+    if (base64) setReference(base64)
+  }
+  reader.readAsDataURL(file)
 }
 
 function setSource(base64, mime) {
@@ -183,6 +225,10 @@ function clearImage() {
   error.value = ''
 }
 
+function clearReference() {
+  referenceImage.value = ''
+}
+
 let genReqId = 0
 
 async function generate() {
@@ -191,7 +237,7 @@ async function generate() {
     error.value = t('edit.error_no_image')
     return
   }
-  const instr = instruction.value.trim()
+  const instr = instruction.value.trim() || (referenceImage.value ? t('edit.tryon_default') : '')
   if (!instr) {
     error.value = t('edit.error_no_instruction')
     return
@@ -212,6 +258,7 @@ async function generate() {
       instruction: instr,
       seed: seedVal,
     }
+    if (referenceImage.value) params.reference_image_base64 = referenceImage.value
     if (stylePresetId.value) {
       params.style_preset_id = stylePresetId.value
       if (styleTags.value) params.style_tags = true
@@ -359,6 +406,26 @@ onUnmounted(() => {
           <div v-else class="fi-btn-row" style="margin-top: 8px;">
             <button class="btn btn-sm btn-secondary" @click="useLastImage">{{ t('edit.btn_last') }}</button>
             <button class="btn btn-sm btn-secondary" @click="pasteFromClipboard">{{ t('edit.btn_paste') }}</button>
+          </div>
+
+          <div v-if="referenceImage" class="ref-container">
+            <img :src="'data:image/png;base64,' + referenceImage" alt="Reference" class="source-img" style="max-height: 200px;" />
+          </div>
+          <div v-if="referenceImage" class="fi-btn-row">
+            <button class="btn btn-sm btn-secondary" @click="clearReference">{{ t('edit.btn_clear_ref') }}</button>
+          </div>
+          <div v-else
+            class="drop-zone" style="padding: 10px; min-height: 56px;"
+            :class="{ 'drop-zone-active': isRefDragOver }"
+            @dragover.prevent="isRefDragOver = true"
+            @dragleave="isRefDragOver = false"
+            @drop.prevent="onRefDrop"
+            @click="uploadReference()"
+          >
+            <p style="color: var(--text-dim); font-size: 12px; margin: 0;">{{ t('edit.tryon_hint') }}</p>
+          </div>
+          <div v-if="!referenceImage" class="fi-btn-row" style="margin-top: 4px;">
+            <button class="btn btn-sm btn-secondary" style="font-size: 11px;" @click="pasteReference">{{ t('edit.btn_paste_ref') }}</button>
           </div>
 
           <div class="model-note">{{ t('edit.model_note') }}</div>
@@ -607,3 +674,13 @@ onUnmounted(() => {
   color: var(--text);
 }
 </style>
+
+.ref-container {
+  display: flex;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  margin-top: 8px;
+}
