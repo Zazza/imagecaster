@@ -2,6 +2,11 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.0.1] — 2026-11-02
+
+### Added
+- **Bundled moss preset family for fresh installs**: 14 photo-realistic presets (Portrait, Fashion, Cinematic, Architecture, Food, Landscape, Product, Wildlife, Street, Golden Hour, Night City, Studio Portrait, B&W Film, Photo Realism) with clean prose prompts and stock sampler settings (Euler/Simple, 50 steps, CFG 3, no loras) — a fresh install now has moss styles in Generate and a non-empty style selector in Edit right after downloading the checkpoint from the catalog. Existing databases are untouched (seeding only applies when no bundled rows exist). The project is also listed in the Wails and music-production awesome lists (PRs pending merge), and GitHub topics were set for both Imagecaster and Partscaster.
+
 ## [1.0.0] — 2026-10-31
 
 ### Project
