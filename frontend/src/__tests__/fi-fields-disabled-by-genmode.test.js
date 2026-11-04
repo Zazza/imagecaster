@@ -6,7 +6,7 @@ import { clearEventMocks } from './mocks/runtime'
 vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
 vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
 
-import GenerateFromImagePage from '../components/GenerateFromImagePage.vue'
+import RemixSection from '../components/RemixSection.vue'
 import ResolutionSelector from '../components/ResolutionSelector.vue'
 import { GetSettings, ListResolutions } from '../wailsjs/go/main/App.js'
 import { t } from '../i18n/index.js'
@@ -21,23 +21,23 @@ function qualityCheckbox(wrapper) {
   return wrapper.find('[data-testid="fi-quality-checkbox"]')
 }
 
-async function mountPage(settings = {}) {
+async function mountSection(settings = {}) {
   GetSettings.mockReturnValue(Promise.resolve(settings))
-  const wrapper = mount(GenerateFromImagePage)
+  const wrapper = mount(RemixSection)
   await flushPromises()
   return wrapper
 }
 
 enableAutoUnmount(afterEach)
 
-describe('From Image: seed and quality mode fields by genMode', () => {
+describe('Remix section: seed and quality mode fields by genMode', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearEventMocks()
   })
 
   it('compound mode: seed and quality checkbox visible but disabled, preset-only hint rendered', async () => {
-    const wrapper = await mountPage({ fi_mode: 'img2img', fi_gen_mode: 'compound' })
+    const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'compound' })
 
     expect(seedInput(wrapper).exists()).toBe(true)
     expect(seedInput(wrapper).element.disabled).toBe(true)
@@ -50,7 +50,7 @@ describe('From Image: seed and quality mode fields by genMode', () => {
 
   it('preset mode with resolution: seed and quality checkbox enabled, no hints', async () => {
     ListResolutions.mockReturnValueOnce(Promise.resolve([resolution]))
-    const wrapper = await mountPage({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
+    const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
 
     wrapper.findComponent(ResolutionSelector).vm.$emit('update:modelValue', resolution.id)
     await nextTick()
@@ -63,7 +63,7 @@ describe('From Image: seed and quality mode fields by genMode', () => {
   })
 
   it('preset mode without resolution: quality checkbox disabled, needs-resolution hint rendered', async () => {
-    const wrapper = await mountPage({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
+    const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
 
     expect(seedInput(wrapper).element.disabled).toBe(false)
     expect(qualityCheckbox(wrapper).element.disabled).toBe(true)
@@ -73,7 +73,7 @@ describe('From Image: seed and quality mode fields by genMode', () => {
   })
 
   it('preset inpaint mode: seed enabled, quality checkbox absent', async () => {
-    const wrapper = await mountPage({ fi_mode: 'inpaint', fi_gen_mode: 'preset' })
+    const wrapper = await mountSection({ fi_mode: 'inpaint', fi_gen_mode: 'preset' })
 
     expect(seedInput(wrapper).exists()).toBe(true)
     expect(seedInput(wrapper).element.disabled).toBe(false)
@@ -81,7 +81,7 @@ describe('From Image: seed and quality mode fields by genMode', () => {
   })
 
   it('compound inpaint mode: seed disabled with preset-only hint, quality checkbox absent', async () => {
-    const wrapper = await mountPage({ fi_mode: 'inpaint', fi_gen_mode: 'compound' })
+    const wrapper = await mountSection({ fi_mode: 'inpaint', fi_gen_mode: 'compound' })
 
     expect(seedInput(wrapper).exists()).toBe(true)
     expect(seedInput(wrapper).element.disabled).toBe(true)
@@ -90,7 +90,7 @@ describe('From Image: seed and quality mode fields by genMode', () => {
   })
 
   it('remove mode: seed and resolution selector hidden', async () => {
-    const wrapper = await mountPage({ fi_mode: 'remove' })
+    const wrapper = await mountSection({ fi_mode: 'remove' })
 
     expect(seedInput(wrapper).exists()).toBe(false)
     expect(wrapper.findComponent(ResolutionSelector).exists()).toBe(false)

@@ -147,6 +147,10 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("migrate v28: %w", err)
 	}
 
+	if err := migrateV29(db); err != nil {
+		return nil, fmt.Errorf("migrate v29: %w", err)
+	}
+
 	return &DB{db: db}, nil
 }
 
@@ -318,6 +322,36 @@ func (d *DB) List() ([]Preset, error) {
 
 func (d *DB) ListByType(presetType string) ([]Preset, error) {
 	rows, err := d.db.Query(`SELECT `+presetColumns+` FROM presets WHERE preset_type = ? ORDER BY created_at DESC`, presetType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var presets []Preset
+	for rows.Next() {
+		var p Preset
+		if err := scanPreset(rows, &p); err != nil {
+			return nil, err
+		}
+		presets = append(presets, p)
+	}
+	return presets, rows.Err()
+}
+
+func (d *DB) ListByTypeIDs(typeIDs []int64) ([]Preset, error) {
+	if len(typeIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := ""
+	args := make([]any, len(typeIDs))
+	for i, id := range typeIDs {
+		if i > 0 {
+			placeholders += ","
+		}
+		placeholders += "?"
+		args[i] = id
+	}
+	rows, err := d.db.Query(`SELECT `+presetColumns+` FROM presets WHERE type_id IN (`+placeholders+`) ORDER BY id ASC`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1436,4 +1470,18 @@ func migrateV27(db *sql.DB) error {
 
 func migrateV28(db *sql.DB) error {
 	return addColumnIfNotExists(db, "session_items", "meta", "TEXT")
+}
+
+func migrateV29(db *sql.DB) error {
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS post_recipes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			steps TEXT NOT NULL DEFAULT '[]',
+			adjust TEXT NOT NULL DEFAULT '{}',
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)
+	`)
+	return err
 }

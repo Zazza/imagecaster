@@ -16,6 +16,8 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 
+	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/promptutil"
@@ -61,14 +63,16 @@ type ValidationWarning struct {
 }
 
 type ExportImageParams struct {
-	ImageBase64   string `json:"image_base64"`
-	Format        string `json:"format"`
-	Width         int    `json:"width"`
-	Height        int    `json:"height"`
-	LockRatio     bool   `json:"lock_ratio"`
-	Quality       int    `json:"quality"`
-	Interpolation string `json:"interpolation"`
-	Filename      string `json:"filename"`
+	ImageBase64   string         `json:"image_base64"`
+	Format        string         `json:"format"`
+	Width         int            `json:"width"`
+	Height        int            `json:"height"`
+	LockRatio     bool           `json:"lock_ratio"`
+	Quality       int            `json:"quality"`
+	Interpolation string         `json:"interpolation"`
+	Adjust        *adjust.Params `json:"adjust,omitempty"`
+	Filename      string         `json:"filename"`
+	OutputDir     string         `json:"output_dir,omitempty"`
 }
 
 type CompoundExportFile struct {
@@ -391,9 +395,21 @@ func (s *Service) ProcessExportImage(params ExportImageParams) (*ProcessedImage,
 		return nil, fmt.Errorf("decode base64: %w", err)
 	}
 
+	if err := CheckImageDataSize(imgData); err != nil {
+		return nil, err
+	}
+
 	img, _, err := image.Decode(bytes.NewReader(imgData))
 	if err != nil {
 		return nil, fmt.Errorf("decode image: %w", err)
+	}
+
+	return processDecoded(img, params)
+}
+
+func processDecoded(img image.Image, params ExportImageParams) (*ProcessedImage, error) {
+	if params.Adjust != nil && !params.Adjust.IsNeutral() {
+		img = adjust.Apply(img, *params.Adjust)
 	}
 
 	const maxDim = 8192
@@ -474,13 +490,15 @@ func (s *Service) ProcessExportImage(params ExportImageParams) (*ProcessedImage,
 
 	ext := "." + params.Format
 	if params.Filename == "" {
-		params.Filename = "export_" + time.Now().Format("20060102_150405") + ext
+		params.Filename = "export_" + time.Now().Format("20060102_150405")
 	}
+	params.Filename = filebrowser.SanitizeFilename(params.Filename)
 	if !strings.HasSuffix(strings.ToLower(params.Filename), ext) {
 		params.Filename += ext
 	}
 
 	var buf bytes.Buffer
+	var err error
 	switch params.Format {
 	case "jpeg":
 		err = jpeg.Encode(&buf, result, &jpeg.Options{Quality: params.Quality})
@@ -750,9 +768,49 @@ func (s *Service) ImportCompoundItems(items []CompoundExportData) ([]preset.Comp
 	return result, nil
 }
 
-func WriteImageToPath(img *ProcessedImage, path string) error {
+const MaxImagePixels = 8192 * 8192
+
+func CheckImageDataSize(data []byte) error {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("image too large (unreadable header)")
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width) > MaxImagePixels/int64(cfg.Height) {
+		return fmt.Errorf("image too large: %dx%d exceeds %d pixels", cfg.Width, cfg.Height, MaxImagePixels)
+	}
+	return nil
+}
+
+func WriteImageToPath(img *ProcessedImage, path string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(path, ext)
+	final := path
+	for i := 1; ; i++ {
+		err := writeExclusive(final, img.Data)
+		if err == nil {
+			return final, nil
+		}
+		if !os.IsExist(err) {
+			return "", err
+		}
+		if i > 1000 {
+			return "", fmt.Errorf("no free filename for %s", filepath.Base(path))
+		}
+		final = fmt.Sprintf("%s_%d%s", base, i, ext)
+	}
+}
+
+func writeExclusive(path string, data []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, img.Data, 0o644)
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }

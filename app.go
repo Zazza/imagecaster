@@ -13,10 +13,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
+
+	xdraw "golang.org/x/image/draw"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/Zazza/imagecaster/internal/adjust"
 	"github.com/Zazza/imagecaster/internal/clipboard"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
@@ -91,7 +93,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	a.gen = generation.New(
 		presets, llmClient, sdClient, cfg,
 		a.dataDir,
-		&a.emitter, a.kidsMgr, a.sessions, a.settingsSvc, a.log,
+		&a.emitter, a.kidsMgr, a.sessions, a.settingsSvc, a.settingsSvc, a.log,
 	)
 	queueStore := queue.NewStore(presets.DB())
 	queueProc := queue.NewProcessor(a.gen, queueStore, a.dataDir, &a.emitter)
@@ -106,7 +108,7 @@ func (a *App) startup(ctx context.Context) {
 	a.log.InstallBridge()
 	a.gen.SetContext(ctx)
 	a.queueSvc.Start(ctx)
-	go a.gen.ResetMossReference()
+	go a.gen.ResetReferences()
 	a.restoreWindowLayout()
 }
 
@@ -318,6 +320,10 @@ func (a *App) AnalyzeImage(imageBase64, mode string) (string, error) {
 	return a.gen.AnalyzeImage(imageBase64, mode)
 }
 
+func (a *App) GetDefaultEditGarmentPrompt() string {
+	return config.DefaultEditGarmentPrompt
+}
+
 func (a *App) GetDefaultAnalyzePrompts() *AnalyzePrompts {
 	return a.gen.GetDefaultAnalyzePrompts()
 }
@@ -360,6 +366,10 @@ func (a *App) GenerateFromImage(params GenerateFromImageParams) (*GenerateImageR
 
 func (a *App) EditImage(params EditImageParams) (*GenerateImageResult, error) {
 	return a.gen.EditImage(params)
+}
+
+func (a *App) ApplyLookDirect(imageBase64, text string, strength float64, seed *int64) (*GenerateImageResult, error) {
+	return a.gen.ApplyLookDirect(imageBase64, text, strength, seed)
 }
 
 func (a *App) TestCompoundGenerate(params TestCompoundGenerateParams) ([]TestGenerateResultItem, error) {
@@ -779,13 +789,16 @@ func (a *App) ExportImage(params ExportImageParams) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return a.saveProcessedImage(processed, params.OutputDir)
+}
 
-	ext := "." + params.Format
-	if params.Filename == "" {
-		params.Filename = "export_" + time.Now().Format("20060102_150405") + ext
-	}
-	if !strings.HasSuffix(strings.ToLower(params.Filename), ext) {
-		params.Filename += ext
+func (a *App) saveProcessedImage(processed *importexport.ProcessedImage, outputDir string) (string, error) {
+	if outputDir != "" {
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			return "", err
+		}
+		path := filepath.Join(outputDir, filepath.Base(processed.Filename))
+		return importexport.WriteImageToPath(processed, path)
 	}
 
 	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
@@ -795,8 +808,92 @@ func (a *App) ExportImage(params ExportImageParams) (string, error) {
 		return "", err
 	}
 
-	path := filepath.Join(dir, params.Filename)
-	return path, importexport.WriteImageToPath(processed, path)
+	path := filepath.Join(dir, filepath.Base(processed.Filename))
+	return importexport.WriteImageToPath(processed, path)
+}
+
+// --- Post-processing ---
+
+type AdjustParams = adjust.Params
+
+func (a *App) PreviewAdjust(imageBase64 string, p AdjustParams, maxW int) (string, error) {
+	if imageBase64 == "" {
+		return "", fmt.Errorf("no image provided")
+	}
+	if len(imageBase64) > generation.MaxImageBase64Len {
+		return "", fmt.Errorf("image too large (max 16 MB)")
+	}
+
+	data, err := base64.StdEncoding.DecodeString(imageBase64)
+	if err != nil {
+		return "", fmt.Errorf("decode base64: %w", err)
+	}
+
+	if err := importexport.CheckImageDataSize(data); err != nil {
+		return "", err
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("decode image: %w", err)
+	}
+
+	bounds := img.Bounds()
+	if maxW > 0 && bounds.Dx() > maxW {
+		targetW := maxW
+		targetH := int(float64(bounds.Dy()) * float64(maxW) / float64(bounds.Dx()))
+		if targetH < 1 {
+			targetH = 1
+		}
+		dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
+		xdraw.BiLinear.Scale(dst, dst.Bounds(), img, bounds, xdraw.Over, nil)
+		img = dst
+	}
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, adjust.Apply(img, p), &jpeg.Options{Quality: 85}); err != nil {
+		return "", fmt.Errorf("encode jpeg: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+}
+
+func (a *App) AutoAdjust(imageBase64 string) (adjust.AutoStats, error) {
+	if imageBase64 == "" {
+		return adjust.AutoStats{}, fmt.Errorf("no image provided")
+	}
+	if len(imageBase64) > generation.MaxImageBase64Len {
+		return adjust.AutoStats{}, fmt.Errorf("image too large (max 16 MB)")
+	}
+
+	data, err := base64.StdEncoding.DecodeString(imageBase64)
+	if err != nil {
+		return adjust.AutoStats{}, fmt.Errorf("decode base64: %w", err)
+	}
+
+	if err := importexport.CheckImageDataSize(data); err != nil {
+		return adjust.AutoStats{}, err
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return adjust.AutoStats{}, fmt.Errorf("decode image: %w", err)
+	}
+
+	return adjust.AnalyzeAuto(img), nil
+}
+
+func (a *App) ExportSessionItem(itemID int64, params ExportImageParams) (string, error) {
+	imageBase64, err := a.sessions.GetSessionImage(itemID)
+	if err != nil {
+		return "", fmt.Errorf("export session item: %w", err)
+	}
+
+	params.ImageBase64 = imageBase64
+	processed, err := a.ieSvc.ProcessExportImage(params)
+	if err != nil {
+		return "", err
+	}
+	return a.saveProcessedImage(processed, params.OutputDir)
 }
 
 func (a *App) ListExportPresets() ([]preset.ExportPreset, error) {
@@ -809,6 +906,28 @@ func (a *App) SaveExportPreset(ep preset.ExportPreset) (*preset.ExportPreset, er
 
 func (a *App) DeleteExportPreset(id int64) error {
 	return a.ieSvc.DeleteExportPreset(id)
+}
+
+func (a *App) ListPostRecipes() ([]preset.PostRecipe, error) {
+	return a.presets.ListPostRecipes()
+}
+
+func (a *App) SavePostRecipe(r preset.PostRecipe) (*preset.PostRecipe, error) {
+	return a.presets.SavePostRecipe(r)
+}
+
+func (a *App) DeletePostRecipe(id int64) error {
+	return a.presets.DeletePostRecipe(id)
+}
+
+type CompiledRecipe = generation.CompiledRecipe
+
+func (a *App) CompilePostStyle(text string) (*CompiledRecipe, error) {
+	return a.gen.CompilePostStyle(text)
+}
+
+func (a *App) DescribeForStyle(imageBase64 string) (string, error) {
+	return a.gen.DescribeForStyle(imageBase64)
 }
 
 // --- File Browser ---

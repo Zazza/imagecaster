@@ -5,19 +5,19 @@ import { EventsEmit, clearEventMocks } from './mocks/runtime'
 vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
 vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
 
-import GenerateFromImagePage from '../components/GenerateFromImagePage.vue'
+import PostProcessPage from '../components/PostProcessPage.vue'
 import { GetActiveSessionItem, GetSessionImage } from '../wailsjs/go/main/App.js'
 
 const sessionItem = { id: 42, info: 'null', is_preview: false }
 const sessionImageB64 = 'c2Vzc2lvbi1pbWFnZQ=='
 
-function sourceImg(wrapper) {
-  return wrapper.find('img.inpaint-source-img')
+function previewImg(wrapper) {
+  return wrapper.find('img.split-after')
 }
 
 enableAutoUnmount(afterEach)
 
-describe('History → Remix (active session item)', () => {
+describe('History → Post-process (active session item)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearEventMocks()
@@ -27,10 +27,10 @@ describe('History → Remix (active session item)', () => {
     GetActiveSessionItem.mockReturnValue(Promise.resolve(sessionItem))
     GetSessionImage.mockReturnValue(Promise.resolve(sessionImageB64))
 
-    const wrapper = mount(GenerateFromImagePage)
+    const wrapper = mount(PostProcessPage)
     await flushPromises()
 
-    expect(sourceImg(wrapper).attributes('src')).toBe('data:image/png;base64,' + sessionImageB64)
+    expect(previewImg(wrapper).attributes('src')).toBe('data:image/png;base64,' + sessionImageB64)
   })
 
   it('reloads image when user picks another item from History while page is already open', async () => {
@@ -38,14 +38,14 @@ describe('History → Remix (active session item)', () => {
     GetActiveSessionItem.mockReturnValue(Promise.resolve(sessionItem))
     GetSessionImage.mockReturnValue(Promise.resolve(sessionImageB64))
 
-    const wrapper = mount(GenerateFromImagePage)
+    const wrapper = mount(PostProcessPage)
     await flushPromises()
-    expect(sourceImg(wrapper).exists()).toBe(false)
+    expect(previewImg(wrapper).exists()).toBe(false)
 
     EventsEmit('session:selected', { id: sessionItem.id })
     await flushPromises()
 
-    expect(sourceImg(wrapper).attributes('src')).toBe('data:image/png;base64,' + sessionImageB64)
+    expect(previewImg(wrapper).attributes('src')).toBe('data:image/png;base64,' + sessionImageB64)
   })
 
   it('does not reload on session:added / session:active (generation must not clobber edits)', async () => {
@@ -53,16 +53,16 @@ describe('History → Remix (active session item)', () => {
     GetActiveSessionItem.mockReturnValue(Promise.resolve(sessionItem))
     GetSessionImage.mockReturnValue(Promise.resolve(sessionImageB64))
 
-    const wrapper = mount(GenerateFromImagePage)
+    const wrapper = mount(PostProcessPage)
     await flushPromises()
     expect(GetActiveSessionItem).toHaveBeenCalledTimes(1)
-    expect(sourceImg(wrapper).exists()).toBe(false)
+    expect(previewImg(wrapper).exists()).toBe(false)
 
     EventsEmit('session:added', { id: sessionItem.id })
     EventsEmit('session:active', { id: sessionItem.id })
     await flushPromises()
 
     expect(GetActiveSessionItem).toHaveBeenCalledTimes(1)
-    expect(sourceImg(wrapper).exists()).toBe(false)
+    expect(previewImg(wrapper).exists()).toBe(false)
   })
 })

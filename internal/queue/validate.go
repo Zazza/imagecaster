@@ -33,6 +33,12 @@ func validateJobParams(jobType JobType, params any) error {
 			if p.OutputMode == "quality" && (p.RemoveObject || p.Mode != "img2img" || p.GenMode != "preset" || p.ResolutionID == nil || *p.ResolutionID <= 0) {
 				return fmt.Errorf("quality output mode requires img2img preset mode with resolution")
 			}
+			if p.PreserveIdentity && (p.RemoveObject || p.Mode != "img2img" || p.GenMode != "preset") {
+				return fmt.Errorf("preserve identity requires img2img preset mode")
+			}
+			if p.PreserveIdentity && p.DenoisingStrength > 0.9 {
+				return fmt.Errorf("preserve identity requires denoising strength of 0.9 or less")
+			}
 			if !p.RemoveObject {
 				if p.GenMode == "preset" && p.PresetID <= 0 {
 					return fmt.Errorf("preset is required")

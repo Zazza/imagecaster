@@ -325,11 +325,11 @@ async function doClearSession() {
   } catch {}
 }
 
-async function activateItem(item, page) {
+async function activateItem(item, target) {
   try {
     await api.setActiveSessionItem(item.id)
     items.value.forEach(i => { i.is_active = i.id === item.id })
-    emit('navigate', { page })
+    emit('navigate', target)
   } catch {}
 }
 
@@ -358,21 +358,21 @@ async function viewerRemix() {
   const item = viewerItem.value
   if (!item) return
   closeViewer()
-  await activateItem(item, 'remix')
+  await activateItem(item, { page: 'postprocess', section: 'remix' })
 }
 
 async function viewerEdit() {
   const item = viewerItem.value
   if (!item) return
   closeViewer()
-  await activateItem(item, 'edit')
+  await activateItem(item, { page: 'postprocess', section: 'edit' })
 }
 
 async function viewerExport() {
   const item = viewerItem.value
   if (!item) return
   closeViewer()
-  await activateItem(item, 'export')
+  await activateItem(item, { page: 'postprocess' })
 }
 
 function viewerPrev() {

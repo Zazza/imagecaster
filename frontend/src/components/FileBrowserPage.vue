@@ -2,8 +2,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
+import { useRemixQueue } from '../remixQueue.js'
 import ImageViewer from './ImageViewer.vue'
-import { FolderUp, Folder, FolderOpen, Image, Send, Download } from 'lucide-vue-next'
+import { FolderUp, Folder, FolderOpen, Image, Send, Download, Check } from 'lucide-vue-next'
 
 const emit = defineEmits(['navigate'])
 
@@ -17,6 +18,9 @@ const loadedSet = new Set()
 let loadGeneration = 0
 
 const viewerIndex = ref(-1)
+const selectMode = ref(false)
+const selectedPaths = ref([])
+const { setQueue, setPostQueue } = useRemixQueue()
 const imageEntries = computed(() => entries.value.filter(e => !e.is_dir))
 const imageIndexMap = computed(() => {
   const map = new Map()
@@ -71,6 +75,7 @@ async function loadPath() {
   fullImages.value = {}
   loadedSet.clear()
   viewerIndex.value = -1
+  exitSelectMode()
   loadGeneration++
   const gen = loadGeneration
   try {
@@ -142,23 +147,23 @@ async function loadFullImage(entry) {
   fullLoading.value.delete(entry.path)
 }
 
-async function sendToFromImage(entry) {
+async function sendToRemix(entry) {
   try {
     const b64 = await api.readFileAsBase64(entry.path)
     if (!b64) return
     await api.setLastImage(b64)
-    emit('navigate', { page: 'remix' })
+    emit('navigate', { page: 'postprocess', section: 'remix' })
   } catch (e) {
     error.value = String(e)
   }
 }
 
-async function sendToExport(entry) {
+async function sendToPostProcess(entry) {
   try {
     const b64 = await api.readFileAsBase64(entry.path)
     if (!b64) return
     await api.setLastImage(b64)
-    emit('navigate', { page: 'export' })
+    emit('navigate', { page: 'postprocess' })
   } catch (e) {
     error.value = String(e)
   }
@@ -190,9 +195,49 @@ function getEntryIndex(entry) {
 function handleCardClick(entry) {
   if (entry.is_dir) {
     openDir(entry)
+  } else if (selectMode.value) {
+    toggleSelect(entry)
   } else {
     openViewer(getEntryIndex(entry))
   }
+}
+
+function toggleSelect(entry) {
+  const idx = selectedPaths.value.indexOf(entry.path)
+  if (idx >= 0) {
+    selectedPaths.value.splice(idx, 1)
+  } else {
+    selectedPaths.value.push(entry.path)
+  }
+}
+
+function isSelected(entry) {
+  return selectedPaths.value.includes(entry.path)
+}
+
+function exitSelectMode() {
+  selectMode.value = false
+  selectedPaths.value = []
+}
+
+function sendSelectedToRemix() {
+  const items = imageEntries.value
+    .filter(e => selectedPaths.value.includes(e.path))
+    .map(e => ({ path: e.path, name: e.name }))
+  if (!items.length) return
+  setQueue(items)
+  exitSelectMode()
+  emit('navigate', { page: 'postprocess', section: 'remix' })
+}
+
+function sendSelectedToPostProcess() {
+  const items = imageEntries.value
+    .filter(e => selectedPaths.value.includes(e.path))
+    .map(e => ({ path: e.path, name: e.name }))
+  if (!items.length) return
+  setPostQueue(items)
+  exitSelectMode()
+  emit('navigate', { page: 'postprocess' })
 }
 
 onMounted(async () => {
@@ -230,6 +275,22 @@ onUnmounted(() => {
       <button class="btn btn-primary" @click="loadPath" :disabled="!currentPath || loading">
         {{ t('browser.btn_go') }}
       </button>
+      <button v-if="!selectMode && imageEntries.length" class="btn btn-secondary" @click="selectMode = true">
+        {{ t('browser.select_mode') }}
+      </button>
+    </div>
+
+    <div v-if="selectMode" class="fb-select-bar">
+      <span class="fb-select-count">{{ t('browser.selected_count', { n: selectedPaths.length }) }}</span>
+      <button class="btn btn-primary" :disabled="!selectedPaths.length" @click="sendSelectedToRemix">
+        {{ t('browser.send_to_remix_multi', { n: selectedPaths.length }) }}
+      </button>
+      <button class="btn btn-secondary" :disabled="!selectedPaths.length" @click="sendSelectedToPostProcess">
+        {{ t('browser.send_to_postprocess_multi', { n: selectedPaths.length }) }}
+      </button>
+      <button class="btn btn-secondary" @click="exitSelectMode">
+        {{ t('browser.cancel_select') }}
+      </button>
     </div>
 
     <div v-if="error" class="fb-error">{{ error }}</div>
@@ -241,7 +302,7 @@ onUnmounted(() => {
         v-for="entry in entries"
         :key="entry.path"
         class="fb-card"
-        :class="{ 'fb-card-dir': entry.is_dir }"
+        :class="{ 'fb-card-dir': entry.is_dir, 'fb-card-selected': !entry.is_dir && selectMode && isSelected(entry) }"
         @click="handleCardClick(entry)"
       >
         <template v-if="entry.is_dir">
@@ -261,11 +322,14 @@ onUnmounted(() => {
             <div class="fb-card-name">{{ entry.name }}</div>
             <div class="fb-card-meta">{{ formatSize(entry.size) }}</div>
           </div>
-          <div class="fb-card-actions" @click.stop>
-            <button class="fb-action-btn" :title="t('browser.send_to_remix')" @click="sendToFromImage(entry)">
+          <div v-if="selectMode && isSelected(entry)" class="fb-check">
+            <Check :size="14" />
+          </div>
+          <div v-if="!selectMode" class="fb-card-actions" @click.stop>
+            <button class="fb-action-btn" :title="t('browser.send_to_remix')" @click="sendToRemix(entry)">
               <Send :size="12" />
             </button>
-            <button class="fb-action-btn" :title="t('browser.send_to_export')" @click="sendToExport(entry)">
+            <button class="fb-action-btn" :title="t('browser.send_to_postprocess')" @click="sendToPostProcess(entry)">
               <Download :size="12" />
             </button>
           </div>
@@ -319,6 +383,36 @@ onUnmounted(() => {
 .fb-path-input:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.fb-select-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fb-select-count {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.fb-card-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.fb-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-sm);
 }
 
 .fb-error {

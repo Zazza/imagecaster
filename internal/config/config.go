@@ -24,9 +24,9 @@ type Config struct {
 	DefaultHeight   int
 }
 
-const DefaultHeavyModels = "flux,z-image,moss"
+const DefaultHeavyModels = "flux,z-image,moss,klein"
 
-const DefaultProseModels = "flux,z-image,moss"
+const DefaultProseModels = "flux,z-image,moss,klein"
 
 func ModelMatchesCSV(modelName, csv string) bool {
 	name := strings.ToLower(strings.TrimSpace(modelName))
@@ -148,6 +148,23 @@ Each tag must appear at most once. Output ONLY tags, nothing else.`
 const DefaultAnalyzeDescribePrompt = `Опиши это изображение связным литературным текстом на русском языке, 4–6 предложений.
 Расскажи, что на нём происходит: главные объекты и их детали, обстановка, свет и цвета, атмосфера, заметные мелочи.
 Пиши живым текстом для человека, а не списком тегов. Не выдумывай того, чего нет на изображении.`
+
+const DefaultEditGarmentPrompt = `Look at this garment photo. Describe ONLY the clothing item — ignore any person, background, or props entirely.
+Cover ALL of these aspects of the garment:
+- Type: skirt, dress, jacket, pants, blouse, coat, etc.
+- Color: exact shade (e.g. "deep burgundy", "light beige", "navy blue")
+- Material: satin, cotton, denim, leather, knit, silk, chiffon, velvet, etc.
+- Length: mini, knee-length, midi, maxi, cropped, full-length
+- Fit: bodycon, A-line, oversized, fitted, loose, tailored
+- Neckline/collar: V-neck, round, high, collared, strapless (if applicable)
+- Sleeves: sleeveless, short, long, puffed (if applicable)
+- Details: buttons, zippers, pleats, ruffles, embroidery, patterns, pockets, belt, lace, sequins, trim
+- Style: casual, formal, evening, athletic, vintage
+
+Output format: ONE flowing English description, no lists, no commentary.
+Example: "a knee-length pleated satin skirt in deep burgundy with a high waistband, side zip closure and subtle sheen, elegant evening style"
+
+` + "DO NOT describe the person, their hair, face, pose, or the background. ONLY the garment."
 
 func Load() *Config {
 	exe, _ := os.Executable()

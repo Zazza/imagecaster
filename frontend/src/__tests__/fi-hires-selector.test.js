@@ -5,7 +5,7 @@ import { clearEventMocks } from './mocks/runtime'
 vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
 vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
 
-import GenerateFromImagePage from '../components/GenerateFromImagePage.vue'
+import RemixSection from '../components/RemixSection.vue'
 import HiresProfileSelector from '../components/HiresProfileSelector.vue'
 import { GetSettings, ListHiresProfiles, ListPresets, ListCompoundPresets, EnqueueFromImage } from '../wailsjs/go/main/App.js'
 import { t } from '../i18n/index.js'
@@ -16,16 +16,16 @@ function hireSelector(wrapper) {
   return wrapper.findComponent(HiresProfileSelector)
 }
 
-async function mountPage(settings = {}) {
+async function mountSection(settings = {}) {
   GetSettings.mockReturnValue(Promise.resolve(settings))
-  const wrapper = mount(GenerateFromImagePage)
+  const wrapper = mount(RemixSection)
   await flushPromises()
   return wrapper
 }
 
 async function mountWithImage(settings = {}) {
-  const wrapper = await mountPage(settings)
-  await wrapper.setProps({ droppedImage: 'data:image/png;base64,abc' })
+  const wrapper = await mountSection(settings)
+  await wrapper.setProps({ source: 'abc' })
   await flushPromises()
   return wrapper
 }
@@ -36,7 +36,7 @@ function generateButton(wrapper) {
 
 enableAutoUnmount(afterEach)
 
-describe('From Image: hires profile selector', () => {
+describe('Remix section: hires profile selector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
@@ -44,21 +44,21 @@ describe('From Image: hires profile selector', () => {
   })
 
   it('compound img2img: selector mounted with hint', async () => {
-    const wrapper = await mountPage({ fi_mode: 'img2img', fi_gen_mode: 'compound' })
+    const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'compound' })
 
     expect(hireSelector(wrapper).exists()).toBe(true)
     expect(wrapper.text()).toContain(t('fi.hires_hint'))
   })
 
   it('preset img2img: selector absent', async () => {
-    const wrapper = await mountPage({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
+    const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
 
     expect(hireSelector(wrapper).exists()).toBe(false)
     expect(wrapper.text()).not.toContain(t('fi.hires_hint'))
   })
 
   it('remove mode: selector absent even in compound genMode', async () => {
-    const wrapper = await mountPage({ fi_mode: 'remove', fi_gen_mode: 'compound' })
+    const wrapper = await mountSection({ fi_mode: 'remove', fi_gen_mode: 'compound' })
 
     expect(hireSelector(wrapper).exists()).toBe(false)
     expect(wrapper.text()).not.toContain(t('fi.hires_hint'))
@@ -66,14 +66,14 @@ describe('From Image: hires profile selector', () => {
 
   it('restore: valid fi_hires_profile_id selects profile', async () => {
     ListHiresProfiles.mockReturnValue(Promise.resolve([hiresProfile]))
-    const wrapper = await mountPage({ fi_mode: 'img2img', fi_gen_mode: 'compound', fi_hires_profile_id: '7' })
+    const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'compound', fi_hires_profile_id: '7' })
 
     expect(hireSelector(wrapper).props('modelValue')).toBe(7)
   })
 
   it('restore: unknown fi_hires_profile_id is dropped', async () => {
     ListHiresProfiles.mockReturnValue(Promise.resolve([hiresProfile]))
-    const wrapper = await mountPage({ fi_mode: 'img2img', fi_gen_mode: 'compound', fi_hires_profile_id: '999' })
+    const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'compound', fi_hires_profile_id: '999' })
 
     expect(hireSelector(wrapper).props('modelValue')).toBe(null)
   })

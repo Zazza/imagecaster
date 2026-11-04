@@ -278,7 +278,7 @@ onUnmounted(() => {
       <template v-if="showActions && !infoExpanded">
         <button class="image-viewer-tool-btn" @click="$emit('remix')">{{ t('viewer.remix') }}</button>
         <button class="image-viewer-tool-btn" @click="$emit('edit')">{{ t('viewer.edit') }}</button>
-        <button class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.export') }}</button>
+        <button class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
         <button
           class="image-viewer-tool-btn tool-danger"
           :class="{ confirm: confirmDelete }"
@@ -342,7 +342,7 @@ onUnmounted(() => {
         <div v-if="showActions" class="viewer-actions">
           <button class="btn btn-primary btn-sm" @click="$emit('remix')">{{ t('viewer.remix') }}</button>
           <button class="btn btn-secondary btn-sm" @click="$emit('edit')">{{ t('viewer.edit') }}</button>
-          <button class="btn btn-secondary btn-sm" @click="$emit('export')">{{ t('viewer.export') }}</button>
+          <button class="btn btn-secondary btn-sm" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
           <button class="btn btn-danger btn-sm" @click="$emit('delete')">{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</button>
         </div>
       </div>

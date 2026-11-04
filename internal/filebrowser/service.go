@@ -162,11 +162,19 @@ func DecodeImageSize(b64 string) (int, int) {
 }
 
 func SanitizeFilename(name string) string {
+	var b strings.Builder
+	b.Grow(len(name))
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			continue
+		}
+		b.WriteRune(r)
+	}
 	r := strings.NewReplacer(
 		"/", "_", "\\", "_", ":", "_", "*", "_",
 		"?", "_", "\"", "_", "<", "_", ">", "_", "|", "_",
 	)
-	result := r.Replace(name)
+	result := r.Replace(b.String())
 	if len(result) > 200 {
 		result = result[:200]
 		for !utf8.ValidString(result) {

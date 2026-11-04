@@ -438,3 +438,22 @@ func TestDecodeImageSize_OnePixelImage(t *testing.T) {
 	assert.Equal(t, 1, w)
 	assert.Equal(t, 1, h)
 }
+
+func TestSanitizeFilename(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"reserved chars replaced", "a/b\\c:d*e?f\"g<h>i|j.png", "a_b_c_d_e_f_g_h_i_j.png"},
+		{"control chars stripped", "bad\nname\x00\x1f.png", "badname.png"},
+		{"plain name untouched", "photo 01.png", "photo 01.png"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, SanitizeFilename(tt.in))
+		})
+	}
+}

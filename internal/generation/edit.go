@@ -17,7 +17,9 @@ import (
 
 const (
 	mossEditModel             = "moss_image_sft_bf16"
+	kleinLookModel            = "flux-2-klein-4b.safetensors"
 	mossReferenceOption       = "moss_do_reference"
+	kleinReferenceOption      = "klein_do_reference"
 	mossReferenceOn           = "Moss-Image-Edit"
 	mossReferenceOff          = "Disable"
 	mossEditSteps             = 30
@@ -28,6 +30,7 @@ const (
 	mossEditAlign             = 16
 	mossEditMaxDim            = 2048
 	mossEditStitchMaxDim      = 768
+	vramReleaseModel          = "z-image-turbo-fp8-aio"
 	mossEditLabelMax          = 60
 	mossEditMaxInstructionLen = 2000
 	mossEditMaxLoras          = 8
@@ -37,17 +40,23 @@ const (
 	editLoRATag      = "<lora:Moss_Edit_LoRA:1.0>"
 	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo."
 
-	mossTEModulePath  = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors"
-	mossVAEModulePath = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors"
+	mossTEModulePath   = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors"
+	mossVAEModulePath  = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors"
+	kleinTEModulePath  = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen_3_4b.safetensors"
+	kleinVAEModulePath = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-klein-vae.safetensors"
 )
 
 var loraTagPrefixRe = regexp.MustCompile(`(?i)<lora:`)
 
 var mossForgeModules = []string{mossTEModulePath, mossVAEModulePath}
+var kleinForgeModules = []string{kleinTEModulePath, kleinVAEModulePath}
 
 func forgeModulesForModel(model string) []string {
 	if config.ModelMatchesCSV(model, "moss") {
 		return mossForgeModules
+	}
+	if config.ModelMatchesCSV(model, "klein") {
+		return kleinForgeModules
 	}
 	return []string{}
 }
@@ -253,8 +262,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		return nil, err
 	}
 
-	s.editMu.Lock()
-	defer s.editMu.Unlock()
+	s.referenceMu.Lock()
+	defer s.referenceMu.Unlock()
 
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
@@ -264,9 +273,6 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 
 	s.guard.EnsureHeadroom(mossEditModel, "edit")
 
-	if params.ReferenceImageBase64 != "" {
-		s.refreshModelVRAM(mossEditModel)
-	}
 	if err := s.setModel(mossEditModel, "edit"); err != nil {
 		return nil, fmt.Errorf("moss_image_sft_bf16 not available on SD backend: %w", err)
 	}
@@ -322,11 +328,6 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		BatchCount:        &batchCount,
 		DoNotSaveImages:   true,
 		DoNotSaveGrid:     true,
-	}
-	if params.ReferenceImageBase64 != "" {
-		baseReq.AlwaysonScripts = map[string]sd.AlwaysOn{
-			"imagestitch integrated": {Args: []any{true, []string{params.ReferenceImageBase64}, mossEditStitchMaxDim}},
-		}
 	}
 	resp, err := s.sd.Img2Img(baseReq)
 	if err != nil {
@@ -418,25 +419,16 @@ func (s *Service) editQualityPostProcess(base64Img string, req sd.Txt2ImgRequest
 	return s.qualityUpscaleRedenoise(base64Img, req, srcW, srcH, targetW, targetH, "edit quality")
 }
 
-func (s *Service) ResetMossReference() {
+func (s *Service) ResetReferences() {
+	s.referenceMu.Lock()
+	defer s.referenceMu.Unlock()
 	if err := s.sd.HealthCheck(); err != nil {
 		return
 	}
 	if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
 		s.log.Warn("reset moss reference: %s", err)
 	}
-}
-
-func (s *Service) refreshModelVRAM(modelName string) {
-	stats, err := s.sd.MemoryInfo()
-	if err != nil {
-		return
-	}
-	if stats == nil || stats.CUDA.System.Free > 4.5*(1<<30) {
-		return
-	}
-	s.log.Info("edit try-on: low VRAM (%.1f GiB free), refreshing model to clear cache", stats.CUDA.System.Free/(1<<30))
-	if err := s.sd.SetModelWithModules(modelName, forgeModulesForModel(modelName)); err != nil {
-		s.log.Warn("edit try-on: model refresh failed: %s", err)
+	if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
+		s.log.Warn("reset klein reference: %s", err)
 	}
 }

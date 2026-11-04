@@ -1,19 +1,14 @@
 <script setup>
-import { ref, reactive, watch, onMounted, onUnmounted, provide } from 'vue'
+import { reactive, ref, onMounted, onUnmounted, provide } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import GeneratePage from './GeneratePage.vue'
-import GenerateFromImagePage from './GenerateFromImagePage.vue'
 
 const props = defineProps({
-  initialTab: { type: String, default: '' },
   resetting: { type: Boolean, default: false },
 })
 
-const emit = defineEmits([])
-
-const activeTab = ref(props.initialTab || 'generate')
-const droppedImage = ref(null)
+const emit = defineEmits(['navigate'])
 
 const shared = reactive({
   description: '',
@@ -49,8 +44,10 @@ function onDrop(e) {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader()
         reader.onload = () => {
-          droppedImage.value = reader.result
-          activeTab.value = 'from-image'
+          const base64 = reader.result.split(',')[1]
+          if (base64) {
+            emit('navigate', { page: 'postprocess', section: 'remix', image: base64 })
+          }
         }
         reader.readAsDataURL(file)
         return
@@ -85,11 +82,10 @@ onUnmounted(() => {
 <template>
   <div class="page-enter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
     <div v-if="isDragOver" class="drop-zone-overlay">
-      Drop image for img2img mode
+      {{ t('gen.drop_postprocess') }}
     </div>
     <div class="unified-tab-content">
-      <GenerateFromImagePage v-if="activeTab === 'from-image'" :dropped-image="droppedImage" @clear-dropped="droppedImage = null" @transfer-tags="activeTab = 'generate'" />
-      <GeneratePage v-else :resetting="resetting" />
+      <GeneratePage :resetting="resetting" @navigate="emit('navigate', $event)" />
     </div>
   </div>
 </template>

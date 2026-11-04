@@ -37,6 +37,25 @@ func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 
 	maxTokens := s.getMaxTokens()
 
+	if mode == "garment" {
+		prompt, _ := s.db.GetSetting("edit_garment_prompt")
+		if prompt == "" {
+			prompt = config.DefaultEditGarmentPrompt
+		}
+		if locale, _ := s.db.GetSetting("ui_locale"); locale == "en" {
+			prompt += "\n\nRespond in English."
+		} else {
+			prompt += "\n\nОтвечай на русском языке."
+		}
+		s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
+		text, err := s.llm.AnalyzeImageDescribe(model, prompt, imageBase64, maxTokens)
+		s.emitter.Emit("llm:status", map[string]string{"status": "done"})
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(text), nil
+	}
+
 	if mode == "describe" {
 		prompt, _ := s.db.GetSetting("analyze_describe_prompt")
 		if prompt == "" {
@@ -421,6 +440,12 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			return nil, fmt.Errorf("quality output mode requires resolution")
 		}
 	}
+	if params.PreserveIdentity && (params.RemoveObject || params.GenMode != "preset" || params.Mode != "img2img") {
+		return nil, fmt.Errorf("preserve identity requires img2img preset mode")
+	}
+	if params.PreserveIdentity && params.DenoisingStrength > 0.9 {
+		return nil, fmt.Errorf("preserve identity requires denoising strength of 0.9 or less")
+	}
 	if params.DenoisingStrength <= 0 {
 		params.DenoisingStrength = 0.5
 	}
@@ -454,6 +479,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		return nil, fmt.Errorf("preset not found: %w", err)
 	}
 	ApplyPresetOverrides(p, params.Overrides)
+	if params.PreserveIdentity && !config.ModelMatchesCSV(p.ModelName, "klein") {
+		return nil, fmt.Errorf("preserve identity requires a klein model, got %q", p.ModelName)
+	}
 
 	seed := p.Seed
 	if params.Seed != nil {
@@ -497,6 +525,35 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	batchCount := 1
 
 	if params.Mode == "img2img" || params.Mode == "inpaint" {
+		var result *GenerateImageResult
+		refDisabled := false
+		if params.PreserveIdentity {
+			s.referenceMu.Lock()
+			defer s.referenceMu.Unlock()
+			if err := s.sd.SetOption(kleinReferenceOption, true); err != nil {
+				if rerr := s.sd.SetOption(kleinReferenceOption, false); rerr != nil {
+					s.log.Warn("from-image: disable klein reference after failed enable: %s", rerr)
+				}
+				return nil, fmt.Errorf("enable identity reference: %w", err)
+			}
+			defer func() {
+				if refDisabled {
+					return
+				}
+				derr := s.sd.SetOption(kleinReferenceOption, false)
+				if derr != nil {
+					s.log.Warn("from-image: disable klein reference: %s", derr)
+				}
+				if result != nil {
+					result.PreserveIdentityResetFailed = derr != nil
+				}
+			}()
+		}
+		if !params.PreserveIdentity && config.ModelMatchesCSV(p.ModelName, "klein") {
+			if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
+				s.log.Warn("from-image: clear stale klein reference: %s", err)
+			}
+		}
 		srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
 		if srcW > 0 && srcH > 0 {
 			srcW = srcW / 8 * 8
@@ -519,7 +576,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		if maskBlur <= 0 {
 			maskBlur = 4
 		}
-		result, err := s.sd.Img2Img(sd.Img2ImgRequest{
+		resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
 			InitImages:            []string{params.ImageBase64},
 			Prompt:                prompt,
 			NegativePrompt:        negativePrompt,
@@ -545,41 +602,54 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		if err != nil {
 			return nil, err
 		}
-		if len(result.Images) == 0 {
+		if len(resp.Images) == 0 {
 			if ierr := s.checkSDInterrupted(); ierr != nil {
 				return nil, ierr
 			}
 			return nil, fmt.Errorf("no image generated (%s)", params.Mode)
 		}
-		finalImage := result.Images[0]
-		finalInfo := result.Info
+		finalImage := resp.Images[0]
+		finalInfo := resp.Info
 		upscaleSkipped := false
 		redenoiseSkipped := false
 		if params.OutputMode == "quality" {
-			qualityReq := sd.Txt2ImgRequest{
-				Prompt:         prompt,
-				NegativePrompt: negativePrompt,
-				SamplerName:    samplerName,
-				Scheduler:      p.ScheduleType,
-				Steps:          p.Steps,
-				CfgScale:       p.CfgScale,
-				Width:          imgW,
-				Height:         imgH,
-				Seed:           seed,
-				ClipSkip:       &clipSkip,
-				BatchSize:      &batchSize,
-				BatchCount:     &batchCount,
+			qualityReady := true
+			if params.PreserveIdentity {
+				if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
+					s.log.Warn("from-image: disable klein reference before quality failed, skipping quality: %s", err)
+					upscaleSkipped = true
+					redenoiseSkipped = true
+					qualityReady = false
+				} else {
+					refDisabled = true
+				}
 			}
-			qImg, qInfo, qUpscaleSkipped, qRedenoiseSkipped, qErr := s.qualityPostProcess(result.Images[0], qualityReq, imgW, imgH, params.ResolutionID)
-			if qErr != nil {
-				return nil, qErr
+			if qualityReady {
+				qualityReq := sd.Txt2ImgRequest{
+					Prompt:         prompt,
+					NegativePrompt: negativePrompt,
+					SamplerName:    samplerName,
+					Scheduler:      p.ScheduleType,
+					Steps:          p.Steps,
+					CfgScale:       p.CfgScale,
+					Width:          imgW,
+					Height:         imgH,
+					Seed:           seed,
+					ClipSkip:       &clipSkip,
+					BatchSize:      &batchSize,
+					BatchCount:     &batchCount,
+				}
+				qImg, qInfo, qUpscaleSkipped, qRedenoiseSkipped, qErr := s.qualityPostProcess(finalImage, qualityReq, imgW, imgH, params.ResolutionID)
+				if qErr != nil {
+					return nil, qErr
+				}
+				finalImage = qImg
+				if qInfo != nil {
+					finalInfo = qInfo
+				}
+				upscaleSkipped = qUpscaleSkipped
+				redenoiseSkipped = qRedenoiseSkipped
 			}
-			finalImage = qImg
-			if qInfo != nil {
-				finalInfo = qInfo
-			}
-			upscaleSkipped = qUpscaleSkipped
-			redenoiseSkipped = qRedenoiseSkipped
 		}
 		genMeta := &preset.GenerationMeta{
 			PresetID: &params.PresetID,
@@ -595,7 +665,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 				Denoise: &denoising,
 			}, upscaleSkipped, redenoiseSkipped)
 		}
-		img := &GenerateImageResult{
+		result = &GenerateImageResult{
 			Image:                   finalImage,
 			Info:                    finalInfo,
 			QualityUpscaleSkipped:   upscaleSkipped,
@@ -604,7 +674,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			EffectiveNegativePrompt: negativePrompt,
 		}
 		s.sessions.AddToSession(finalImage, finalInfo, "from-image", false, genMeta)
-		return img, nil
+		return result, nil
 	}
 
 	width, height := s.resolveResolution(p, params.ResolutionID)

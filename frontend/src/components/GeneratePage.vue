@@ -21,6 +21,7 @@ const { presets, presetTypes, compoundPresets, loadPresets } = usePresets()
 const props = defineProps({
   resetting: { type: Boolean, default: false },
 })
+const emit = defineEmits(['navigate'])
 const selectedTypeId = ref(null)
 const selectedPresetId = ref(null)
 const selectedCompoundPresetId = ref(null)
@@ -581,6 +582,21 @@ function copyPrompt() {
   if (parts.length) navigator.clipboard.writeText(parts.join('\n'))
 }
 
+async function toPostProcess() {
+  if (!generatedImage.value) return
+  try {
+    const item = await api.getActiveSessionItem()
+    if (!item) {
+      error.value = t('fi.error_no_active_item')
+      return
+    }
+    await api.setActiveSessionItem(item.id)
+    emit('navigate', { page: 'postprocess' })
+  } catch (e) {
+    error.value = String(e)
+  }
+}
+
 function onQueueCompleted(data) {
   if (!data) return
 
@@ -1057,6 +1073,7 @@ function onKeydown(e) {
               <button class="btn btn-sm btn-secondary" @click="downloadImage" data-tooltip="Download">{{ t('generate.btn_download') }}</button>
               <button class="btn btn-sm btn-secondary" @click="copyPrompt" data-tooltip="Copy prompt">{{ t('generate.btn_copy') }}</button>
               <button class="btn btn-sm btn-secondary" @click="generateImage" data-tooltip="Regenerate">{{ t('generate.btn_regenerate') }}</button>
+              <button class="btn btn-sm btn-secondary" @click="toPostProcess" :disabled="!generatedImage" data-tooltip="Post-process">{{ t('post.btn_send') }}</button>
             </div>
           </div>
           <div v-else class="generate-placeholder">

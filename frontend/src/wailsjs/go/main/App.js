@@ -6,6 +6,14 @@ export function AnalyzeImage(arg1, arg2) {
   return window['go']['main']['App']['AnalyzeImage'](arg1, arg2);
 }
 
+export function ApplyLookDirect(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ApplyLookDirect'](arg1, arg2, arg3, arg4);
+}
+
+export function AutoAdjust(arg1) {
+  return window['go']['main']['App']['AutoAdjust'](arg1);
+}
+
 export function BrowseDirectory(arg1) {
   return window['go']['main']['App']['BrowseDirectory'](arg1);
 }
@@ -32,6 +40,10 @@ export function ClearLastImage() {
 
 export function ClearSession() {
   return window['go']['main']['App']['ClearSession']();
+}
+
+export function CompilePostStyle(arg1) {
+  return window['go']['main']['App']['CompilePostStyle'](arg1);
 }
 
 export function ConfirmClose(arg1) {
@@ -90,6 +102,10 @@ export function DeleteHiresProfile(arg1) {
   return window['go']['main']['App']['DeleteHiresProfile'](arg1);
 }
 
+export function DeletePostRecipe(arg1) {
+  return window['go']['main']['App']['DeletePostRecipe'](arg1);
+}
+
 export function DeletePreset(arg1) {
   return window['go']['main']['App']['DeletePreset'](arg1);
 }
@@ -120,6 +136,10 @@ export function DeleteSession(arg1) {
 
 export function DeleteSessionItem(arg1) {
   return window['go']['main']['App']['DeleteSessionItem'](arg1);
+}
+
+export function DescribeForStyle(arg1) {
+  return window['go']['main']['App']['DescribeForStyle'](arg1);
 }
 
 export function DiscoverServers() {
@@ -162,6 +182,10 @@ export function ExportPresets(arg1) {
   return window['go']['main']['App']['ExportPresets'](arg1);
 }
 
+export function ExportSessionItem(arg1, arg2) {
+  return window['go']['main']['App']['ExportSessionItem'](arg1, arg2);
+}
+
 export function FastSaveImage(arg1, arg2, arg3) {
   return window['go']['main']['App']['FastSaveImage'](arg1, arg2, arg3);
 }
@@ -196,6 +220,10 @@ export function GetCompoundPreset(arg1) {
 
 export function GetDefaultAnalyzePrompts() {
   return window['go']['main']['App']['GetDefaultAnalyzePrompts']();
+}
+
+export function GetDefaultEditGarmentPrompt() {
+  return window['go']['main']['App']['GetDefaultEditGarmentPrompt']();
 }
 
 export function GetDefaultPromptInstruction() {
@@ -350,6 +378,10 @@ export function ListHiresProfiles() {
   return window['go']['main']['App']['ListHiresProfiles']();
 }
 
+export function ListPostRecipes() {
+  return window['go']['main']['App']['ListPostRecipes']();
+}
+
 export function ListPresetTypes() {
   return window['go']['main']['App']['ListPresetTypes']();
 }
@@ -392,6 +424,10 @@ export function PrepareCompoundPresetsExport(arg1) {
 
 export function PreparePresetsExport(arg1) {
   return window['go']['main']['App']['PreparePresetsExport'](arg1);
+}
+
+export function PreviewAdjust(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PreviewAdjust'](arg1, arg2, arg3);
 }
 
 export function PullServerLLMModel(arg1) {
@@ -440,6 +476,10 @@ export function SaveExportPreset(arg1) {
 
 export function SaveImage(arg1, arg2) {
   return window['go']['main']['App']['SaveImage'](arg1, arg2);
+}
+
+export function SavePostRecipe(arg1) {
+  return window['go']['main']['App']['SavePostRecipe'](arg1);
 }
 
 export function SaveWindowLayout(arg1) {

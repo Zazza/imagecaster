@@ -49,8 +49,9 @@ func main() {
 	gen := generation.New(
 		db, llmClient, sdClient, cfg,
 		filepath.Dir(cfg.DBPath),
-		mcp.NoopEmitter{}, kidsMgr, mcp.NoopSessions{}, settingsSvc, logSvc,
+		mcp.NoopEmitter{}, kidsMgr, mcp.NoopSessions{}, settingsSvc, nil, logSvc,
 	)
+	go gen.ResetReferences()
 
 	outDir := os.Getenv("SD_MCP_OUT")
 	if outDir == "" {

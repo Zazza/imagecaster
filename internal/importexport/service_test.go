@@ -3,19 +3,23 @@ package importexport
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/Zazza/imagecaster/internal/adjust"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockSDService struct {
@@ -51,8 +55,8 @@ func (m *mockSDService) SetVAE(vaeName string) error { return nil }
 func (m *mockSDService) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
 	return "", nil
 }
-func (m *mockSDService) SetOption(key, value string) error    { return nil }
-func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
+func (m *mockSDService) SetOption(key string, value any) error { return nil }
+func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error)  { return nil, nil }
 
 func openTestDB(t *testing.T) *preset.DB {
 	t.Helper()
@@ -758,6 +762,78 @@ func TestProcessExportImage_WebpNotSupported(t *testing.T) {
 	assert.Contains(t, err.Error(), "unsupported format")
 }
 
+func encodePNGImage(t *testing.T, img image.Image) string {
+	t.Helper()
+	var buf bytes.Buffer
+	err := png.Encode(&buf, img)
+	require.NoError(t, err)
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+func TestProcessExportImage_AdjustNeutral_SameAsWithoutAdjust(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, &mockSDService{})
+	b64 := encodePNG(t, 64, 64)
+
+	plain, err := svc.ProcessExportImage(ExportImageParams{
+		ImageBase64: b64,
+		Format:      "png",
+	})
+	require.NoError(t, err)
+
+	neutral, err := svc.ProcessExportImage(ExportImageParams{
+		ImageBase64: b64,
+		Format:      "png",
+		Adjust:      &adjust.Params{},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, plain.Data, neutral.Data)
+}
+
+func TestProcessExportImage_AdjustApplied(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, &mockSDService{})
+	src := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			src.SetRGBA(x, y, color.RGBA{100, 100, 100, 255})
+		}
+	}
+
+	out, err := svc.ProcessExportImage(ExportImageParams{
+		ImageBase64: encodePNGImage(t, src),
+		Format:      "png",
+		Adjust:      &adjust.Params{Brightness: 50},
+	})
+	require.NoError(t, err)
+
+	decoded, err := png.Decode(bytes.NewReader(out.Data))
+	require.NoError(t, err)
+	r, g, b, a := decoded.At(3, 3).RGBA()
+	assert.Equal(t, uint32(150), r>>8)
+	assert.Equal(t, uint32(150), g>>8)
+	assert.Equal(t, uint32(150), b>>8)
+	assert.Equal(t, uint32(255), a>>8)
+}
+
+func TestProcessExportImage_AdjustWithResize(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, &mockSDService{})
+	b64 := encodePNG(t, 256, 256)
+
+	out, err := svc.ProcessExportImage(ExportImageParams{
+		ImageBase64: b64,
+		Format:      "jpeg",
+		Width:       128,
+		Height:      128,
+		Adjust:      &adjust.Params{Contrast: 20, Vignette: 30},
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, out.Data)
+	assert.Equal(t, "jpeg", out.Format)
+}
+
 func TestProcessExportImage_DefaultQuality(t *testing.T) {
 	t.Parallel()
 	svc := newTestService(t, &mockSDService{})
@@ -877,15 +953,16 @@ func TestWriteImageToPath_Valid(t *testing.T) {
 		Filename: "test.png",
 		Format:   "png",
 	}
-	err := WriteImageToPath(img, path)
+	saved, err := WriteImageToPath(img, path)
 	require.NoError(t, err)
+	assert.Equal(t, path, saved)
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("fake-image-data"), data)
 }
 
-func TestWriteImageToPath_OverwriteExisting(t *testing.T) {
+func TestWriteImageToPath_NoSilentOverwrite(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.png")
@@ -893,11 +970,90 @@ func TestWriteImageToPath_OverwriteExisting(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("old"), 0o644))
 
 	img := &ProcessedImage{Data: []byte("new")}
-	err := WriteImageToPath(img, path)
+	saved, err := WriteImageToPath(img, path)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "test_1.png"), saved)
+
+	old, _ := os.ReadFile(path)
+	assert.Equal(t, []byte("old"), old)
+	fresh, err := os.ReadFile(saved)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("new"), fresh)
+}
+
+func TestWriteImageToPath_TwoSavesSuffix(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	img := &ProcessedImage{Data: []byte("data"), Filename: "same.png", Format: "png"}
+
+	first, err := WriteImageToPath(img, filepath.Join(dir, "same.png"))
+	require.NoError(t, err)
+	second, err := WriteImageToPath(img, filepath.Join(dir, "same.png"))
 	require.NoError(t, err)
 
-	data, _ := os.ReadFile(path)
-	assert.Equal(t, []byte("new"), data)
+	assert.Equal(t, filepath.Join(dir, "same.png"), first)
+	assert.Equal(t, filepath.Join(dir, "same_1.png"), second)
+	assert.FileExists(t, first)
+	assert.FileExists(t, second)
+}
+
+func hugePNGHeader(w, h uint32) []byte {
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:4], w)
+	binary.BigEndian.PutUint32(ihdr[4:8], h)
+	ihdr[8] = 8
+	ihdr[9] = 6
+
+	var out bytes.Buffer
+	out.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+	lenb := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenb, uint32(len(ihdr)))
+	out.Write(lenb)
+	out.WriteString("IHDR")
+	out.Write(ihdr)
+	crcb := make([]byte, 4)
+	binary.BigEndian.PutUint32(crcb, crc32.ChecksumIEEE(append([]byte("IHDR"), ihdr...)))
+	out.Write(crcb)
+	return out.Bytes()
+}
+
+func TestProcessExportImage_DecompressionBombRejected(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, &mockSDService{})
+	b64 := base64.StdEncoding.EncodeToString(hugePNGHeader(60000, 60000))
+
+	_, err := svc.ProcessExportImage(ExportImageParams{
+		ImageBase64: b64,
+		Format:      "png",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "image too large")
+}
+
+func TestProcessExportImage_UnreadableHeaderRejected(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, &mockSDService{})
+
+	_, err := svc.ProcessExportImage(ExportImageParams{
+		ImageBase64: base64.StdEncoding.EncodeToString([]byte("definitely not an image")),
+		Format:      "png",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "image too large")
+}
+
+func TestProcessExportImage_FilenameSanitized(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, &mockSDService{})
+	b64 := encodePNG(t, 8, 8)
+
+	img, err := svc.ProcessExportImage(ExportImageParams{
+		ImageBase64: b64,
+		Format:      "png",
+		Filename:    "evil/na\\me:x*.png",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "evil_na_me_x_.png", img.Filename)
 }
 
 func TestRoundTrip_ExportParseImport(t *testing.T) {

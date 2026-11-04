@@ -51,6 +51,10 @@ type SettingsApplier interface {
 	ApplyLLMConfig(mode string)
 }
 
+type BackendRestarter interface {
+	RestartServerProcess(name string) error
+}
+
 type SessionAdder interface {
 	AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64
 }
@@ -115,17 +119,18 @@ type GenerateImageParams struct {
 }
 
 type GenerateImageResult struct {
-	Image                    string          `json:"image"`
-	Parameters               json.RawMessage `json:"parameters"`
-	Info                     json.RawMessage `json:"info"`
-	IsPreview                bool            `json:"is_preview"`
-	HiresFixSkipped          bool            `json:"hires_fix_skipped"`
-	HiresFixManual           bool            `json:"hires_fix_manual"`
-	QualityUpscaleSkipped    bool            `json:"quality_upscale_skipped,omitempty"`
-	QualityRedenoiseSkipped  bool            `json:"quality_redenoise_skipped,omitempty"`
-	EffectivePrompt          string          `json:"effective_prompt"`
-	EffectiveNegativePrompt  string          `json:"effective_negative_prompt"`
-	EditReferenceResetFailed bool            `json:"edit_reference_reset_failed,omitempty"`
+	Image                       string          `json:"image"`
+	Parameters                  json.RawMessage `json:"parameters"`
+	Info                        json.RawMessage `json:"info"`
+	IsPreview                   bool            `json:"is_preview"`
+	HiresFixSkipped             bool            `json:"hires_fix_skipped"`
+	HiresFixManual              bool            `json:"hires_fix_manual"`
+	QualityUpscaleSkipped       bool            `json:"quality_upscale_skipped,omitempty"`
+	QualityRedenoiseSkipped     bool            `json:"quality_redenoise_skipped,omitempty"`
+	EffectivePrompt             string          `json:"effective_prompt"`
+	EffectiveNegativePrompt     string          `json:"effective_negative_prompt"`
+	EditReferenceResetFailed    bool            `json:"edit_reference_reset_failed,omitempty"`
+	PreserveIdentityResetFailed bool            `json:"preserve_identity_reset_failed,omitempty"`
 }
 
 type UpscaleImageParams struct {
@@ -230,6 +235,7 @@ type GenerateFromImageParams struct {
 	InpaintFill         int              `json:"inpaint_fill"`
 	InpaintFullRes      bool             `json:"inpaint_full_res"`
 	RemoveObject        bool             `json:"remove_object"`
+	PreserveIdentity    bool             `json:"preserve_identity"`
 	ResolutionID        *int64           `json:"resolution_id,omitempty"`
 	HiresProfileID      *int64           `json:"hires_profile_id,omitempty"`
 	Seed                *int64           `json:"seed,omitempty"`
@@ -252,24 +258,25 @@ type lastImageMeta struct {
 // --- Service ---
 
 type Service struct {
-	db       *preset.DB
-	llm      llm.Service
-	sd       sd.Service
-	cfg      *config.Config
-	dataDir  string
-	emitter  EventEmitter
-	kids     *kids.Manager
-	sessions SessionAdder
-	settings SettingsApplier
-	log      *logger.Logger
-	guard    *MemoryGuard
+	db        *preset.DB
+	llm       llm.Service
+	sd        sd.Service
+	cfg       *config.Config
+	dataDir   string
+	emitter   EventEmitter
+	kids      *kids.Manager
+	sessions  SessionAdder
+	settings  SettingsApplier
+	restarter BackendRestarter
+	log       *logger.Logger
+	guard     *MemoryGuard
 
 	ctx             context.Context
 	sdPollingMu     sync.Mutex
 	sdPollingCancel context.CancelFunc
 	sdPollingDone   chan struct{}
 	sdInterrupted   bool
-	editMu          sync.Mutex
+	referenceMu     sync.Mutex
 }
 
 func New(
@@ -282,6 +289,7 @@ func New(
 	kidsMgr *kids.Manager,
 	sessions SessionAdder,
 	settings SettingsApplier,
+	restarter BackendRestarter,
 	log *logger.Logger,
 ) *Service {
 	return &Service{

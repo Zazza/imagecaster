@@ -707,6 +707,7 @@ func RegisterTools(s *Server) {
 		Name: "from_image",
 		Description: "img2img или inpaint по image_path и пресету. tags (описание изменений) проходит LLM-конвертацию; для inpaint обязателен mask_path. " +
 			"quality=true (только mode=img2img, требует resolution_id): после генерации — ESRGAN-апскейл до бокса разрешения и дочерний img2img denoise 0.35. " +
+			"preserve_identity=true (только mode=img2img с пресетом на klein-модели): klein reference-ремикс — лицо исходника сохраняется, оптимальный denoise 0.6–0.7. " +
 			"Результат: PNG + sidecar в out_dir.",
 		InputSchema: props(map[string]any{
 			"image_path":         prop("путь к исходному изображению", "string"),
@@ -718,6 +719,7 @@ func RegisterTools(s *Server) {
 			"extra_negative":     prop("дополнительный негатив", "string"),
 			"resolution_id":      prop("id разрешения: цель апскейла для quality, иначе fit исходника в бокс", "integer"),
 			"quality":            prop("качественный режим: 3 шага — img2img нативно, апскейл до бокса resolution_id, дочерний img2img (только mode=img2img)", "boolean"),
+			"preserve_identity":  prop("сохранять лицо исходника (klein reference-ремикс; только mode=img2img с klein-моделью, оптимальный denoise 0.6–0.7)", "boolean"),
 		}, "image_path", "preset_id"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			path := argString(args, "image_path")
@@ -770,6 +772,9 @@ func RegisterTools(s *Server) {
 			if argBool(args, "quality") {
 				gp.OutputMode = "quality"
 			}
+			if argBool(args, "preserve_identity") {
+				gp.PreserveIdentity = true
+			}
 			res, err := s.deps.Gen.GenerateFromImage(gp)
 			if err != nil {
 				return "", err
@@ -787,6 +792,9 @@ func RegisterTools(s *Server) {
 			}
 			if res.QualityRedenoiseSkipped {
 				out["quality_redenoise_skipped"] = true
+			}
+			if res.PreserveIdentityResetFailed {
+				out["preserve_identity_reset_failed"] = true
 			}
 			return toJSON(out), nil
 		},

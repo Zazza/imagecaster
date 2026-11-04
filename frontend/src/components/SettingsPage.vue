@@ -147,6 +147,7 @@ const defaultPromptInstructionProse = ref('')
 const analyzeSystemPrompt = ref('')
 const analyzeSinglePrompt = ref('')
 const analyzeDescribePrompt = ref('')
+const editGarmentPrompt = ref('')
 const analyzeSaved = ref(false)
 const analyzeError = ref('')
 const defaultAnalyzePrompts = ref(null)
@@ -224,6 +225,7 @@ async function loadSettings() {
     analyzeSystemPrompt.value = settings.analyze_system_prompt || ''
     analyzeSinglePrompt.value = settings.analyze_prompt || ''
     analyzeDescribePrompt.value = settings.analyze_describe_prompt || ''
+    editGarmentPrompt.value = settings.edit_garment_prompt || ''
   } catch (e) {
     console.error('loadAnalyzeSettings:', e)
   }
@@ -665,6 +667,7 @@ async function saveAnalyzePrompts() {
       analyze_system_prompt: analyzeSystemPrompt.value,
       analyze_prompt: analyzeSinglePrompt.value,
       analyze_describe_prompt: analyzeDescribePrompt.value,
+      edit_garment_prompt: editGarmentPrompt.value,
     }
     await api.updateSettings(data)
     analyzeSaved.value = true
@@ -1073,6 +1076,12 @@ onMounted(loadSettings)
         <button class="btn btn-primary" @click="saveAnalyzePrompts">{{ t('settings.btn_save_prompts') }}</button>
         <button class="btn btn-secondary" @click="resetAnalyzePrompts">Reset to Default</button>
       </div>
+
+          <div class="form-group">
+            <label class="form-label">{{ t('settings.edit_garment_prompt') }}</label>
+            <textarea class="form-textarea" v-model="editGarmentPrompt" rows="4"></textarea>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('settings.edit_garment_prompt_hint') }}</div>
+          </div>
     </div>
 
     <!-- Safety Tab -->

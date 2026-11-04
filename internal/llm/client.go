@@ -106,6 +106,9 @@ func (c *Client) Chat(model, systemPrompt, userMessage string, temperature float
 }
 
 func (c *Client) ChatVision(model, systemPrompt, userText, imageBase64 string, temperature float64, maxTokens int) (string, error) {
+	if c.backend == BackendOllama {
+		return c.chatVisionOllama(model, systemPrompt, userText, imageBase64, temperature, maxTokens)
+	}
 	reqBody := ChatRequest{
 		Model: model,
 		Messages: []Message{
@@ -121,19 +124,77 @@ func (c *Client) ChatVision(model, systemPrompt, userText, imageBase64 string, t
 		PresencePenalty:  0.2,
 		Stream:           false,
 	}
-
-	if c.backend == BackendOllama {
-		reqBody.KeepAlive = c.backendCfg.KeepAlive
-		opts := ChatOptions{
-			NumCtx: c.backendCfg.NumCtx,
-			NumGPU: c.backendCfg.NumGPU,
-		}
-		reqBody.Options = &opts
-	}
-
 	url := c.baseURL + "/v1/chat/completions"
 	logPrefix := fmt.Sprintf("[LLM Vision] POST %s model=%s", url, model)
 	return c.doChatRequest(reqBody, logPrefix)
+}
+
+type ollamaVisionMessage struct {
+	Role    string   `json:"role"`
+	Content string   `json:"content"`
+	Images  []string `json:"images,omitempty"`
+}
+
+type ollamaVisionRequest struct {
+	Model    string                `json:"model"`
+	Messages []ollamaVisionMessage `json:"messages"`
+	Stream   bool                  `json:"stream"`
+	Options  map[string]any        `json:"options,omitempty"`
+}
+
+type ollamaVisionResponse struct {
+	Message struct {
+		Content string `json:"content"`
+	} `json:"message"`
+}
+
+func (c *Client) chatVisionOllama(model, systemPrompt, userText, imageBase64 string, temperature float64, maxTokens int) (string, error) {
+	msgs := make([]ollamaVisionMessage, 0)
+	if systemPrompt != "" {
+		msgs = append(msgs, ollamaVisionMessage{Role: "system", Content: systemPrompt})
+	}
+	msgs = append(msgs, ollamaVisionMessage{
+		Role:    "user",
+		Content: userText,
+		Images:  []string{imageBase64},
+	})
+	opts := map[string]any{
+		"temperature": temperature,
+		"num_predict": maxTokens,
+	}
+	// vision requests are token-heavy (images use ~4000+ tokens) — ensure enough context
+	numCtx := c.backendCfg.NumCtx
+	if numCtx < 8192 {
+		numCtx = 8192
+	}
+	opts["num_ctx"] = numCtx
+	body := ollamaVisionRequest{
+		Model:    model,
+		Messages: msgs,
+		Stream:   false,
+		Options:  opts,
+	}
+	raw, _ := json.Marshal(body)
+	req, err := http.NewRequest("POST", c.baseURL+"/api/chat", bytes.NewReader(raw))
+	if err != nil {
+		return "", fmt.Errorf("vision request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("vision request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return "", fmt.Errorf("vision request: status %d: %s", resp.StatusCode, string(body))
+	}
+	var result ollamaVisionResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 10*1024*1024)).Decode(&result); err != nil {
+		return "", fmt.Errorf("vision decode: %w", err)
+	}
+	content := stripThinkTags(result.Message.Content)
+	return strings.TrimSpace(content), nil
 }
 
 func (c *Client) AnalyzeImage(model, systemPrompt, imageBase64 string, maxTokens int) (string, error) {

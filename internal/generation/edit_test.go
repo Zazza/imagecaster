@@ -268,10 +268,10 @@ func TestEditImage_StyleAndUserLorasOverflow(t *testing.T) {
 
 func recordingSD(ops *[]string, mu *sync.Mutex, img2imgFn func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error)) *mockSD {
 	sdSvc := &mockSD{}
-	sdSvc.setOption = func(key, value string) error {
+	sdSvc.setOption = func(key string, value any) error {
 		mu.Lock()
 		defer mu.Unlock()
-		*ops = append(*ops, "option:"+key+"="+value)
+		*ops = append(*ops, fmt.Sprintf("option:%s=%v", key, value))
 		return nil
 	}
 	sdSvc.img2img = img2imgFn
@@ -318,7 +318,7 @@ func TestEditImage_ReferenceResetFailureFlagged(t *testing.T) {
 
 	db := openTestDB(t)
 	sdSvc := &mockSD{}
-	sdSvc.setOption = func(key, value string) error {
+	sdSvc.setOption = func(key string, value any) error {
 		if value == mossReferenceOff {
 			return fmt.Errorf("options boom")
 		}
@@ -433,10 +433,10 @@ func TestEditImage_QualityPipeline(t *testing.T) {
 	imgCalls := 0
 
 	sdSvc := &mockSD{}
-	sdSvc.setOption = func(key, value string) error {
+	sdSvc.setOption = func(key string, value any) error {
 		mu.Lock()
 		defer mu.Unlock()
-		ops = append(ops, "option:"+key+"="+value)
+		ops = append(ops, fmt.Sprintf("option:%s=%v", key, value))
 		return nil
 	}
 	sdSvc.getUpscalers = func() ([]sd.Upscaler, error) {

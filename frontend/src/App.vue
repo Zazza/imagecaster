@@ -1,15 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
-import { Sparkles, Sliders, Settings, RotateCcw, Download, FolderOpen, Sun, Moon, ImagePlus, Columns, Wand2 } from 'lucide-vue-next'
+import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon, Columns } from 'lucide-vue-next'
 import { api } from './api.js'
 import { t, setLocale, locale } from './i18n/index.js'
 import UnifiedPresetsPage from './components/UnifiedPresetsPage.vue'
 import UnifiedGeneratePage from './components/UnifiedGeneratePage.vue'
-import GenerateFromImagePage from './components/GenerateFromImagePage.vue'
-import EditPage from './components/EditPage.vue'
 import ComparePage from './components/ComparePage.vue'
-import ExportPage from './components/ExportPage.vue'
+import PostProcessPage from './components/PostProcessPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
@@ -21,10 +19,10 @@ const resetting = ref(false)
 const isResetting = ref(false)
 let resetTimer = null
 
-const generateTab = ref('')
-const generateKey = ref(0)
 const settingsTab = ref('')
 const settingsKey = ref(0)
+const postprocessSection = ref('')
+const initialImage = ref('')
 const theme = ref('dark')
 
 function toggleTheme() {
@@ -66,6 +64,17 @@ async function resetAll() {
       fi_analyze_mode: 'quick',
       fi_mask_padding: '',
       fi_mask_feather: '',
+      fi_quality_mode: 'false',
+      fi_preserve_identity: 'true',
+      fi_count: '',
+      fi_hires_profile_id: '',
+      edit_instruction: '',
+      edit_loras: '',
+      edit_quality_mode: 'false',
+      edit_resolution_id: '',
+      edit_style_preset_id: '',
+      edit_style_tags: 'false',
+      edit_look_mode: 'effects',
       test_prompt: '',
       test_negative: '',
       test_mode: 'preset',
@@ -92,24 +101,23 @@ async function resetAll() {
 function onNavigate(target) {
   if (target.page === 'settings' && target.tab) {
     settingsTab.value = target.tab
-  } else if (target.page === 'generate' && target.tab) {
-    generateTab.value = target.tab
-    generateKey.value++
-  } else if (target.page === 'remix') {
-    // handled directly
+  } else if (target.page === 'postprocess') {
+    if (target.section) postprocessSection.value = target.section
+    if (target.image) initialImage.value = target.image
   }
   page.value = target.page
   if (target.page === 'settings') {
     setTimeout(() => { settingsTab.value = '' }, 100)
+  } else if (target.page === 'postprocess') {
+    setTimeout(() => { postprocessSection.value = '' }, 100)
   }
 }
 
 const currentPage = computed(() => {
   switch (page.value) {
     case 'generate': return UnifiedGeneratePage
-    case 'remix': return GenerateFromImagePage
     case 'compare': return ComparePage
-    case 'export': return ExportPage
+    case 'postprocess': return PostProcessPage
     case 'presets': return UnifiedPresetsPage
     case 'settings': return SettingsPage
     case 'browser': return FileBrowserPage
@@ -145,34 +153,34 @@ onUnmounted(() => {
       </div>
       <nav class="sidebar-nav">
         <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.nav_create') }}</div>
+          <div class="sidebar-group-label">{{ t('app.group_create') }}</div>
           <a class="sidebar-link" :class="{ active: page === 'generate' }" @click="page = 'generate'">
             <Sparkles :size="16" class="icon" /> {{ t('app.nav_generate') }}
           </a>
-          <a class="sidebar-link" :class="{ active: page === 'remix' }" @click="page = 'remix'">
-            <ImagePlus :size="16" class="icon" /> {{ t('app.nav_remix') }}
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">{{ t('app.group_refine') }}</div>
+          <a class="sidebar-link" :class="{ active: page === 'postprocess' }" @click="page = 'postprocess'">
+            <SlidersHorizontal :size="16" class="icon" /> {{ t('app.nav_postprocess') }}
           </a>
-          <a class="sidebar-link" :class="{ active: page === 'edit' }" @click="page = 'edit'">
-            <Wand2 :size="16" class="icon" /> {{ t('app.nav_edit') }}
-          </a>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">{{ t('app.group_view') }}</div>
           <a class="sidebar-link" :class="{ active: page === 'compare' }" @click="page = 'compare'">
             <Columns :size="16" class="icon" /> {{ t('app.nav_compare') }}
           </a>
-        </div>
-        <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.nav_library') }}</div>
           <a class="sidebar-link" :class="{ active: page === 'browser' }" @click="page = 'browser'">
             <FolderOpen :size="16" class="icon" /> {{ t('app.nav_my_images') }}
           </a>
-          <a class="sidebar-link" :class="{ active: page === 'export' }" @click="page = 'export'">
-            <Download :size="16" class="icon" /> {{ t('app.nav_export') }}
-          </a>
         </div>
         <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.nav_setup') }}</div>
+          <div class="sidebar-group-label">{{ t('app.group_library') }}</div>
           <a class="sidebar-link" :class="{ active: page === 'presets' }" @click="page = 'presets'">
             <Sliders :size="16" class="icon" /> {{ t('app.nav_styles') }}
           </a>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">{{ t('app.group_setup') }}</div>
           <a class="sidebar-link" :class="{ active: page === 'settings' }" @click="page = 'settings'">
             <Settings :size="16" class="icon" /> {{ t('app.nav_settings') }}
           </a>
@@ -194,10 +202,8 @@ onUnmounted(() => {
     <main class="main">
       <SettingsPage v-show="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
       <template v-if="page !== 'settings'">
-        <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey + '-' + generateKey" :initial-tab="generateTab" :resetting="isResetting" />
-        <GenerateFromImagePage v-else-if="page === 'remix'" />
-        <EditPage v-else-if="page === 'edit'" />
-        <ExportPage v-else-if="page === 'export'" />
+        <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
+        <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />
         <component v-else-if="page !== 'compare'" :is="currentPage" />
       </template>

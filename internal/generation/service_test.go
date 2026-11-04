@@ -114,7 +114,7 @@ type mockSD struct {
 	setModel        func(modelName string) error
 	setModelModules func(modelName string, modules []string) error
 	setVAE          func(vaeName string) error
-	setOption       func(key, value string) error
+	setOption       func(key string, value any) error
 	getUpscalers    func() ([]sd.Upscaler, error)
 	progress        func() (*sd.ProgressResponse, error)
 }
@@ -211,7 +211,7 @@ func (m *mockSD) UpscaleImage(base64Img string, upscaler string, scale float64) 
 }
 func (m *mockSD) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
 
-func (m *mockSD) SetOption(key, value string) error {
+func (m *mockSD) SetOption(key string, value any) error {
 	m.mu.Lock()
 	fn := m.setOption
 	m.mu.Unlock()
@@ -339,6 +339,7 @@ func newTestService(t *testing.T, db *preset.DB, llmSvc *mockLLM, sdSvc *mockSD)
 		kidsMgr,
 		sessions,
 		settings,
+		nil,
 		log,
 	)
 }
@@ -954,6 +955,10 @@ func TestForgeModulesForModel(t *testing.T) {
 		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors",
 		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors",
 	}
+	kleinModules := []string{
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen_3_4b.safetensors",
+		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-klein-vae.safetensors",
+	}
 
 	tests := []struct {
 		name  string
@@ -962,6 +967,7 @@ func TestForgeModulesForModel(t *testing.T) {
 	}{
 		{name: "moss_model_gets_modules", model: "moss_image_sft_bf16", want: mossModules},
 		{name: "moss_match_case_insensitive", model: "MOSS_Image_SFT_BF16.SAFETENSORS", want: mossModules},
+		{name: "klein_model_gets_modules", model: "flux-2-klein-4b", want: kleinModules},
 		{name: "z_image_aio_no_modules", model: "z-image-turbo-fp8-aio.safetensors", want: []string{}},
 		{name: "flux_no_modules", model: "flux1-dev-fp8", want: []string{}},
 		{name: "empty_model_no_modules", model: "", want: []string{}},

@@ -525,10 +525,13 @@ func (c *Client) SetVAE(vaeName string) error {
 	return nil
 }
 
-func (c *Client) SetOption(key, value string) error {
+func (c *Client) SetOption(key string, value any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	body, _ := json.Marshal(map[string]string{key: value})
+	body, err := json.Marshal(map[string]any{key: value})
+	if err != nil {
+		return fmt.Errorf("set option: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/sdapi/v1/options", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("set option: %w", err)

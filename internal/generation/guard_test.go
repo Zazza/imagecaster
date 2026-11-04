@@ -83,7 +83,7 @@ type guardSD struct {
 	memoryInfoCalls atomic.Int32
 }
 
-func (m *guardSD) SetOption(key, value string) error { return nil }
+func (m *guardSD) SetOption(key string, value any) error { return nil }
 func (m *guardSD) MemoryInfo() (*sd.MemoryStats, error) {
 	m.memoryInfoCalls.Add(1)
 	if m.err != nil {
