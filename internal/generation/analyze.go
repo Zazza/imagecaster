@@ -19,7 +19,7 @@ func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 		return "", fmt.Errorf("image is required")
 	}
 	if len(imageBase64) > MaxImageBase64Len {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+		return "", config.ImageTooLarge("image")
 	}
 
 	model := s.getAnalyzeModel()
@@ -200,7 +200,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		return nil, fmt.Errorf("image is required")
 	}
 	if len(params.ImageBase64) > MaxImageBase64Len {
-		return nil, fmt.Errorf("image too large (max 16 MB)")
+		return nil, config.ImageTooLarge("image")
 	}
 	if params.GenMode != "preset" && params.GenMode != "compound" {
 		return nil, fmt.Errorf("gen_mode must be preset or compound")
@@ -341,6 +341,13 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			imgW, imgH = s.fitImageToResolutionDownOnly(srcW, srcH, params.ResolutionID)
 		} else {
 			imgW, imgH = s.fitImageToResolution(srcW, srcH, params.ResolutionID)
+		}
+		if config.ModelMatchesCSV(p.ModelName, "klein") {
+			if params.ResolutionID == nil || *params.ResolutionID <= 0 {
+				imgW, imgH = kleinImg2ImgSize(imgW, imgH)
+			} else {
+				imgW, imgH = alignLookSize(imgW, imgH)
+			}
 		}
 		denoising := params.DenoisingStrength
 		if denoising <= 0 {

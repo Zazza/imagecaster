@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Zazza/imagecaster/internal/config"
 	"math"
 	"slices"
 	"strings"
@@ -40,18 +41,18 @@ const (
 var postTypeFamilies = []string{"post", "post_material", "post_skin", "post_light", "post_film"}
 
 var adjustRanges = map[string][2]float64{
-	"brightness":   {-100, 100},
-	"contrast":     {-100, 100},
-	"black_point":  {0, 254},
-	"white_point":  {1, 255},
-	"gamma":        {0.1, 3},
-	"saturation":   {-100, 100},
-	"temperature":  {-100, 100},
-	"balance_r":    {-100, 100},
-	"balance_g":    {-100, 100},
-	"balance_b":    {-100, 100},
-	"sharpen":      {0, 100},
-	"vignette":     {0, 100},
+	"brightness":  {-100, 100},
+	"contrast":    {-100, 100},
+	"black_point": {0, 254},
+	"white_point": {1, 255},
+	"gamma":       {0.1, 3},
+	"saturation":  {-100, 100},
+	"temperature": {-100, 100},
+	"balance_r":   {-100, 100},
+	"balance_g":   {-100, 100},
+	"balance_b":   {-100, 100},
+	"sharpen":     {0, 100},
+	"vignette":    {0, 100},
 }
 
 const describeForStylePrompt = "Describe this photo in 1-2 short sentences for a photo style assistant: subject and pose, clothing, lighting, mood, dominant colors. No lists, no camera settings, no advice."
@@ -290,7 +291,7 @@ func (s *Service) DescribeForStyle(imageBase64 string) (string, error) {
 		return "", fmt.Errorf("image is required")
 	}
 	if len(imageBase64) > MaxImageBase64Len {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+		return "", config.ImageTooLarge("image")
 	}
 
 	model := s.getAnalyzeModel()
@@ -325,7 +326,7 @@ const (
 	kleinLookMaxPromptRunes = 500
 	kleinLookLabelMax       = 60
 	kleinLookMaxDim         = 2048
-	kleinLookAlign          = 8
+	kleinLookAlign          = 16
 )
 
 const kleinLookSystemPrompt = "You translate a description of the desired look into a short English prose prompt for an image restyle model. Describe only the visual look: light, color, mood, texture, atmosphere. 1-2 sentences, at most 60 words. Reply with the prompt only."
@@ -335,7 +336,7 @@ func validateLookParams(imageBase64, text string) (string, error) {
 		return "", fmt.Errorf("image is required")
 	}
 	if len(imageBase64) > MaxImageBase64Len {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+		return "", config.ImageTooLarge("image")
 	}
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -346,6 +347,17 @@ func validateLookParams(imageBase64, text string) (string, error) {
 
 func clampLookStrength(strength float64) float64 {
 	return clampFloat(strength, recipeStrengthMin, recipeStrengthMax)
+}
+
+const kleinImg2ImgMinDim = 1024
+
+func kleinImg2ImgSize(w, h int) (int, int) {
+	if w > 0 && h > 0 && max(w, h) < kleinImg2ImgMinDim {
+		scale := float64(kleinImg2ImgMinDim) / float64(max(w, h))
+		w = int(float64(w) * scale)
+		h = int(float64(h) * scale)
+	}
+	return alignLookSize(w, h)
 }
 
 func alignLookSize(w, h int) (int, int) {

@@ -222,10 +222,10 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		return nil, fmt.Errorf("image is required")
 	}
 	if len(params.ImageBase64) > MaxImageBase64Len {
-		return nil, fmt.Errorf("image too large (max 16 MB)")
+		return nil, config.ImageTooLarge("image")
 	}
 	if len(params.ReferenceImageBase64) > MaxImageBase64Len {
-		return nil, fmt.Errorf("reference image too large (max 16 MB)")
+		return nil, config.ImageTooLarge("reference image")
 	}
 	instruction := strings.TrimSpace(stripAngleTags(params.Instruction))
 	instruction = loraTagPrefixRe.ReplaceAllString(instruction, "")

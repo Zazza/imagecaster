@@ -388,7 +388,7 @@ func (a *App) ReadImageFile() (string, error) {
 	}
 
 	if len(data) > generation.MaxImageBytes {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+		return "", config.ImageTooLarge("image")
 	}
 
 	return base64.StdEncoding.EncodeToString(data), nil
@@ -819,7 +819,7 @@ func (a *App) PreviewAdjust(imageBase64 string, p AdjustParams, maxW int) (strin
 		return "", fmt.Errorf("no image provided")
 	}
 	if len(imageBase64) > generation.MaxImageBase64Len {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+		return "", config.ImageTooLarge("image")
 	}
 
 	data, err := base64.StdEncoding.DecodeString(imageBase64)
@@ -860,7 +860,7 @@ func (a *App) AutoAdjust(imageBase64 string) (adjust.AutoStats, error) {
 		return adjust.AutoStats{}, fmt.Errorf("no image provided")
 	}
 	if len(imageBase64) > generation.MaxImageBase64Len {
-		return adjust.AutoStats{}, fmt.Errorf("image too large (max 16 MB)")
+		return adjust.AutoStats{}, config.ImageTooLarge("image")
 	}
 
 	data, err := base64.StdEncoding.DecodeString(imageBase64)
@@ -948,7 +948,7 @@ func (a *App) SetLastImage(base64Data string) error {
 		return nil
 	}
 	if len(base64Data) > generation.MaxImageBase64Len {
-		return fmt.Errorf("image too large (max 16 MB)")
+		return config.ImageTooLarge("image")
 	}
 	itemID := a.sessions.AddToSession(base64Data, nil, "file-browser", false, nil)
 	if itemID != 0 {

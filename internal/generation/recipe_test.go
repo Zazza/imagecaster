@@ -391,9 +391,10 @@ func TestAlignLookSize(t *testing.T) {
 		wantW, wantH int
 	}{
 		{name: "already aligned", w: 512, h: 768, wantW: 512, wantH: 768},
-		{name: "rounds down to 8", w: 513, h: 511, wantW: 512, wantH: 504},
+		{name: "rounds down to 16", w: 513, h: 511, wantW: 512, wantH: 496},
+		{name: "600x800 to multiples of 16", w: 600, h: 800, wantW: 592, wantH: 800},
 		{name: "caps at 2048 proportionally", w: 4096, h: 2048, wantW: 2048, wantH: 1024},
-		{name: "portrait capped", w: 1360, h: 4096, wantW: 680, wantH: 2048},
+		{name: "portrait capped", w: 1360, h: 4096, wantW: 672, wantH: 2048},
 		{name: "floor 64", w: 8, h: 8, wantW: 64, wantH: 64},
 	}
 	for _, tt := range tests {

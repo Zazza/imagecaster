@@ -464,6 +464,7 @@ const EFFECT_TYPE_GROUPS = [
   { type: 'post_skin', labelKey: 'post.group_effect_skin' },
   { type: 'post_light', labelKey: 'post.group_effect_light' },
   { type: 'post_film', labelKey: 'post.group_effect_film' },
+  { type: 'post_transform', labelKey: 'post.group_effect_transform' },
 ]
 
 const effectGroups = computed(() => {
@@ -492,6 +493,12 @@ function effectLabel(name) {
 
 const selectedEffectId = ref(null)
 const effectStrength = ref(0.5)
+
+function selectEffect(p) {
+  selectedEffectId.value = p.id
+  const d = Number(p.denoising_strength)
+  if (Number.isFinite(d) && d > 0) effectStrength.value = Math.min(0.9, Math.max(0.35, d))
+}
 const effectSeedInput = ref('')
 const applyingEffect = ref(false)
 const effectJobIds = ref(new Set())
@@ -1734,11 +1741,13 @@ onUnmounted(() => {
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'effect' }" />
               {{ t('post.effect_title') }}
             </span>
-            <div class="card-actions" @click.stop>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'effect' }">
+            <div class="card-body">
+            <div class="adj-actions">
               <button
                 class="btn btn-sm btn-secondary"
                 :disabled="!currentB64 || autoStyleBusy"
-                :title="t('post.autostyle')"
                 @click="runAutoStyle"
               >
                 <span v-if="autoStyleBusy" class="spinner" style="width: 11px; height: 11px; border-width: 2px;"></span>
@@ -1746,9 +1755,6 @@ onUnmounted(() => {
                 {{ autoStyleBusy ? t('post.autostyle_analyzing') : t('post.autostyle') }}
               </button>
             </div>
-          </div>
-          <div class="card-collapse" :class="{ collapsed: openSection !== 'effect' }">
-            <div class="card-body">
             <RecipeComposition
               v-if="autoStyleRecipe"
               :vision="autoStyleRecipe.vision"
@@ -1780,7 +1786,7 @@ onUnmounted(() => {
                   class="fx-card"
                   :class="{ active: selectedEffectId === p.id }"
                   :title="p.name"
-                  @click="selectedEffectId = p.id"
+                  @click="selectEffect(p)"
                 >
                   <span class="fx-name">{{ effectLabel(p.name) }}</span>
                   <span class="fx-orig">{{ p.name }}</span>
@@ -1796,7 +1802,7 @@ onUnmounted(() => {
             <div class="fx-apply-bar">
             <div class="form-group">
               <label class="form-label">{{ t('post.effect_strength', { value: effectStrength.toFixed(2) }) }}</label>
-              <input type="range" class="form-range" v-model.number="effectStrength" min="0.35" max="0.65" step="0.01" />
+              <input type="range" class="form-range" v-model.number="effectStrength" min="0.35" max="0.9" step="0.01" />
             </div>
 
             <button
@@ -1990,12 +1996,12 @@ onUnmounted(() => {
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'recipes' }" />
               {{ t('post.recipes_title') }}
             </span>
-            <div class="card-actions" @click.stop>
-              <button class="btn btn-sm btn-secondary" :disabled="recipeRunning" @click="openRecipeForm">{{ t('post.recipe_save') }}</button>
-            </div>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'recipes' }">
             <div class="card-body">
+            <div class="adj-actions">
+              <button class="btn btn-sm btn-secondary" :disabled="recipeRunning" @click="openRecipeForm">{{ t('post.recipe_save') }}</button>
+            </div>
             <div class="preset-list">
               <div v-if="!recipes.length" class="preset-empty">{{ t('post.recipes_empty') }}</div>
               <div

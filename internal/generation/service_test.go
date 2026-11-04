@@ -1291,8 +1291,7 @@ func TestAnalyzeImage_TooLarge(t *testing.T) {
 	db := openTestDB(t)
 	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
 
-	bigData := make([]byte, 23*1024*1024)
-	encoded := base64.StdEncoding.EncodeToString(bigData)
+	encoded := strings.Repeat("x", MaxImageBase64Len+1)
 
 	_, err := svc.AnalyzeImage(encoded, "quick")
 	assert.Error(t, err)
@@ -1924,8 +1923,7 @@ func TestGenerateFromImage_ImageTooLarge(t *testing.T) {
 	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
 	svc.ctx = context.Background()
 
-	bigData := make([]byte, 23*1024*1024)
-	encoded := base64.StdEncoding.EncodeToString(bigData)
+	encoded := strings.Repeat("x", MaxImageBase64Len+1)
 
 	_, err := svc.GenerateFromImage(GenerateFromImageParams{
 		ImageBase64: encoded,

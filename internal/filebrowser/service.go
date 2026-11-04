@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -80,8 +81,8 @@ func ReadFileAsBase64(filePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
-	if info.Size() > 16*1024*1024 {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+	if info.Size() > config.MaxImageBytes {
+		return "", config.ImageTooLarge("image")
 	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -102,8 +103,8 @@ func ReadThumbnail(filePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
-	if info.Size() > 16*1024*1024 {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+	if info.Size() > config.MaxImageBytes {
+		return "", config.ImageTooLarge("image")
 	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {

@@ -3,10 +3,12 @@ package preset
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -1122,20 +1124,21 @@ type bundledPresetsFile struct {
 }
 
 type bundledPreset struct {
-	Name           string  `json:"name"`
-	PresetType     string  `json:"preset_type"`
-	TypeName       string  `json:"type_name"`
-	Tags           string  `json:"tags"`
-	Loras          string  `json:"loras"`
-	Prompt         string  `json:"prompt"`
-	NegativePrompt string  `json:"negative_prompt"`
-	Sampler        string  `json:"sampler"`
-	ScheduleType   string  `json:"schedule_type"`
-	Steps          int     `json:"steps"`
-	CfgScale       float64 `json:"cfg_scale"`
-	ModelName      string  `json:"model_name"`
-	ClipSkip       *int    `json:"clip_skip"`
-	VAE            string  `json:"vae"`
+	Name           string   `json:"name"`
+	PresetType     string   `json:"preset_type"`
+	TypeName       string   `json:"type_name"`
+	Tags           string   `json:"tags"`
+	Loras          string   `json:"loras"`
+	Prompt         string   `json:"prompt"`
+	NegativePrompt string   `json:"negative_prompt"`
+	Sampler        string   `json:"sampler"`
+	ScheduleType   string   `json:"schedule_type"`
+	Steps          int      `json:"steps"`
+	CfgScale       float64  `json:"cfg_scale"`
+	ModelName      string   `json:"model_name"`
+	ClipSkip       *int     `json:"clip_skip"`
+	VAE            string   `json:"vae"`
+	Denoising      *float64 `json:"denoising_strength"`
 }
 
 func migrateV11(db *sql.DB) error {
@@ -1302,16 +1305,32 @@ func migrateV19(db *sql.DB) error {
 	return nil
 }
 
+const migrationV20DoneKey = "migration_v20_done"
+
 func migrateV20(db *sql.DB) error {
-	_, err := db.Exec(`DELETE FROM presets WHERE is_bundled = 1`)
+	var done string
+	err := db.QueryRow(`SELECT value FROM settings WHERE key = ?`, migrationV20DoneKey).Scan(&done)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(`DELETE FROM preset_types WHERE id NOT IN (SELECT DISTINCT type_id FROM presets WHERE type_id IS NOT NULL)`)
-	if err != nil {
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM presets WHERE is_bundled = 1`); err != nil {
 		return err
 	}
-	return nil
+	if _, err := tx.Exec(`DELETE FROM preset_types WHERE id NOT IN (SELECT DISTINCT type_id FROM presets WHERE type_id IS NOT NULL)`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')`, migrationV20DoneKey); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func migrateV21(db *sql.DB) error {
@@ -1325,20 +1344,13 @@ func migrateV21(db *sql.DB) error {
 }
 
 func (d *DB) SeedBundled(fsys fs.FS) error {
-	var bundledCount int
-	if err := d.db.QueryRow(`SELECT COUNT(*) FROM presets WHERE is_bundled = 1`).Scan(&bundledCount); err != nil {
-		return err
-	}
-	if bundledCount > 0 {
-		return nil
-	}
-
 	entries, err := fs.ReadDir(fsys, "data/presets")
 	if err != nil {
 		return fmt.Errorf("read bundled presets: %w", err)
 	}
 
 	var files []bundledPresetsFile
+	var fileNames []string
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -1352,6 +1364,74 @@ func (d *DB) SeedBundled(fsys fs.FS) error {
 			continue
 		}
 		files = append(files, file)
+		fileNames = append(fileNames, entry.Name())
+	}
+
+	seededFiles := make(map[string]bool)
+	if raw, err := d.GetSetting(bundledSeededFilesKey); err != nil {
+		return err
+	} else if raw != "" {
+		var list []string
+		if err := json.Unmarshal([]byte(raw), &list); err == nil {
+			for _, n := range list {
+				seededFiles[n] = true
+			}
+		}
+	}
+
+	bundledNames := make(map[string]bool)
+	allNames := make(map[string]bool)
+	rows, err := d.db.Query(`SELECT name, is_bundled FROM presets`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var name string
+		var bundled bool
+		if err := rows.Scan(&name, &bundled); err != nil {
+			rows.Close()
+			return err
+		}
+		allNames[name] = true
+		if bundled {
+			bundledNames[name] = true
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	var pending []bundledPreset
+	newlySeeded := false
+	for i, f := range files {
+		seeded := seededFiles[fileNames[i]]
+		for _, p := range f.Presets {
+			if seeded {
+				break
+			}
+			if bundledNames[p.Name] {
+				seeded = true
+				break
+			}
+		}
+		if !seededFiles[fileNames[i]] {
+			seededFiles[fileNames[i]] = true
+			newlySeeded = true
+		}
+		if seeded {
+			continue
+		}
+		for _, p := range f.Presets {
+			if p.Name == "" || allNames[p.Name] {
+				continue
+			}
+			allNames[p.Name] = true
+			pending = append(pending, p)
+		}
+	}
+	if len(pending) == 0 {
+		return d.saveSeededFiles(seededFiles, newlySeeded)
 	}
 
 	typeCache := make(map[string]int64)
@@ -1359,52 +1439,71 @@ func (d *DB) SeedBundled(fsys fs.FS) error {
 	for _, t := range existing {
 		typeCache[t.Name] = t.ID
 	}
-	for _, f := range files {
-		for _, p := range f.Presets {
-			typeName := p.TypeName
-			if typeName == "" {
-				typeName = p.PresetType
-			}
-			if typeName == "" {
-				continue
-			}
-			if _, ok := typeCache[typeName]; ok {
-				continue
-			}
-			pt := &PresetType{Name: typeName}
-			if err := d.CreatePresetType(pt); err != nil {
-				return err
-			}
-			typeCache[typeName] = pt.ID
+	for _, p := range pending {
+		typeName := p.TypeName
+		if typeName == "" {
+			typeName = p.PresetType
 		}
+		if typeName == "" {
+			continue
+		}
+		if _, ok := typeCache[typeName]; ok {
+			continue
+		}
+		pt := &PresetType{Name: typeName}
+		if err := d.CreatePresetType(pt); err != nil {
+			return err
+		}
+		typeCache[typeName] = pt.ID
 	}
 
-	stmt, err := d.db.Prepare(`INSERT INTO presets (name, preset_type, tags, loras, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, clip_skip, vae, type_id, is_bundled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`)
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmt, err := tx.Prepare(`INSERT INTO presets (name, preset_type, tags, loras, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, clip_skip, vae, type_id, denoising_strength, is_bundled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	for _, f := range files {
-		for _, p := range f.Presets {
-			if p.Name == "" {
-				continue
-			}
-			presetType := p.TypeName
-			if presetType == "" {
-				presetType = p.PresetType
-			}
-			var typeID *int64
-			if id, ok := typeCache[presetType]; ok {
-				typeID = &id
-			}
-			if _, err := stmt.Exec(p.Name, presetType, p.Tags, p.Loras, p.Prompt, p.NegativePrompt, p.Sampler, p.ScheduleType, p.Steps, p.CfgScale, p.ModelName, p.ClipSkip, p.VAE, typeID); err != nil {
-				return err
-			}
+	for _, p := range pending {
+		presetType := p.TypeName
+		if presetType == "" {
+			presetType = p.PresetType
+		}
+		var typeID *int64
+		if id, ok := typeCache[presetType]; ok {
+			typeID = &id
+		}
+		if _, err := stmt.Exec(p.Name, presetType, p.Tags, p.Loras, p.Prompt, p.NegativePrompt, p.Sampler, p.ScheduleType, p.Steps, p.CfgScale, p.ModelName, p.ClipSkip, p.VAE, typeID, p.Denoising); err != nil {
+			return err
 		}
 	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 
-	return nil
+	return d.saveSeededFiles(seededFiles, newlySeeded)
+}
+
+const bundledSeededFilesKey = "bundled_seeded_files"
+
+func (d *DB) saveSeededFiles(seeded map[string]bool, changed bool) error {
+	if !changed {
+		return nil
+	}
+	list := make([]string, 0, len(seeded))
+	for n := range seeded {
+		list = append(list, n)
+	}
+	slices.Sort(list)
+	raw, err := json.Marshal(list)
+	if err != nil {
+		return err
+	}
+	return d.SetSetting(bundledSeededFilesKey, string(raw))
 }
 
 func migrateV22(db *sql.DB) error {

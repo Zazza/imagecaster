@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/png"
 	"math"
@@ -86,13 +87,13 @@ func (s *Service) validateObjectParams(p ObjectEditParams) (*objectInput, error)
 		return nil, errors.New("image is required")
 	}
 	if len(p.ImageBase64) > MaxImageBase64Len {
-		return nil, errors.New("image too large (max 16 MB)")
+		return nil, config.ImageTooLarge("image")
 	}
 	if p.MaskBase64 == "" {
 		return nil, errors.New("mask is required")
 	}
 	if len(p.MaskBase64) > MaxImageBase64Len {
-		return nil, errors.New("mask too large (max 16 MB)")
+		return nil, config.ImageTooLarge("mask")
 	}
 	if p.Op != objectOpRemove && p.Op != objectOpReplace {
 		return nil, errors.New("op must be remove or replace")

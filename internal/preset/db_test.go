@@ -385,6 +385,7 @@ func TestSetting_GetAllSettings(t *testing.T) {
 
 	settings, err := db.GetAllSettings()
 	require.NoError(t, err)
+	delete(settings, migrationV20DoneKey)
 	assert.Len(t, settings, 3)
 	assert.Equal(t, "v1", settings["k1"])
 	assert.Equal(t, "v2", settings["k2"])
@@ -397,6 +398,7 @@ func TestSetting_GetAllSettingsEmpty(t *testing.T) {
 
 	settings, err := db.GetAllSettings()
 	require.NoError(t, err)
+	delete(settings, migrationV20DoneKey)
 	assert.Empty(t, settings)
 }
 

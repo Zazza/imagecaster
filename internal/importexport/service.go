@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -385,9 +386,8 @@ func (s *Service) ProcessExportImage(params ExportImageParams) (*ProcessedImage,
 		return nil, fmt.Errorf("unsupported interpolation: %s", params.Interpolation)
 	}
 
-	const maxBase64Len = 22 * 1024 * 1024
-	if len(params.ImageBase64) > maxBase64Len {
-		return nil, fmt.Errorf("image too large (max 16 MB)")
+	if len(params.ImageBase64) > config.MaxImageBase64Len {
+		return nil, config.ImageTooLarge("image")
 	}
 
 	imgData, err := base64.StdEncoding.DecodeString(params.ImageBase64)

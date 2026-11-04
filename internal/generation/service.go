@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	MaxImageBase64Len = 22 * 1024 * 1024 // ~16 MB decoded (base64 overhead)
-	MaxImageBytes     = 16 * 1024 * 1024 // 16 MB
+	MaxImageBase64Len = config.MaxImageBase64Len
+	MaxImageBytes     = config.MaxImageBytes
 )
 
 const (
@@ -1232,7 +1232,7 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 		return nil, fmt.Errorf("maximum steps is 150")
 	}
 	if len(params.InitImage) > MaxImageBase64Len {
-		return nil, fmt.Errorf("init image too large (max 16 MB)")
+		return nil, config.ImageTooLarge("init image")
 	}
 
 	defaultPreset := &preset.Preset{

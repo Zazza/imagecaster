@@ -3,11 +3,12 @@ package clipboard
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/Zazza/imagecaster/internal/config"
 	"os"
 	"os/exec"
 )
 
-const maxSize = 16 * 1024 * 1024
+const maxSize = config.MaxImageBytes
 
 func ReadImage() (string, error) {
 	var data []byte
@@ -31,7 +32,7 @@ func ReadImage() (string, error) {
 	}
 
 	if len(data) > maxSize {
-		return "", fmt.Errorf("image too large (max 16 MB)")
+		return "", config.ImageTooLarge("image")
 	}
 
 	return base64.StdEncoding.EncodeToString(data), nil
