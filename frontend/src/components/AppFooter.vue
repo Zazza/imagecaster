@@ -147,13 +147,7 @@ function togglePanel(p) {
     })
   }
   if (p === 'session') {
-    loadSessions().then(() => {
-      if (sessions.value.length > 0) {
-        const s = sessions.value.find(s => s.id === activeSessionId.value) || sessions.value[0]
-        if (s) activeSessionId.value = s.id
-      }
-      return loadItems()
-    }).then(() => {
+    loadSessions().then(() => loadItems()).then(() => {
       nextTick(() => {
         observeItems()
         if (itemContainer.value) {
@@ -261,6 +255,8 @@ async function loadSessions() {
   try {
     const result = await api.listSessions()
     sessions.value = result || []
+    const active = sessions.value.find(s => s.is_active) || sessions.value[0]
+    activeSessionId.value = active ? active.id : 0
     footerError.value = ''
   } catch (e) {
     footerError.value = 'loadSessions: ' + String(e)
@@ -283,7 +279,6 @@ async function selectSession(id) {
   if (id === activeSessionId.value) return
   try {
     await api.switchSession(id)
-    activeSessionId.value = id
     thumbnails.value = {}
     await loadSessions()
     await loadItems()
@@ -297,7 +292,6 @@ async function doCreateSession() {
     const si = await api.createSession(name)
     newSessionName.value = ''
     showNewSession.value = false
-    if (si?.id) activeSessionId.value = si.id
     await loadSessions()
     thumbnails.value = {}
     await loadItems()
@@ -332,8 +326,6 @@ async function doDeleteSession() {
     await loadSessions()
     thumbnails.value = {}
     await loadItems()
-    const s = sessions.value[0]
-    if (s) activeSessionId.value = s.id
   } catch {}
 }
 
@@ -451,9 +443,7 @@ onMounted(async () => {
   })
   EventsOn('session:removed', () => { loadItems(); loadSessions() })
   EventsOn('session:cleared', () => { loadItems(); loadSessions() })
-  EventsOn('session:switched', (data) => {
-    const id = data?.session_id
-    if (id) activeSessionId.value = id
+  EventsOn('session:switched', () => {
     thumbnails.value = {}
     loadItems()
     loadSessions()
@@ -476,16 +466,6 @@ onMounted(async () => {
 
   await loadSessions()
   api.version().then(v => { appVersion.value = v }).catch(() => {})
-  try {
-    const item = await api.getActiveSessionItem()
-    if (item && item.session_id) {
-      activeSessionId.value = item.session_id
-    } else if (sessions.value.length > 0) {
-      activeSessionId.value = sessions.value[0].id
-    }
-  } catch {
-    if (sessions.value.length > 0) activeSessionId.value = sessions.value[0].id
-  }
   await loadItems()
 
   onUnmounted(() => {
@@ -593,7 +573,7 @@ onUnmounted(() => {
     <div v-if="expanded && panel === 'session'" class="footer-session">
       <div class="session-toolbar">
         <div class="session-selector">
-          <select class="session-select" :value="activeSessionId" @change="selectSession(Number($event.target.value))">
+          <select class="session-select" :value="activeSessionId" :aria-label="t('footer.session_label')" @change="selectSession(Number($event.target.value))">
             <option v-for="s in sessions" :key="s.id" :value="s.id">
               {{ s.name }} ({{ s.item_count }})
             </option>
@@ -855,13 +835,30 @@ export default { name: 'AppFooter' }
 }
 
 .session-select {
-  background: var(--surface);
+  appearance: none;
+  background-color: var(--surface-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%237a7a8e' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text);
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 4px 26px 4px 10px;
   font-size: 12px;
-  max-width: 200px;
+  max-width: 220px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.session-select:hover,
+.session-select:focus {
+  border-color: var(--accent);
+}
+
+.session-select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .session-actions {
@@ -1006,6 +1003,8 @@ export default { name: 'AppFooter' }
   padding: 2px 4px;
   display: flex;
   justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
   font-size: 10px;
   line-height: 1.3;
 }
@@ -1014,9 +1013,17 @@ export default { name: 'AppFooter' }
   color: var(--text-dim);
 }
 
+.si-time {
+  flex-shrink: 0;
+}
+
 .si-source {
   color: var(--text-dim);
   font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .si-steps-badge {

@@ -719,7 +719,7 @@ onMounted(loadSettings)
       <template v-if="connectionMode === 'direct'">
         <div class="form-group">
           <label class="form-label">{{ t('settings.label_llm_backend') }}</label>
-          <select class="form-input" v-model="connectionForm.llm_backend">
+          <select class="form-select" v-model="connectionForm.llm_backend">
             <option value="lmstudio">LM Studio</option>
             <option value="ollama">Ollama</option>
             <option value="llamacpp">llama.cpp</option>
@@ -734,7 +734,7 @@ onMounted(loadSettings)
         <div class="form-group" v-if="connectionForm.llm_backend !== 'llamacpp'">
           <label class="form-label">{{ t('settings.label_model_generate') }}</label>
           <div style="display: flex; gap: 8px;">
-            <select class="form-input" v-model="generateModel" style="flex: 1;">
+            <select class="form-select" v-model="generateModel" style="flex: 1;">
               <option value="">{{ t('settings.option_default') }}</option>
               <option v-for="m in connectionLLMModels" :key="m.id" :value="m.id">{{ m.id }}</option>
             </select>
@@ -747,7 +747,7 @@ onMounted(loadSettings)
         <div class="form-group" v-if="connectionForm.llm_backend !== 'llamacpp'">
           <label class="form-label">{{ t('settings.label_model_analyze') }}</label>
           <div style="display: flex; gap: 8px;">
-            <select class="form-input" v-model="analyzeModel" style="flex: 1;">
+            <select class="form-select" v-model="analyzeModel" style="flex: 1;">
               <option value="">{{ t('settings.same_as_generate') }}</option>
               <option v-for="m in connectionLLMModels" :key="m.id" :value="m.id">{{ m.id }}</option>
             </select>
@@ -878,7 +878,7 @@ onMounted(loadSettings)
         <div class="form-group" v-if="serverModels.llm.length > 0" style="margin-top: 16px;">
           <label class="form-label">{{ t('settings.label_model_generate') }}</label>
           <div style="display: flex; gap: 8px;">
-            <select class="form-input" v-model="generateModel" style="flex: 1;">
+            <select class="form-select" v-model="generateModel" style="flex: 1;">
               <option value="">{{ t('settings.option_default') }}</option>
               <option v-for="m in serverModels.llm" :key="m.name" :value="m.name">{{ m.name }}</option>
             </select>
@@ -890,7 +890,7 @@ onMounted(loadSettings)
 
         <div class="form-group" v-if="serverModels.llm.length > 0">
           <label class="form-label">{{ t('settings.label_model_analyze') }}</label>
-          <select class="form-input" v-model="analyzeModel">
+          <select class="form-select" v-model="analyzeModel">
             <option value="">{{ t('settings.same_as_generate') }}</option>
             <option v-for="m in serverModels.llm" :key="m.name" :value="m.name">{{ m.name }}</option>
           </select>

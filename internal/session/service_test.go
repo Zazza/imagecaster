@@ -892,3 +892,79 @@ func TestAddToSession_BrokenInfo_SavesItemWithoutGenFields(t *testing.T) {
 		})
 	}
 }
+
+func activeIDs(sessions []preset.SessionInfo) []int64 {
+	var ids []int64
+	for _, s := range sessions {
+		if s.IsActive {
+			ids = append(ids, s.ID)
+		}
+	}
+	return ids
+}
+
+func TestListSessions_IsActiveMarksActiveSession(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := testService(t)
+
+	sessions, err := svc.ListSessions()
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, []int64{sessions[0].ID}, activeIDs(sessions))
+}
+
+func TestListSessions_IsActiveFollowsSwitchSession(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := testService(t)
+
+	initial, err := svc.ListSessions()
+	require.NoError(t, err)
+	require.Len(t, initial, 1)
+	firstID := initial[0].ID
+
+	second, err := svc.CreateSession("Second")
+	require.NoError(t, err)
+
+	require.NoError(t, svc.SwitchSession(firstID))
+	sessions, err := svc.ListSessions()
+	require.NoError(t, err)
+	assert.Equal(t, []int64{firstID}, activeIDs(sessions))
+
+	require.NoError(t, svc.SwitchSession(second.ID))
+	sessions, err = svc.ListSessions()
+	require.NoError(t, err)
+	assert.Equal(t, []int64{second.ID}, activeIDs(sessions))
+}
+
+func TestListSessions_IsActiveExactlyOneAmongMany(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := testService(t)
+
+	var created []int64
+	for _, name := range []string{"A", "B", "C"} {
+		si, err := svc.CreateSession(name)
+		require.NoError(t, err)
+		created = append(created, si.ID)
+	}
+	require.NoError(t, svc.SwitchSession(created[1]))
+
+	sessions, err := svc.ListSessions()
+	require.NoError(t, err)
+	assert.Len(t, sessions, 4)
+	assert.Equal(t, []int64{created[1]}, activeIDs(sessions))
+}
+
+func TestListSessions_IsActiveJSONField(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := testService(t)
+
+	sessions, err := svc.ListSessions()
+	require.NoError(t, err)
+	raw, err := json.Marshal(sessions)
+	require.NoError(t, err)
+
+	var decoded []map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.Len(t, decoded, 1)
+	assert.Equal(t, true, decoded[0]["is_active"])
+}

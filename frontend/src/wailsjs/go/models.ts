@@ -1226,6 +1226,7 @@ export namespace preset {
 	    item_count: number;
 	    created_at: string;
 	    updated_at: string;
+	    is_active: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SessionInfo(source);
@@ -1238,6 +1239,7 @@ export namespace preset {
 	        this.item_count = source["item_count"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	        this.is_active = source["is_active"];
 	    }
 	}
 	export class SessionItem {

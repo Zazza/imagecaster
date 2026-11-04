@@ -111,6 +111,7 @@ type SessionInfo struct {
 	ItemCount int    `json:"item_count"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
+	IsActive  bool   `json:"is_active"`
 }
 
 type SessionItem struct {

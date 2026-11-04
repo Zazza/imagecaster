@@ -887,4 +887,5 @@ export const en = {
   'presets.btn_install': 'Install',
   'presets.delete_confirm_n': 'Delete selected styles ({count})?',
   'common.steps_n': '{count} steps',
+  'footer.session_label': 'History folder',
 }

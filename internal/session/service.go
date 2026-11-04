@@ -292,7 +292,18 @@ func (s *Service) CreateSession(name string) (*preset.SessionInfo, error) {
 }
 
 func (s *Service) ListSessions() ([]preset.SessionInfo, error) {
-	return s.db.ListSessions()
+	sessions, err := s.db.ListSessions()
+	if err != nil {
+		return nil, err
+	}
+	activeID, err := s.db.GetActiveSessionID()
+	if err != nil {
+		return nil, err
+	}
+	for i := range sessions {
+		sessions[i].IsActive = activeID != 0 && sessions[i].ID == activeID
+	}
+	return sessions, nil
 }
 
 func (s *Service) SwitchSession(id int64) error {
