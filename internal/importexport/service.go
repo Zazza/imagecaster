@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -18,6 +17,7 @@ import (
 	xdraw "golang.org/x/image/draw"
 
 	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"

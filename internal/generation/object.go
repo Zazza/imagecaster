@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/png"
 	"math"
@@ -14,6 +13,7 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 
+	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/maskcomp"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/sd"

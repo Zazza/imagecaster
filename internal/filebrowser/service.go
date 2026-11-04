@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -15,6 +14,8 @@ import (
 	"unicode/utf8"
 
 	xdraw "golang.org/x/image/draw"
+
+	"github.com/Zazza/imagecaster/internal/config"
 )
 
 var imageExts = map[string]bool{

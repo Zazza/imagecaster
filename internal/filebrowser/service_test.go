@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -14,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Zazza/imagecaster/internal/config"
 )
 
 func createPNGFile(t *testing.T, path string, w, h int) {

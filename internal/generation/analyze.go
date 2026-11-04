@@ -329,6 +329,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			}
 		}
 		srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
+		rawW, rawH := srcW, srcH
 		if srcW > 0 && srcH > 0 {
 			srcW = srcW / 8 * 8
 			srcH = srcH / 8 * 8
@@ -342,9 +343,15 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		} else {
 			imgW, imgH = s.fitImageToResolution(srcW, srcH, params.ResolutionID)
 		}
+		kleinOutW, kleinOutH := 0, 0
 		if config.ModelMatchesCSV(p.ModelName, "klein") {
 			if params.ResolutionID == nil || *params.ResolutionID <= 0 {
-				imgW, imgH = kleinImg2ImgSize(imgW, imgH)
+				kleinOutW, kleinOutH = kleinImg2ImgSize(imgW, imgH)
+				if rawW > 0 && rawH > 0 {
+					imgW, imgH = kleinWorkSize(rawW, rawH)
+				} else {
+					imgW, imgH = kleinWorkSize(kleinOutW, kleinOutH)
+				}
 			} else {
 				imgW, imgH = alignLookSize(imgW, imgH)
 			}
@@ -380,7 +387,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			}
 			return nil, fmt.Errorf("no image generated (%s)", params.Mode)
 		}
-		finalImage := resp.Images[0]
+		finalImage := s.kleinUpscaleTo(resp.Images[0], imgW, kleinOutW, kleinOutH, "from-image klein")
 		finalInfo := resp.Info
 		upscaleSkipped := false
 		redenoiseSkipped := false

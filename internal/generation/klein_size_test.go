@@ -130,18 +130,16 @@ func runFromImageSize(t *testing.T, modelName string, w, h int) sd.Img2ImgReques
 	return captured
 }
 
-func TestGenerateFromImage_KleinSmallImageUpscaledTo1024(t *testing.T) {
+func TestGenerateFromImage_KleinSmallImageWorkSize1MP(t *testing.T) {
 	t.Parallel()
 	req := runFromImageSize(t, "flux-2-klein-4b", 600, 800)
-	assert.Equal(t, 768, req.Width)
-	assert.Equal(t, 1024, req.Height)
+	assertKleinWorkSize(t, 600, 800, req.Width, req.Height)
 }
 
-func TestGenerateFromImage_KleinLargeImageNotUpscaled(t *testing.T) {
+func TestGenerateFromImage_KleinLargeImageWorkSize1MP(t *testing.T) {
 	t.Parallel()
 	req := runFromImageSize(t, "flux-2-klein-4b", 1500, 1000)
-	assert.Equal(t, 1488, req.Width)
-	assert.Equal(t, 992, req.Height)
+	assertKleinWorkSize(t, 1500, 1000, req.Width, req.Height)
 }
 
 func TestGenerateFromImage_NonKleinSizeUnchanged(t *testing.T) {

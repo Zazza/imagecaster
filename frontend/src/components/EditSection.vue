@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
 import { t } from '../i18n/index.js'
@@ -15,7 +15,7 @@ const props = defineProps({
   lookResultPrompt: { type: String, default: '' },
 })
 
-const emit = defineEmits(['result', 'apply-look', 'apply-recipe', 'save-recipe'])
+const emit = defineEmits(['result', 'apply-look', 'apply-recipe', 'save-recipe', 'busy'])
 
 const editLookMode = ref(false)
 const lookWay = ref('effects')
@@ -41,12 +41,13 @@ const styleTags = ref(false)
 const qualityMode = ref(false)
 const selectedResolutionId = ref(null)
 const generatingImage = ref(false)
+watch(generatingImage, v => emit('busy', v))
 const effectivePrompt = ref('')
 const resetFailed = ref(false)
 const qualityUpscaleSkipped = ref(false)
 const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
-const { sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 
 const stylePresets = computed(() => {
   const list = Array.isArray(allPresets.value) ? allPresets.value : []
@@ -431,8 +432,7 @@ onUnmounted(() => {
     </button>
 
     <div v-if="generatingImage" class="edit-progress">
-      <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" class="edit-progress-preview" />
-      <div v-else class="edit-progress-row">
+      <div class="edit-progress-row">
         <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
         <span class="edit-progress-label">{{ t('edit.generating') }}</span>
       </div>
@@ -639,12 +639,6 @@ onUnmounted(() => {
 .edit-progress {
   margin-top: 10px;
   text-align: center;
-}
-.edit-progress-preview {
-  max-width: 100%;
-  border-radius: var(--radius-sm);
-  opacity: 0.6;
-  image-rendering: pixelated;
 }
 .edit-progress-row {
   display: flex;

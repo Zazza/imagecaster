@@ -2,6 +2,16 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.1.1] — 2026-11-04
+
+### Changed
+- **Live preview over the photo in Post-Process**: while Edit, Remix, Object, an effect, a recipe or "Describe the look" is generating, the SD preview covers the main image (as on Generate) with percent, step and time left at the bottom; a spinner is shown until the first preview arrives. The small previews in the right panel are gone; the progress line and Interrupt button stay.
+
+### Fixed
+- **Klein effects barely applied on large photos.** Klein is tuned for about 1 megapixel; at 2048 px an effect such as Lace or Satin was almost invisible. Effects and "Describe the look" now run at ~1 MP and the result is upscaled back to the previous size with the neural upscaler (falls back to plain resize if it is unavailable).
+- Small photos no longer get their proportions slightly skewed before a Klein effect (double rounding).
+- Time left was never shown during generation anywhere in the app.
+
 ## [1.1.0] — 2026-11-04
 
 ### Added

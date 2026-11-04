@@ -7,6 +7,7 @@ import { parseSeedInput } from '../seed.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { MAX_IMAGE_SIZE } from '../constants.js'
 import { usePresets } from '../composables/usePresets.js'
+import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import EditSection from './EditSection.vue'
 import RemixSection from './RemixSection.vue'
@@ -1229,6 +1230,18 @@ const folderQueue = ref([])
 let folderCancelled = false
 
 const pipelineRunning = ref(false)
+
+const { sdProgress: genProgress, preview: genPreview } = useGenerationProgress()
+const sectionBusy = reactive({ edit: false, remix: false, object: false })
+const genBusy = computed(() => sectionBusy.edit || sectionBusy.remix || sectionBusy.object || applyingEffect.value || lookBusy.value || recipeRunning.value)
+const genActive = computed(() => !!genProgress.value && genProgress.value.progress > 0 && genProgress.value.progress < 1)
+const livePreview = computed(() => (genBusy.value && genActive.value && genPreview.value) || '')
+watch(genBusy, (busy) => {
+  if (busy) {
+    genProgress.value = null
+    genPreview.value = ''
+  }
+})
 const pipelineTotal = ref(0)
 const pipelineHandled = ref(0)
 const pipelineSaved = ref(0)
@@ -1612,6 +1625,17 @@ onUnmounted(() => {
               <span v-if="!maskMode" class="split-label split-label-before">{{ t('post.before') }}</span>
               <span v-if="!maskMode" class="split-label split-label-after">{{ t('post.after') }}</span>
               <span v-if="previewing" class="split-processing"><span class="spinner"></span> {{ t('post.processing') }}</span>
+              <div v-if="genBusy" class="gen-overlay" data-testid="gen-overlay">
+                <img v-if="livePreview" class="gen-overlay-img" :src="livePreview" alt="" draggable="false" />
+                <span v-else class="spinner gen-overlay-spinner"></span>
+                <div v-if="genActive" class="gen-overlay-bar">
+                  <div class="gen-overlay-stats">
+                    <span>{{ Math.round(genProgress.progress * 100) }}%</span>
+                    <span>{{ t('progress.sd_step', { current: Math.round(genProgress.progress * genProgress.steps), total: genProgress.steps }) }}<span v-if="genProgress.etaRelative > 0"> — ~{{ Math.ceil(genProgress.etaRelative) }}s</span></span>
+                  </div>
+                  <div class="gen-overlay-track"><div :style="{ width: (genProgress.progress * 100) + '%' }"></div></div>
+                </div>
+              </div>
               <div class="split-zoom" @pointerdown.stop @click.stop @dblclick.stop @wheel.stop>
                 <button
                   v-if="maskMode"
@@ -1700,7 +1724,7 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'edit' }">
             <div class="card-body">
-              <EditSection :source="currentB64" :look-busy="lookBusy" :look-result-prompt="lookResultPrompt" @result="onToolResult" @apply-look="onEditApplyLook" @apply-recipe="onEditApplyRecipe" @save-recipe="onEditSaveRecipe" />
+              <EditSection :source="currentB64" :look-busy="lookBusy" :look-result-prompt="lookResultPrompt" @result="onToolResult" @busy="v => sectionBusy.edit = v" @apply-look="onEditApplyLook" @apply-recipe="onEditApplyRecipe" @save-recipe="onEditSaveRecipe" />
             </div>
           </div>
         </div>
@@ -1715,7 +1739,7 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
-              <RemixSection :source="currentB64" :active="openSection === 'remix'" @result="onToolResult" @source="onRemixSource" />
+              <RemixSection :source="currentB64" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
             </div>
           </div>
         </div>
@@ -1730,7 +1754,7 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'object' }">
             <div class="card-body">
-              <ObjectSection ref="objectCompRef" :source="currentB64" :active="openSection === 'object'" @result="onToolResult" />
+              <ObjectSection ref="objectCompRef" :source="currentB64" :active="openSection === 'object'" @result="onToolResult" @busy="v => sectionBusy.object = v" />
             </div>
           </div>
         </div>
@@ -2261,6 +2285,61 @@ onUnmounted(() => {
   background: #000;
   touch-action: none;
   user-select: none;
+}
+
+.gen-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.gen-overlay-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.gen-overlay-spinner {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+.gen-overlay-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(320px, calc(100% - 32px));
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+}
+
+.gen-overlay-stats {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.gen-overlay-track {
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.gen-overlay-track > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
 }
 
 .split-area.pannable {

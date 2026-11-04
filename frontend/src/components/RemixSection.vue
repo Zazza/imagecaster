@@ -18,7 +18,7 @@ const props = defineProps({
   active: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['result', 'source'])
+const emit = defineEmits(['result', 'source', 'busy'])
 
 const { presets, presetTypes, compoundPresets, loadPresets } = usePresets()
 const selectedTypeId = ref(null)
@@ -47,7 +47,8 @@ const analyzeElapsed = ref(0)
 let analyzeTimer = null
 
 const generatingImage = ref(false)
-const { llmStatus, sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+watch(generatingImage, v => emit('busy', v))
+const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 const generationStage = ref('')
 const error = ref('')
 const enqueuedJobIds = ref(new Set())
@@ -554,8 +555,7 @@ function onKeydown(e) {
     </div>
 
     <div v-if="generatingImage" class="remix-progress">
-      <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" class="remix-progress-preview" />
-      <div v-else class="remix-progress-row">
+      <div class="remix-progress-row">
         <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
         <span class="remix-progress-label">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ progressLabel }}</span>
       </div>
@@ -606,12 +606,6 @@ function onKeydown(e) {
 .remix-progress {
   margin-top: 10px;
   text-align: center;
-}
-.remix-progress-preview {
-  max-width: 100%;
-  border-radius: var(--radius-sm);
-  opacity: 0.6;
-  image-rendering: pixelated;
 }
 .remix-progress-row {
   display: flex;

@@ -3,9 +3,10 @@ package clipboard
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/Zazza/imagecaster/internal/config"
 	"os"
 	"os/exec"
+
+	"github.com/Zazza/imagecaster/internal/config"
 )
 
 const maxSize = config.MaxImageBytes

@@ -514,6 +514,12 @@ func TestApplyLookDirect_HappyPath(t *testing.T) {
 		capturedReq = req
 		return &sd.Txt2ImgResponse{Images: []string{"look-b64"}, Info: []byte(`{"look":true}`)}, nil
 	})
+	sdSvc.upscale = func(base64Img, upscaler string, scale float64) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		ops = append(ops, fmt.Sprintf("upscale:%s:%.2f", upscaler, scale))
+		return base64Img, nil
+	}
 	sessions := &mockSessions{}
 	svc := newTestService(t, db, llmSvc, sdSvc)
 	svc.sessions = sessions
@@ -538,8 +544,8 @@ func TestApplyLookDirect_HappyPath(t *testing.T) {
 	assert.Equal(t, kleinLookScheduler, capturedReq.Scheduler)
 	require.NotNil(t, capturedReq.DenoisingStrength)
 	assert.InDelta(t, 0.5, *capturedReq.DenoisingStrength, 1e-9)
-	assert.Equal(t, 512, capturedReq.Width)
-	assert.Equal(t, 512, capturedReq.Height)
+	assert.Equal(t, 1024, capturedReq.Width)
+	assert.Equal(t, 1024, capturedReq.Height)
 	require.NotNil(t, capturedReq.Seed)
 	assert.Equal(t, int64(42), *capturedReq.Seed)
 	assert.True(t, capturedReq.DoNotSaveImages)

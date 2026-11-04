@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Zazza/imagecaster/internal/config"
 	"math"
 	"slices"
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/promptutil"
@@ -360,6 +360,31 @@ func kleinImg2ImgSize(w, h int) (int, int) {
 	return alignLookSize(w, h)
 }
 
+const kleinWorkPixels = 1024 * 1024
+
+func kleinWorkSize(w, h int) (int, int) {
+	if w <= 0 || h <= 0 {
+		return alignLookSize(w, h)
+	}
+	scale := math.Sqrt(float64(kleinWorkPixels) / (float64(w) * float64(h)))
+	return alignLookSize(int(float64(w)*scale), int(float64(h)*scale))
+}
+
+func (s *Service) kleinUpscaleTo(img string, workW, outW, outH int, logPrefix string) string {
+	if workW <= 0 || outW <= workW {
+		return img
+	}
+	upscaler := s.resolveQualityUpscaler()
+	scale := float64(outW) / float64(workW)
+	s.log.Info("%s: upscale %.2fx to %dx%d (%s)", logPrefix, scale, outW, outH, upscaler)
+	up, err := s.upscaleWithFallback(img, scale, outW, outH, upscaler)
+	if err != nil {
+		s.log.Warn("%s: upscale failed, keeping work-size result: %s", logPrefix, err)
+		return img
+	}
+	return up
+}
+
 func alignLookSize(w, h int) (int, int) {
 	if w > kleinLookMaxDim || h > kleinLookMaxDim {
 		scale := float64(kleinLookMaxDim) / float64(max(w, h))
@@ -453,7 +478,8 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	if srcW <= 0 || srcH <= 0 {
 		return nil, errors.New("decode image size: invalid image")
 	}
-	width, height := alignLookSize(srcW, srcH)
+	outW, outH := alignLookSize(srcW, srcH)
+	width, height := kleinWorkSize(outW, outH)
 
 	batchSize := 1
 	batchCount := 1
@@ -487,12 +513,13 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 		return nil, errors.New("no image generated (look)")
 	}
 
+	finalImage := s.kleinUpscaleTo(resp.Images[0], width, outW, outH, "look")
 	result = &GenerateImageResult{
-		Image:           resp.Images[0],
+		Image:           finalImage,
 		Info:            resp.Info,
 		EffectivePrompt: lookPrompt,
 	}
-	s.sessions.AddToSession(resp.Images[0], resp.Info, "look", false, &preset.GenerationMeta{
+	s.sessions.AddToSession(finalImage, resp.Info, "look", false, &preset.GenerationMeta{
 		Label: "Look: " + truncateRunes(text, kleinLookLabelMax),
 		Model: kleinLookModel,
 	})

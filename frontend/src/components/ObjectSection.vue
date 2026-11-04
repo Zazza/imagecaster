@@ -12,7 +12,7 @@ const props = defineProps({
   active: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['result'])
+const emit = defineEmits(['result', 'busy'])
 
 const mask = useMaskCanvas()
 const { brushSize, maskCanvas, maskVersion, hasMask, canRedoMask } = mask
@@ -22,13 +22,14 @@ const replacement = ref('')
 const objectText = ref('')
 const seedInput = ref('')
 const running = ref(false)
+watch(running, v => emit('busy', v))
 const stage = ref('')
 const error = ref('')
 const detectedObject = ref('')
 const effectivePrompt = ref('')
 const resetFailed = ref(false)
 const moreOpen = ref(false)
-const { llmStatus, sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 let reqCounter = 0
 let lastEmitted = null
 
@@ -183,7 +184,6 @@ defineExpose({
     </button>
 
     <div v-if="running && sdProgress && sdProgress.progress > 0" class="object-progress">
-      <img v-if="preview && sdProgress.progress < 1" :src="preview" alt="preview" class="object-progress-preview" />
       <div class="object-progress-bar"><div :style="{ width: (sdProgress.progress * 100) + '%' }"></div></div>
       <button class="btn btn-sm btn-secondary" style="width: 100%; margin-top: 8px; font-size: 11px;" @click="interruptGeneration">{{ t('progress.btn_interrupt') }}</button>
     </div>
@@ -271,11 +271,6 @@ defineExpose({
 .object-progress {
   margin-top: 10px;
   text-align: center;
-}
-.object-progress-preview {
-  max-width: 100%;
-  border-radius: var(--radius-sm);
-  opacity: 0.6;
 }
 .object-progress-bar {
   background: var(--surface-2);
