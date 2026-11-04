@@ -50,6 +50,17 @@ type SDInfo struct {
 
 const maxImageBase64 = 50 * 1024 * 1024
 
+func unwrapInfo(info json.RawMessage) []byte {
+	if len(info) == 0 {
+		return nil
+	}
+	var inner string
+	if json.Unmarshal(info, &inner) == nil {
+		return []byte(inner)
+	}
+	return info
+}
+
 func firstNonEmpty(vals ...string) string {
 	for _, v := range vals {
 		if v != "" {
@@ -164,8 +175,8 @@ func (s *Service) AddToSession(imageBase64 string, info json.RawMessage, source 
 	}
 
 	var sd SDInfo
-	if info != nil {
-		if json.Unmarshal(info, &sd) == nil {
+	if raw := unwrapInfo(info); raw != nil {
+		if json.Unmarshal(raw, &sd) == nil {
 			item.Prompt = sd.Prompt
 			item.NegativePrompt = sd.NegativePrompt
 			item.Sampler = sd.SamplerName

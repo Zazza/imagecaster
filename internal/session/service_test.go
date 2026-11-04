@@ -731,3 +731,164 @@ func TestAddToSession_MultipleSessions(t *testing.T) {
 	assert.Len(t, items, 1)
 	assert.Equal(t, id2, items[0].ID)
 }
+
+const sdInfoObjectFixture = `{"prompt":"a red fox in snow","negative_prompt":"blurry, lowres","sampler_name":"DPM++ 2M","steps":28,"cfg_scale":6.5,"seed":987654321,"width":768,"height":1024,"denoising_strength":0.35,"sd_model_name":"juggernautXL_v9"}`
+
+func sdInfoAsJSONString(t *testing.T, inner string) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(inner)
+	require.NoError(t, err)
+	return b
+}
+
+func TestAddToSession_InfoFormats_FillsFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		info func(t *testing.T) json.RawMessage
+	}{
+		{
+			name: "info object",
+			info: func(t *testing.T) json.RawMessage { return json.RawMessage(sdInfoObjectFixture) },
+		},
+		{
+			name: "info JSON string containing object",
+			info: func(t *testing.T) json.RawMessage { return sdInfoAsJSONString(t, sdInfoObjectFixture) },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			svc, _, _ := testService(t)
+
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", false, nil)
+			require.True(t, itemID > 0)
+
+			items, err := svc.GetSessionItems()
+			require.NoError(t, err)
+			require.Len(t, items, 1)
+			it := items[0]
+			assert.Equal(t, itemID, it.ID)
+			assert.Equal(t, "a red fox in snow", it.Prompt)
+			assert.Equal(t, "blurry, lowres", it.NegativePrompt)
+			assert.Equal(t, "DPM++ 2M", it.Sampler)
+			assert.Equal(t, 28, it.Steps)
+			assert.Equal(t, 6.5, it.CfgScale)
+			require.NotNil(t, it.Seed)
+			assert.Equal(t, int64(987654321), *it.Seed)
+			assert.Equal(t, 0.35, it.Denoising)
+			assert.Equal(t, 768, it.Width)
+			assert.Equal(t, 1024, it.Height)
+		})
+	}
+}
+
+func TestAddToSession_InfoFormats_ModelFromSDInfo(t *testing.T) {
+	t.Parallel()
+
+	presetID := int64(7)
+	tests := []struct {
+		name string
+		info func(t *testing.T) json.RawMessage
+		meta func() *preset.GenerationMeta
+	}{
+		{
+			name: "info object, meta without model",
+			info: func(t *testing.T) json.RawMessage { return json.RawMessage(sdInfoObjectFixture) },
+			meta: func() *preset.GenerationMeta { return &preset.GenerationMeta{PresetID: &presetID} },
+		},
+		{
+			name: "info JSON string, meta without model",
+			info: func(t *testing.T) json.RawMessage { return sdInfoAsJSONString(t, sdInfoObjectFixture) },
+			meta: func() *preset.GenerationMeta { return &preset.GenerationMeta{PresetID: &presetID} },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			svc, _, _ := testService(t)
+
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", false, tt.meta())
+			require.True(t, itemID > 0)
+
+			items, err := svc.GetSessionItems()
+			require.NoError(t, err)
+			require.Len(t, items, 1)
+			require.NotNil(t, items[0].Meta)
+			assert.Equal(t, "juggernautXL_v9", items[0].Meta.Model)
+		})
+	}
+}
+
+func TestAddToSession_InfoFormats_ZeroSizeKeepsImageSize(t *testing.T) {
+	t.Parallel()
+
+	inner := `{"prompt":"p","width":0,"height":0,"seed":1}`
+	tests := []struct {
+		name string
+		info func(t *testing.T) json.RawMessage
+	}{
+		{name: "info object", info: func(t *testing.T) json.RawMessage { return json.RawMessage(inner) }},
+		{name: "info JSON string", info: func(t *testing.T) json.RawMessage { return sdInfoAsJSONString(t, inner) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			svc, _, _ := testService(t)
+
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 48), tt.info(t), "sd", false, nil)
+			require.True(t, itemID > 0)
+
+			items, err := svc.GetSessionItems()
+			require.NoError(t, err)
+			require.Len(t, items, 1)
+			assert.Equal(t, "p", items[0].Prompt)
+			assert.Equal(t, 64, items[0].Width)
+			assert.Equal(t, 48, items[0].Height)
+		})
+	}
+}
+
+func TestAddToSession_BrokenInfo_SavesItemWithoutGenFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		info func(t *testing.T) json.RawMessage
+	}{
+		{name: "not JSON", info: func(t *testing.T) json.RawMessage { return json.RawMessage(`{prompt: broken`) }},
+		{name: "string with non-JSON", info: func(t *testing.T) json.RawMessage { return sdInfoAsJSONString(t, "Steps: 20, Sampler: Euler a") }},
+		{name: "string with broken JSON", info: func(t *testing.T) json.RawMessage { return sdInfoAsJSONString(t, `{"prompt":"x",`) }},
+		{name: "null", info: func(t *testing.T) json.RawMessage { return json.RawMessage(`null`) }},
+		{name: "empty raw", info: func(t *testing.T) json.RawMessage { return json.RawMessage{} }},
+		{name: "nil", info: func(t *testing.T) json.RawMessage { return nil }},
+		{name: "empty string", info: func(t *testing.T) json.RawMessage { return json.RawMessage(`""`) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			svc, _, _ := testService(t)
+
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", false, nil)
+			require.True(t, itemID > 0)
+
+			items, err := svc.GetSessionItems()
+			require.NoError(t, err)
+			require.Len(t, items, 1)
+			it := items[0]
+			assert.Equal(t, itemID, it.ID)
+			assert.Equal(t, "", it.Prompt)
+			assert.Equal(t, "", it.NegativePrompt)
+			assert.Equal(t, "", it.Sampler)
+			assert.Equal(t, 0, it.Steps)
+			assert.Equal(t, 0.0, it.CfgScale)
+			assert.Nil(t, it.Seed)
+			assert.Equal(t, 0.0, it.Denoising)
+		})
+	}
+}
