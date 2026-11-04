@@ -241,6 +241,18 @@ input, textarea, select {
   background: var(--danger-hover);
 }
 
+.btn-danger-quiet {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--border);
+}
+
+.btn-danger-quiet:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
 .btn-sm {
   padding: 5px 10px;
   font-size: 12px;
@@ -1398,6 +1410,52 @@ input, textarea, select {
 }
 
 /* More options toggle */
+.gen-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gen-count .form-input {
+  width: 64px;
+  text-align: center;
+}
+
+.gen-count-unit {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.direct-prompt {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.direct-prompt-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.settings-advanced {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-advanced > summary {
+  cursor: pointer;
+  color: var(--text-bright);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.settings-advanced[open] > summary {
+  margin-bottom: 8px;
+}
+
 .more-options-toggle {
   display: flex;
   align-items: center;

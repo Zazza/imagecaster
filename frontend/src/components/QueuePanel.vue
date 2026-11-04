@@ -25,12 +25,16 @@ let clearTimer = null
 const confirmCancel = ref(false)
 let cancelTimer = null
 
-const typeLabels = {
-  txt2img: 'Generate',
-  from_image: 'From Image',
-  batch_item: 'Batch',
-  compound: 'Compound',
-  compare_item: 'Compare',
+const typeLabelKeys = {
+  txt2img: 'queue.type_txt2img',
+  from_image: 'queue.type_from_image',
+  batch_item: 'queue.type_batch_item',
+  compound: 'queue.type_compound',
+}
+
+function typeLabel(type) {
+  const key = typeLabelKeys[type]
+  return key ? t(key) : type
 }
 
 async function removeJob(id) {
@@ -111,10 +115,10 @@ function formatTime(ts) {
       <div class="queue-info">
         <span v-if="currentJob" class="queue-active">
           <Loader :size="12" class="spin" />
-          {{ typeLabels[currentJob.type] || currentJob.type }}
+          {{ typeLabel(currentJob.type) }}
         </span>
         <span v-if="pendingCount > 0" class="queue-pending-count">
-          {{ pendingCount }} pending
+          {{ t('queue.pending_count', { count: pendingCount }) }}
         </span>
       </div>
       <div class="queue-controls">
@@ -150,7 +154,7 @@ function formatTime(ts) {
 
         <div class="qi-content">
           <div class="qi-header">
-            <span class="qi-type">{{ typeLabels[job.type] || job.type }}</span>
+            <span class="qi-type">{{ typeLabel(job.type) }}</span>
             <span class="qi-time">{{ formatTime(job.created_at) }}</span>
           </div>
 
@@ -266,7 +270,7 @@ export default { name: 'QueuePanel' }
 }
 
 .q-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.5;
   cursor: default;
 }
 

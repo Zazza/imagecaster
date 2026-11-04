@@ -363,8 +363,6 @@ onUnmounted(() => {
       <button class="btn btn-sm btn-secondary btn-tiny" @click="pasteReference">{{ t('edit.btn_paste_ref') }}</button>
     </div>
 
-    <div class="model-note">{{ t('edit.model_note') }}</div>
-
     <div class="form-group">
       <label class="form-label">{{ t('edit.instruction_label') }}</label>
       <textarea data-testid="edit-instruction" class="form-textarea" v-model="instruction" rows="4" maxlength="2000" :placeholder="t('edit.instruction_placeholder')"></textarea>
@@ -421,7 +419,7 @@ onUnmounted(() => {
         <span>{{ t('edit.quality_mode') }}</span>
       </label>
       <div v-if="qualityMode && selectedResolutionId" class="field-hint">{{ t('edit.quality_hint') }}</div>
-      <div v-else-if="!selectedResolutionId" class="field-hint field-hint-accent">{{ t('edit.quality_needs_resolution') }}</div>
+      <div v-else-if="!selectedResolutionId" class="field-hint">{{ t('edit.quality_needs_resolution') }}</div>
     </div>
 
     <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" @click="generate" :disabled="!canGenerate">
@@ -544,16 +542,6 @@ onUnmounted(() => {
   max-width: 100%;
   display: block;
 }
-.model-note {
-  margin-top: 12px;
-  font-size: 11px;
-  color: var(--text-dim);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  display: inline-block;
-}
 .field-hint {
   font-size: 11px;
   color: var(--text-dim);
@@ -561,9 +549,6 @@ onUnmounted(() => {
 }
 .field-hint-warn {
   color: var(--status-warn, #e6a23c);
-}
-.field-hint-accent {
-  color: var(--accent);
 }
 .style-tags-label {
   display: flex;
@@ -590,6 +575,7 @@ onUnmounted(() => {
   color: var(--text-dim);
 }
 .edit-loras {
+  margin-bottom: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;

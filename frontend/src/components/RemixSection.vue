@@ -25,7 +25,6 @@ const selectedTypeId = ref(null)
 const selectedPresetId = ref(null)
 const selectedCompoundPresetId = ref(null)
 const genMode = ref('preset')
-const mode = ref('img2img')
 const denoisingStrength = ref(0.5)
 const seedInput = ref('')
 const extraNegativePrompt = ref('')
@@ -61,20 +60,6 @@ const { kidsModeActive, loadKidsMode } = useKidsMode()
 const presetOverrides = ref(null)
 const overridesPanel = ref(null)
 
-const removeStage = ref('')
-const brushSize = ref(30)
-const maskBlur = ref(4)
-const maskPadding = ref(8)
-const maskFeather = ref(8)
-const inpaintFill = ref(1)
-const inpaintFullRes = ref(true)
-const invertMask = ref(false)
-const maskCanvas = ref(null)
-const maskHistory = ref([])
-const maskRedo = ref([])
-const maskVersion = ref(0)
-let maskStrokeActive = false
-let maskSourceReqId = 0
 let lastEmittedSource = null
 
 const { queue: remixQueue, clearQueue: clearRemixQueue } = useRemixQueue()
@@ -96,14 +81,8 @@ const kleinPresetSelected = computed(() => {
   return !!p?.model_name?.toLowerCase().includes('klein')
 })
 
-const hasMask = computed(() => maskHistory.value.length > 0)
-const canRedoMask = computed(() => maskRedo.value.length > 0)
-
-const maskActive = computed(() => mode.value === 'inpaint' || mode.value === 'remove')
-
 const progressLabel = computed(() => {
   if (llmStatus.value === 'thinking') return t('progress.llm_thinking')
-  if (removeStage.value === 'analyzing') return t('fi.analyzing_context')
   if (generationStage.value === 'analyzing') return t('fi.analyzing_image')
   return t('generate.generating_image')
 })
@@ -136,199 +115,12 @@ async function analyzeImage() {
   }
 }
 
-function applySourceToMask(keepIfSameSize) {
-  if (mode.value !== 'inpaint' && mode.value !== 'remove') {
-    discardMask()
-    return
-  }
-  if (!props.source) {
-    discardMask()
-    return
-  }
-  const reqId = ++maskSourceReqId
-  const img = new Image()
-  img.onload = () => {
-    if (reqId !== maskSourceReqId) return
-    const w = img.naturalWidth || 1
-    const h = img.naturalHeight || 1
-    if (keepIfSameSize && maskCanvas.value && maskCanvas.value.width === w && maskCanvas.value.height === h) {
-      maskVersion.value++
-      return
-    }
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    maskCanvas.value = canvas
-    maskHistory.value = []
-    maskRedo.value = []
-    maskVersion.value++
-  }
-  img.src = b64Url(props.source)
-}
-
-function discardMask() {
-  maskSourceReqId++
-  maskCanvas.value = null
-  maskHistory.value = []
-  maskRedo.value = []
-  maskVersion.value++
-}
-
-function paintCircle(x, y, radius) {
-  const canvas = maskCanvas.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  ctx.globalCompositeOperation = 'source-over'
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
-  ctx.beginPath()
-  ctx.arc(x, y, radius, 0, Math.PI * 2)
-  ctx.fill()
-}
-
-function beginStroke(x, y, radius) {
-  const canvas = maskCanvas.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  maskHistory.value.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
-  if (maskHistory.value.length > 30) {
-    maskHistory.value.shift()
-  }
-  maskRedo.value = []
-  maskStrokeActive = true
-  paintCircle(x, y, radius)
-  maskVersion.value++
-}
-
-function strokeTo(x, y, radius) {
-  if (!maskStrokeActive) return
-  paintCircle(x, y, radius)
-  maskVersion.value++
-}
-
-function endStroke() {
-  maskStrokeActive = false
-}
-
-function clearMask() {
-  const canvas = maskCanvas.value
-  if (!canvas) return
-  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
-  maskHistory.value = []
-  maskRedo.value = []
-  maskVersion.value++
-}
-
-function undoMask() {
-  if (maskHistory.value.length === 0) return
-  const canvas = maskCanvas.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  maskRedo.value.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
-  const prev = maskHistory.value.pop()
-  ctx.putImageData(prev, 0, 0)
-  maskVersion.value++
-}
-
-function redoMask() {
-  if (maskRedo.value.length === 0) return
-  const canvas = maskCanvas.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  maskHistory.value.push(ctx.getImageData(0, 0, canvas.width, canvas.height))
-  const next = maskRedo.value.pop()
-  ctx.putImageData(next, 0, 0)
-  maskVersion.value++
-}
-
-function getMaskBase64() {
-  const canvas = maskCanvas.value
-  if (!canvas) return ''
-  const w = canvas.width
-  const h = canvas.height
-  const ctx = canvas.getContext('2d')
-  const src = ctx.getImageData(0, 0, w, h)
-
-  const outCanvas = document.createElement('canvas')
-  outCanvas.width = w
-  outCanvas.height = h
-  const outCtx = outCanvas.getContext('2d')
-  const maskData = outCtx.createImageData(w, h)
-
-  for (let i = 0; i < src.data.length; i += 4) {
-    const alpha = src.data[i + 3]
-    const isMasked = alpha > 10
-    const fill = invertMask.value ? !isMasked : isMasked
-    if (fill) {
-      maskData.data[i] = 255
-      maskData.data[i + 1] = 255
-      maskData.data[i + 2] = 255
-      maskData.data[i + 3] = 255
-    }
-  }
-  outCtx.putImageData(maskData, 0, 0)
-
-  if (maskPadding.value > 0) {
-    const dilated = document.createElement('canvas')
-    dilated.width = w
-    dilated.height = h
-    const dCtx = dilated.getContext('2d')
-    dCtx.filter = `blur(${maskPadding.value}px)`
-    dCtx.drawImage(outCanvas, 0, 0)
-    dCtx.filter = 'none'
-
-    const dData = dCtx.getImageData(0, 0, w, h)
-    for (let i = 0; i < dData.data.length; i += 4) {
-      if (dData.data[i + 3] > 0) {
-        dData.data[i] = 255
-        dData.data[i + 1] = 255
-        dData.data[i + 2] = 255
-        dData.data[i + 3] = 255
-      }
-    }
-    dCtx.putImageData(dData, 0, 0)
-
-    outCtx.clearRect(0, 0, w, h)
-    outCtx.drawImage(dilated, 0, 0)
-  }
-
-  if (maskFeather.value > 0) {
-    const feathered = document.createElement('canvas')
-    feathered.width = w
-    feathered.height = h
-    const fCtx = feathered.getContext('2d')
-    fCtx.filter = `blur(${maskFeather.value}px)`
-    fCtx.drawImage(outCanvas, 0, 0)
-
-    outCtx.clearRect(0, 0, w, h)
-    outCtx.drawImage(feathered, 0, 0)
-  }
-
-  const dataUrl = outCanvas.toDataURL('image/png')
-  return dataUrl.split(',')[1] || ''
-}
-
-watch(mode, (newMode) => {
-  if (newMode !== 'img2img') folderQueue.value = []
-  if (newMode === 'inpaint' || newMode === 'remove') {
-    applySourceToMask(false)
-  } else {
-    discardMask()
-  }
-  if (newMode === 'remove') {
-    denoisingStrength.value = 0.6
-    maskBlur.value = 8
-    inpaintFill.value = 1
-    inpaintFullRes.value = true
-  }
-})
-
 watch(() => props.source, (val) => {
   if (val !== lastEmittedSource) {
     folderQueue.value = []
     tags.value = ''
     error.value = ''
   }
-  applySourceToMask(true)
 })
 
 watch(selectedPresetId, () => {
@@ -336,7 +128,7 @@ watch(selectedPresetId, () => {
   overridesPanel.value?.reset()
 })
 
-watch([genMode, mode, kidsModeActive], () => {
+watch([genMode, kidsModeActive], () => {
   presetOverrides.value = null
   overridesPanel.value?.reset()
 })
@@ -347,20 +139,12 @@ async function generate() {
     error.value = t('fi.error_upload_first')
     return
   }
-  if (genMode.value === 'preset' && !selectedPresetId.value && mode.value !== 'remove') {
+  if (genMode.value === 'preset' && !selectedPresetId.value) {
     error.value = t('fi.error_select_style')
     return
   }
-  if (genMode.value === 'compound' && !selectedCompoundPresetId.value && mode.value !== 'remove') {
+  if (genMode.value === 'compound' && !selectedCompoundPresetId.value) {
     error.value = t('fi.error_select_workflow')
-    return
-  }
-  if (folderQueue.value.length > 0 && mode.value !== 'img2img') {
-    error.value = t('fi.folder_requires_img2img')
-    return
-  }
-  if ((mode.value === 'inpaint' || mode.value === 'remove') && !hasMask.value) {
-    error.value = t('fi.error_draw_mask')
     return
   }
 
@@ -378,32 +162,24 @@ async function generate() {
   folderCancelled = false
 
   try {
-    const maskB64 = (mode.value === 'inpaint' || mode.value === 'remove') ? getMaskBase64() : ''
     const params = {
       image_base64: props.source,
-      mode: mode.value === 'remove' ? 'inpaint' : mode.value,
+      mode: 'img2img',
       gen_mode: genMode.value,
       preset_id: selectedPresetId.value || 0,
       compound_preset_id: selectedCompoundPresetId.value || 0,
       denoising_strength: denoisingStrength.value,
-      tags: mode.value === 'remove' ? '' : tags.value,
+      tags: tags.value,
       extra_negative_prompt: extraNegativePrompt.value,
       resolution_id: selectedResolutionId.value || null,
-      hires_profile_id: (genMode.value === 'compound' && mode.value !== 'remove') ? (selectedHiresProfileId.value || null) : null,
-      remove_object: mode.value === 'remove',
-      overrides: (genMode.value === 'preset' && mode.value !== 'remove') ? presetOverrides.value : null,
+      hires_profile_id: genMode.value === 'compound' ? (selectedHiresProfileId.value || null) : null,
+      overrides: genMode.value === 'preset' ? presetOverrides.value : null,
     }
-    if (genMode.value === 'preset' && mode.value === 'img2img') {
+    if (genMode.value === 'preset') {
       params.output_mode = (qualityMode.value && selectedResolutionId.value) ? 'quality' : ''
     }
-    if (genMode.value === 'preset' && mode.value === 'img2img' && kleinPresetSelected.value && preserveIdentity.value) {
+    if (genMode.value === 'preset' && kleinPresetSelected.value && preserveIdentity.value) {
       params.preserve_identity = true
-    }
-    if (mode.value === 'inpaint' || mode.value === 'remove') {
-      params.mask_base64 = maskB64
-      params.mask_blur = maskBlur.value
-      params.inpaint_fill = inpaintFill.value
-      params.inpaint_full_res = inpaintFullRes.value
     }
     const seedVal = parseSeedInput(seedInput.value)
     if (folderQueue.value.length > 0) {
@@ -436,12 +212,10 @@ async function generate() {
         error.value = 'interrupted'
         generatingImage.value = false
         generationStage.value = ''
-        removeStage.value = ''
       } else if (enqueuedJobIds.value.size === 0) {
         error.value = t('fi.folder_skipped', { n: items.length, m: items.length })
         generatingImage.value = false
         generationStage.value = ''
-        removeStage.value = ''
       } else if (skipped > 0) {
         error.value = t('fi.folder_skipped', { n: skipped, m: items.length })
       }
@@ -459,7 +233,6 @@ async function generate() {
     if (enqueuedJobIds.value.size === 0) {
       generatingImage.value = false
       generationStage.value = ''
-      removeStage.value = ''
     }
   }
 }
@@ -506,7 +279,6 @@ async function onQueueCompleted(data) {
   if (enqueuedJobIds.value.size === 0) {
     generatingImage.value = false
     generationStage.value = ''
-    removeStage.value = ''
   }
 }
 
@@ -520,7 +292,6 @@ function onQueueFailed(data) {
   if (enqueuedJobIds.value.size === 0) {
     generatingImage.value = false
     generationStage.value = ''
-    removeStage.value = ''
   }
 }
 
@@ -535,7 +306,6 @@ function onQueuePaused(data) {
   if (enqueuedJobIds.value.size === 0) {
     generatingImage.value = false
     generationStage.value = ''
-    removeStage.value = ''
   }
 }
 
@@ -549,13 +319,11 @@ async function interruptBatch() {
     }
     generatingImage.value = false
     generationStage.value = ''
-    removeStage.value = ''
     return
   }
   await interruptGeneration()
 }
 
-let offRemoveStage = () => {}
 let offCompleted = () => {}
 let offFailed = () => {}
 let offPaused = () => {}
@@ -563,9 +331,6 @@ let settingsRestored = false
 
 onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
-  offRemoveStage = EventsOn("remove:stage", (stage) => {
-    removeStage.value = stage
-  })
   offCompleted = EventsOn('queue:completed', onQueueCompleted)
   offFailed = EventsOn('queue:failed', onQueueFailed)
   offPaused = EventsOn('queue:paused', onQueuePaused)
@@ -579,7 +344,6 @@ onMounted(async () => {
   }
   try {
     const s = await api.getSettings()
-    if (s.fi_mode) mode.value = s.fi_mode
     if (s.fi_preset_id) {
       const pid = Number(s.fi_preset_id)
       if (presets.value.find(p => p.id === pid)) {
@@ -604,8 +368,6 @@ onMounted(async () => {
     if (s.fi_preserve_identity) preserveIdentity.value = s.fi_preserve_identity === 'true'
     if (s.fi_extra_negative) extraNegativePrompt.value = s.fi_extra_negative
     if (s.fi_analyze_mode) analyzeMode.value = s.fi_analyze_mode === 'describe' ? 'describe' : 'quick'
-    if (s.fi_mask_padding) maskPadding.value = Number(s.fi_mask_padding)
-    if (s.fi_mask_feather) maskFeather.value = Number(s.fi_mask_feather)
     if (s.fi_count) genCount.value = Math.max(1, Math.min(100, Number(s.fi_count) || 1))
     settingsRestored = true
   } catch {}
@@ -617,7 +379,6 @@ onMounted(async () => {
       if (b64) {
         tags.value = ''
         error.value = ''
-        mode.value = 'img2img'
         lastEmittedSource = b64
         emit('source', b64)
       }
@@ -630,7 +391,6 @@ onMounted(async () => {
 onUnmounted(() => {
   folderCancelled = true
   document.removeEventListener('keydown', onKeydown)
-  offRemoveStage()
   offCompleted()
   offFailed()
   offPaused()
@@ -640,7 +400,6 @@ onUnmounted(() => {
 function saveFIState() {
   if (!settingsRestored) return
   const state = {
-    fi_mode: mode.value,
     fi_preset_id: String(selectedPresetId.value || ''),
     fi_compound_preset_id: String(selectedCompoundPresetId.value || ''),
     fi_gen_mode: genMode.value,
@@ -649,8 +408,6 @@ function saveFIState() {
     fi_preserve_identity: preserveIdentity.value ? 'true' : 'false',
     fi_extra_negative: extraNegativePrompt.value || '',
     fi_analyze_mode: analyzeMode.value || '',
-    fi_mask_padding: String(maskPadding.value || ''),
-    fi_mask_feather: String(maskFeather.value || ''),
     fi_count: String(genCount.value || 1),
   }
   if (!loadHiresFailed.value) {
@@ -667,19 +424,6 @@ function onKeydown(e) {
   }
 }
 
-defineExpose({
-  maskActive,
-  maskCanvas,
-  maskVersion,
-  brushSize,
-  beginStroke,
-  strokeTo,
-  endStroke,
-  undoMask,
-  redoMask,
-  canUndoMask: hasMask,
-  canRedoMask,
-})
 </script>
 
 <template>
@@ -696,13 +440,7 @@ defineExpose({
       {{ t('fi.folder_queue', { n: folderQueue.length }) }}
     </div>
 
-    <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 12px; flex-wrap: wrap;">
-      <button class="btn btn-sm" :class="mode === 'img2img' ? 'btn-primary' : 'btn-secondary'" @click="mode = 'img2img'">{{ t('fi.mode_img2img') }}</button>
-      <button class="btn btn-sm" :class="mode === 'inpaint' ? 'btn-primary' : 'btn-secondary'" @click="mode = 'inpaint'">{{ t('fi.mode_inpaint') }}</button>
-      <button class="btn btn-sm" :class="mode === 'remove' ? 'btn-primary' : 'btn-secondary'" @click="mode = 'remove'">{{ t('fi.mode_remove') }}</button>
-    </div>
-
-    <div v-if="mode === 'img2img' || mode === 'inpaint'" class="form-group">
+    <div class="form-group" style="margin-top: 12px;">
       <label class="form-label">{{ t('fi.label_denoising', { value: denoisingStrength.toFixed(2) }) }}</label>
       <input type="range" class="form-range" v-model.number="denoisingStrength" min="0.05" max="1.0" step="0.05" />
       <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);">
@@ -711,25 +449,25 @@ defineExpose({
       </div>
     </div>
 
-    <div v-if="mode !== 'remove'" class="form-group" style="margin-top: 4px;">
+    <div class="form-group" style="margin-top: 4px;">
       <label class="form-label" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }">{{ t('fi.seed_label') }}</label>
       <input data-testid="fi-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :disabled="genMode === 'compound'" :placeholder="t('fi.seed_placeholder')" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }" />
       <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 4px;">{{ t('fi.preset_only') }}</div>
       <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.seed_hint') }}</div>
     </div>
 
-    <div v-if="mode !== 'remove'" class="form-group" style="margin-top: 4px;">
+    <div class="form-group" style="margin-top: 4px;">
       <ResolutionSelector v-model="selectedResolutionId" :none-label="t('fi.resolution_original')" />
-      <div v-if="mode === 'img2img'" style="margin-top: 6px;">
+      <div style="margin-top: 6px;">
         <label :style="{ display: 'flex', alignItems: 'center', gap: '6px', cursor: (genMode === 'compound' || !selectedResolutionId) ? 'not-allowed' : 'pointer', opacity: (genMode === 'compound' || !selectedResolutionId) ? 0.5 : 1 }">
           <input data-testid="fi-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="genMode === 'compound' || !selectedResolutionId" style="accent-color: var(--accent);" />
           <span style="font-size: 12px;">{{ t('fi.quality_mode') }}</span>
         </label>
-        <div v-if="genMode === 'preset'" style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_hint') }}</div>
         <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 2px;">{{ t('fi.preset_only') }}</div>
-        <div v-else-if="!selectedResolutionId" style="font-size: 11px; color: var(--accent); margin-top: 2px;">{{ t('fi.quality_needs_resolution') }}</div>
+        <div v-else-if="!selectedResolutionId" style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_needs_resolution') }}</div>
+        <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_hint') }}</div>
       </div>
-      <div v-if="mode === 'img2img' && genMode === 'preset' && kleinPresetSelected" style="margin-top: 6px;">
+      <div v-if="genMode === 'preset' && kleinPresetSelected" style="margin-top: 6px;">
         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
           <input data-testid="fi-preserve-identity-checkbox" type="checkbox" v-model="preserveIdentity" style="accent-color: var(--accent);" />
           <span style="font-size: 12px;">{{ t('fi.preserve_identity') }}</span>
@@ -738,75 +476,17 @@ defineExpose({
       </div>
     </div>
 
-    <div v-if="genMode === 'compound' && mode !== 'remove'" class="form-group" style="margin-top: 4px;">
+    <div v-if="genMode === 'compound'" class="form-group" style="margin-top: 4px;">
       <HiresProfileSelector v-model="selectedHiresProfileId" />
       <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.hires_hint') }}</div>
     </div>
 
-    <div v-if="mode === 'remove'" class="form-group" style="margin-top: 4px;">
-      <div style="font-size: 11px; color: var(--text-dim);">
-        {{ t('fi.remove_params', { denoising: denoisingStrength.toFixed(2), blur: maskBlur }) }}
-      </div>
-    </div>
-
-    <div v-if="mode === 'inpaint' || mode === 'remove'" class="inpaint-controls">
-      <div class="form-group">
-        <label class="form-label">{{ t('fi.label_brush_size', { value: brushSize }) }}</label>
-        <input type="range" class="form-range" v-model.number="brushSize" min="5" max="100" step="1" />
-      </div>
-      <div class="fi-btn-row">
-        <button class="btn btn-sm btn-secondary" @click="clearMask" :disabled="!hasMask">{{ t('fi.btn_clear_mask') }}</button>
-        <button class="btn btn-sm btn-secondary" @click="undoMask" :disabled="!hasMask">{{ t('fi.btn_undo') }}</button>
-        <button class="btn btn-sm btn-secondary" @click="redoMask" :disabled="!canRedoMask">{{ t('fi.btn_redo') }}</button>
-      </div>
-      <div v-if="mode === 'inpaint'" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
-        <div class="form-group">
-          <label class="form-label">{{ t('fi.label_mask_blur', { value: maskBlur }) }}</label>
-          <input type="range" class="form-range" v-model.number="maskBlur" min="0" max="64" step="1" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">{{ t('fi.label_inpaint_fill') }}</label>
-          <select class="form-select" v-model="inpaintFill">
-            <option :value="0">{{ t('fi.fill_fill') }}</option>
-            <option :value="1">{{ t('fi.fill_original') }}</option>
-            <option :value="2">{{ t('fi.fill_latent_noise') }}</option>
-          </select>
-        </div>
-      </div>
-      <div v-if="mode === 'inpaint'" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px;">
-        <div class="form-group">
-          <label class="form-label">{{ t('fi.label_mask_padding', { value: maskPadding }) }}</label>
-          <input type="range" class="form-range" v-model.number="maskPadding" min="0" max="64" step="1" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">{{ t('fi.label_mask_feather', { value: maskFeather }) }}</label>
-          <input type="range" class="form-range" v-model.number="maskFeather" min="0" max="64" step="1" />
-        </div>
-      </div>
-      <div v-if="mode === 'inpaint'" class="form-group" style="margin-top: 4px;">
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-          <input type="checkbox" v-model="inpaintFullRes" style="accent-color: var(--accent);" />
-          <span style="font-size: 12px;">{{ t('fi.inpaint_full_res') }}</span>
-        </label>
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-top: 4px;">
-          <input type="checkbox" v-model="invertMask" style="accent-color: var(--accent);" />
-          <span style="font-size: 12px;">{{ t('fi.invert_mask') }}</span>
-        </label>
-      </div>
-      <div v-if="hasMask" style="font-size: 11px; color: var(--accent); margin-top: 4px;">
-        {{ t('fi.mask_drawn', { count: maskHistory.length, inverted: invertMask ? t('fi.mask_inverted') : '' }) }}
-      </div>
-      <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
-        {{ t('fi.paint_areas') }}
-      </div>
-    </div>
-
-    <div v-if="mode !== 'remove'" style="display: flex; gap: 8px; margin-bottom: 12px;">
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
       <button class="btn btn-sm" :class="genMode === 'preset' ? 'btn-primary' : 'btn-secondary'" @click="genMode = 'preset'">{{ t('fi.btn_style') }}</button>
       <button class="btn btn-sm" :class="genMode === 'compound' ? 'btn-primary' : 'btn-secondary'" @click="genMode = 'compound'">{{ t('fi.btn_workflow') }}</button>
     </div>
 
-    <div v-if="mode !== 'remove' && genMode === 'preset'" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+    <div v-if="genMode === 'preset'">
       <div class="form-group">
         <label class="form-label">{{ t('fi.label_type') }}</label>
         <select class="form-select" v-model="selectedTypeId">
@@ -823,17 +503,17 @@ defineExpose({
       </div>
     </div>
 
-    <div v-if="mode !== 'remove' && genMode === 'compound'" class="form-group">
+    <div v-if="genMode === 'compound'" class="form-group">
       <label class="form-label">{{ t('fi.label_workflow') }}</label>
       <select class="form-select" v-model="selectedCompoundPresetId">
         <option :value="null" disabled>{{ t('fi.select_workflow') }}</option>
-        <option v-for="c in compoundPresets" :key="c.id" :value="c.id">{{ c.name }} ({{ c.steps.length }} steps)</option>
+        <option v-for="c in compoundPresets" :key="c.id" :value="c.id">{{ c.name }} ({{ t('common.steps_n', { count: c.steps.length }) }})</option>
       </select>
     </div>
 
-    <PresetOverridesPanel v-if="mode !== 'remove' && genMode === 'preset' && !kidsModeActive" ref="overridesPanel" v-model="presetOverrides" :preset-loras="selectedPresetLoras" />
+    <PresetOverridesPanel v-if="genMode === 'preset' && !kidsModeActive" ref="overridesPanel" v-model="presetOverrides" :preset-loras="selectedPresetLoras" />
 
-    <div v-if="mode !== 'remove'" class="form-group" style="margin-top: 12px;">
+    <div class="form-group" style="margin-top: 12px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
         <label class="form-label" style="margin-bottom: 0;">{{ t('fi.extracted_tags') }}</label>
         <div style="display: flex; gap: 6px;">
@@ -862,7 +542,7 @@ defineExpose({
     </div>
 
     <div style="display: flex; gap: 8px; width: 100%;">
-      <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center; padding: 12px;" @click="generate" :disabled="generatingImage || !source || ((mode === 'inpaint' || mode === 'remove') && !hasMask) || (mode !== 'remove' && (genMode === 'preset' ? !selectedPresetId : !selectedCompoundPresetId))">
+      <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center; padding: 12px;" @click="generate" :disabled="generatingImage || !source || (genMode === 'preset' ? !selectedPresetId : !selectedCompoundPresetId)">
         <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
           <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
           {{ progressLabel }}
@@ -913,12 +593,6 @@ defineExpose({
   width: 100%;
   accent-color: var(--accent);
 }
-.fi-btn-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
 .fi-folder-badge {
   display: inline-block;
   margin-top: 12px;
@@ -928,13 +602,6 @@ defineExpose({
   border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 12px;
-}
-.inpaint-controls {
-  margin-top: 12px;
-  padding: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
 }
 .remix-progress {
   margin-top: 10px;

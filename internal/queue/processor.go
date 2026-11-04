@@ -40,8 +40,6 @@ func (p *processor) ProcessJob(ctx context.Context, job *Job) (*JobResult, error
 		return p.processFromImage(job)
 	case JobCompound:
 		return p.processCompound(job)
-	case JobCompareItem:
-		return p.processCompareItem(ctx, job)
 	default:
 		return nil, fmt.Errorf("unknown job type: %s", job.Type)
 	}
@@ -91,44 +89,4 @@ func (p *processor) processCompound(job *Job) (*JobResult, error) {
 		}
 		return p.gen.GenerateCompoundImage(params)
 	})
-}
-
-func (p *processor) processCompareItem(ctx context.Context, job *Job) (*JobResult, error) {
-	var peek struct {
-		Mode string `json:"mode"`
-	}
-	json.Unmarshal([]byte(job.Params), &peek)
-
-	var results []generation.TestGenerateResultItem
-	var err error
-
-	if peek.Mode == "compounds" {
-		var params generation.TestCompoundGenerateParams
-		if err := json.Unmarshal([]byte(job.Params), &params); err != nil {
-			return nil, fmt.Errorf("invalid params: %w", err)
-		}
-		results, err = p.gen.TestCompoundGenerate(params)
-	} else {
-		var params generation.TestGenerateParams
-		if err := json.Unmarshal([]byte(job.Params), &params); err != nil {
-			return nil, fmt.Errorf("invalid params: %w", err)
-		}
-		results, err = p.gen.TestGenerate(params)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	resultJSON, _ := json.Marshal(results)
-
-	var imageBase64 string
-	if len(results) > 0 && results[0].Image != "" {
-		imageBase64 = results[0].Image
-	}
-
-	return &JobResult{
-		ImageBase64: imageBase64,
-		Info:        string(resultJSON),
-	}, nil
 }

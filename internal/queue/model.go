@@ -3,10 +3,9 @@ package queue
 type JobType string
 
 const (
-	JobTxt2Img     JobType = "txt2img"
-	JobFromImage   JobType = "from_image"
-	JobCompound    JobType = "compound"
-	JobCompareItem JobType = "compare_item"
+	JobTxt2Img   JobType = "txt2img"
+	JobFromImage JobType = "from_image"
+	JobCompound  JobType = "compound"
 )
 
 type JobStatus string

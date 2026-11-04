@@ -37,7 +37,7 @@ async function doImport() {
 </script>
 
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
+  <div class="modal-overlay">
     <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title">{{ t('pipeline_import.title', { count: pipelines.length }) }}</h2>
@@ -60,7 +60,7 @@ async function doImport() {
           <div class="import-item-info">
             <div class="import-item-name">{{ p.name || t('pipeline_import.untitled') }}</div>
             <div class="import-item-meta">
-              <span>{{ p.steps.length }} steps</span>
+              <span>{{ t('common.steps_n', { count: p.steps.length }) }}</span>
               <span v-if="p.description">{{ p.description }}</span>
             </div>
           </div>

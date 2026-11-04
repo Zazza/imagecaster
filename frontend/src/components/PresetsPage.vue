@@ -265,29 +265,29 @@ onMounted(load)
             <input v-if="selectMode" type="checkbox" :checked="selectedIds.has(p.id)" @change="togglePreset(p.id)" />
             <div class="preset-name">{{ p.name }}</div>
           </div>
-          <span class="preset-type">{{ p.preset_type || 'general' }}</span>
+          <span class="preset-type">{{ p.preset_type || t('presets.type_general') }}</span>
         </div>
-        <div class="preset-prompt">{{ p.prompt || '(no prompt)' }}</div>
+        <div class="preset-prompt">{{ p.prompt || t('presets.no_prompt') }}</div>
         <div class="preset-meta">
           <span>{{ p.sampler }}</span>
-          <span>{{ p.steps }} steps</span>
+          <span>{{ t('presets.meta_steps', { count: p.steps }) }}</span>
           <span>CFG {{ p.cfg_scale }}</span>
           <template v-if="getStatus(p.id)">
-            <span v-if="getStatus(p.id).installed" style="color: #4ade80;">installed</span>
+            <span v-if="getStatus(p.id).installed" style="color: #4ade80;">{{ t('presets.status_installed') }}</span>
             <span v-else style="color: #fbbf24;">
-              missing: {{ [...(getStatus(p.id).missing_sd || []), ...(getStatus(p.id).missing_lora || [])].join(', ') }}
+              {{ t('presets.status_missing') }} {{ [...(getStatus(p.id).missing_sd || []), ...(getStatus(p.id).missing_lora || [])].join(', ') }}
             </span>
           </template>
         </div>
         <div v-if="!selectMode && getStatus(p.id) && !getStatus(p.id).installed" class="preset-actions" style="margin-top: 4px;">
           <button class="btn btn-secondary btn-sm" @click="installDeps(p.id)" :disabled="installingId === p.id">
-            {{ installingId === p.id ? 'Installing...' : 'Install' }}
+            {{ installingId === p.id ? t('presets.btn_installing') : t('presets.btn_install') }}
           </button>
         </div>
         <div v-if="!selectMode" class="preset-actions">
           <button class="btn btn-secondary btn-sm" @click="openEdit(p)">{{ t('presets.btn_edit') }}</button>
           <button class="btn btn-secondary btn-sm" @click="handleDuplicate(p)">{{ t('presets.btn_duplicate') }}</button>
-          <button class="btn btn-danger btn-sm" @click="handleDelete(p.id)">{{ pendingDeleteId === p.id ? t('presets.btn_sure') : t('presets.btn_delete') }}</button>
+          <button class="btn btn-sm" :class="pendingDeleteId === p.id ? 'btn-danger' : 'btn-danger-quiet'" @click="handleDelete(p.id)">{{ pendingDeleteId === p.id ? t('presets.btn_sure') : t('presets.btn_delete') }}</button>
         </div>
       </div>
     </div>
@@ -307,13 +307,13 @@ onMounted(load)
       @close="showImport = false"
     />
 
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
+    <div v-if="showDeleteConfirm" class="modal-overlay">
       <div class="modal">
         <div class="modal-header">
           <h2 class="modal-title">{{ t('presets.delete_title') }}</h2>
           <button class="modal-close" @click="showDeleteConfirm = false">&times;</button>
         </div>
-        <p>{{ t('presets.delete_confirm') }} <strong>{{ selectedCount }}</strong> preset{{ selectedCount > 1 ? 's' : '' }}?</p>
+        <p>{{ t('presets.delete_confirm_n', { count: selectedCount }) }}</p>
         <p style="color: var(--text-dim); font-size: 0.9em;">{{ t('presets.delete_cannot_undo') }}</p>
         <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
           <button class="btn btn-secondary" @click="showDeleteConfirm = false">{{ t('presets.btn_cancel') }}</button>

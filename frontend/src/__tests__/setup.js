@@ -64,7 +64,6 @@ vi.mock('../../wailsjs/go/main/App.js', () => ({
   DeleteCompoundPreset: vi.fn(() => Promise.resolve()),
   GenerateCompoundImage: vi.fn(() => Promise.resolve({ image: '' })),
   BatchCompoundGenerate: vi.fn(() => Promise.resolve()),
-  TestCompoundGenerate: vi.fn(() => Promise.resolve([])),
   GenerateFromImage: vi.fn(() => Promise.resolve({ image: '', info: '{}' })),
   ClearLastImage: vi.fn(() => Promise.resolve()),
   ListExportPresets: vi.fn(() => Promise.resolve([])),

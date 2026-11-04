@@ -79,7 +79,7 @@ async function loadPath() {
   loadGeneration++
   const gen = loadGeneration
   try {
-    entries.value = await api.browseDirectory(currentPath.value)
+    entries.value = (await api.browseDirectory(currentPath.value)) || []
     if (gen !== loadGeneration) return
     requestAnimationFrame(() => observeCards())
   } catch (e) {
@@ -259,6 +259,7 @@ onUnmounted(() => {
 
 <template>
   <div class="file-browser">
+    <h1 class="page-title">{{ t('app.nav_my_images') }}</h1>
     <div class="fb-path-bar">
       <input
         v-model="currentPath"
@@ -269,7 +270,7 @@ onUnmounted(() => {
       <button class="btn btn-secondary" @click="browseFolder">
         <FolderOpen :size="14" /> {{ t('browser.btn_browse') }}
       </button>
-      <button class="btn btn-secondary" @click="goUp" :disabled="!currentPath">
+      <button class="btn btn-secondary" @click="goUp" :disabled="!currentPath" :title="t('browser.btn_up')" :aria-label="t('browser.btn_up')">
         <FolderUp :size="14" />
       </button>
       <button class="btn btn-primary" @click="loadPath" :disabled="!currentPath || loading">
@@ -468,7 +469,13 @@ onUnmounted(() => {
   object-fit: cover;
 }
 
+.fb-card-dir {
+  align-self: start;
+}
+
 .fb-thumb-dir {
+  aspect-ratio: auto;
+  height: 72px;
   background: var(--surface-1);
   color: var(--text-dim);
 }

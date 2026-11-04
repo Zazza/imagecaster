@@ -735,11 +735,11 @@ onMounted(loadSettings)
           <label class="form-label">{{ t('settings.label_model_generate') }}</label>
           <div style="display: flex; gap: 8px;">
             <select class="form-input" v-model="generateModel" style="flex: 1;">
-              <option value="">default</option>
+              <option value="">{{ t('settings.option_default') }}</option>
               <option v-for="m in connectionLLMModels" :key="m.id" :value="m.id">{{ m.id }}</option>
             </select>
             <button class="btn btn-secondary btn-sm" @click="loadConnectionLLMModels" :disabled="connectionLLMLoading">
-              {{ connectionLLMLoading ? '...' : 'Refresh' }}
+              {{ connectionLLMLoading ? '...' : t('settings.btn_refresh') }}
             </button>
           </div>
         </div>
@@ -825,29 +825,29 @@ onMounted(loadSettings)
         <div v-if="serverStatus" style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;">
           <div style="color: var(--text-bright); font-weight: 500; margin-bottom: 8px;">{{ t('settings.section_server_status') }}</div>
           <!-- Services -->
-          <div v-for="(proc, name) in serverStatus.processes" :key="name" v-show="proc.name && proc.category !== 'utility'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
+          <div v-for="(proc, name) in (serverStatus.processes || {})" :key="name" v-show="proc.name && proc.category !== 'utility'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
                 <span :style="{ color: proc.status === 'running' ? '#4ade80' : proc.status === 'starting' ? '#fbbf24' : '#f87171', marginLeft: '8px', fontSize: '12px' }">
-                  {{ proc.status === 'running' ? t('settings.process_running') : proc.status === 'starting' ? 'Starting...' : proc.status === 'crashed' ? 'Crashed' : t('settings.process_stopped') }}
+                  {{ proc.status === 'running' ? t('settings.process_running') : proc.status === 'starting' ? t('settings.process_starting') : proc.status === 'crashed' ? t('settings.process_crashed') : t('settings.process_stopped') }}
                 </span>
                 <span v-if="proc.pid" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">PID {{ proc.pid }}</span>
                 <span v-if="proc.uptime" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">{{ proc.uptime }}</span>
-                <span v-if="proc.restarts > 0" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">restarts: {{ proc.restarts }}</span>
+                <span v-if="proc.restarts > 0" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.process_restarts', { count: proc.restarts }) }}</span>
               </div>
               <div style="display: flex; gap: 6px;">
-                <button v-if="proc.status !== 'running' && proc.status !== 'starting'" class="btn btn-primary btn-sm" @click="startProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_start') || 'Start' }}</button>
-                <button v-if="proc.status === 'running'" class="btn btn-secondary btn-sm" @click="stopProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_stop') || 'Stop' }}</button>
-                <button v-if="proc.status === 'running'" class="btn btn-secondary btn-sm" @click="restartProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_restart') || 'Restart' }}</button>
-                <button class="btn btn-secondary btn-sm" @click="showProcessLogs(name)">Logs</button>
+                <button v-if="proc.status !== 'running' && proc.status !== 'starting'" class="btn btn-primary btn-sm" @click="startProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_start') }}</button>
+                <button v-if="proc.status === 'running'" class="btn btn-secondary btn-sm" @click="stopProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_stop') }}</button>
+                <button v-if="proc.status === 'running'" class="btn btn-secondary btn-sm" @click="restartProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_restart') }}</button>
+                <button class="btn btn-secondary btn-sm" @click="showProcessLogs(name)">{{ t('settings.btn_logs') }}</button>
               </div>
             </div>
             <div v-if="visibleLogs[name]" style="margin-top: 6px; padding: 8px; background: var(--bg-dark); border-radius: 4px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px; color: var(--text-dim);">
               <div v-if="processLogs[name] && processLogs[name].length > 0">
                 <div v-for="(line, i) in processLogs[name]" :key="i">{{ line }}</div>
               </div>
-              <div v-else style="color: var(--text-dim);">No logs available</div>
+              <div v-else style="color: var(--text-dim);">{{ t('settings.no_logs') }}</div>
             </div>
           </div>
           <!-- GPU -->
@@ -855,13 +855,13 @@ onMounted(loadSettings)
             {{ t('settings.gpu_vram', { name: serverStatus.gpu.name, used: serverStatus.gpu.memory_used_mb, total: serverStatus.gpu.memory_total_mb }) }}
           </div>
           <!-- Utilities (collapsed) -->
-          <div v-if="Object.values(serverStatus.processes).some(p => p.category === 'utility' && p.name)" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
+          <div v-if="Object.values(serverStatus.processes || {}).some(p => p.category === 'utility' && p.name)" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
             <div @click="utilitiesExpanded = !utilitiesExpanded" style="cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
               <span :style="{ transform: utilitiesExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', fontSize: '10px' }">&#9654;</span>
               {{ t('settings.section_utilities') }}
             </div>
             <div v-if="utilitiesExpanded">
-              <div v-for="(proc, name) in serverStatus.processes" :key="'u-'+name" v-show="proc.name && proc.category === 'utility' && name !== 'python'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
+              <div v-for="(proc, name) in (serverStatus.processes || {})" :key="'u-'+name" v-show="proc.name && proc.category === 'utility' && name !== 'python'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
                 <div>
                   <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
                   <span v-if="serverStatus.installs && serverStatus.installs[name]" :style="{ color: serverStatus.installs[name].installed ? '#4ade80' : '#f87171', marginLeft: '8px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: serverStatus.installs[name].installed ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)' }">
@@ -879,11 +879,11 @@ onMounted(loadSettings)
           <label class="form-label">{{ t('settings.label_model_generate') }}</label>
           <div style="display: flex; gap: 8px;">
             <select class="form-input" v-model="generateModel" style="flex: 1;">
-              <option value="">default</option>
+              <option value="">{{ t('settings.option_default') }}</option>
               <option v-for="m in serverModels.llm" :key="m.name" :value="m.name">{{ m.name }}</option>
             </select>
             <button class="btn btn-secondary btn-sm" @click="loadServerModels" :disabled="serverModelsLoading.llm">
-              {{ serverModelsLoading.llm ? '...' : 'Refresh' }}
+              {{ serverModelsLoading.llm ? '...' : t('settings.btn_refresh') }}
             </button>
           </div>
         </div>
@@ -920,8 +920,8 @@ onMounted(loadSettings)
       </div>
 
       <!-- LLM Parameters (shared) -->
-      <div class="card" style="margin-top: 16px;">
-        <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_llm_params') }}</h3>
+      <details class="settings-advanced">
+        <summary>{{ t('settings.section_llm_params') }}</summary>
         <div v-if="llmParamsSaved" class="status status-success" style="margin-bottom: 16px;">{{ t('settings.params_saved') }}</div>
         <div v-if="llmParamsError" class="status status-error" style="margin-bottom: 16px;">{{ llmParamsError }}</div>
 
@@ -982,7 +982,7 @@ onMounted(loadSettings)
         </div>
 
         <button class="btn btn-primary" @click="saveLLMParams" style="margin-top: 8px;">{{ t('settings.btn_save_params') }}</button>
-      </div>
+      </details>
     </div>
 
     <!-- Generation Tab (merged: Generation + Prompt) -->
@@ -1074,7 +1074,7 @@ onMounted(loadSettings)
 
       <div style="display: flex; gap: 8px;">
         <button class="btn btn-primary" @click="saveAnalyzePrompts">{{ t('settings.btn_save_prompts') }}</button>
-        <button class="btn btn-secondary" @click="resetAnalyzePrompts">Reset to Default</button>
+        <button class="btn btn-secondary" @click="resetAnalyzePrompts">{{ t('settings.btn_reset_default') }}</button>
       </div>
 
           <div class="form-group">
@@ -1184,11 +1184,11 @@ onMounted(loadSettings)
           <!-- SD Models -->
           <div class="card" style="margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="color: var(--text-bright);">SD Models</h3>
-              <button class="btn btn-secondary btn-sm" @click="loadServerModels">Refresh</button>
+              <h3 style="color: var(--text-bright);">{{ t('settings.title_sd_models') }}</h3>
+              <button class="btn btn-secondary btn-sm" @click="loadServerModels">{{ t('settings.btn_refresh') }}</button>
             </div>
             <div v-if="serverModelsLoading.sd" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="serverModels.sd.length === 0" style="color: var(--text-dim);">No models</div>
+            <div v-else-if="serverModels.sd.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
             <div v-for="m in serverModels.sd" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
               <div>
                 <div style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</div>
@@ -1219,7 +1219,7 @@ onMounted(loadSettings)
               <h3 style="color: var(--text-bright);">LoRA</h3>
             </div>
             <div v-if="serverModelsLoading.lora" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="serverModels.lora.length === 0" style="color: var(--text-dim);">No LoRAs</div>
+            <div v-else-if="serverModels.lora.length === 0" style="color: var(--text-dim);">{{ t('settings.no_loras') }}</div>
             <div v-else style="display: flex; flex-wrap: wrap; gap: 6px;">
               <span v-for="m in serverModels.lora" :key="m.name" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;">
                 <span style="font-size: 12px; color: var(--text);">{{ m.name }}</span>
@@ -1231,10 +1231,10 @@ onMounted(loadSettings)
           <!-- LLM Models -->
           <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="color: var(--text-bright);">LLM Models (Ollama)</h3>
+              <h3 style="color: var(--text-bright);">{{ t('settings.title_llm_models') }}</h3>
             </div>
             <div v-if="serverModelsLoading.llm" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="serverModels.llm.length === 0" style="color: var(--text-dim);">No models</div>
+            <div v-else-if="serverModels.llm.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
             <div v-for="m in serverModels.llm" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
               <span style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</span>
               <button class="btn btn-secondary btn-sm" @click="deleteLLMModel(m.name)" :disabled="modelActionLoading[`del_llm_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
@@ -1257,18 +1257,18 @@ onMounted(loadSettings)
     <!-- Catalog Tab (server mode only) -->
     <div v-if="activeTab === 'catalog' && connectionMode === 'server'">
       <div v-if="!modelCatalog" style="color: var(--text-dim); text-align: center; padding: 20px;">
-        <template v-if="modelCatalogError">Failed to load catalog: {{ modelCatalogError }}</template>
-        <template v-else>Loading catalog...</template>
+        <template v-if="modelCatalogError">{{ t('settings.catalog_error', { error: modelCatalogError }) }}</template>
+        <template v-else>{{ t('settings.catalog_loading') }}</template>
       </div>
       <template v-else>
         <!-- LLM Generate -->
         <div class="card" style="margin-bottom: 16px;">
-          <h3 style="color: var(--text-bright); margin-bottom: 12px;">LLM — Prompt Generation</h3>
+          <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.catalog_llm_prompt') }}</h3>
           <div v-for="m in modelCatalog.llm_generate" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
             <div>
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
-                <span v-if="isCatalogInstalled('llm', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">installed</span>
+                <span v-if="isCatalogInstalled('llm', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
                 <span v-if="m.recommended" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.description }} &mdash; {{ m.size_gb }} GB</div>
@@ -1281,12 +1281,12 @@ onMounted(loadSettings)
 
         <!-- LLM Vision -->
         <div class="card" style="margin-bottom: 16px;">
-          <h3 style="color: var(--text-bright); margin-bottom: 12px;">LLM — Image Analysis (Vision)</h3>
+          <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.catalog_llm_vision') }}</h3>
           <div v-for="m in modelCatalog.llm_vision" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
             <div>
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
-                <span v-if="isCatalogInstalled('llm', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">installed</span>
+                <span v-if="isCatalogInstalled('llm', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
                 <span v-if="m.recommended" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.description }} &mdash; {{ m.size_gb }} GB</div>
@@ -1299,13 +1299,13 @@ onMounted(loadSettings)
 
         <!-- SD Models -->
         <div class="card" style="margin-bottom: 16px;">
-          <h3 style="color: var(--text-bright); margin-bottom: 12px;">SD Models</h3>
+          <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.title_sd_models') }}</h3>
           <div v-for="m in modelCatalog.sd_models" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
             <div>
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
                 <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
-                <span v-if="isCatalogInstalled('sd', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">installed</span>
+                <span v-if="isCatalogInstalled('sd', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
                 <span v-if="m.recommended" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.category }} &mdash; {{ m.description }} &mdash; {{ m.size_gb }} GB</div>
@@ -1324,7 +1324,7 @@ onMounted(loadSettings)
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
                 <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
-                <span v-if="isCatalogInstalled('lora', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">installed</span>
+                <span v-if="isCatalogInstalled('lora', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.category }} &mdash; {{ m.description }} &mdash; {{ m.size_mb }} MB</div>
             </div>

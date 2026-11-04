@@ -25,6 +25,7 @@ const sessions = ref([])
 const activeSessionId = ref(0)
 const items = ref([])
 const thumbnails = ref({})
+const brokenThumbs = ref({})
 
 const itemContainer = ref(null)
 
@@ -46,8 +47,8 @@ let queueSubscribed = false
 let observer = null
 
 const services = reactive({
-  llm: { available: false, label: 'AI Assistant', model: '', visionModel: '', tab: 'connection' },
-  sd: { available: false, label: 'Image Engine', model: '', tab: 'connection' },
+  llm: { available: false, label: 'footer.ai_assistant', model: '', visionModel: '', tab: 'connection' },
+  sd: { available: false, label: 'footer.image_engine', model: '', tab: 'connection' },
 })
 
 const activeSessions = computed(() => (sessions.value || []).find(s => s.id === activeSessionId.value))
@@ -55,19 +56,39 @@ const itemCount = computed(() => {
   const s = activeSessions.value
   return s ? s.item_count : 0
 })
-const sourceLabels = {
-  'generate': 'Gen',
-  'from-image': 'FromImg',
-  'compound': 'Compound',
-  'compound-from-image': 'Cpd+FI',
-  'batch': 'Batch',
-  'test': 'Test',
-  'scene': 'Scene',
-  'upscale': 'Upscale',
-  'upscale-preview': 'UpscaleP',
-  'remove': 'Remove',
-  'file-browser': 'Browser',
-  'edit': 'Edit',
+const sourceLabelKeys = {
+  'generate': 'footer.source_generate',
+  'from-image': 'footer.source_from_image',
+  'compound': 'footer.source_compound',
+  'compound-from-image': 'footer.source_compound_from_image',
+  'batch': 'footer.source_batch',
+  'test': 'footer.source_test',
+  'scene': 'footer.source_scene',
+  'upscale': 'footer.source_upscale',
+  'upscale-preview': 'footer.source_upscale_preview',
+  'remove': 'footer.source_remove',
+  'file-browser': 'footer.source_file_browser',
+  'edit': 'footer.source_edit',
+  'object': 'footer.source_object',
+  'look': 'footer.source_look',
+  'compare': 'footer.source_compare',
+}
+
+function sourceLabel(source) {
+  const key = sourceLabelKeys[source]
+  return key ? t(key) : (source || '')
+}
+
+function serviceTitle(key, svc) {
+  let main
+  if (key === 'llm') {
+    main = svc.model || svc.visionModel
+      ? t('footer.status_models', { models: (svc.model || '') + (svc.visionModel ? ' / ' + svc.visionModel : '') })
+      : t('footer.status_no_model')
+  } else {
+    main = svc.model || t('footer.status_no_model')
+  }
+  return main + '\n' + t('footer.status_click_settings')
 }
 
 function chainSteps(item) {
@@ -82,14 +103,14 @@ function itemTitle(item) {
   if (meta) {
     let label = meta.label || ''
     if (!label && count > 0) label = t('footer.custom_mode')
-    if (!label) label = sourceLabels[item.source] || item.source || ''
+    if (!label) label = sourceLabel(item.source)
     if (label) lines.push(label)
     if (meta.model) lines.push(meta.model)
   } else {
     if (item.sampler) lines.push(item.sampler)
-    if (!lines.length) lines.push(sourceLabels[item.source] || item.source || '')
+    if (!lines.length) lines.push(sourceLabel(item.source))
   }
-  if (item.seed != null) lines.push('Seed: ' + item.seed)
+  if (item.seed != null) lines.push(t('footer.tooltip_seed', { seed: item.seed }))
   if (count > 1) lines.push(t('footer.tooltip_steps', { count }))
   return lines.join('\n')
 }
@@ -549,9 +570,9 @@ onUnmounted(() => {
         <span v-for="(svc, key) in services" :key="key"
               class="status-dot"
               :class="{ online: svc.available, offline: !svc.available }"
-              @click="goToService(key)" :title="(key === 'llm' ? (svc.model || svc.visionModel ? 'Models: ' + (svc.model || '') + (svc.visionModel ? ' / ' + svc.visionModel : '') : 'No model loaded') : (svc.model || 'No model loaded')) + '\nClick to open settings'">
+              @click="goToService(key)" :title="serviceTitle(key, svc)">
           <span class="dot-indicator" :class="{ online: svc.available }"></span>
-          {{ svc.label }}
+          {{ t(svc.label) }}
         </span>
       </div>
       <div class="footer-actions">
@@ -618,12 +639,12 @@ onUnmounted(() => {
         >
           <span v-if="chainSteps(item) > 1" class="si-steps-badge" aria-hidden="true">{{ chainSteps(item) }}</span>
           <div class="si-thumb">
-            <img v-if="thumbnails[item.id]" :src="thumbnails[item.id]" />
+            <img v-if="thumbnails[item.id] && !brokenThumbs[item.id]" :src="thumbnails[item.id]" alt="" @error="brokenThumbs[item.id] = true" />
             <Image v-else :size="24" class="si-placeholder" />
           </div>
           <div class="si-meta">
             <span class="si-time">{{ formatTime(item.created_at) }}</span>
-            <span class="si-source">{{ sourceLabels[item.source] || item.source }}</span>
+            <span class="si-source">{{ sourceLabel(item.source) }}</span>
           </div>
           <div class="si-actions" @click.stop>
             <button class="si-del-btn" @click="deleteItem(item.id)">
@@ -869,7 +890,7 @@ export default { name: 'AppFooter' }
 }
 
 .session-tool-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -902,7 +923,7 @@ export default { name: 'AppFooter' }
 }
 
 .session-delete-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.5;
   cursor: default;
 }
 

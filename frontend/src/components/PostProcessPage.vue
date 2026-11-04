@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { ChevronDown, Wand2, ImagePlus, Eye, EyeOff, Undo2, Redo2, Sparkles } from 'lucide-vue-next'
+import { ChevronDown, Wand2, ImagePlus, Eraser, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw } from 'lucide-vue-next'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { parseSeedInput } from '../seed.js'
@@ -10,6 +10,7 @@ import { usePresets } from '../composables/usePresets.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import EditSection from './EditSection.vue'
 import RemixSection from './RemixSection.vue'
+import ObjectSection from './ObjectSection.vue'
 import RecipeComposition from './RecipeComposition.vue'
 
 const props = defineProps({
@@ -22,14 +23,22 @@ const emit = defineEmits(['clear-initial-image'])
 const openSection = ref('effect')
 const editSectionRef = ref(null)
 const remixSectionRef = ref(null)
-const remixCompRef = ref(null)
+const objectSectionRef = ref(null)
+const objectCompRef = ref(null)
 const effectSectionRef = ref(null)
 const adjustSectionRef = ref(null)
+const exportSectionRef = ref(null)
+const recipesSectionRef = ref(null)
+const pipelineSectionRef = ref(null)
 
 function sectionEl(name) {
   if (name === 'edit') return editSectionRef.value
   if (name === 'remix') return remixSectionRef.value
+  if (name === 'object') return objectSectionRef.value
   if (name === 'adjust') return adjustSectionRef.value
+  if (name === 'export') return exportSectionRef.value
+  if (name === 'recipes') return recipesSectionRef.value
+  if (name === 'pipeline') return pipelineSectionRef.value
   return effectSectionRef.value
 }
 
@@ -284,12 +293,12 @@ const maskViewRef = ref(null)
 const brushing = ref(false)
 const brushCursor = ref({ x: 0, y: 0, visible: false })
 
-const maskMode = computed(() => openSection.value === 'remix' && !!remixCompRef.value?.maskActive)
-const brushDiameter = computed(() => remixCompRef.value?.brushSize || 30)
+const maskMode = computed(() => openSection.value === 'object' && !!objectCompRef.value?.maskActive)
+const brushDiameter = computed(() => objectCompRef.value?.brushSize || 30)
 const maskOverlayVisible = ref(true)
 
 function maskScale() {
-  const canvas = remixCompRef.value?.maskCanvas
+  const canvas = objectCompRef.value?.maskCanvas
   const el = splitWrapRef.value
   if (!canvas || !el || !canvas.width || !canvas.height) return 0
   const canvasFit = Math.min(el.clientWidth / canvas.width, el.clientHeight / canvas.height)
@@ -305,7 +314,7 @@ function brushRadius() {
 
 function pointerToImage(e) {
   const el = splitWrapRef.value
-  const canvas = remixCompRef.value?.maskCanvas
+  const canvas = objectCompRef.value?.maskCanvas
   const scale = maskScale()
   if (!el || !canvas || !scale) return null
   const rect = el.getBoundingClientRect()
@@ -318,7 +327,7 @@ function pointerToImage(e) {
 }
 
 function syncMaskView() {
-  const src = remixCompRef.value?.maskCanvas
+  const src = objectCompRef.value?.maskCanvas
   const view = maskViewRef.value
   if (!src || !view) return
   if (view.width !== src.width || view.height !== src.height) {
@@ -330,7 +339,7 @@ function syncMaskView() {
   ctx.drawImage(src, 0, 0)
 }
 
-watch(() => remixCompRef.value?.maskVersion, () => {
+watch(() => objectCompRef.value?.maskVersion, () => {
   if (maskMode.value) nextTick(syncMaskView)
 })
 watch(maskMode, (val) => {
@@ -359,7 +368,7 @@ function onViewPointerDown(e) {
     const p = pointerToImage(e)
     if (!p) return
     brushing.value = true
-    remixCompRef.value?.beginStroke(p.x, p.y, brushRadius())
+    objectCompRef.value?.beginStroke(p.x, p.y, brushRadius())
     e.currentTarget.setPointerCapture(e.pointerId)
     return
   }
@@ -376,7 +385,7 @@ function onViewPointerMove(e) {
     updateBrushCursor(e)
     if (brushing.value) {
       const p = pointerToImage(e)
-      if (p) remixCompRef.value?.strokeTo(p.x, p.y, brushRadius())
+      if (p) objectCompRef.value?.strokeTo(p.x, p.y, brushRadius())
     }
     return
   }
@@ -392,7 +401,7 @@ function onViewPointerMove(e) {
 function onViewPointerUp() {
   if (brushing.value) {
     brushing.value = false
-    remixCompRef.value?.endStroke()
+    objectCompRef.value?.endStroke()
     return
   }
   if (panning.value && panMovedDist > 4) {
@@ -501,7 +510,6 @@ function effectJobParams(b64, seed) {
     extra_negative_prompt: '',
     resolution_id: null,
     hires_profile_id: null,
-    remove_object: false,
     overrides: null,
     preserve_identity: true,
     seed: seed ?? null,
@@ -631,6 +639,18 @@ const layerUndo = ref([])
 const layerRedo = ref([])
 const canUndoLayer = computed(() => layerUndo.value.length > 0)
 const canRedoLayer = computed(() => layerRedo.value.length > 0)
+const canUndoView = computed(() => maskMode.value ? !!objectCompRef.value?.canUndoMask : canUndoLayer.value)
+const canRedoView = computed(() => maskMode.value ? !!objectCompRef.value?.canRedoMask : canRedoLayer.value)
+
+function undoView() {
+  if (maskMode.value) objectCompRef.value?.undoMask()
+  else undoLayer()
+}
+
+function redoView() {
+  if (maskMode.value) objectCompRef.value?.redoMask()
+  else redoLayer()
+}
 
 function pushLayerHistory() {
   if (!currentB64.value) return
@@ -826,8 +846,8 @@ function onPageKeydown(e) {
   e.preventDefault()
   const redo = isY || e.shiftKey
   if (maskMode.value) {
-    if (redo) remixCompRef.value?.redoMask()
-    else remixCompRef.value?.undoMask()
+    if (redo) objectCompRef.value?.redoMask()
+    else objectCompRef.value?.undoMask()
     return
   }
   if (redo) redoLayer()
@@ -981,6 +1001,7 @@ async function loadRecipes() {
 function openRecipeForm() {
   recipeName.value = ''
   showRecipeForm.value = true
+  setOpenSection('recipes')
 }
 
 async function saveRecipe() {
@@ -1030,7 +1051,6 @@ function recipeJobParams(presetId, strength, b64) {
     extra_negative_prompt: '',
     resolution_id: null,
     hires_profile_id: null,
-    remove_object: false,
     overrides: null,
     preserve_identity: true,
     seed: null,
@@ -1188,52 +1208,12 @@ async function doExport() {
   try {
     const path = await api.exportImage(exportParamsFor(filename.value, currentB64.value), adjustParams())
     if (path) {
-      successMsg.value = `Saved: ${path}`
+      successMsg.value = t('export.saved_to', { path })
     }
   } catch (e) {
     error.value = String(e)
   } finally {
     exporting.value = false
-  }
-}
-
-const sessionItems = ref([])
-const selectedSessionItemId = ref(null)
-const sessionExporting = ref(false)
-
-async function loadSessionItems() {
-  try {
-    sessionItems.value = await api.getSessionItems() || []
-    if (selectedSessionItemId.value && !sessionItems.value.find(i => i.id === selectedSessionItemId.value)) {
-      selectedSessionItemId.value = null
-    }
-  } catch {
-    sessionItems.value = []
-  }
-}
-
-async function exportFromSession() {
-  if (!selectedSessionItemId.value) return
-  sessionExporting.value = true
-  error.value = ''
-  successMsg.value = ''
-  try {
-    const path = await api.exportSessionItem(selectedSessionItemId.value, {
-      format: format.value,
-      width: width.value,
-      height: height.value,
-      lock_ratio: lockRatio.value,
-      quality: quality.value,
-      interpolation: interpolation.value,
-      filename: filename.value,
-    }, adjustParams())
-    if (path) {
-      successMsg.value = `Saved: ${path}`
-    }
-  } catch (e) {
-    error.value = String(e)
-  } finally {
-    sessionExporting.value = false
   }
 }
 
@@ -1516,10 +1496,10 @@ onMounted(async () => {
   await loadPresets()
   await loadExportPresets()
   await loadRecipes()
-  await loadSessionItems()
   consumeInitialImage()
   if (postQueue.value.length > 0) {
     folderQueue.value = postQueue.value
+    openSection.value = 'pipeline'
     clearPostQueue()
     try {
       const b64 = await api.readFileAsBase64(folderQueue.value[0].path)
@@ -1640,15 +1620,15 @@ onUnmounted(() => {
                   class="split-zoom-btn"
                   :title="t('post.undo')"
                   :aria-label="t('post.undo')"
-                  :disabled="!canUndoLayer"
-                  @click="undoLayer"
+                  :disabled="!canUndoView"
+                  @click="undoView"
                 ><Undo2 :size="14" /></button>
                 <button
                   class="split-zoom-btn"
                   :title="t('post.redo')"
                   :aria-label="t('post.redo')"
-                  :disabled="!canRedoLayer"
-                  @click="redoLayer"
+                  :disabled="!canRedoView"
+                  @click="redoView"
                 ><Redo2 :size="14" /></button>
                 <button
                   class="split-zoom-btn"
@@ -1728,7 +1708,22 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
-              <RemixSection ref="remixCompRef" :source="currentB64" :active="openSection === 'remix'" @result="onToolResult" @source="onRemixSource" />
+              <RemixSection :source="currentB64" :active="openSection === 'remix'" @result="onToolResult" @source="onRemixSource" />
+            </div>
+          </div>
+        </div>
+
+        <div ref="objectSectionRef" class="card" :class="{ collapsed: openSection !== 'object' }">
+          <div class="card-header card-toggle" @click="setOpenSection('object')">
+            <span class="card-title">
+              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'object' }" />
+              <Eraser :size="14" class="section-icon" />
+              {{ t('post.section_object') }}
+            </span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'object' }">
+            <div class="card-body">
+              <ObjectSection ref="objectCompRef" :source="currentB64" :active="openSection === 'object'" @result="onToolResult" />
             </div>
           </div>
         </div>
@@ -1794,13 +1789,14 @@ onUnmounted(() => {
             </div>
 
             <div class="form-group">
-              <label class="form-label">{{ t('post.effect_strength', { value: effectStrength.toFixed(2) }) }}</label>
-              <input type="range" class="form-range" v-model.number="effectStrength" min="0.35" max="0.65" step="0.01" />
-            </div>
-
-            <div class="form-group">
               <label class="form-label">{{ t('fi.seed_label') }}</label>
               <input class="form-input" type="number" v-model="effectSeedInput" min="0" step="1" :placeholder="t('fi.seed_placeholder')" />
+            </div>
+
+            <div class="fx-apply-bar">
+            <div class="form-group">
+              <label class="form-label">{{ t('post.effect_strength', { value: effectStrength.toFixed(2) }) }}</label>
+              <input type="range" class="form-range" v-model.number="effectStrength" min="0.35" max="0.65" step="0.01" />
             </div>
 
             <button
@@ -1815,6 +1811,7 @@ onUnmounted(() => {
               <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
               {{ t('post.applying') }}
             </button>
+            </div>
             <div v-if="appliedEffects.length" class="effect-log-row">
               <span>{{ t('post.recipe_log', { n: appliedEffects.length }) }}</span>
               <button
@@ -1855,7 +1852,18 @@ onUnmounted(() => {
                 >
                   <div class="adj-row-head">
                     <span class="adj-label">{{ t('post.' + key) }}</span>
-                    <span class="adj-value">{{ formatAdjust(key) }}</span>
+                    <span class="adj-value-wrap">
+                      <button
+                        v-if="adjust[key] !== sliderMeta[key].def"
+                        type="button"
+                        class="adj-reset"
+                        :data-testid="'adj-reset-' + key"
+                        :title="t('post.adjust_reset_one')"
+                        :aria-label="t('post.adjust_reset_one') + ': ' + t('post.' + key)"
+                        @click="resetAdjustKey(key)"
+                      ><RotateCcw :size="11" /></button>
+                      <span class="adj-value">{{ formatAdjust(key) }}</span>
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -1871,15 +1879,16 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div class="post-bottom">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">{{ t('export.export_settings') }}</span>
+        <div ref="exportSectionRef" class="card" :class="{ collapsed: openSection !== 'export' }">
+          <div class="card-header card-toggle" @click="setOpenSection('export')">
+            <span class="card-title">
+              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'export' }" />
+              {{ t('export.export_settings') }}
+            </span>
           </div>
-          <div class="card-body">
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'export' }">
+            <div class="card-body">
             <div class="form-group">
               <label class="form-label">{{ t('export.label_preset') }}</label>
               <div class="preset-row">
@@ -1938,25 +1947,7 @@ onUnmounted(() => {
             </button>
 
             <div class="form-divider"></div>
-
-            <div class="form-group">
-              <label class="form-label">{{ t('post.session_title') }}</label>
-              <select class="form-select" v-model.number="selectedSessionItemId">
-                <option :value="null">{{ t('post.session_select') }}</option>
-                <option v-for="i in sessionItems" :key="i.id" :value="i.id">{{ i.file_name }}</option>
-              </select>
-            </div>
-            <button class="btn btn-block" :disabled="sessionExporting || !selectedSessionItemId" @click="exportFromSession">
-              {{ sessionExporting ? t('export.exporting') : t('export.btn_export') }}
-            </button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">{{ t('export.saved_presets') }}</span>
-          </div>
-          <div class="card-body">
+            <div class="form-label">{{ t('export.saved_presets') }}</div>
             <div class="preset-list">
               <div v-if="!exportPresets.length" class="preset-empty">{{ t('export.no_presets') }}</div>
               <div
@@ -1989,17 +1980,22 @@ onUnmounted(() => {
                 <button class="btn btn-sm btn-secondary" @click="showPresetForm = false; editingPreset = null">{{ t('export.btn_cancel') }}</button>
               </div>
             </div>
+            </div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">{{ t('post.recipes_title') }}</span>
-            <div class="card-actions">
+        <div ref="recipesSectionRef" class="card" :class="{ collapsed: openSection !== 'recipes' }">
+          <div class="card-header card-toggle" @click="setOpenSection('recipes')">
+            <span class="card-title">
+              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'recipes' }" />
+              {{ t('post.recipes_title') }}
+            </span>
+            <div class="card-actions" @click.stop>
               <button class="btn btn-sm btn-secondary" :disabled="recipeRunning" @click="openRecipeForm">{{ t('post.recipe_save') }}</button>
             </div>
           </div>
-          <div class="card-body">
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'recipes' }">
+            <div class="card-body">
             <div class="preset-list">
               <div v-if="!recipes.length" class="preset-empty">{{ t('post.recipes_empty') }}</div>
               <div
@@ -2044,14 +2040,19 @@ onUnmounted(() => {
                 <button class="btn btn-sm btn-secondary" @click="showRecipeForm = false">{{ t('export.btn_cancel') }}</button>
               </div>
             </div>
+            </div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">{{ t('post.pipeline_title') }}</span>
+        <div ref="pipelineSectionRef" class="card" :class="{ collapsed: openSection !== 'pipeline' }">
+          <div class="card-header card-toggle" @click="setOpenSection('pipeline')">
+            <span class="card-title">
+              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'pipeline' }" />
+              {{ t('post.pipeline_title') }}
+            </span>
           </div>
-          <div class="card-body">
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'pipeline' }">
+            <div class="card-body">
             <div v-if="pipelineFolder" class="pipeline-folder">
               <span class="pipeline-folder-label">{{ t('post.pipeline_folder') }}:</span>
               <span class="pipeline-folder-path" :title="pipelineFolder">{{ pipelineFolder }}</span>
@@ -2081,8 +2082,10 @@ onUnmounted(() => {
               <div v-if="pipelineMsg" class="pipeline-result">{{ pipelineMsg }}</div>
               <div v-else class="preset-empty">{{ t('post.pipeline_empty') }}</div>
             </template>
+            </div>
           </div>
         </div>
+      </div>
     </div>
   </div>
 </template>
@@ -2109,6 +2112,7 @@ onUnmounted(() => {
 
 .post-preview-card {
   flex: 1;
+  padding: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -2127,14 +2131,7 @@ onUnmounted(() => {
 
 .post-controls > .card {
   flex-shrink: 0;
-}
-
-.post-bottom {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
-  align-items: start;
-  margin-top: 16px;
+  padding: 0;
 }
 
 .card-header {
@@ -2188,6 +2185,7 @@ onUnmounted(() => {
 .card-collapse > .card-body {
   min-height: 0;
   overflow: hidden;
+  overflow: clip;
   transition: padding 0.2s ease;
 }
 
@@ -2205,6 +2203,15 @@ onUnmounted(() => {
 .card-actions {
   display: flex;
   gap: 6px;
+}
+
+.card-actions .btn {
+  white-space: nowrap;
+}
+
+.post-preview-card .card-header {
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .card-body {
@@ -2463,8 +2470,22 @@ onUnmounted(() => {
 
 .fx-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.fx-apply-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 -16px;
+  padding: 10px 16px 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.fx-apply-bar .form-group {
+  margin-bottom: 8px;
 }
 
 .fx-grid-none {
@@ -2594,6 +2615,31 @@ onUnmounted(() => {
 .adj-label {
   font-size: 12px;
   color: var(--text);
+}
+
+.adj-value-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.adj-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.adj-reset:hover {
+  color: var(--accent);
+  background: var(--surface-2);
 }
 
 .adj-value {

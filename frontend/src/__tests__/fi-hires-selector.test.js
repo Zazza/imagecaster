@@ -57,13 +57,6 @@ describe('Remix section: hires profile selector', () => {
     expect(wrapper.text()).not.toContain(t('fi.hires_hint'))
   })
 
-  it('remove mode: selector absent even in compound genMode', async () => {
-    const wrapper = await mountSection({ fi_mode: 'remove', fi_gen_mode: 'compound' })
-
-    expect(hireSelector(wrapper).exists()).toBe(false)
-    expect(wrapper.text()).not.toContain(t('fi.hires_hint'))
-  })
-
   it('restore: valid fi_hires_profile_id selects profile', async () => {
     ListHiresProfiles.mockReturnValue(Promise.resolve([hiresProfile]))
     const wrapper = await mountSection({ fi_mode: 'img2img', fi_gen_mode: 'compound', fi_hires_profile_id: '7' })

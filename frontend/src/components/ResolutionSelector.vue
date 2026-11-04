@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n/index.js'
 
 const props = defineProps({
   modelValue: { type: Number, default: null },
@@ -112,8 +113,8 @@ onMounted(load)
 <template>
   <div class="selector-wrap">
     <div class="selector-header">
-      <label class="form-label">Resolution</label>
-      <button @click="showAdd = true; editing = false; newRes.name = ''; newRes.width = 512; newRes.height = 512" class="btn-icon" title="Add custom">+</button>
+      <label class="form-label">{{ t('res.label') }}</label>
+      <button @click="showAdd = true; editing = false; newRes.name = ''; newRes.width = 512; newRes.height = 512" class="btn-icon" :title="t('res.add_custom')" :aria-label="t('res.add_custom')">+</button>
     </div>
     <select v-model="selectedId" @change="emitChange" class="form-select">
       <option :value="null">{{ noneLabel }}</option>
@@ -122,16 +123,16 @@ onMounted(load)
       </option>
     </select>
     <div v-if="showAdd" class="selector-inline">
-      <input v-model="newRes.name" placeholder="Name" class="form-input" />
-      <input v-model.number="newRes.width" type="number" placeholder="Width" class="form-input" step="64" min="64" max="4096" />
-      <input v-model.number="newRes.height" type="number" placeholder="Height" class="form-input" step="64" min="64" max="4096" />
-      <button v-if="!editing" @click="addResolution" class="btn btn-sm">Add</button>
-      <button v-if="editing" @click="saveEdit" class="btn btn-sm">Save</button>
-      <button @click="resetForm" class="btn btn-sm btn-secondary">Cancel</button>
+      <input v-model="newRes.name" :placeholder="t('res.name')" class="form-input" />
+      <input v-model.number="newRes.width" type="number" :placeholder="t('res.width')" class="form-input" step="64" min="64" max="4096" />
+      <input v-model.number="newRes.height" type="number" :placeholder="t('res.height')" class="form-input" step="64" min="64" max="4096" />
+      <button v-if="!editing" @click="addResolution" class="btn btn-sm">{{ t('res.add') }}</button>
+      <button v-if="editing" @click="saveEdit" class="btn btn-sm">{{ t('res.save') }}</button>
+      <button @click="resetForm" class="btn btn-sm btn-secondary">{{ t('res.cancel') }}</button>
     </div>
     <div v-if="selectedResolution && !selectedResolution.is_builtin && !showAdd" class="selector-manage">
-      <button @click="startEdit" class="btn btn-sm">Edit</button>
-      <button @click="removeResolution" class="btn btn-sm btn-danger">Delete</button>
+      <button @click="startEdit" class="btn btn-sm">{{ t('res.edit') }}</button>
+      <button @click="removeResolution" class="btn btn-sm btn-danger">{{ t('res.delete') }}</button>
     </div>
   </div>
 </template>

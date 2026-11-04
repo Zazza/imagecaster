@@ -156,10 +156,10 @@ func (s *Service) applyHiresOnLastStep(p *preset.Preset, lastImage, prompt, negP
 	return lastImage, nil, false
 }
 
-func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, prompt, negPrompt, samplerName string, width, height, clipSkip int, mode string, denoisingStrength float64, mask string, maskBlur, inpaintFill int, inpaintFullRes bool, stepNum int) (image string, info json.RawMessage, err error) {
+func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, prompt, negPrompt, samplerName string, width, height, clipSkip int, mode string, denoisingStrength float64, stepNum int) (image string, info json.RawMessage, err error) {
 	batchSize := 1
 	batchCount := 1
-	if mode == "img2img" || mode == "inpaint" {
+	if mode == "img2img" {
 		denoising := denoisingStrength
 		if denoising <= 0 {
 			denoising = 0.5
@@ -181,17 +181,6 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 			BatchCount:        &batchCount,
 			DoNotSaveImages:   true,
 			DoNotSaveGrid:     true,
-		}
-		if mode == "inpaint" {
-			mb := maskBlur
-			if mb <= 0 {
-				mb = 4
-			}
-			req.Mask = mask
-			req.MaskBlur = mb
-			req.InpaintingFill = inpaintFill
-			req.InpaintFullRes = inpaintFullRes
-			req.InpaintFullResPadding = 32
 		}
 		result, err := s.sd.Img2Img(req)
 		if err != nil {

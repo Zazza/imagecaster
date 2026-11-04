@@ -23,14 +23,14 @@ async function mountPage(settings = {}, section = '') {
   return wrapper
 }
 
-describe('Remix mask mode on post-process preview', () => {
+describe('Object section mask on post-process preview', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearEventMocks()
   })
 
-  it('remix section open + inpaint mode: preview switches to mask painting', async () => {
-    const wrapper = await mountPage({ fi_mode: 'inpaint' }, 'remix')
+  it('object section open: preview switches to mask painting', async () => {
+    const wrapper = await mountPage({}, 'object')
     await wrapper.setProps({ initialImage: 'aW1n' })
     await flushPromises()
 
@@ -42,8 +42,8 @@ describe('Remix mask mode on post-process preview', () => {
     expect(wrapper.find('.brush-cursor').exists()).toBe(true)
   })
 
-  it('remix section open + img2img mode: no mask layer, panning behaviour kept', async () => {
-    const wrapper = await mountPage({ fi_mode: 'img2img' }, 'remix')
+  it('remix section open: no mask layer, panning behaviour kept', async () => {
+    const wrapper = await mountPage({ fi_mode: 'inpaint' }, 'remix')
     await wrapper.setProps({ initialImage: 'aW1n' })
     await flushPromises()
 
@@ -52,8 +52,8 @@ describe('Remix mask mode on post-process preview', () => {
     expect(wrapper.find('canvas.split-mask').exists()).toBe(false)
   })
 
-  it('other section open: mask layer hidden even in inpaint mode', async () => {
-    const wrapper = await mountPage({ fi_mode: 'inpaint' }, 'edit')
+  it('edit section open: mask layer hidden', async () => {
+    const wrapper = await mountPage({}, 'edit')
     await wrapper.setProps({ initialImage: 'aW1n' })
     await flushPromises()
 

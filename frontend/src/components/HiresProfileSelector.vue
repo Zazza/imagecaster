@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
 import { api } from '../api.js'
+import { t } from '../i18n/index.js'
 
 const props = defineProps({
   modelValue: { type: Number, default: null },
@@ -115,27 +116,27 @@ onMounted(load)
 <template>
   <div class="selector-wrap">
     <div class="selector-header">
-      <label class="form-label">Hires Profile</label>
-      <button @click="showAdd = true; editing = false; newProfile.name = ''; newProfile.upscale = 2.0; newProfile.denoising_strength = 0.5; newProfile.upscaler = ''" class="btn-icon" title="Add custom">+</button>
+      <label class="form-label">{{ t('hires.label') }}</label>
+      <button @click="showAdd = true; editing = false; newProfile.name = ''; newProfile.upscale = 2.0; newProfile.denoising_strength = 0.5; newProfile.upscaler = ''" class="btn-icon" :title="t('hires.title_add')">+</button>
     </div>
     <select v-model="selectedId" @change="emitChange" class="form-select">
-      <option :value="null">No hires</option>
+      <option :value="null">{{ t('hires.none') }}</option>
       <option v-for="h in sorted" :key="h.id" :value="h.id">
-        {{ h.name }} ({{ h.upscale }}x, denoise {{ h.denoising_strength }})
+        {{ h.name }} {{ t('hires.option_params', { upscale: h.upscale, denoise: h.denoising_strength }) }}
       </option>
     </select>
     <div v-if="showAdd" class="selector-inline">
-      <input v-model="newProfile.name" placeholder="Name" class="form-input" />
-      <input v-model.number="newProfile.upscale" type="number" placeholder="Upscale" class="form-input" step="0.5" min="1" max="4" />
-      <input v-model.number="newProfile.denoising_strength" type="number" placeholder="Denoise" class="form-input" step="0.05" min="0" max="1" />
-      <input v-model="newProfile.upscaler" placeholder="Upscaler" class="form-input" />
-      <button v-if="!editing" @click="addProfile" class="btn btn-sm">Add</button>
-      <button v-if="editing" @click="saveEdit" class="btn btn-sm">Save</button>
-      <button @click="resetForm" class="btn btn-sm btn-secondary">Cancel</button>
+      <input v-model="newProfile.name" :placeholder="t('hires.placeholder_name')" class="form-input" />
+      <input v-model.number="newProfile.upscale" type="number" :placeholder="t('hires.placeholder_upscale')" class="form-input" step="0.5" min="1" max="4" />
+      <input v-model.number="newProfile.denoising_strength" type="number" :placeholder="t('hires.placeholder_denoise')" class="form-input" step="0.05" min="0" max="1" />
+      <input v-model="newProfile.upscaler" :placeholder="t('hires.placeholder_upscaler')" class="form-input" />
+      <button v-if="!editing" @click="addProfile" class="btn btn-sm">{{ t('hires.btn_add') }}</button>
+      <button v-if="editing" @click="saveEdit" class="btn btn-sm">{{ t('hires.btn_save') }}</button>
+      <button @click="resetForm" class="btn btn-sm btn-secondary">{{ t('hires.btn_cancel') }}</button>
     </div>
     <div v-if="selectedProfile && !selectedProfile.is_builtin && !showAdd" class="selector-manage">
-      <button @click="startEdit" class="btn btn-sm">Edit</button>
-      <button @click="removeProfile" class="btn btn-sm btn-danger">Delete</button>
+      <button @click="startEdit" class="btn btn-sm">{{ t('hires.btn_edit') }}</button>
+      <button @click="removeProfile" class="btn btn-sm btn-danger">{{ t('hires.btn_delete') }}</button>
     </div>
   </div>
 </template>

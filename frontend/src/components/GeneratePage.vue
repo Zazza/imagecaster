@@ -9,6 +9,7 @@ import { t } from '../i18n/index.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
 import { usePresets } from '../composables/usePresets.js'
+import { runIdeasBatch } from '../ideasBatch.js'
 import SavedDescriptionsModal from './SavedDescriptionsModal.vue'
 import ImageViewer from './ImageViewer.vue'
 import ResolutionSelector from './ResolutionSelector.vue'
@@ -52,6 +53,7 @@ const generatingImage = ref(false)
 const { llmStatus, sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 const generationStage = ref('')
 const error = ref('')
+const successMsg = ref('')
 let promptDirty = true
 let currentDescId = null
 let lastUsedDescText = ''
@@ -104,10 +106,114 @@ const customValid = computed(() => customSteps.value.length > 0 && customSteps.v
 const customFirstPresetId = computed(() => (customSteps.value.length && customSteps.value[0].preset_id) || null)
 
 const generateDisabled = computed(() => {
+  if (ideasBatchRunning.value) return true
   if (genMode.value === 'preset') return !selectedPresetId.value
   if (genMode.value === 'custom') return !customValid.value
   return !selectedCompoundPresetId.value
 })
+
+const ideasBatchRunning = ref(false)
+const ideasBatchProgress = ref(null)
+let ideasBatchStopped = false
+
+const ideasBatchTarget = computed(() => {
+  if (genMode.value === 'preset') {
+    const p = presets.value.find(x => x.id === selectedPresetId.value)
+    return p ? t('descriptions.batch_target_preset', { name: p.name }) : ''
+  }
+  if (genMode.value === 'custom') return customValid.value ? t('descriptions.batch_target_custom', { n: customSteps.value.length }) : ''
+  const c = compoundPresets.value.find(x => x.id === selectedCompoundPresetId.value)
+  return c ? t('descriptions.batch_target_workflow', { name: c.name }) : ''
+})
+
+const ideasBatchDisabled = computed(() => {
+  if (genMode.value === 'preset') return selectedPresetId.value ? '' : t('descriptions.batch_no_style')
+  if (genMode.value === 'custom') return customValid.value ? '' : t('descriptions.batch_bad_custom')
+  return selectedCompoundPresetId.value ? '' : t('descriptions.batch_no_workflow')
+})
+
+function ideaDisplayName(desc) {
+  if (desc.name) return desc.name
+  const text = desc.text || ''
+  return text.length > 40 ? text.slice(0, 40) + '…' : text
+}
+
+async function runIdeasBatchFromModal({ ids, perIdea }) {
+  if (ideasBatchRunning.value || ideasBatchDisabled.value) return
+  const byId = new Map(savedDescs.value.map(d => [d.id, d]))
+  const ideas = (ids || []).map(id => byId.get(id)).filter(Boolean)
+  if (!ideas.length) return
+
+  const mode = genMode.value
+  const presetId = selectedPresetId.value
+  const compoundId = selectedCompoundPresetId.value
+  const ov = presetOverrides.value
+  const customPayload = customStepsPayload(customSteps.value, presets.value)
+  const resId = selectedResolutionId.value
+  const hiresId = selectedHiresProfileId.value
+
+  saveGenState()
+  if (enqueuedJobIds.value.size === 0) {
+    resetProgress()
+    batchTotal.value = 0
+    batchDone.value = 0
+  }
+  ideasBatchStopped = false
+  ideasBatchRunning.value = true
+  ideasBatchProgress.value = { done: 0, total: ideas.length, errors: [] }
+  error.value = ''
+  successMsg.value = ''
+
+  try {
+    const res = await runIdeasBatch({
+      ideas,
+      perIdea,
+      isStopped: () => ideasBatchStopped,
+      generatePrompt: (idea) => ({ prompt: idea.text || '', negative_prompt: idea.negative_prompt || '' }),
+      enqueue: async ({ prompt, negative_prompt }) => {
+        const common = { extra_prompt: '', extra_negative_prompt: '', idea: prompt, idea_negative: negative_prompt, resolution_id: resId, hires_profile_id: hiresId }
+        let jobId
+        if (mode === 'compound') jobId = await api.enqueueCompound({ compound_preset_id: compoundId, ...common })
+        else if (mode === 'custom') jobId = await api.enqueueCompound({ steps: customPayload, ...common, seed: null })
+        else jobId = await api.enqueueTxt2Img({ preset_id: presetId, ...common, overrides: ov, seed: null })
+        if (jobId) {
+          enqueuedJobIds.value.add(jobId)
+          batchTotal.value++
+          generatingImage.value = true
+          generationStage.value = 'image'
+        }
+        return jobId
+      },
+      onProgress: ({ done, total }) => {
+        ideasBatchProgress.value = { ...ideasBatchProgress.value, done, total }
+      },
+    })
+    ideasBatchProgress.value = {
+      ...ideasBatchProgress.value,
+      errors: res.errors.map(e => ({ name: ideaDisplayName(e.idea), error: e.error === 'empty prompt' ? t('descriptions.batch_empty_idea') : e.error })),
+    }
+    if (res.jobIds.length) {
+      successMsg.value = t('descriptions.batch_done', { n: res.jobIds.length })
+      ideasBatchProgress.value = { ...ideasBatchProgress.value, message: successMsg.value }
+    }
+  } catch (e) {
+    error.value = String(e)
+  } finally {
+    ideasBatchRunning.value = false
+    if (enqueuedJobIds.value.size === 0) {
+      generatingImage.value = false
+      generationStage.value = ''
+    }
+  }
+}
+
+watch(showSavedDescs, (open) => {
+  if (open && !ideasBatchRunning.value) ideasBatchProgress.value = null
+})
+
+function stopIdeasBatch() {
+  ideasBatchStopped = true
+}
 
 const imageSrc = computed(() => {
   if (!generatedImage.value) return ''
@@ -253,6 +359,7 @@ async function sendToSD() {
 }
 
 async function generateImage() {
+  if (ideasBatchRunning.value) return
   if (genMode.value === 'compound' && !selectedCompoundPresetId.value) {
     error.value = t('generate.error_select_workflow')
     return
@@ -660,6 +767,7 @@ function onQueuePaused(data) {
 }
 
 async function interruptBatch() {
+  ideasBatchStopped = true
   if (enqueuedJobIds.value.size > 0) {
     try { await api.cancelQueue() } catch {}
     enqueuedJobIds.value = new Set()
@@ -846,6 +954,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  ideasBatchStopped = true
   offCompleted()
   offFailed()
   offSessionAdded()
@@ -866,11 +975,7 @@ onUnmounted(() => {
 })
 
 function onKeydown(e) {
-  if (e.key === 'Escape' && showSavedDescs.value) {
-    showSavedDescs.value = false
-    return
-  }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !generatingImage.value) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !generatingImage.value && !ideasBatchRunning.value) {
     e.preventDefault()
     generateImage()
   }
@@ -893,6 +998,7 @@ function onKeydown(e) {
       &#9888; {{ error }}
     </div>
     <div v-if="error === 'interrupted'" class="status status-warning">{{ error }}</div>
+    <div v-if="successMsg && !error" class="status status-success">{{ successMsg }}</div>
     <div v-if="pipelineSavedMsg" class="status status-ok">&#10003; {{ pipelineSavedMsg }}</div>
 
     <div class="generate-layout">
@@ -931,7 +1037,7 @@ function onKeydown(e) {
             <label class="form-label">{{ t('generate.label_workflow') }}</label>
             <select class="form-select" v-model="selectedCompoundPresetId">
               <option :value="null" disabled>{{ t('generate.select_workflow') }}</option>
-              <option v-for="c in compoundPresets" :key="c.id" :value="c.id">{{ c.name }} ({{ c.steps.length }} steps)</option>
+              <option v-for="c in compoundPresets" :key="c.id" :value="c.id">{{ c.name }} ({{ t('common.steps_n', { count: c.steps.length }) }})</option>
             </select>
           </div>
 
@@ -963,7 +1069,10 @@ function onKeydown(e) {
               </span>
               <span v-else>{{ genCount <= 1 ? t('generate.btn_generate') : t('generate.btn_generate_n', { count: genCount }) }}</span>
             </button>
-            <input class="form-input" type="number" v-model.number="genCount" min="1" max="100" style="width: 70px; text-align: center;" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
+            <label class="gen-count" :title="t('generate.count_title')">
+              <input class="form-input" type="number" v-model.number="genCount" min="1" max="100" :aria-label="t('generate.count_title')" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
+              <span class="gen-count-unit">{{ t('generate.count_unit') }}</span>
+            </label>
           </div>
           <div v-if="isDesktop" class="shortcut-hint">{{ t('generate.shortcut_hint') }}</div>
 
@@ -990,31 +1099,28 @@ function onKeydown(e) {
                     <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ genMode === 'custom' ? t('generate.seed_hint_custom') : t('generate.seed_hint') }}</div>
                   </div>
                   <PresetOverridesPanel v-if="genMode === 'preset' && !kidsModeActive" ref="overridesPanel" v-model="presetOverrides" :preset-loras="selectedPresetLoras" />
+                  <div v-if="!kidsModeActive" class="direct-prompt">
+                    <div class="direct-prompt-title">{{ t('generate.advanced_options') }}</div>
+                    <div class="form-group">
+                      <label class="form-label">{{ t('generate.label_positive_prompt') }}</label>
+                      <textarea class="form-textarea" v-model="extraPrompt" rows="4" :placeholder="t('generate.placeholder_positive_prompt')"></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">{{ t('generate.label_negative_prompt') }}</label>
+                      <textarea class="form-textarea" v-model="extraNegativePrompt" rows="2" :placeholder="t('generate.placeholder_negative_prompt')"></textarea>
+                    </div>
+                    <button class="btn btn-secondary" style="width: 100%; justify-content: center;" @click="sendToSD" :disabled="generateDisabled || !extraPrompt">
+                      {{ t('generate.btn_generate_directly') }}
+                    </button>
+                  </div>
+                  <div v-else class="direct-prompt" style="text-align: center; font-size: 12px; color: var(--text-dim);">
+                    {{ t('generate.safe_prompt_disabled') }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Zone 3: Advanced (existing details) -->
-          <details v-if="!kidsModeActive" style="margin-top: 8px;" class="card">
-            <summary style="cursor: pointer; color: var(--text-dim); font-size: 13px; padding: 8px;">{{ t('generate.advanced_options') }}</summary>
-            <div style="margin-top: 8px;">
-              <div class="form-group">
-                <label class="form-label">{{ t('generate.label_positive_prompt') }}</label>
-                <textarea class="form-textarea" v-model="extraPrompt" rows="4" :placeholder="t('generate.placeholder_positive_prompt')"></textarea>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ t('generate.label_negative_prompt') }}</label>
-                <textarea class="form-textarea" v-model="extraNegativePrompt" rows="2" :placeholder="t('generate.placeholder_negative_prompt')"></textarea>
-              </div>
-              <button class="btn btn-secondary" style="width: 100%; justify-content: center;" @click="sendToSD" :disabled="generateDisabled || !extraPrompt">
-                {{ t('generate.btn_generate_directly') }}
-              </button>
-            </div>
-          </details>
-          <div v-else style="margin-top: 8px; padding: 8px; background: var(--surface-2); border-radius: 6px; text-align: center; font-size: 12px; color: var(--text-dim);">
-            {{ t('generate.safe_prompt_disabled') }}
-          </div>
         </div>
       </div>
 
@@ -1070,10 +1176,10 @@ function onKeydown(e) {
               <button v-if="isPreview && previewMode" class="btn btn-sm btn-secondary" @click="upscalePreview">{{ t('generate.btn_upscale_full') }}</button>
               <button v-if="!isPreview && savedPreview" class="btn btn-sm btn-secondary" @click="backToPreview">{{ t('generate.btn_back_preview') }}</button>
               <button v-if="generatedImage && !isPreview" class="btn btn-sm btn-secondary" @click="upscaleImageX2" :disabled="upscalingX2">{{ t('generate.btn_upscale_x2') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="downloadImage" data-tooltip="Download">{{ t('generate.btn_download') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="copyPrompt" data-tooltip="Copy prompt">{{ t('generate.btn_copy') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="generateImage" data-tooltip="Regenerate">{{ t('generate.btn_regenerate') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="toPostProcess" :disabled="!generatedImage" data-tooltip="Post-process">{{ t('post.btn_send') }}</button>
+              <button class="btn btn-sm btn-secondary" @click="downloadImage">{{ t('generate.btn_download') }}</button>
+              <button class="btn btn-sm btn-secondary" @click="copyPrompt">{{ t('generate.btn_copy') }}</button>
+              <button class="btn btn-sm btn-secondary" @click="generateImage">{{ t('generate.btn_regenerate') }}</button>
+              <button class="btn btn-sm btn-secondary" @click="toPostProcess" :disabled="!generatedImage">{{ t('post.btn_send') }}</button>
             </div>
           </div>
           <div v-else class="generate-placeholder">
@@ -1110,6 +1216,12 @@ function onKeydown(e) {
       @create="handleCreateDesc"
       @update="handleUpdateDesc"
       @delete="deleteDescription"
+      :batch-target="ideasBatchTarget"
+      :batch-running="ideasBatchRunning"
+      :batch-progress="ideasBatchProgress"
+      :batch-disabled="ideasBatchDisabled"
+      @batch="runIdeasBatchFromModal"
+      @batch-stop="stopIdeasBatch"
     />
 
     <ImageViewer v-if="showViewer" :image-base64="generatedImage" @close="showViewer = false" />

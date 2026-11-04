@@ -320,9 +320,9 @@ onUnmounted(() => {
         </div>
         <div class="viewer-params">
           <span v-if="item.sampler">{{ item.sampler }}</span>
-          <span v-if="item.steps">Steps: {{ item.steps }}</span>
-          <span v-if="item.cfg_scale">CFG: {{ item.cfg_scale }}</span>
-          <span v-if="item.seed != null">Seed: {{ item.seed }}</span>
+          <span v-if="item.steps">{{ t('viewer.info_steps') }} {{ item.steps }}</span>
+          <span v-if="item.cfg_scale">{{ t('viewer.info_cfg') }} {{ item.cfg_scale }}</span>
+          <span v-if="item.seed != null">{{ t('viewer.info_seed') }} {{ item.seed }}</span>
           <span v-if="item.denoising">D: {{ item.denoising }}</span>
           <span v-if="item.width && item.height">{{ item.width }}&times;{{ item.height }}</span>
         </div>

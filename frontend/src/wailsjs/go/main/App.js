@@ -154,8 +154,8 @@ export function EditImage(arg1) {
   return window['go']['main']['App']['EditImage'](arg1);
 }
 
-export function EnqueueCompareItem(arg1, arg2) {
-  return window['go']['main']['App']['EnqueueCompareItem'](arg1, arg2);
+export function EditObject(arg1) {
+  return window['go']['main']['App']['EditObject'](arg1);
 }
 
 export function EnqueueCompound(arg1) {
@@ -180,10 +180,6 @@ export function ExportImage(arg1) {
 
 export function ExportPresets(arg1) {
   return window['go']['main']['App']['ExportPresets'](arg1);
-}
-
-export function ExportSessionItem(arg1, arg2) {
-  return window['go']['main']['App']['ExportSessionItem'](arg1, arg2);
 }
 
 export function FastSaveImage(arg1, arg2, arg3) {
@@ -520,14 +516,6 @@ export function SwitchServerBackend(arg1) {
 
 export function SwitchSession(arg1) {
   return window['go']['main']['App']['SwitchSession'](arg1);
-}
-
-export function TestCompoundGenerate(arg1) {
-  return window['go']['main']['App']['TestCompoundGenerate'](arg1);
-}
-
-export function TestGenerate(arg1) {
-  return window['go']['main']['App']['TestGenerate'](arg1);
 }
 
 export function UpdateCompoundPreset(arg1) {

@@ -56,7 +56,7 @@ async function doImport() {
 </script>
 
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
+  <div class="modal-overlay">
     <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title">{{ t('import.title', { count: presets.length, files: fileCount, plural: fileCount > 1 ? 's' : '' }) }}</h2>

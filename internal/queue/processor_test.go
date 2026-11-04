@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -91,5 +92,31 @@ func TestEventPayload_QualityFlagsSerialization(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestProcessJob_LegacyCompareItemIsUnknownJobType(t *testing.T) {
+	p := NewProcessor(nil, nil, t.TempDir(), &mockEmitter{})
+	job := &Job{Type: JobType("compare_item"), Params: `{"mode":"compounds"}`}
+
+	var res *JobResult
+	var err error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("ProcessJob panicked on legacy compare_item job: %v", r)
+			}
+		}()
+		res, err = p.ProcessJob(context.Background(), job)
+	}()
+
+	if err == nil {
+		t.Fatal("expected error for legacy compare_item job, got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown job type") {
+		t.Errorf("error = %q, want it to contain %q", err.Error(), "unknown job type")
+	}
+	if res != nil {
+		t.Errorf("result = %+v, want nil", res)
 	}
 }

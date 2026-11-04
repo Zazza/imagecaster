@@ -67,32 +67,19 @@ describe('Remix section: seed and quality mode fields by genMode', () => {
 
     expect(seedInput(wrapper).element.disabled).toBe(false)
     expect(qualityCheckbox(wrapper).element.disabled).toBe(true)
-    expect(wrapper.text()).toContain(t('fi.quality_hint'))
+    expect(wrapper.text()).not.toContain(t('fi.quality_hint'))
     expect(wrapper.text()).toContain(t('fi.quality_needs_resolution'))
     expect(wrapper.text()).not.toContain(t('fi.preset_only'))
   })
 
-  it('preset inpaint mode: seed enabled, quality checkbox absent', async () => {
-    const wrapper = await mountSection({ fi_mode: 'inpaint', fi_gen_mode: 'preset' })
+  it('legacy saved inpaint/remove mode is ignored: remix stays img2img', async () => {
+    for (const legacy of ['inpaint', 'remove']) {
+      const wrapper = await mountSection({ fi_mode: legacy, fi_gen_mode: 'preset' })
 
-    expect(seedInput(wrapper).exists()).toBe(true)
-    expect(seedInput(wrapper).element.disabled).toBe(false)
-    expect(qualityCheckbox(wrapper).exists()).toBe(false)
-  })
-
-  it('compound inpaint mode: seed disabled with preset-only hint, quality checkbox absent', async () => {
-    const wrapper = await mountSection({ fi_mode: 'inpaint', fi_gen_mode: 'compound' })
-
-    expect(seedInput(wrapper).exists()).toBe(true)
-    expect(seedInput(wrapper).element.disabled).toBe(true)
-    expect(wrapper.text()).toContain(t('fi.preset_only'))
-    expect(qualityCheckbox(wrapper).exists()).toBe(false)
-  })
-
-  it('remove mode: seed and resolution selector hidden', async () => {
-    const wrapper = await mountSection({ fi_mode: 'remove' })
-
-    expect(seedInput(wrapper).exists()).toBe(false)
-    expect(wrapper.findComponent(ResolutionSelector).exists()).toBe(false)
+      expect(seedInput(wrapper).exists()).toBe(true)
+      expect(qualityCheckbox(wrapper).exists()).toBe(true)
+      expect(wrapper.findComponent(ResolutionSelector).exists()).toBe(true)
+      expect(wrapper.find('canvas').exists()).toBe(false)
+    }
   })
 })

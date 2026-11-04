@@ -116,6 +116,8 @@ type GenerateImageParams struct {
 	Seed                *int64           `json:"seed,omitempty"`
 	FullSize            bool             `json:"full_size,omitempty"`
 	Overrides           *PresetOverrides `json:"overrides,omitempty"`
+	Idea                string           `json:"idea,omitempty"`
+	IdeaNegative        string           `json:"idea_negative,omitempty"`
 }
 
 type GenerateImageResult struct {
@@ -131,6 +133,7 @@ type GenerateImageResult struct {
 	EffectiveNegativePrompt     string          `json:"effective_negative_prompt"`
 	EditReferenceResetFailed    bool            `json:"edit_reference_reset_failed,omitempty"`
 	PreserveIdentityResetFailed bool            `json:"preserve_identity_reset_failed,omitempty"`
+	DetectedObject              string          `json:"detected_object,omitempty"`
 }
 
 type UpscaleImageParams struct {
@@ -158,14 +161,15 @@ type TestGenerateParams struct {
 }
 
 type TestGenerateResultItem struct {
-	Name         string  `json:"name"`
-	Image        string  `json:"image"`
-	Seed         int64   `json:"seed"`
-	Error        string  `json:"error,omitempty"`
-	Sampler      string  `json:"sampler"`
-	ScheduleType string  `json:"schedule_type"`
-	CfgScale     float64 `json:"cfg_scale"`
-	ModelName    string  `json:"model_name"`
+	Name         string          `json:"name"`
+	Image        string          `json:"image"`
+	Seed         int64           `json:"seed"`
+	Error        string          `json:"error,omitempty"`
+	Sampler      string          `json:"sampler"`
+	ScheduleType string          `json:"schedule_type"`
+	CfgScale     float64         `json:"cfg_scale"`
+	ModelName    string          `json:"model_name"`
+	Info         json.RawMessage `json:"info,omitempty"`
 }
 
 type UpscalePreviewParams struct {
@@ -192,6 +196,8 @@ type GenerateCompoundImageParams struct {
 	HiresProfileID      *int64       `json:"hires_profile_id,omitempty"`
 	Steps               []CustomStep `json:"steps,omitempty"`
 	Seed                *int64       `json:"seed,omitempty"`
+	Idea                string       `json:"idea,omitempty"`
+	IdeaNegative        string       `json:"idea_negative,omitempty"`
 }
 
 func ValidateCustomSteps(steps []CustomStep) error {
@@ -230,24 +236,11 @@ type GenerateFromImageParams struct {
 	DenoisingStrength   float64          `json:"denoising_strength"`
 	Tags                string           `json:"tags"`
 	ExtraNegativePrompt string           `json:"extra_negative_prompt"`
-	MaskBase64          string           `json:"mask_base64"`
-	MaskBlur            int              `json:"mask_blur"`
-	InpaintFill         int              `json:"inpaint_fill"`
-	InpaintFullRes      bool             `json:"inpaint_full_res"`
-	RemoveObject        bool             `json:"remove_object"`
 	PreserveIdentity    bool             `json:"preserve_identity"`
 	ResolutionID        *int64           `json:"resolution_id,omitempty"`
 	HiresProfileID      *int64           `json:"hires_profile_id,omitempty"`
 	Seed                *int64           `json:"seed,omitempty"`
 	Overrides           *PresetOverrides `json:"overrides,omitempty"`
-}
-
-type TestCompoundGenerateParams struct {
-	SelectedIDs    []int64 `json:"selected_ids"`
-	Prompt         string  `json:"prompt"`
-	NegativePrompt string  `json:"negative_prompt"`
-	ResolutionID   *int64  `json:"resolution_id,omitempty"`
-	HiresProfileID *int64  `json:"hires_profile_id,omitempty"`
 }
 
 type lastImageMeta struct {
@@ -1053,11 +1046,24 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 		return nil, fmt.Errorf("preset is required")
 	}
 	s.log.UserAction("Generate image (preset_id=%d, override_model=%q)", params.PresetID, OverrideModelName(params.Overrides))
+	if err := ValidateIdea(params.Idea, params.IdeaNegative); err != nil {
+		return nil, err
+	}
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
 	s.StartSDPolling()
 	defer s.StopSDPolling()
+	if strings.TrimSpace(params.Idea) != "" {
+		prompt, negative, err := s.resolveIdea(params.PresetID, params.Overrides, params.Idea, params.IdeaNegative)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.checkSDInterrupted(); err != nil {
+			return nil, err
+		}
+		params.ExtraPrompt, params.ExtraNegativePrompt = prompt, negative
+	}
 	p, err := s.db.Get(params.PresetID)
 	if err != nil {
 		s.log.Error("Generate image: preset not found: %s", err)
@@ -1456,6 +1462,7 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 		}
 
 		item.Image = result.Images[0]
+		item.Info = result.Info
 		item.Seed = infoSeed
 		item.Sampler = sampler
 		item.ScheduleType = scheduleType

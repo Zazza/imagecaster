@@ -1895,14 +1895,13 @@ func TestGenerateFromImage_Validation(t *testing.T) {
 	}{
 		{"empty image", GenerateFromImageParams{ImageBase64: ""}, "image is required"},
 		{"invalid gen_mode", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "bad"}, "gen_mode must be preset or compound"},
-		{"invalid mode", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "bad", PresetID: 1}, "mode must be txt2img, img2img or inpaint"},
-		{"inpaint without mask", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "inpaint", PresetID: 1}, "mask is required for inpaint mode"},
+		{"invalid mode", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "bad", PresetID: 1}, "mode must be txt2img or img2img"},
+		{"legacy inpaint mode rejected", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "inpaint", PresetID: 1}, "mode must be txt2img or img2img"},
 		{"preset mode no preset", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "txt2img"}, "preset is required"},
 		{"compound mode no compound", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "compound", Mode: "txt2img"}, "compound preset is required"},
 		{"invalid output_mode", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "img2img", PresetID: 1, OutputMode: "bad"}, "output_mode must be standard or quality"},
 		{"quality with txt2img mode", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "txt2img", PresetID: 1, OutputMode: "quality"}, "quality output mode requires img2img preset mode"},
 		{"quality with compound gen_mode", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "compound", Mode: "img2img", CompoundPresetID: 1, OutputMode: "quality"}, "quality output mode requires img2img preset mode"},
-		{"quality with remove object", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "img2img", PresetID: 1, RemoveObject: true, OutputMode: "quality"}, "quality output mode requires img2img preset mode"},
 		{"quality without resolution", GenerateFromImageParams{ImageBase64: "dGVzdA==", GenMode: "preset", Mode: "img2img", PresetID: 1, OutputMode: "quality"}, "quality output mode requires resolution"},
 	}
 	for _, tt := range tests {
@@ -2089,86 +2088,6 @@ func TestGenerateFromImage_CompoundHires(t *testing.T) {
 			assert.Equal(t, tt.expectedInfo, string(result.Info))
 		})
 	}
-}
-
-func TestTestCompoundGenerate_Validation(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		params TestCompoundGenerateParams
-		errMsg string
-	}{
-		{"no ids", TestCompoundGenerateParams{Prompt: "test"}, "select at least one"},
-		{"too many ids", TestCompoundGenerateParams{SelectedIDs: make([]int64, 21), Prompt: "test"}, "maximum 20"},
-		{"no prompt no preset", TestCompoundGenerateParams{}, "select at least one compound preset"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			db := openTestDB(t)
-			svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-			svc.ctx = context.Background()
-
-			_, err := svc.TestCompoundGenerate(tt.params)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), tt.errMsg)
-		})
-	}
-}
-
-func TestTestCompoundGenerate_CompoundNotFound(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-	svc.ctx = context.Background()
-
-	results, err := svc.TestCompoundGenerate(TestCompoundGenerateParams{
-		SelectedIDs: []int64{999},
-		Prompt:      "test",
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 1)
-	assert.Contains(t, results[0].Error, "compound preset not found")
-}
-
-func TestTestCompoundGenerate_Success(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	p := makeTestPreset(t, db, nil)
-
-	cp := &preset.CompoundPreset{
-		Name:        "test-cp",
-		Description: "test",
-		Steps: []preset.CompoundPresetStep{
-			{PresetID: p.ID},
-		},
-	}
-	require.NoError(t, db.CreateCompoundPreset(cp))
-
-	sdSvc := &mockSD{
-		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
-			return &sd.Txt2ImgResponse{Images: []string{"result-img"}}, nil
-		},
-	}
-
-	svc := newTestService(t, db, &mockLLM{
-		genSDPromptFn: func(systemPrompt, userMessage, presetType, model string, maxTokens int) (string, error) {
-			return `{"prompt":"1girl, solo, standing","negative_prompt":"lowres, bad"}`, nil
-		},
-	}, sdSvc)
-	svc.ctx = context.Background()
-
-	results, err := svc.TestCompoundGenerate(TestCompoundGenerateParams{
-		SelectedIDs:    []int64{cp.ID},
-		Prompt:         "1girl",
-		NegativePrompt: "lowres",
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 1)
-	assert.Equal(t, "test-cp", results[0].Name)
-	assert.Equal(t, "result-img", results[0].Image)
-	assert.Empty(t, results[0].Error)
 }
 
 func floatPtr(v float64) *float64 { return &v }

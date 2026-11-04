@@ -1,12 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
-import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon, Columns } from 'lucide-vue-next'
+import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon } from 'lucide-vue-next'
 import { api } from './api.js'
 import { t, setLocale, locale } from './i18n/index.js'
 import UnifiedPresetsPage from './components/UnifiedPresetsPage.vue'
 import UnifiedGeneratePage from './components/UnifiedGeneratePage.vue'
-import ComparePage from './components/ComparePage.vue'
 import PostProcessPage from './components/PostProcessPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import AppFooter from './components/AppFooter.vue'
@@ -55,15 +54,14 @@ async function resetAll() {
       gen_resolution_id: '',
       gen_hires_profile_id: '',
       gen_count: '',
-      fi_mode: 'img2img',
       fi_preset_id: '',
       fi_compound_preset_id: '',
       fi_gen_mode: 'preset',
       fi_denoising: '0.5',
       fi_extra_negative: '',
       fi_analyze_mode: 'quick',
-      fi_mask_padding: '',
-      fi_mask_feather: '',
+      object_op: 'remove',
+      object_brush: '',
       fi_quality_mode: 'false',
       fi_preserve_identity: 'true',
       fi_count: '',
@@ -116,7 +114,6 @@ function onNavigate(target) {
 const currentPage = computed(() => {
   switch (page.value) {
     case 'generate': return UnifiedGeneratePage
-    case 'compare': return ComparePage
     case 'postprocess': return PostProcessPage
     case 'presets': return UnifiedPresetsPage
     case 'settings': return SettingsPage
@@ -166,9 +163,6 @@ onUnmounted(() => {
         </div>
         <div class="sidebar-group">
           <div class="sidebar-group-label">{{ t('app.group_view') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'compare' }" @click="page = 'compare'">
-            <Columns :size="16" class="icon" /> {{ t('app.nav_compare') }}
-          </a>
           <a class="sidebar-link" :class="{ active: page === 'browser' }" @click="page = 'browser'">
             <FolderOpen :size="16" class="icon" /> {{ t('app.nav_my_images') }}
           </a>
@@ -205,9 +199,8 @@ onUnmounted(() => {
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />
-        <component v-else-if="page !== 'compare'" :is="currentPage" />
+        <component v-else :is="currentPage" />
       </template>
-      <ComparePage v-show="page === 'compare'" :active="page === 'compare'" />
     </main>
     </div>
     <AppFooter @navigate="onNavigate" />

@@ -3,6 +3,7 @@ package filebrowser
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -454,6 +455,37 @@ func TestSanitizeFilename(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, SanitizeFilename(tt.in))
+		})
+	}
+}
+
+func TestBrowseDirectory_NoImagesMarshalsAsEmptyArray(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		setup func(t *testing.T, dir string)
+	}{
+		{"existing empty dir", func(t *testing.T, dir string) {}},
+		{"dir with only non-image file", func(t *testing.T, dir string) {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("hello"), 0644))
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			tc.setup(t, dir)
+
+			result, err := BrowseDirectory(dir)
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Len(t, result, 0)
+
+			data, err := json.Marshal(result)
+			require.NoError(t, err)
+			assert.JSONEq(t, "[]", string(data))
 		})
 	}
 }

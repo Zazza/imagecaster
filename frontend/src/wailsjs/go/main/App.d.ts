@@ -88,7 +88,7 @@ export function DownloadServerModel(arg1:string,arg2:string,arg3:string):Promise
 
 export function EditImage(arg1:generation.EditImageParams):Promise<generation.GenerateImageResult>;
 
-export function EnqueueCompareItem(arg1:generation.TestGenerateParams,arg2:number):Promise<number>;
+export function EditObject(arg1:generation.ObjectEditParams):Promise<generation.GenerateImageResult>;
 
 export function EnqueueCompound(arg1:generation.GenerateCompoundImageParams):Promise<number>;
 
@@ -101,8 +101,6 @@ export function ExportCompoundPresets(arg1:Array<number>):Promise<string>;
 export function ExportImage(arg1:importexport.ExportImageParams):Promise<string>;
 
 export function ExportPresets(arg1:Array<number>):Promise<string>;
-
-export function ExportSessionItem(arg1:number,arg2:importexport.ExportImageParams):Promise<string>;
 
 export function FastSaveImage(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -271,10 +269,6 @@ export function StopServerProcess(arg1:string):Promise<void>;
 export function SwitchServerBackend(arg1:string):Promise<void>;
 
 export function SwitchSession(arg1:number):Promise<void>;
-
-export function TestCompoundGenerate(arg1:generation.TestCompoundGenerateParams):Promise<Array<generation.TestGenerateResultItem>>;
-
-export function TestGenerate(arg1:generation.TestGenerateParams):Promise<Array<generation.TestGenerateResultItem>>;
 
 export function UpdateCompoundPreset(arg1:preset.CompoundPreset):Promise<preset.CompoundPreset>;
 

@@ -220,6 +220,8 @@ export namespace generation {
 	    hires_profile_id?: number;
 	    steps?: CustomStep[];
 	    seed?: number;
+	    idea?: string;
+	    idea_negative?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateCompoundImageParams(source);
@@ -234,6 +236,8 @@ export namespace generation {
 	        this.hires_profile_id = source["hires_profile_id"];
 	        this.steps = this.convertValues(source["steps"], CustomStep);
 	        this.seed = source["seed"];
+	        this.idea = source["idea"];
+	        this.idea_negative = source["idea_negative"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -288,11 +292,6 @@ export namespace generation {
 	    denoising_strength: number;
 	    tags: string;
 	    extra_negative_prompt: string;
-	    mask_base64: string;
-	    mask_blur: number;
-	    inpaint_fill: number;
-	    inpaint_full_res: boolean;
-	    remove_object: boolean;
 	    preserve_identity: boolean;
 	    resolution_id?: number;
 	    hires_profile_id?: number;
@@ -314,11 +313,6 @@ export namespace generation {
 	        this.denoising_strength = source["denoising_strength"];
 	        this.tags = source["tags"];
 	        this.extra_negative_prompt = source["extra_negative_prompt"];
-	        this.mask_base64 = source["mask_base64"];
-	        this.mask_blur = source["mask_blur"];
-	        this.inpaint_fill = source["inpaint_fill"];
-	        this.inpaint_full_res = source["inpaint_full_res"];
-	        this.remove_object = source["remove_object"];
 	        this.preserve_identity = source["preserve_identity"];
 	        this.resolution_id = source["resolution_id"];
 	        this.hires_profile_id = source["hires_profile_id"];
@@ -353,6 +347,8 @@ export namespace generation {
 	    seed?: number;
 	    full_size?: boolean;
 	    overrides?: PresetOverrides;
+	    idea?: string;
+	    idea_negative?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateImageParams(source);
@@ -368,6 +364,8 @@ export namespace generation {
 	        this.seed = source["seed"];
 	        this.full_size = source["full_size"];
 	        this.overrides = this.convertValues(source["overrides"], PresetOverrides);
+	        this.idea = source["idea"];
+	        this.idea_negative = source["idea_negative"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -401,6 +399,7 @@ export namespace generation {
 	    effective_negative_prompt: string;
 	    edit_reference_reset_failed?: boolean;
 	    preserve_identity_reset_failed?: boolean;
+	    detected_object?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateImageResult(source);
@@ -420,6 +419,7 @@ export namespace generation {
 	        this.effective_negative_prompt = source["effective_negative_prompt"];
 	        this.edit_reference_reset_failed = source["edit_reference_reset_failed"];
 	        this.preserve_identity_reset_failed = source["preserve_identity_reset_failed"];
+	        this.detected_object = source["detected_object"];
 	    }
 	}
 	export class GenerateSDPromptParams {
@@ -472,94 +472,30 @@ export namespace generation {
 	        this.negative_prompt = source["negative_prompt"];
 	    }
 	}
-	
-	
-	export class TestCompoundGenerateParams {
-	    selected_ids: number[];
-	    prompt: string;
-	    negative_prompt: string;
-	    resolution_id?: number;
-	    hires_profile_id?: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new TestCompoundGenerateParams(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.selected_ids = source["selected_ids"];
-	        this.prompt = source["prompt"];
-	        this.negative_prompt = source["negative_prompt"];
-	        this.resolution_id = source["resolution_id"];
-	        this.hires_profile_id = source["hires_profile_id"];
-	    }
-	}
-	export class TestGenerateParams {
-	    mode: string;
-	    selected_ids: number[];
-	    selected_models: string[];
-	    prompt: string;
-	    negative_prompt: string;
-	    sampler: string;
-	    schedule_type: string;
-	    steps: number;
-	    cfg_scale: number;
-	    width: number;
-	    height: number;
+	export class ObjectEditParams {
+	    image_base64: string;
+	    mask_base64: string;
+	    op: string;
+	    replacement: string;
+	    object: string;
 	    seed?: number;
-	    resolution_id?: number;
-	    hires_profile_id?: number;
-	    init_image?: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new TestGenerateParams(source);
+	        return new ObjectEditParams(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.mode = source["mode"];
-	        this.selected_ids = source["selected_ids"];
-	        this.selected_models = source["selected_models"];
-	        this.prompt = source["prompt"];
-	        this.negative_prompt = source["negative_prompt"];
-	        this.sampler = source["sampler"];
-	        this.schedule_type = source["schedule_type"];
-	        this.steps = source["steps"];
-	        this.cfg_scale = source["cfg_scale"];
-	        this.width = source["width"];
-	        this.height = source["height"];
+	        this.image_base64 = source["image_base64"];
+	        this.mask_base64 = source["mask_base64"];
+	        this.op = source["op"];
+	        this.replacement = source["replacement"];
+	        this.object = source["object"];
 	        this.seed = source["seed"];
-	        this.resolution_id = source["resolution_id"];
-	        this.hires_profile_id = source["hires_profile_id"];
-	        this.init_image = source["init_image"];
 	    }
 	}
-	export class TestGenerateResultItem {
-	    name: string;
-	    image: string;
-	    seed: number;
-	    error?: string;
-	    sampler: string;
-	    schedule_type: string;
-	    cfg_scale: number;
-	    model_name: string;
 	
-	    static createFrom(source: any = {}) {
-	        return new TestGenerateResultItem(source);
-	    }
 	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.image = source["image"];
-	        this.seed = source["seed"];
-	        this.error = source["error"];
-	        this.sampler = source["sampler"];
-	        this.schedule_type = source["schedule_type"];
-	        this.cfg_scale = source["cfg_scale"];
-	        this.model_name = source["model_name"];
-	    }
-	}
 	export class UpscaleImageParams {
 	    image_base64: string;
 	    gen_info: string;

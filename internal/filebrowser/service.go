@@ -38,7 +38,7 @@ func BrowseDirectory(dirPath string) ([]FileEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read directory: %w", err)
 	}
-	var result []FileEntry
+	result := []FileEntry{}
 	for _, e := range entries {
 		name := e.Name()
 		ext := strings.ToLower(filepath.Ext(name))

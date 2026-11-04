@@ -37,7 +37,7 @@ function handleCancel() {
 </script>
 
 <template>
-  <div class="modal-overlay" @click.self="handleCancel">
+  <div class="modal-overlay">
     <div class="modal" style="max-width: 360px;">
       <div class="modal-header">
         <h2 class="modal-title">{{ title }}</h2>

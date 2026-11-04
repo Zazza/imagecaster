@@ -1,22 +1,12 @@
 package generation
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"image"
-	"image/color"
-	"image/draw"
-	"image/png"
-	"math"
 	"strings"
-
-	xdraw "golang.org/x/image/draw"
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
-	"github.com/Zazza/imagecaster/internal/llm"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/promptutil"
 	"github.com/Zazza/imagecaster/internal/sd"
@@ -128,197 +118,6 @@ func isProse(s string) bool {
 	return false
 }
 
-// --- AnalyzeRemoveContext ---
-
-func (s *Service) analyzeRemoveContext(imageBase64, maskBase64 string) (string, error) {
-	imgData, err := base64.StdEncoding.DecodeString(imageBase64)
-	if err != nil {
-		return "", fmt.Errorf("decode image: %w", err)
-	}
-	maskData, err := base64.StdEncoding.DecodeString(maskBase64)
-	if err != nil {
-		return "", fmt.Errorf("decode mask: %w", err)
-	}
-
-	img, _, err := image.Decode(bytes.NewReader(imgData))
-	if err != nil {
-		return "", fmt.Errorf("parse image: %w", err)
-	}
-	mask, _, err := image.Decode(bytes.NewReader(maskData))
-	if err != nil {
-		return "", fmt.Errorf("parse mask: %w", err)
-	}
-
-	bounds := img.Bounds()
-	overlay := image.NewRGBA(bounds)
-	draw.Draw(overlay, bounds, img, bounds.Min, draw.Src)
-
-	red := color.NRGBA{R: 255, G: 0, B: 0, A: 140}
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			_, _, _, ma := mask.At(x, y).RGBA()
-			if ma > 32768 {
-				draw.Draw(overlay, image.Rect(x, y, x+1, y+1), &image.Uniform{red}, image.Point{}, draw.Over)
-			}
-		}
-	}
-
-	maxDim := 1024
-	w, h := bounds.Dx(), bounds.Dy()
-	if w > maxDim || h > maxDim {
-		ratio := math.Min(float64(maxDim)/float64(w), float64(maxDim)/float64(h))
-		w = int(float64(w) * ratio)
-		h = int(float64(h) * ratio)
-		if w < 1 {
-			w = 1
-		}
-		if h < 1 {
-			h = 1
-		}
-		scaled := image.NewRGBA(image.Rect(0, 0, w, h))
-		xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), overlay, bounds, draw.Over, nil)
-		overlay = scaled
-	}
-
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, overlay); err != nil {
-		return "", fmt.Errorf("encode overlay: %w", err)
-	}
-	overlayBase64 := base64.StdEncoding.EncodeToString(buf.Bytes())
-
-	model := s.getAnalyzeModel()
-	s.settings.ApplyLLMConfig("analyze")
-
-	systemPrompt := "You analyze images for object removal via inpainting. The red overlay marks the area to REMOVE. Your task: describe ONLY the background/surface that should fill the red area to blend seamlessly. DO NOT describe objects, people, or the scene. Output ONLY short comma-separated tags for texture/color/material of the surrounding area.\n\nExample outputs:\n- gray concrete wall, subtle cracks, warm lighting\n- blue sky, soft white clouds\n- green grass, natural texture, sunlight\n- wooden floor, planks, warm brown tone\n\nNO sentences. NO explanation. NO scene description. ONLY tags."
-	userText := "What background/surface should replace the red area? Tags only."
-
-	s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
-	result, err := s.llm.ChatVision(model, systemPrompt, userText, overlayBase64, 0.2, 64)
-	if err != nil {
-		s.emitter.Emit("llm:status", map[string]string{"status": "done"})
-		return "", fmt.Errorf("vision analysis failed: %w", err)
-	}
-	s.emitter.Emit("llm:status", map[string]string{"status": "done"})
-
-	result = llm.CleanTags(result)
-	result = promptutil.StripJunk(result)
-	result = promptutil.TruncateRepetitive(result, 200)
-	if isProse(result) {
-		return "", nil
-	}
-	return result, nil
-}
-
-// --- generateRemoveObject ---
-
-func (s *Service) generateRemoveObject(params GenerateFromImageParams) (*GenerateImageResult, error) {
-	s.emitter.Emit("remove:stage", "analyzing")
-
-	removeDesc, err := s.analyzeRemoveContext(params.ImageBase64, params.MaskBase64)
-	if err != nil {
-		return nil, fmt.Errorf("context analysis failed: %w", err)
-	}
-
-	s.emitter.Emit("remove:stage", "generating")
-
-	removeNegative := "object, items, things, artifacts, distortion"
-	if params.ExtraNegativePrompt != "" {
-		removeNegative += ", " + params.ExtraNegativePrompt
-	}
-
-	var prompt, negativePrompt string
-	var samplerName string
-	var scheduler string
-	var steps int
-	var cfgScale float64
-	var width, height int
-	var seed *int64
-	var clipSkip int
-
-	imgData, _ := base64.StdEncoding.DecodeString(params.ImageBase64)
-	if imgCfg, _, err := image.DecodeConfig(bytes.NewReader(imgData)); err == nil {
-		width = imgCfg.Width
-		height = imgCfg.Height
-	}
-
-	if removeDesc != "" {
-		prompt = removeDesc + ", seamless blend, clean edges"
-	} else {
-		prompt = "seamless background, clean, natural, consistent with surroundings"
-	}
-	negativePrompt = removeNegative
-
-	if samplerName == "" {
-		samplerName = "Euler a"
-	}
-	if steps == 0 {
-		steps = 20
-	}
-	if cfgScale == 0 {
-		cfgScale = 7
-	}
-	if width == 0 {
-		width = 512
-	}
-	if height == 0 {
-		height = 512
-	}
-
-	denoising := params.DenoisingStrength
-	if denoising <= 0 {
-		denoising = 0.6
-	}
-	maskBlur := params.MaskBlur
-	if maskBlur <= 0 {
-		maskBlur = 8
-	}
-
-	batchSize := 1
-	batchCount := 1
-
-	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
-		InitImages:            []string{params.ImageBase64},
-		Prompt:                prompt,
-		NegativePrompt:        negativePrompt,
-		SamplerName:           samplerName,
-		Scheduler:             scheduler,
-		Steps:                 steps,
-		CfgScale:              cfgScale,
-		Width:                 width,
-		Height:                height,
-		Seed:                  seed,
-		DenoisingStrength:     &denoising,
-		ClipSkip:              &clipSkip,
-		BatchSize:             &batchSize,
-		BatchCount:            &batchCount,
-		Mask:                  params.MaskBase64,
-		MaskBlur:              maskBlur,
-		InpaintingFill:        params.InpaintFill,
-		InpaintFullRes:        params.InpaintFullRes,
-		InpaintFullResPadding: 64,
-		DoNotSaveImages:       true,
-		DoNotSaveGrid:         true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(result.Images) == 0 {
-		if ierr := s.checkSDInterrupted(); ierr != nil {
-			return nil, ierr
-		}
-		return nil, fmt.Errorf("no image generated (remove object)")
-	}
-
-	img := &GenerateImageResult{
-		Image:                   result.Images[0],
-		Info:                    result.Info,
-		EffectivePrompt:         prompt,
-		EffectiveNegativePrompt: negativePrompt,
-	}
-	s.sessions.AddToSession(result.Images[0], result.Info, "compound", false, nil)
-	return img, nil
-}
-
 // --- generateLLMPromptFromTags ---
 
 func (s *Service) generateLLMPromptFromTags(p *preset.Preset, tags string, mode, extraNegative string) (*GenerateSDPromptResult, error) {
@@ -337,15 +136,6 @@ RESPONSE LENGTH: your response is limited to ~%d tokens. You MUST fit within thi
 		"STYLE REFERENCE (do NOT include in output): " + p.Prompt,
 		"STYLE NEGATIVE REFERENCE (do NOT include in output): " + p.NegativePrompt,
 		s.userSceneLabel(p.ModelName) + tags,
-	}
-	if mode == "inpaint" {
-		userParts = []string{
-			"MODE: inpaint — user wants to REPLACE the masked area with what they describe below.",
-			"IMPORTANT: the base image already shows the person. Do NOT invent appearance — APPEARANCE VARIATION does NOT apply here; use appearance only as explicitly described in the user instruction.",
-			"BASE POSITIVE PROMPT (style/quality reference only): " + p.Prompt,
-			"BASE NEGATIVE PROMPT: " + p.NegativePrompt,
-			"USER INSTRUCTION FOR MASKED AREA (THIS IS THE PRIMARY PROMPT): " + tags,
-		}
 	}
 	if mode == "img2img" {
 		userParts = []string{
@@ -415,32 +205,27 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	if params.GenMode != "preset" && params.GenMode != "compound" {
 		return nil, fmt.Errorf("gen_mode must be preset or compound")
 	}
-	if !params.RemoveObject {
-		if params.GenMode == "preset" && params.PresetID <= 0 {
-			return nil, fmt.Errorf("preset is required")
-		}
-		if params.GenMode == "compound" && params.CompoundPresetID <= 0 {
-			return nil, fmt.Errorf("compound preset is required")
-		}
+	if params.GenMode == "preset" && params.PresetID <= 0 {
+		return nil, fmt.Errorf("preset is required")
 	}
-	if params.Mode != "txt2img" && params.Mode != "img2img" && params.Mode != "inpaint" {
-		return nil, fmt.Errorf("mode must be txt2img, img2img or inpaint")
+	if params.GenMode == "compound" && params.CompoundPresetID <= 0 {
+		return nil, fmt.Errorf("compound preset is required")
 	}
-	if params.Mode == "inpaint" && params.MaskBase64 == "" {
-		return nil, fmt.Errorf("mask is required for inpaint mode")
+	if params.Mode != "txt2img" && params.Mode != "img2img" {
+		return nil, fmt.Errorf("mode must be txt2img or img2img")
 	}
 	if params.OutputMode != "" && params.OutputMode != "standard" && params.OutputMode != "quality" {
 		return nil, fmt.Errorf("output_mode must be standard or quality")
 	}
 	if params.OutputMode == "quality" {
-		if params.RemoveObject || params.GenMode != "preset" || params.Mode != "img2img" {
+		if params.GenMode != "preset" || params.Mode != "img2img" {
 			return nil, fmt.Errorf("quality output mode requires img2img preset mode")
 		}
 		if params.ResolutionID == nil || *params.ResolutionID <= 0 {
 			return nil, fmt.Errorf("quality output mode requires resolution")
 		}
 	}
-	if params.PreserveIdentity && (params.RemoveObject || params.GenMode != "preset" || params.Mode != "img2img") {
+	if params.PreserveIdentity && (params.GenMode != "preset" || params.Mode != "img2img") {
 		return nil, fmt.Errorf("preserve identity requires img2img preset mode")
 	}
 	if params.PreserveIdentity && params.DenoisingStrength > 0.9 {
@@ -457,10 +242,6 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	params.ExtraNegativePrompt, filterErr = s.kids.FilterInput(params.ExtraNegativePrompt)
 	if filterErr != nil {
 		return nil, filterErr
-	}
-
-	if params.RemoveObject {
-		return s.generateRemoveObject(params)
 	}
 
 	tags := params.Tags
@@ -500,13 +281,6 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		}
 
 		prompt = promptResult.Prompt
-		if params.Mode == "inpaint" && tags != "" {
-			if s.isProseModel(p.ModelName) {
-				prompt += " Focus on: " + strings.Trim(tags, " ,.") + "."
-			} else {
-				prompt += ", " + tags
-			}
-		}
 		prompt = appendLorasToPrompt(prompt, p.Loras)
 		negativePrompt = s.buildPrompts("", promptResult.NegativePrompt, "", "", params.ExtraNegativePrompt).NegativePrompt
 	}
@@ -524,7 +298,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	batchSize := 1
 	batchCount := 1
 
-	if params.Mode == "img2img" || params.Mode == "inpaint" {
+	if params.Mode == "img2img" {
 		var result *GenerateImageResult
 		refDisabled := false
 		if params.PreserveIdentity {
@@ -572,32 +346,23 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		if denoising <= 0 {
 			denoising = 0.5
 		}
-		maskBlur := params.MaskBlur
-		if maskBlur <= 0 {
-			maskBlur = 4
-		}
 		resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
-			InitImages:            []string{params.ImageBase64},
-			Prompt:                prompt,
-			NegativePrompt:        negativePrompt,
-			SamplerName:           samplerName,
-			Scheduler:             p.ScheduleType,
-			Steps:                 p.Steps,
-			CfgScale:              p.CfgScale,
-			Width:                 imgW,
-			Height:                imgH,
-			Seed:                  seed,
-			DenoisingStrength:     &denoising,
-			ClipSkip:              &clipSkip,
-			BatchSize:             &batchSize,
-			BatchCount:            &batchCount,
-			Mask:                  params.MaskBase64,
-			MaskBlur:              maskBlur,
-			InpaintingFill:        params.InpaintFill,
-			InpaintFullRes:        params.InpaintFullRes,
-			InpaintFullResPadding: 32,
-			DoNotSaveImages:       true,
-			DoNotSaveGrid:         true,
+			InitImages:        []string{params.ImageBase64},
+			Prompt:            prompt,
+			NegativePrompt:    negativePrompt,
+			SamplerName:       samplerName,
+			Scheduler:         p.ScheduleType,
+			Steps:             p.Steps,
+			CfgScale:          p.CfgScale,
+			Width:             imgW,
+			Height:            imgH,
+			Seed:              seed,
+			DenoisingStrength: &denoising,
+			ClipSkip:          &clipSkip,
+			BatchSize:         &batchSize,
+			BatchCount:        &batchCount,
+			DoNotSaveImages:   true,
+			DoNotSaveGrid:     true,
 		})
 		if err != nil {
 			return nil, err
@@ -809,7 +574,7 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 			if w == 0 || h == 0 {
 				w, h = width, height
 			}
-			lastImage, lastInfo, err = s.runFromImageCompoundFirstStep(p, params.ImageBase64, prompt, negativePrompt, samplerName, w, h, clipSkip, params.Mode, params.DenoisingStrength, params.MaskBase64, params.MaskBlur, params.InpaintFill, params.InpaintFullRes, stepIdx+1)
+			lastImage, lastInfo, err = s.runFromImageCompoundFirstStep(p, params.ImageBase64, prompt, negativePrompt, samplerName, w, h, clipSkip, params.Mode, params.DenoisingStrength, stepIdx+1)
 			if err != nil {
 				return nil, err
 			}
@@ -895,8 +660,18 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 	if err != nil {
 		return nil, err
 	}
+	if err := ValidateIdea(params.Idea, params.IdeaNegative); err != nil {
+		return nil, err
+	}
 	s.StartSDPolling()
 	defer s.StopSDPolling()
+	if strings.TrimSpace(params.Idea) != "" {
+		prompt, negative, err := s.resolveIdea(steps[0].PresetID, nil, params.Idea, params.IdeaNegative)
+		if err != nil {
+			return nil, err
+		}
+		params.ExtraPrompt, params.ExtraNegativePrompt = prompt, negative
+	}
 
 	var lastImage string
 	var lastInfo json.RawMessage
@@ -916,6 +691,9 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		}
 		userScenePrompt = llmResult.Prompt
 		userSceneNeg = llmResult.NegativePrompt
+	}
+	if err := s.checkSDInterrupted(); err != nil {
+		return nil, err
 	}
 
 	for stepIdx, step := range steps {
@@ -990,221 +768,4 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		Chain: chain,
 	})
 	return img, nil
-}
-
-// --- TestCompoundGenerate ---
-
-func (s *Service) TestCompoundGenerate(params TestCompoundGenerateParams) ([]TestGenerateResultItem, error) {
-	s.StartSDPolling()
-	defer s.StopSDPolling()
-	if len(params.SelectedIDs) == 0 {
-		return nil, fmt.Errorf("select at least one compound preset")
-	}
-	if len(params.SelectedIDs) > 20 {
-		return nil, fmt.Errorf("maximum 20 compound presets at once")
-	}
-	if params.Prompt == "" && len(params.SelectedIDs) == 0 {
-		return nil, fmt.Errorf("prompt is required when no preset is selected")
-	}
-
-	totalItems := len(params.SelectedIDs)
-	results := make([]TestGenerateResultItem, 0, totalItems)
-
-	convertForCompound := func(compoundID int64) (string, string) {
-		cp, cpErr := s.db.GetCompoundPreset(compoundID)
-		if cpErr != nil || len(cp.Steps) == 0 {
-			return "", ""
-		}
-		firstPreset, pErr := s.db.Get(cp.Steps[0].PresetID)
-		if pErr != nil {
-			return "", ""
-		}
-		filtered, filterErr := s.kids.FilterInput(params.Prompt)
-		if filterErr != nil {
-			return "", ""
-		}
-		llmResult, llmErr := s.generateLLMPromptFromTags(firstPreset, filtered, "default", params.NegativePrompt)
-		if llmErr != nil {
-			s.log.Warn("test compound: LLM conversion failed, using raw prompt: %s", llmErr)
-			return "", ""
-		}
-		return llmResult.Prompt, llmResult.NegativePrompt
-	}
-	conversions := make(map[int64][2]string, len(params.SelectedIDs))
-	for _, compoundID := range params.SelectedIDs {
-		pr, ng := convertForCompound(compoundID)
-		conversions[compoundID] = [2]string{pr, ng}
-	}
-	userScenePrompt, userSceneNeg := conversions[params.SelectedIDs[0]][0], conversions[params.SelectedIDs[0]][1]
-
-	for idx, compoundID := range params.SelectedIDs {
-		if c, ok := conversions[compoundID]; ok && (c[0] != userScenePrompt || c[1] != userSceneNeg) {
-			userScenePrompt, userSceneNeg = c[0], c[1]
-		}
-		s.emitter.Emit("test:progress", map[string]any{
-			"current": idx + 1,
-			"total":   totalItems,
-			"status":  "generating",
-		})
-
-		item := TestGenerateResultItem{}
-
-		cp, err := s.db.GetCompoundPreset(compoundID)
-		if err != nil {
-			item.Error = fmt.Sprintf("compound preset not found: %v", err)
-			item.Name = fmt.Sprintf("Compound #%d", compoundID)
-			results = append(results, item)
-			continue
-		}
-		item.Name = cp.Name
-
-		if len(cp.Steps) == 0 {
-			item.Error = "no steps in compound preset"
-			results = append(results, item)
-			continue
-		}
-
-		var lastImage string
-		chain := make([]preset.StepMeta, 0, len(cp.Steps))
-		lastModel := ""
-
-		for stepIdx, step := range cp.Steps {
-			p, err := s.db.Get(step.PresetID)
-			if err != nil {
-				item.Error = fmt.Sprintf("step %d: preset not found", stepIdx+1)
-				break
-			}
-			ApplyPresetOverrides(p, &PresetOverrides{Loras: step.Loras})
-			chain = append(chain, stepMeta(stepIdx, p, step))
-			lastModel = p.ModelName
-
-			bp := s.buildPrompts(p.Prompt, p.NegativePrompt, p.Loras, userScenePrompt, userSceneNeg)
-			prompt := bp.Prompt
-			negPrompt := bp.NegativePrompt
-
-			if err := s.prepareSDContext(p, fmt.Sprintf("test compound step %d", stepIdx+1)); err != nil {
-				item.Error = err.Error()
-				break
-			}
-
-			samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
-
-			var width, height int
-			if step.ResolutionID != nil && *step.ResolutionID > 0 {
-				if r, err := s.db.GetResolution(*step.ResolutionID); err == nil {
-					width = r.Width
-					height = r.Height
-				}
-			}
-			if width == 0 || height == 0 {
-				width, height = s.resolveResolution(p, params.ResolutionID)
-			}
-
-			hiresEnabled, hiresUpscale, hiresDenoising, hiresUpscaler := s.resolveHires(params.HiresProfileID)
-
-			clipSkip := 1
-			if p.ClipSkip != nil {
-				clipSkip = *p.ClipSkip
-			}
-			batchSize := 1
-			batchCount := 1
-
-			if stepIdx == 0 {
-				var hiresFix *bool
-				if hiresEnabled {
-					hiresFix = &hiresEnabled
-				}
-				req := sd.Txt2ImgRequest{
-					Prompt:                 prompt,
-					NegativePrompt:         negPrompt,
-					SamplerName:            samplerName,
-					Scheduler:              p.ScheduleType,
-					Steps:                  p.Steps,
-					CfgScale:               p.CfgScale,
-					Width:                  width,
-					Height:                 height,
-					Seed:                   p.Seed,
-					ClipSkip:               &clipSkip,
-					HiresFix:               hiresFix,
-					HiresUpscale:           hiresUpscale,
-					HiresDenoisingStrength: hiresDenoising,
-					HiresUpscaler:          hiresUpscaler,
-					BatchSize:              &batchSize,
-					BatchCount:             &batchCount,
-					DoNotSaveImages:        true,
-					DoNotSaveGrid:          true,
-				}
-				result, err := s.sd.Txt2Img(req)
-				if err != nil {
-					fb := s.doHiresFallback(req, err, hiresUpscale, hiresDenoising, hiresUpscaler, fmt.Sprintf("test compound step %d", stepIdx+1))
-					result = fb.Result
-					err = fb.Err
-					if err != nil {
-						item.Error = fmt.Sprintf("step %d: %v", stepIdx+1, err)
-						break
-					}
-				}
-				if len(result.Images) == 0 {
-					item.Error = fmt.Sprintf("step %d: no image", stepIdx+1)
-					break
-				}
-				lastImage = result.Images[0]
-			} else {
-				denoising := step.DenoisingStrength
-				if denoising <= 0 {
-					denoising = 0.5
-				}
-				result, err := s.sd.Img2Img(sd.Img2ImgRequest{
-					InitImages:        []string{lastImage},
-					Prompt:            prompt,
-					NegativePrompt:    negPrompt,
-					SamplerName:       samplerName,
-					Scheduler:         p.ScheduleType,
-					Steps:             p.Steps,
-					CfgScale:          p.CfgScale,
-					Width:             width,
-					Height:            height,
-					Seed:              p.Seed,
-					DenoisingStrength: &denoising,
-					ClipSkip:          &clipSkip,
-					BatchSize:         &batchSize,
-					BatchCount:        &batchCount,
-					DoNotSaveImages:   true,
-					DoNotSaveGrid:     true,
-				})
-				if err != nil {
-					item.Error = fmt.Sprintf("step %d: %v", stepIdx+1, err)
-					break
-				}
-				if len(result.Images) == 0 {
-					item.Error = fmt.Sprintf("step %d: no image", stepIdx+1)
-					break
-				}
-				lastImage = result.Images[0]
-			}
-		}
-
-		if item.Error == "" {
-			item.Image = lastImage
-			s.sessions.AddToSession(item.Image, nil, "compare", false, &preset.GenerationMeta{
-				Label: cp.Name,
-				Model: lastModel,
-				Chain: chain,
-			})
-		}
-		item.Sampler = ""
-		item.ScheduleType = ""
-		item.CfgScale = 0
-		item.ModelName = ""
-
-		results = append(results, item)
-
-		s.emitter.Emit("test:progress", map[string]any{
-			"current": idx + 1,
-			"total":   totalItems,
-			"status":  "done",
-		})
-	}
-
-	return results, nil
 }

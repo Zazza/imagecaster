@@ -173,10 +173,10 @@ async function handleExport() {
     const path = await api.prepareCompoundPresetsExport(ids)
     if (path) {
       selectedIds.value = new Set()
-      alert('Saved: ' + path)
+      alert(t('compound.alert_saved', { path }))
     }
   } catch (e) {
-    alert('Export failed: ' + e)
+    alert(t('compound.alert_export_failed', { error: String(e) }))
   }
 }
 
@@ -188,7 +188,7 @@ async function handleOpenImport() {
       showImport.value = true
     }
   } catch (e) {
-    if (String(e)) alert('Import failed: ' + e)
+    if (String(e)) alert(t('compound.alert_import_failed', { error: String(e) }))
   }
 }
 
@@ -242,7 +242,7 @@ onMounted(loadData)
 
         <div v-for="(step, idx) in formSteps" :key="idx" style="border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 8px; background: var(--surface-1);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-weight: 600; font-size: 13px;">Step {{ idx + 1 }}{{ idx === 0 ? ' (txt2img)' : ' (img2img)' }}</span>
+            <span style="font-weight: 600; font-size: 13px;">{{ t('compound.step_label', { num: idx + 1, type: idx === 0 ? t('compound.step_txt2img') : t('compound.step_img2img') }) }}</span>
             <div style="display: flex; gap: 4px;">
               <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepUp(idx)" :disabled="idx === 0">&#9650;</button>
               <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepDown(idx)" :disabled="idx === formSteps.length - 1">&#9660;</button>

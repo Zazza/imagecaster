@@ -295,13 +295,11 @@ type GenerateImageParams = generation.GenerateImageParams
 type GenerateImageResult = generation.GenerateImageResult
 type AnalyzePrompts = generation.AnalyzePrompts
 type UpscaleImageParams = generation.UpscaleImageParams
-type TestGenerateParams = generation.TestGenerateParams
-type TestGenerateResultItem = generation.TestGenerateResultItem
 type UpscalePreviewParams = generation.UpscalePreviewParams
 type GenerateCompoundImageParams = generation.GenerateCompoundImageParams
 type GenerateFromImageParams = generation.GenerateFromImageParams
 type EditImageParams = generation.EditImageParams
-type TestCompoundGenerateParams = generation.TestCompoundGenerateParams
+type ObjectEditParams = generation.ObjectEditParams
 type PresetOverrides = generation.PresetOverrides
 
 func (a *App) GenerateSDPrompt(params GenerateSDPromptParams) (*GenerateSDPromptResult, error) {
@@ -330,10 +328,6 @@ func (a *App) GetDefaultAnalyzePrompts() *AnalyzePrompts {
 
 func (a *App) GenerateImage(params GenerateImageParams) (*GenerateImageResult, error) {
 	return a.gen.GenerateImage(params)
-}
-
-func (a *App) TestGenerate(params TestGenerateParams) ([]TestGenerateResultItem, error) {
-	return a.gen.TestGenerate(params)
 }
 
 func (a *App) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult, error) {
@@ -368,12 +362,12 @@ func (a *App) EditImage(params EditImageParams) (*GenerateImageResult, error) {
 	return a.gen.EditImage(params)
 }
 
-func (a *App) ApplyLookDirect(imageBase64, text string, strength float64, seed *int64) (*GenerateImageResult, error) {
-	return a.gen.ApplyLookDirect(imageBase64, text, strength, seed)
+func (a *App) EditObject(params ObjectEditParams) (*GenerateImageResult, error) {
+	return a.gen.EditObject(params)
 }
 
-func (a *App) TestCompoundGenerate(params TestCompoundGenerateParams) ([]TestGenerateResultItem, error) {
-	return a.gen.TestCompoundGenerate(params)
+func (a *App) ApplyLookDirect(imageBase64, text string, strength float64, seed *int64) (*GenerateImageResult, error) {
+	return a.gen.ApplyLookDirect(imageBase64, text, strength, seed)
 }
 
 // --- File/Clipboard (Wails runtime) ---
@@ -801,15 +795,19 @@ func (a *App) saveProcessedImage(processed *importexport.ProcessedImage, outputD
 		return importexport.WriteImageToPath(processed, path)
 	}
 
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Select folder to save image",
+	ext := "." + processed.Format
+	name := strings.ToUpper(processed.Format) + " Image"
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultFilename: filepath.Base(processed.Filename),
+		Filters:         []runtime.FileFilter{{DisplayName: name, Pattern: "*" + ext}},
 	})
-	if err != nil || dir == "" {
+	if err != nil || path == "" {
 		return "", err
 	}
-
-	path := filepath.Join(dir, filepath.Base(processed.Filename))
-	return importexport.WriteImageToPath(processed, path)
+	if !strings.EqualFold(filepath.Ext(path), ext) {
+		path += ext
+	}
+	return path, os.WriteFile(path, processed.Data, 0o644)
 }
 
 // --- Post-processing ---
@@ -880,20 +878,6 @@ func (a *App) AutoAdjust(imageBase64 string) (adjust.AutoStats, error) {
 	}
 
 	return adjust.AnalyzeAuto(img), nil
-}
-
-func (a *App) ExportSessionItem(itemID int64, params ExportImageParams) (string, error) {
-	imageBase64, err := a.sessions.GetSessionImage(itemID)
-	if err != nil {
-		return "", fmt.Errorf("export session item: %w", err)
-	}
-
-	params.ImageBase64 = imageBase64
-	processed, err := a.ieSvc.ProcessExportImage(params)
-	if err != nil {
-		return "", err
-	}
-	return a.saveProcessedImage(processed, params.OutputDir)
 }
 
 func (a *App) ListExportPresets() ([]preset.ExportPreset, error) {
@@ -1291,10 +1275,6 @@ func (a *App) EnqueueFromImage(params GenerateFromImageParams) (int64, error) {
 
 func (a *App) EnqueueCompound(params GenerateCompoundImageParams) (int64, error) {
 	return a.queueSvc.Enqueue(queue.JobCompound, params, "compound")
-}
-
-func (a *App) EnqueueCompareItem(params TestGenerateParams, modelIndex int) (int64, error) {
-	return a.queueSvc.Enqueue(queue.JobCompareItem, params, "test")
 }
 
 func (a *App) GetQueue() ([]*QueueJob, error) {

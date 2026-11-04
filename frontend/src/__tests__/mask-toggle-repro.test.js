@@ -23,7 +23,7 @@ describe('mask overlay eye toggle', () => {
   beforeEach(() => { vi.clearAllMocks(); clearEventMocks() })
 
   it('toggles repeatedly', async () => {
-    const wrapper = await mountPage({ fi_mode: 'inpaint' }, 'remix')
+    const wrapper = await mountPage({}, 'object')
     await wrapper.setProps({ initialImage: 'aW1n' })
     await flushPromises()
 
@@ -37,17 +37,14 @@ describe('mask overlay eye toggle', () => {
 
     await eye.trigger('click')
     await flushPromises()
-    console.log('after hide click, display =', JSON.stringify(canvas.element.style.display), '| title now:', eye.attributes('title'))
     expect(shown()).toBe(false)
 
     await eye.trigger('click')
     await flushPromises()
-    console.log('after show click, display =', JSON.stringify(canvas.element.style.display), '| title now:', eye.attributes('title'))
     expect(shown()).toBe(true)
 
     await eye.trigger('click')
     await flushPromises()
-    console.log('after hide2 click, display =', JSON.stringify(canvas.element.style.display), '| title now:', eye.attributes('title'))
     expect(shown()).toBe(false)
   })
 })

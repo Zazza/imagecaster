@@ -321,43 +321,71 @@ func RegisterTools(s *Server) {
 	})
 
 	s.Register(Tool{
-		Name:        "compound_generate",
-		Description: "Прогнать пайплайн (составной пресет) целиком: description сцены конвертируется LLM по стилю первого шага и проводится через все шаги цепочки (txt2img → img2img → …). Медленнее одиночной генерации. Результат: PNG + sidecar в out_dir. Пайплайны — из compound_list.",
+		Name: "compound_generate",
+		Description: "Прогнать пайплайн (составной пресет) целиком: description сцены конвертируется LLM по стилю первого шага и проводится через все шаги цепочки (txt2img → img2img → …). Медленнее одиночной генерации. Результат: PNG + sidecar в out_dir. Пайплайны — из compound_list. " +
+			"Вместо compound_preset_id можно передать steps — свою цепочку из пресетов (как режим Custom в приложении). seed фиксирует сид на каждом шаге.",
 		InputSchema: props(map[string]any{
-			"compound_preset_id": prop("id пайплайна из compound_list", "integer"),
+			"compound_preset_id": prop("id пайплайна из compound_list (или steps)", "integer"),
+			"steps":              customStepsSchema,
 			"description":        prop("сцена: что изобразить (стиль возьмётся из пресетов цепочки)", "string"),
 			"negative":           prop("дополнительный негатив", "string"),
 			"resolution_id":      prop("id разрешения", "integer"),
-		}, "compound_preset_id"),
+			"hires_profile_id":   prop("id hires-профиля для последнего шага", "integer"),
+			"seed":               prop("фиксированный сид (на каждом шаге)", "integer"),
+		}),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			id := argInt(args, "compound_preset_id")
-			if id <= 0 {
-				return "", fmt.Errorf("compound_preset_id обязателен")
-			}
-			cp, err := s.deps.DB.GetCompoundPresetFull(id)
+			steps, err := decodeArg[[]generation.CustomStep](args, "steps")
 			if err != nil {
-				return "", fmt.Errorf("compound preset not found: %w", err)
+				return "", err
 			}
 			gp := generation.GenerateCompoundImageParams{
-				CompoundPresetID:    id,
 				ExtraPrompt:         argString(args, "description"),
 				ExtraNegativePrompt: argString(args, "negative"),
+				Seed:                optInt(args, "seed"),
+			}
+			name := "custom"
+			stepCount := 0
+			switch {
+			case steps != nil && len(*steps) > 0:
+				if id > 0 {
+					return "", fmt.Errorf("укажи либо compound_preset_id, либо steps")
+				}
+				if err := generation.ValidateCustomSteps(*steps); err != nil {
+					return "", err
+				}
+				gp.Steps = *steps
+				stepCount = len(*steps)
+			case id > 0:
+				cp, err := s.deps.DB.GetCompoundPresetFull(id)
+				if err != nil {
+					return "", fmt.Errorf("compound preset not found: %w", err)
+				}
+				gp.CompoundPresetID = id
+				name = cp.Name
+				stepCount = len(cp.Steps)
+			default:
+				return "", fmt.Errorf("нужен compound_preset_id или steps")
 			}
 			if rid := optInt(args, "resolution_id"); rid != nil && *rid > 0 {
 				gp.ResolutionID = rid
+			}
+			if hid := optInt(args, "hires_profile_id"); hid != nil && *hid > 0 {
+				gp.HiresProfileID = hid
 			}
 			res, err := s.deps.Gen.GenerateCompoundImage(gp)
 			if err != nil {
 				return "", err
 			}
-			path, err := s.saveArtifact(cp.Name, "compound-"+slugify(cp.Name), res.Image, res.Info)
+			path, err := s.saveArtifact(name, "compound-"+slugify(name), res.Image, res.Info)
 			if err != nil {
 				return "", err
 			}
 			return toJSON(map[string]any{
 				"path":   path,
 				"prompt": res.EffectivePrompt,
-				"steps":  len(cp.Steps),
+				"seed":   infoSeed(res.Info),
+				"steps":  stepCount,
 			}), nil
 		},
 	})
@@ -366,22 +394,25 @@ func RegisterTools(s *Server) {
 		Name: "generate",
 		Description: "Сгенерировать изображение. Ветка 1: preset_id — стиль пресета, description (и negative) конвертируются LLM в SD-промпт, размер через resolution_id. " +
 			"Ветка 2: prompt+model — прямой прогон без LLM (как Test), размер через width/height. " +
-			"seed фиксирует сид. PNG + sidecar .json пишутся в out_dir; ответ: path, seed, prompt, is_preview. save=false — вернёт image_base64 вместо файла.",
+			"seed фиксирует сид. overrides (ветка 1) — разовые переопределения пресета (модель, сэмплер, шаги, CFG, лоры), hires_profile_id — hires fix. " +
+			"PNG + sidecar .json пишутся в out_dir; ответ: path, seed, prompt, is_preview. save=false — вернёт image_base64 вместо файла.",
 		InputSchema: props(map[string]any{
-			"preset_id":     prop("id пресета (ветка 1)", "integer"),
-			"description":   prop("описание сцены для LLM-конвертации (ветка 1)", "string"),
-			"negative":      prop("пользовательский негатив (ветка 1)", "string"),
-			"prompt":        prop("готовый SD-промпт (ветка 2)", "string"),
-			"model":         prop("модель SD title (ветка 2)", "string"),
-			"seed":          prop("фиксированный сид", "integer"),
-			"resolution_id": prop("id разрешения (ветка 1)", "integer"),
-			"full_size":     prop("полный размер без preview-уменьшения (ветка 1, по умолчанию false)", "boolean"),
-			"width":         prop("ширина (ветка 2, по умолчанию 512)", "integer"),
-			"height":        prop("высота (ветка 2, по умолчанию 512)", "integer"),
-			"sampler":       prop("сэмплер (ветка 2)", "string"),
-			"steps":         prop("шаги (ветка 2)", "integer"),
-			"cfg_scale":     prop("CFG (ветка 2)", "number"),
-			"save":          prop("сохранить PNG+sidecar в out_dir (по умолчанию true)", "boolean"),
+			"preset_id":        prop("id пресета (ветка 1)", "integer"),
+			"description":      prop("описание сцены для LLM-конвертации (ветка 1)", "string"),
+			"negative":         prop("пользовательский негатив (ветка 1)", "string"),
+			"prompt":           prop("готовый SD-промпт (ветка 2)", "string"),
+			"model":            prop("модель SD title (ветка 2)", "string"),
+			"seed":             prop("фиксированный сид", "integer"),
+			"resolution_id":    prop("id разрешения (ветка 1)", "integer"),
+			"full_size":        prop("полный размер без preview-уменьшения (ветка 1, по умолчанию false)", "boolean"),
+			"overrides":        overridesSchema,
+			"hires_profile_id": prop("id hires-профиля (ветка 1)", "integer"),
+			"width":            prop("ширина (ветка 2, по умолчанию 512)", "integer"),
+			"height":           prop("высота (ветка 2, по умолчанию 512)", "integer"),
+			"sampler":          prop("сэмплер (ветка 2)", "string"),
+			"steps":            prop("шаги (ветка 2)", "integer"),
+			"cfg_scale":        prop("CFG (ветка 2)", "number"),
+			"save":             prop("сохранить PNG+sidecar в out_dir (по умолчанию true)", "boolean"),
 		}),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			save := optBool(args, "save", true)
@@ -391,6 +422,10 @@ func RegisterTools(s *Server) {
 				if err != nil {
 					return "", fmt.Errorf("preset not found: %w", err)
 				}
+				overrides, err := decodeArg[generation.PresetOverrides](args, "overrides")
+				if err != nil {
+					return "", err
+				}
 				extraPrompt, extraNeg := "", ""
 				description := argString(args, "description")
 				negative := argString(args, "negative")
@@ -399,6 +434,7 @@ func RegisterTools(s *Server) {
 						PresetID:    presetID,
 						Description: description,
 						Negative:    negative,
+						Overrides:   overrides,
 					})
 					if err != nil {
 						return "", err
@@ -410,9 +446,13 @@ func RegisterTools(s *Server) {
 					ExtraPrompt:         extraPrompt,
 					ExtraNegativePrompt: extraNeg,
 					Seed:                optInt(args, "seed"),
+					Overrides:           overrides,
 				}
 				if rid := optInt(args, "resolution_id"); rid != nil && *rid > 0 {
 					gp.ResolutionID = rid
+				}
+				if hid := optInt(args, "hires_profile_id"); hid != nil && *hid > 0 {
+					gp.HiresProfileID = hid
 				}
 				gp.FullSize = argBool(args, "full_size")
 				res, err := s.deps.Gen.GenerateImage(gp)
@@ -475,27 +515,25 @@ func RegisterTools(s *Server) {
 				return "", fmt.Errorf("%s", msg)
 			}
 			item := items[0]
-			steps := tp.Steps
-			if steps <= 0 {
-				steps = 20
+			info := item.Info
+			if len(info) == 0 {
+				steps := tp.Steps
+				if steps <= 0 {
+					steps = 20
+				}
+				info, _ = json.Marshal(map[string]any{
+					"prompt":          tp.Prompt,
+					"negative_prompt": tp.NegativePrompt,
+					"sampler_name":    item.Sampler,
+					"scheduler":       item.ScheduleType,
+					"seed":            item.Seed,
+					"steps":           steps,
+					"cfg_scale":       item.CfgScale,
+					"width":           tp.Width,
+					"height":          tp.Height,
+					"sd_model_name":   item.ModelName,
+				})
 			}
-			cfg := tp.CfgScale
-			if cfg <= 0 {
-				cfg = 7
-			}
-			info, _ := json.Marshal(map[string]any{
-				"prompt":          tp.Prompt,
-				"negative_prompt": tp.NegativePrompt,
-				"sampler_name":    item.Sampler,
-				"scheduler":       item.ScheduleType,
-				"seed":            item.Seed,
-				"steps":           steps,
-				"cfg_scale":       item.CfgScale,
-				"width":           tp.Width,
-				"height":          tp.Height,
-				"clip_skip":       1,
-				"sd_model_name":   item.ModelName,
-			})
 			out := map[string]any{
 				"seed":       item.Seed,
 				"prompt":     tp.Prompt,
@@ -663,9 +701,10 @@ func RegisterTools(s *Server) {
 
 	s.Register(Tool{
 		Name:        "upscale",
-		Description: "Апскейл x2 (img2img, denoise 0.4) по image_path. Параметры генерации берутся из sidecar .json рядом с файлом (создаётся инструментами generate/best_of) — он обязателен. Результат: PNG + sidecar в out_dir.",
+		Description: "Апскейл x2 (img2img, denoise 0.4) по image_path. Параметры генерации берутся из sidecar .json рядом с файлом (создаётся инструментами generate/best_of) — он обязателен. preset_id — пресет исходной генерации (модель, VAE, лоры, clip skip), без него — только параметры sidecar. Результат: PNG + sidecar в out_dir.",
 		InputSchema: props(map[string]any{
 			"image_path": prop("путь к PNG со sidecar .json", "string"),
+			"preset_id":  prop("id пресета исходной генерации", "integer"),
 		}, "image_path"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			path := argString(args, "image_path")
@@ -687,6 +726,7 @@ func RegisterTools(s *Server) {
 			res, err := s.deps.Gen.UpscaleImage(generation.UpscaleImageParams{
 				ImageBase64: b64,
 				GenInfo:     string(infoBytes),
+				PresetID:    argInt(args, "preset_id"),
 			})
 			if err != nil {
 				return "", err
@@ -705,98 +745,83 @@ func RegisterTools(s *Server) {
 
 	s.Register(Tool{
 		Name: "from_image",
-		Description: "img2img или inpaint по image_path и пресету. tags (описание изменений) проходит LLM-конвертацию; для inpaint обязателен mask_path. " +
-			"quality=true (только mode=img2img, требует resolution_id): после генерации — ESRGAN-апскейл до бокса разрешения и дочерний img2img denoise 0.35. " +
-			"preserve_identity=true (только mode=img2img с пресетом на klein-модели): klein reference-ремикс — лицо исходника сохраняется, оптимальный denoise 0.6–0.7. " +
-			"Результат: PNG + sidecar в out_dir.",
+		Description: "Ремикс img2img по image_path: перерисовка пресетом (preset_id) или пайплайном (compound_preset_id). tags (описание изменений) проходит LLM-конвертацию. " +
+			"quality=true (только preset_id, требует resolution_id): после генерации — ESRGAN-апскейл до бокса разрешения и дочерний img2img denoise 0.35. " +
+			"preserve_identity=true (только preset_id на klein-модели): klein reference-ремикс — лицо исходника сохраняется, denoise ≤0.9, оптимально 0.6–0.7. " +
+			"Удаление и замена объекта по маске — инструмент object_edit, правка по инструкции — edit. Результат: PNG + sidecar в out_dir.",
 		InputSchema: props(map[string]any{
 			"image_path":         prop("путь к исходному изображению", "string"),
-			"mode":               prop("img2img | inpaint (по умолчанию img2img)", "string"),
-			"mask_path":          prop("путь к маске (обязателен для inpaint)", "string"),
-			"preset_id":          prop("id пресета-стиля", "integer"),
+			"preset_id":          prop("id пресета-стиля (или compound_preset_id)", "integer"),
+			"compound_preset_id": prop("id пайплайна из compound_list (вместо preset_id)", "integer"),
 			"tags":               prop("что изменить — теги или описание для LLM", "string"),
 			"denoising_strength": prop("сила denoise 0..1 (по умолчанию 0.5)", "number"),
 			"extra_negative":     prop("дополнительный негатив", "string"),
 			"resolution_id":      prop("id разрешения: цель апскейла для quality, иначе fit исходника в бокс", "integer"),
-			"quality":            prop("качественный режим: 3 шага — img2img нативно, апскейл до бокса resolution_id, дочерний img2img (только mode=img2img)", "boolean"),
-			"preserve_identity":  prop("сохранять лицо исходника (klein reference-ремикс; только mode=img2img с klein-моделью, оптимальный denoise 0.6–0.7)", "boolean"),
-		}, "image_path", "preset_id"),
+			"hires_profile_id":   prop("id hires-профиля (только compound_preset_id)", "integer"),
+			"seed":               prop("фиксированный сид (только preset_id)", "integer"),
+			"overrides":          overridesSchema,
+			"quality":            prop("качественный режим: 3 шага — img2img нативно, апскейл до бокса resolution_id, дочерний img2img (только preset_id)", "boolean"),
+			"preserve_identity":  prop("сохранять лицо исходника (klein reference-ремикс; только preset_id с klein-моделью)", "boolean"),
+		}, "image_path"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
-			path := argString(args, "image_path")
-			if path == "" {
-				return "", fmt.Errorf("image_path обязателен")
-			}
-			mode := argString(args, "mode")
-			if mode == "" {
-				mode = "img2img"
-			}
-			if mode != "img2img" && mode != "inpaint" {
-				return "", fmt.Errorf("mode должен быть img2img или inpaint")
-			}
-			presetID := argInt(args, "preset_id")
-			if presetID <= 0 {
-				return "", fmt.Errorf("preset_id обязателен")
-			}
-			p, err := s.deps.DB.Get(presetID)
-			if err != nil {
-				return "", fmt.Errorf("preset not found: %w", err)
-			}
-			img, err := filebrowser.ReadFileAsBase64(path)
+			img, err := readImageArg(args, "image_path", true)
 			if err != nil {
 				return "", err
 			}
-			var mask string
-			if mode == "inpaint" {
-				maskPath := argString(args, "mask_path")
-				if maskPath == "" {
-					return "", fmt.Errorf("mask_path обязателен для inpaint")
-				}
-				mask, err = filebrowser.ReadFileAsBase64(maskPath)
-				if err != nil {
-					return "", err
-				}
+			presetID := argInt(args, "preset_id")
+			compoundID := argInt(args, "compound_preset_id")
+			if (presetID > 0) == (compoundID > 0) {
+				return "", fmt.Errorf("укажи ровно одно: preset_id или compound_preset_id")
+			}
+			overrides, err := decodeArg[generation.PresetOverrides](args, "overrides")
+			if err != nil {
+				return "", err
 			}
 			gp := generation.GenerateFromImageParams{
 				ImageBase64:         img,
-				Mode:                mode,
-				GenMode:             "preset",
-				PresetID:            presetID,
+				Mode:                "img2img",
 				DenoisingStrength:   argFloat(args, "denoising_strength"),
 				Tags:                argString(args, "tags"),
 				ExtraNegativePrompt: argString(args, "extra_negative"),
-				MaskBase64:          mask,
+			}
+			var name string
+			if presetID > 0 {
+				p, err := s.deps.DB.Get(presetID)
+				if err != nil {
+					return "", fmt.Errorf("preset not found: %w", err)
+				}
+				name = p.Name
+				gp.GenMode = "preset"
+				gp.PresetID = presetID
+				gp.Seed = optInt(args, "seed")
+				gp.Overrides = overrides
+				if argBool(args, "quality") {
+					gp.OutputMode = "quality"
+				}
+				gp.PreserveIdentity = argBool(args, "preserve_identity")
+			} else {
+				cp, err := s.deps.DB.GetCompoundPresetFull(compoundID)
+				if err != nil {
+					return "", fmt.Errorf("compound preset not found: %w", err)
+				}
+				if argBool(args, "quality") || argBool(args, "preserve_identity") || overrides != nil {
+					return "", fmt.Errorf("quality, preserve_identity и overrides работают только с preset_id")
+				}
+				name = cp.Name
+				gp.GenMode = "compound"
+				gp.CompoundPresetID = compoundID
+				if hid := optInt(args, "hires_profile_id"); hid != nil && *hid > 0 {
+					gp.HiresProfileID = hid
+				}
 			}
 			if rid := optInt(args, "resolution_id"); rid != nil && *rid > 0 {
 				gp.ResolutionID = rid
-			}
-			if argBool(args, "quality") {
-				gp.OutputMode = "quality"
-			}
-			if argBool(args, "preserve_identity") {
-				gp.PreserveIdentity = true
 			}
 			res, err := s.deps.Gen.GenerateFromImage(gp)
 			if err != nil {
 				return "", err
 			}
-			outPath, err := s.saveArtifact(p.Name, "fromimg-"+slugify(p.Name), res.Image, res.Info)
-			if err != nil {
-				return "", err
-			}
-			out := map[string]any{
-				"path":   outPath,
-				"prompt": res.EffectivePrompt,
-			}
-			if res.QualityUpscaleSkipped {
-				out["quality_upscale_skipped"] = true
-			}
-			if res.QualityRedenoiseSkipped {
-				out["quality_redenoise_skipped"] = true
-			}
-			if res.PreserveIdentityResetFailed {
-				out["preserve_identity_reset_failed"] = true
-			}
-			return toJSON(out), nil
+			return s.imageResult(name, "fromimg-"+slugify(name), res, true, nil)
 		},
 	})
 
@@ -904,6 +929,8 @@ func RegisterTools(s *Server) {
 			return "прервано", nil
 		},
 	})
+
+	registerEditTools(s)
 }
 
 func infoSeed(info json.RawMessage) int64 {
