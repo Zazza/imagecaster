@@ -97,8 +97,6 @@ export default {
   DeleteServerModel: vi.fn(() => Promise.resolve(undefined)),
   PullServerLLMModel: vi.fn(() => Promise.resolve(undefined)),
   DeleteServerLLMModel: vi.fn(() => Promise.resolve(undefined)),
-  GetServerBackends: vi.fn(() => Promise.resolve(undefined)),
-  SwitchServerBackend: vi.fn(() => Promise.resolve(undefined)),
   GetModelCatalog: vi.fn(() => Promise.resolve(undefined)),
   GetPresetsInstallStatus: vi.fn(() => Promise.resolve(undefined)),
   InstallPresetDeps: vi.fn(() => Promise.resolve(undefined)),

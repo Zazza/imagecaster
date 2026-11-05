@@ -74,11 +74,6 @@ type LLMModelInfo struct {
 	Size string `json:"size,omitempty"`
 }
 
-type BackendInfo struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
-}
-
 func sanitizePathSegment(s string) error {
 	if strings.Contains(s, "/") || strings.Contains(s, "\\") || strings.Contains(s, "..") {
 		return fmt.Errorf("invalid path segment: %q", s)
@@ -300,38 +295,6 @@ func (c *Client) RestartProcess(name string) error {
 			return fmt.Errorf("restart failed: %s", errResp["error"])
 		}
 		return fmt.Errorf("restart failed: status %d", resp.StatusCode)
-	}
-	return nil
-}
-
-func (c *Client) GetBackends() ([]BackendInfo, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/server/backends")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var backends []BackendInfo
-	if err := json.NewDecoder(resp.Body).Decode(&backends); err != nil {
-		return nil, err
-	}
-	return backends, nil
-}
-
-func (c *Client) SwitchBackend(backend string) error {
-	body, _ := json.Marshal(map[string]string{"backend": backend})
-	resp, err := c.httpClient.Post(c.baseURL+"/api/server/backends/switch", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var errResp map[string]string
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err == nil {
-			return fmt.Errorf("switch failed: %s", errResp["error"])
-		}
-		return fmt.Errorf("switch failed: status %d", resp.StatusCode)
 	}
 	return nil
 }

@@ -90,8 +90,6 @@ export function EditImage(arg1:generation.EditImageParams):Promise<generation.Ge
 
 export function EditObject(arg1:generation.ObjectEditParams):Promise<generation.GenerateImageResult>;
 
-export function RepairImage(arg1:generation.RepairParams):Promise<generation.GenerateImageResult>;
-
 export function EnqueueCompound(arg1:generation.GenerateCompoundImageParams):Promise<number>;
 
 export function EnqueueFromImage(arg1:generation.GenerateFromImageParams):Promise<number>;
@@ -161,8 +159,6 @@ export function GetSDSchedulers():Promise<Array<sd.Scheduler>>;
 export function GetSDUpscalers():Promise<Array<sd.Upscaler>>;
 
 export function GetSDVAEs():Promise<Array<sd.VAE>>;
-
-export function GetServerBackends():Promise<Array<serverclient.BackendInfo>>;
 
 export function GetServerLLMModels():Promise<Array<serverclient.LLMModelInfo>>;
 
@@ -240,6 +236,8 @@ export function RemoveQueueJob(arg1:number):Promise<void>;
 
 export function RenameSession(arg1:number,arg2:string):Promise<void>;
 
+export function RepairImage(arg1:generation.RepairParams):Promise<generation.GenerateImageResult>;
+
 export function RestartServerProcess(arg1:string):Promise<void>;
 
 export function ResumePausedQueueJobs():Promise<number>;
@@ -267,8 +265,6 @@ export function SetLastImage(arg1:string):Promise<void>;
 export function StartServerProcess(arg1:string):Promise<void>;
 
 export function StopServerProcess(arg1:string):Promise<void>;
-
-export function SwitchServerBackend(arg1:string):Promise<void>;
 
 export function SwitchSession(arg1:number):Promise<void>;
 

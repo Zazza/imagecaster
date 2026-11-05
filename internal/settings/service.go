@@ -386,20 +386,6 @@ func (s *Service) DeleteServerLLMModel(name string) error {
 	return s.serverClient.DeleteLLMModel(name)
 }
 
-func (s *Service) GetServerBackends() ([]serverclient.BackendInfo, error) {
-	if err := s.ensureServerClient(); err != nil {
-		return nil, err
-	}
-	return s.serverClient.GetBackends()
-}
-
-func (s *Service) SwitchServerBackend(backend string) error {
-	if err := s.ensureServerClient(); err != nil {
-		return err
-	}
-	return s.serverClient.SwitchBackend(backend)
-}
-
 func (s *Service) GetModelCatalog() (*serverclient.Catalog, error) {
 	return serverclient.LoadCatalog()
 }

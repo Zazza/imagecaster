@@ -158,10 +158,6 @@ export function EditObject(arg1) {
   return window['go']['main']['App']['EditObject'](arg1);
 }
 
-export function RepairImage(arg1) {
-  return window['go']['main']['App']['RepairImage'](arg1);
-}
-
 export function EnqueueCompound(arg1) {
   return window['go']['main']['App']['EnqueueCompound'](arg1);
 }
@@ -300,10 +296,6 @@ export function GetSDUpscalers() {
 
 export function GetSDVAEs() {
   return window['go']['main']['App']['GetSDVAEs']();
-}
-
-export function GetServerBackends() {
-  return window['go']['main']['App']['GetServerBackends']();
 }
 
 export function GetServerLLMModels() {
@@ -458,6 +450,10 @@ export function RenameSession(arg1, arg2) {
   return window['go']['main']['App']['RenameSession'](arg1, arg2);
 }
 
+export function RepairImage(arg1) {
+  return window['go']['main']['App']['RepairImage'](arg1);
+}
+
 export function RestartServerProcess(arg1) {
   return window['go']['main']['App']['RestartServerProcess'](arg1);
 }
@@ -512,10 +508,6 @@ export function StartServerProcess(arg1) {
 
 export function StopServerProcess(arg1) {
   return window['go']['main']['App']['StopServerProcess'](arg1);
-}
-
-export function SwitchServerBackend(arg1) {
-  return window['go']['main']['App']['SwitchServerBackend'](arg1);
 }
 
 export function SwitchSession(arg1) {

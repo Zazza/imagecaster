@@ -324,7 +324,6 @@ proxy:
 | `POST /api/models/download` | Скачать модель |
 | `DELETE /api/models/:name` | Удалить модель |
 | `GET /api/backends` | Доступные бэкенды |
-| `POST /api/backends/switch` | Переключить бэкенд |
 
 ### Обнаружение через mDNS
 

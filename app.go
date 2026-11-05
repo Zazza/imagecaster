@@ -1029,7 +1029,6 @@ type DiscoveredServer = serverclient.DiscoveredServer
 type ServerStatus = serverclient.ServerStatus
 type ServerModelInfo = serverclient.ModelInfo
 type ServerLLMModelInfo = serverclient.LLMModelInfo
-type ServerBackendInfo = serverclient.BackendInfo
 type ModelCatalog = serverclient.Catalog
 
 func (a *App) DiscoverServers() ([]DiscoveredServer, error) {
@@ -1074,14 +1073,6 @@ func (a *App) PullServerLLMModel(name string) error {
 
 func (a *App) DeleteServerLLMModel(name string) error {
 	return a.settingsSvc.DeleteServerLLMModel(name)
-}
-
-func (a *App) GetServerBackends() ([]ServerBackendInfo, error) {
-	return a.settingsSvc.GetServerBackends()
-}
-
-func (a *App) SwitchServerBackend(backend string) error {
-	return a.settingsSvc.SwitchServerBackend(backend)
 }
 
 func (a *App) GetModelCatalog() (*ModelCatalog, error) {

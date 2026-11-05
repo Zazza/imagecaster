@@ -24,7 +24,7 @@ import {
   InterruptGeneration,
   DiscoverServers, GetServerStatus, GetServerModels, GetServerLLMModels,
   DownloadServerModel, DeleteServerModel, PullServerLLMModel, DeleteServerLLMModel,
-  GetServerBackends, SwitchServerBackend, GetModelCatalog,
+  GetModelCatalog,
   GetPresetsInstallStatus, InstallPresetDeps,
   StartServerProcess, StopServerProcess, RestartServerProcess,
   Version,
@@ -193,8 +193,6 @@ export const api = {
     })
   },
   deleteServerLLMModel: (name) => DeleteServerLLMModel(name),
-  getServerBackends: () => GetServerBackends(),
-  switchServerBackend: (backend) => SwitchServerBackend(backend),
   getModelCatalog: () => GetModelCatalog(),
   getPresetsInstallStatus: () => GetPresetsInstallStatus(),
   installPresetDeps: (id) => InstallPresetDeps(id),

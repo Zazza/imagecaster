@@ -324,7 +324,6 @@ When `proxy.enabled: true`, the server acts as a smart reverse proxy:
 | `POST /api/models/download` | Download a model |
 | `DELETE /api/models/:name` | Delete a model |
 | `GET /api/backends` | Available backends |
-| `POST /api/backends/switch` | Switch backend |
 
 ### mDNS Discovery
 
