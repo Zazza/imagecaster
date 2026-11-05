@@ -311,19 +311,32 @@ proxy:
 
 ### API-эндпоинты
 
-| Эндпоинт | Описание |
-|-----------|----------|
-| `GET /` | Информация о сервере |
-| `GET /api/health` | Статус здоровья сервисов |
-| `GET /api/processes` | Статус процессов |
-| `POST /api/processes/:name/start` | Запустить сервис |
-| `POST /api/processes/:name/stop` | Остановить сервис |
-| `POST /api/processes/:name/restart` | Перезапустить сервис |
-| `GET /api/gpu` | Информация о GPU |
-| `GET /api/models` | Доступные модели |
-| `POST /api/models/download` | Скачать модель |
-| `DELETE /api/models/:name` | Удалить модель |
-| `GET /api/backends` | Доступные бэкенды |
+Авторизации нет — сервер рассчитан только на доверенную локальную сеть.
+
+| Эндпоинт | Метод | Что делает |
+|----------|-------|------------|
+| `/` | GET | `{name, version, status}` |
+| `/api/server/status` | GET | `processes`, `health`, `gpu`, `installs`, `models`, процессор и память компьютера `sys` |
+| `/api/server/start/{name}` | POST | запустить процесс |
+| `/api/server/stop/{name}` | POST | остановить процесс |
+| `/api/server/restart/{name}` | POST | перезапустить процесс |
+| `/api/server/logs/{name}` | GET | журнал процесса, `?lines=100` |
+| `/api/server/install/status` | GET | состояние установки всех компонентов |
+| `/api/server/install/status/{key}` | GET | состояние установки одного компонента |
+| `/api/server/install/{key}` | POST | установить компонент |
+| `/api/server/install/logs/{key}` | GET | журнал установки |
+| `/api/server/backends/active` | GET | активный бэкенд `{key, name, process}` |
+| `/api/server/models/sd` | GET / POST | список чекпоинтов / скачать `{url, filename}` |
+| `/api/server/models/lora` | GET / POST | то же для LoRA |
+| `/api/server/models/vae` | GET / POST | то же для VAE |
+| `/api/server/models/llm` | GET / POST | список моделей Ollama / скачать модель |
+| `/api/server/models/llm/pull` | GET | скачать модель Ollama с ходом загрузки в потоке, `?name=` |
+| `/api/server/models/download/stream` | GET | скачать модель с ходом загрузки в потоке, `?type=sd\|lora\|vae&url=&filename=` |
+| `/api/server/models/delete/{sd,lora,vae,llm}/{name}` | DELETE | удалить модель |
+| `/api/gpu/status` | GET | состояние очереди GPU |
+| `/api/gpu/lease`, `/api/gpu/lease/{id}`, `/api/gpu/queue/{id}` | POST / GET / DELETE / PATCH | аренда GPU для внешних программ |
+| `/api/sd/*` | * | прокси к Forge Neo (через очередь GPU) |
+| `/api/llm/*` | * | прокси к Ollama (через очередь GPU) |
 
 ### Обнаружение через mDNS
 

@@ -311,19 +311,32 @@ When `proxy.enabled: true`, the server acts as a smart reverse proxy:
 
 ### API Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /` | Server info |
-| `GET /api/health` | Service health status |
-| `GET /api/processes` | Process status |
-| `POST /api/processes/:name/start` | Start a service |
-| `POST /api/processes/:name/stop` | Stop a service |
-| `POST /api/processes/:name/restart` | Restart a service |
-| `GET /api/gpu` | GPU info |
-| `GET /api/models` | Available models |
-| `POST /api/models/download` | Download a model |
-| `DELETE /api/models/:name` | Delete a model |
-| `GET /api/backends` | Available backends |
+No authorization — the server is meant for a trusted LAN only.
+
+| Endpoint | Method | What it does |
+|----------|--------|--------------|
+| `/` | GET | `{name, version, status}` |
+| `/api/server/status` | GET | `processes`, `health`, `gpu`, `installs`, `models`, host CPU/RAM `sys` |
+| `/api/server/start/{name}` | POST | start a process |
+| `/api/server/stop/{name}` | POST | stop a process |
+| `/api/server/restart/{name}` | POST | restart a process |
+| `/api/server/logs/{name}` | GET | process log, `?lines=100` |
+| `/api/server/install/status` | GET | install state of all components |
+| `/api/server/install/status/{key}` | GET | install state of one component |
+| `/api/server/install/{key}` | POST | install a component |
+| `/api/server/install/logs/{key}` | GET | install log |
+| `/api/server/backends/active` | GET | active backend `{key, name, process}` |
+| `/api/server/models/sd` | GET / POST | list checkpoints / download `{url, filename}` |
+| `/api/server/models/lora` | GET / POST | the same for LoRA |
+| `/api/server/models/vae` | GET / POST | the same for VAE |
+| `/api/server/models/llm` | GET / POST | list Ollama models / pull one |
+| `/api/server/models/llm/pull` | GET | pull an Ollama model with streamed progress, `?name=` |
+| `/api/server/models/download/stream` | GET | download a model with streamed progress, `?type=sd\|lora\|vae&url=&filename=` |
+| `/api/server/models/delete/{sd,lora,vae,llm}/{name}` | DELETE | delete a model |
+| `/api/gpu/status` | GET | GPU queue state |
+| `/api/gpu/lease`, `/api/gpu/lease/{id}`, `/api/gpu/queue/{id}` | POST / GET / DELETE / PATCH | GPU leases for external consumers |
+| `/api/sd/*` | * | proxy to Forge Neo (through the GPU queue) |
+| `/api/llm/*` | * | proxy to Ollama (through the GPU queue) |
 
 ### mDNS Discovery
 
