@@ -61,7 +61,7 @@ func (s *Server) imageResult(name, slug string, res *generation.GenerateImageRes
 	if res.PreserveIdentityResetFailed {
 		out["preserve_identity_reset_failed"] = true
 	}
-	if !save {
+	if !save && !s.deps.NoImageBytes {
 		out["image_base64"] = res.Image
 		return toJSON(out), nil
 	}
@@ -109,7 +109,7 @@ func registerEditTools(s *Server) {
 			if err != nil {
 				return "", err
 			}
-			return s.imageResult("object-"+op, "object-"+op, res, optBool(args, "save", true), map[string]any{
+			return s.imageResult("object-"+op, "object-"+op, res, s.wantSave(args), map[string]any{
 				"detected_object": res.DetectedObject,
 			})
 		},
@@ -166,7 +166,7 @@ func registerEditTools(s *Server) {
 			if err != nil {
 				return "", err
 			}
-			return s.imageResult("edit", "edit", res, optBool(args, "save", true), nil)
+			return s.imageResult("edit", "edit", res, s.wantSave(args), nil)
 		},
 	})
 
@@ -194,7 +194,7 @@ func registerEditTools(s *Server) {
 			if err != nil {
 				return "", err
 			}
-			return s.imageResult("look", "look", res, optBool(args, "save", true), nil)
+			return s.imageResult("look", "look", res, s.wantSave(args), nil)
 		},
 	})
 }

@@ -238,3 +238,18 @@ func scanSessionItems(rows *sql.Rows) ([]SessionItem, error) {
 	}
 	return items, rows.Err()
 }
+
+func (d *DB) FindSessionByName(name string) (int64, error) {
+	var id int64
+	err := d.db.QueryRow(`SELECT id FROM sessions WHERE name = ? ORDER BY id DESC LIMIT 1`, name).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return id, err
+}
+
+func (d *DB) SessionFingerprint() (int64, int64, error) {
+	var maxItem, sessions int64
+	err := d.db.QueryRow(`SELECT (SELECT COALESCE(MAX(id), 0) FROM session_items WHERE thumb_name <> ''), (SELECT COUNT(*) FROM sessions)`).Scan(&maxItem, &sessions)
+	return maxItem, sessions, err
+}

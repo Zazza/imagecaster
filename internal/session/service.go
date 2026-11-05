@@ -138,6 +138,32 @@ func normalizeMeta(meta *preset.GenerationMeta, sdModel string) *preset.Generati
 }
 
 func (s *Service) AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+	sessionID, err := s.db.GetActiveSessionID()
+	if err != nil || sessionID == 0 {
+		return 0
+	}
+	return s.addItem(sessionID, imageBase64, info, source, isPreview, meta)
+}
+
+func (s *Service) AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+	sessionID, err := s.db.FindSessionByName(name)
+	if err != nil {
+		log.Printf("[session] find session %q: %v", name, err)
+		return 0
+	}
+	if sessionID == 0 {
+		si, err := s.db.CreateSession(name)
+		if err != nil {
+			log.Printf("[session] create session %q: %v", name, err)
+			return 0
+		}
+		sessionID = si.ID
+		s.emit.Emit("session:created", map[string]any{"session_id": si.ID, "name": si.Name})
+	}
+	return s.addItem(sessionID, imageBase64, info, source, isPreview, meta)
+}
+
+func (s *Service) addItem(sessionID int64, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
 	if len(imageBase64) > maxImageBase64 {
 		reencoded, err := reencodeJPEG(imageBase64)
 		if err != nil {
@@ -149,11 +175,6 @@ func (s *Service) AddToSession(imageBase64 string, info json.RawMessage, source 
 			return 0
 		}
 		imageBase64 = reencoded
-	}
-
-	sessionID, err := s.db.GetActiveSessionID()
-	if err != nil || sessionID == 0 {
-		return 0
 	}
 
 	imgData, err := base64.StdEncoding.DecodeString(imageBase64)

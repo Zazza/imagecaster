@@ -202,72 +202,18 @@ func (s *Service) EditObject(params ObjectEditParams) (*GenerateImageResult, err
 	}
 	instruction := buildObjectInstruction(in.op, object, in.replacement)
 
-	s.referenceMu.Lock()
-	defer s.referenceMu.Unlock()
-
-	if err := s.sd.HealthCheck(); err != nil {
-		return nil, fmt.Errorf("SD is not available: %w", err)
-	}
-	s.StartSDPolling()
-	defer s.StopSDPolling()
-	s.emitter.Emit("object:stage", "generating")
-
-	s.guard.EnsureHeadroom(kleinLookModel, "object")
-	if err := s.setModel(kleinLookModel, "object"); err != nil {
-		return nil, fmt.Errorf("%s not available on SD backend: %w", kleinLookModel, err)
-	}
-	if err := s.sd.SetVAE("Automatic"); err != nil {
-		s.log.Warn("object: reset vae: %s", err)
-	}
-	if err := s.sd.SetOption(kleinReferenceOption, true); err != nil {
-		if rerr := s.sd.SetOption(kleinReferenceOption, false); rerr != nil {
-			s.log.Warn("object: disable klein reference after failed enable: %s", rerr)
-		}
-		return nil, fmt.Errorf("enable object reference: %w", err)
-	}
-	var result *GenerateImageResult
-	defer func() {
-		derr := s.sd.SetOption(kleinReferenceOption, false)
-		if derr != nil {
-			s.log.Warn("object: disable klein reference: %s", derr)
-		}
-		if result != nil {
-			result.PreserveIdentityResetFailed = derr != nil
-		}
-	}()
-
 	b := in.img.Bounds()
 	width, height := alignLookSize(b.Dx(), b.Dy())
-	denoise := objectDenoise
-	batchSize, batchCount := 1, 1
-	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
-		InitImages:        []string{params.ImageBase64},
-		Prompt:            instruction,
-		NegativePrompt:    s.kids.ApplyNegative(""),
-		SamplerName:       kleinLookSampler,
-		Scheduler:         kleinLookScheduler,
-		Steps:             objectSteps,
-		CfgScale:          kleinLookCfgScale,
-		Width:             width,
-		Height:            height,
-		Seed:              params.Seed,
-		DenoisingStrength: &denoise,
-		BatchSize:         &batchSize,
-		BatchCount:        &batchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
+	resp, resetFailed, err := s.kleinReferenceImg2Img("object", func() { s.emitter.Emit("object:stage", "generating") }, sd.Img2ImgRequest{
+		InitImages:     []string{params.ImageBase64},
+		Prompt:         instruction,
+		NegativePrompt: s.kids.ApplyNegative(""),
+		Width:          width,
+		Height:         height,
+		Seed:           params.Seed,
 	})
 	if err != nil {
-		if ierr := s.checkSDInterrupted(); ierr != nil {
-			return nil, ierr
-		}
 		return nil, err
-	}
-	if len(resp.Images) == 0 {
-		if ierr := s.checkSDInterrupted(); ierr != nil {
-			return nil, ierr
-		}
-		return nil, errors.New("no image generated (object)")
 	}
 	edited, err := decodeB64Image(resp.Images[0], "result")
 	if err != nil {
@@ -283,11 +229,12 @@ func (s *Service) EditObject(params ObjectEditParams) (*GenerateImageResult, err
 		label = "Замена: " + truncateRunes(in.replacement, objectLabelMax)
 	}
 	info := patchInfoSize(resp.Info, b.Dx(), b.Dy())
-	result = &GenerateImageResult{
-		Image:           finalB64,
-		Info:            info,
-		EffectivePrompt: instruction,
-		DetectedObject:  object,
+	result := &GenerateImageResult{
+		Image:                       finalB64,
+		Info:                        info,
+		EffectivePrompt:             instruction,
+		DetectedObject:              object,
+		PreserveIdentityResetFailed: resetFailed,
 	}
 	s.sessions.AddToSession(finalB64, info, "object", false, &preset.GenerationMeta{
 		Label: label,

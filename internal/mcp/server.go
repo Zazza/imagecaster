@@ -35,6 +35,10 @@ type Deps struct {
 	Kids     *kids.Manager
 	Cfg      *config.Config
 	OutDir   string
+	Stylist  StylistEngine
+	Sessions AppSessions
+
+	NoImageBytes bool
 }
 
 type Server struct {
@@ -84,12 +88,6 @@ func prop(desc, typ string, extra ...map[string]any) map[string]any {
 type NoopEmitter struct{}
 
 func (NoopEmitter) Emit(event string, data ...any) {}
-
-type NoopSessions struct{}
-
-func (NoopSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
-	return 0
-}
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -337,6 +335,10 @@ func optBool(args map[string]any, key string, def bool) bool {
 		return v
 	}
 	return def
+}
+
+func (s *Server) wantSave(args map[string]any) bool {
+	return optBool(args, "save", true) || s.deps.NoImageBytes
 }
 
 func toJSON(v any) string {

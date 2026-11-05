@@ -15,6 +15,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/sd"
 	"github.com/Zazza/imagecaster/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/session"
 	"github.com/Zazza/imagecaster/internal/settings"
 )
 
@@ -46,10 +47,12 @@ func main() {
 	logSvc := logger.New(nil)
 	kidsMgr := kids.NewManager(db)
 	settingsSvc := settings.New(db, llmClient, sdClient, cfg, logSvc, srvClient)
+	dataDir := filepath.Dir(cfg.DBPath)
+	appSessions := session.New(db, dataDir, mcp.NoopEmitter{})
 	gen := generation.New(
 		db, llmClient, sdClient, cfg,
-		filepath.Dir(cfg.DBPath),
-		mcp.NoopEmitter{}, kidsMgr, mcp.NoopSessions{}, settingsSvc, nil, logSvc,
+		dataDir,
+		mcp.NoopEmitter{}, kidsMgr, mcp.AgentSessions{Svc: appSessions}, settingsSvc, nil, logSvc,
 	)
 	go gen.ResetReferences()
 
@@ -74,6 +77,10 @@ func main() {
 		Kids:     kidsMgr,
 		Cfg:      cfg,
 		OutDir:   outDir,
+		Stylist:  gen,
+		Sessions: appSessions,
+
+		NoImageBytes: os.Getenv("SD_MCP_NO_IMAGE_BYTES") == "1",
 	})
 	mcp.RegisterTools(srv)
 

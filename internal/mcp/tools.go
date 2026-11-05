@@ -415,7 +415,7 @@ func RegisterTools(s *Server) {
 			"save":             prop("сохранить PNG+sidecar в out_dir (по умолчанию true)", "boolean"),
 		}),
 		Handler: func(s *Server, args map[string]any) (string, error) {
-			save := optBool(args, "save", true)
+			save := s.wantSave(args)
 			presetID := argInt(args, "preset_id")
 			if presetID > 0 {
 				p, err := s.deps.DB.Get(presetID)
@@ -931,6 +931,7 @@ func RegisterTools(s *Server) {
 	})
 
 	registerEditTools(s)
+	registerStylistTools(s)
 }
 
 func infoSeed(info json.RawMessage) int64 {

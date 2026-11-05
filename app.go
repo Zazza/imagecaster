@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	xdraw "golang.org/x/image/draw"
 
@@ -102,6 +103,8 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	return a
 }
 
+const externalSessionPoll = 2 * time.Second
+
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.log.SetContext(ctx)
@@ -109,6 +112,7 @@ func (a *App) startup(ctx context.Context) {
 	a.gen.SetContext(ctx)
 	a.queueSvc.Start(ctx)
 	go a.gen.ResetReferences()
+	go a.sessions.WatchExternal(ctx, externalSessionPoll)
 	a.restoreWindowLayout()
 }
 
