@@ -2,6 +2,11 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.2.1] — 2026-11-05
+
+### Fixed
+- The 1.2.0 release did not build for Windows and macOS: a stylist test cleared the proxy variable it had just set, because Windows treats `HTTP_PROXY` and `http_proxy` as the same variable. Only the test changed; the app is the same as 1.2.0.
+
 ## [1.2.0] — 2026-11-05
 
 ### Added

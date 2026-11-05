@@ -864,7 +864,10 @@ func TestStylistTools_RefuseEnvProxy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, k := range proxyVars {
-				t.Setenv(k, tt.env[k])
+				t.Setenv(k, "")
+			}
+			for k, v := range tt.env {
+				t.Setenv(k, v)
 			}
 			photo, _ := styWritePhoto(t)
 			eng := &fakeStylist{}
