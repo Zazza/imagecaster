@@ -472,6 +472,24 @@ export namespace generation {
 	        this.negative_prompt = source["negative_prompt"];
 	    }
 	}
+	export class RepairParams {
+	    image_base64: string;
+	    mask_base64: string;
+	    strength: number;
+	    seed?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RepairParams(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.image_base64 = source["image_base64"];
+	        this.mask_base64 = source["mask_base64"];
+	        this.strength = source["strength"];
+	        this.seed = source["seed"];
+	    }
+	}
 	export class ObjectEditParams {
 	    image_base64: string;
 	    mask_base64: string;

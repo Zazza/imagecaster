@@ -90,6 +90,8 @@ export function EditImage(arg1:generation.EditImageParams):Promise<generation.Ge
 
 export function EditObject(arg1:generation.ObjectEditParams):Promise<generation.GenerateImageResult>;
 
+export function RepairImage(arg1:generation.RepairParams):Promise<generation.GenerateImageResult>;
+
 export function EnqueueCompound(arg1:generation.GenerateCompoundImageParams):Promise<number>;
 
 export function EnqueueFromImage(arg1:generation.GenerateFromImageParams):Promise<number>;

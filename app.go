@@ -300,6 +300,7 @@ type GenerateCompoundImageParams = generation.GenerateCompoundImageParams
 type GenerateFromImageParams = generation.GenerateFromImageParams
 type EditImageParams = generation.EditImageParams
 type ObjectEditParams = generation.ObjectEditParams
+type RepairParams = generation.RepairParams
 type PresetOverrides = generation.PresetOverrides
 
 func (a *App) GenerateSDPrompt(params GenerateSDPromptParams) (*GenerateSDPromptResult, error) {
@@ -364,6 +365,10 @@ func (a *App) EditImage(params EditImageParams) (*GenerateImageResult, error) {
 
 func (a *App) EditObject(params ObjectEditParams) (*GenerateImageResult, error) {
 	return a.gen.EditObject(params)
+}
+
+func (a *App) RepairImage(params RepairParams) (*GenerateImageResult, error) {
+	return a.gen.RepairImage(params)
 }
 
 func (a *App) ApplyLookDirect(imageBase64, text string, strength float64, seed *int64) (*GenerateImageResult, error) {

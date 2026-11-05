@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { ChevronDown, Wand2, ImagePlus, Eraser, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw } from 'lucide-vue-next'
+import { ChevronDown, Wand2, ImagePlus, Eraser, Bandage, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw } from 'lucide-vue-next'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { parseSeedInput } from '../seed.js'
@@ -12,6 +12,7 @@ import { EventsOn } from '../wailsjs/runtime/runtime'
 import EditSection from './EditSection.vue'
 import RemixSection from './RemixSection.vue'
 import ObjectSection from './ObjectSection.vue'
+import RepairSection from './RepairSection.vue'
 import RecipeComposition from './RecipeComposition.vue'
 
 const props = defineProps({
@@ -26,6 +27,8 @@ const editSectionRef = ref(null)
 const remixSectionRef = ref(null)
 const objectSectionRef = ref(null)
 const objectCompRef = ref(null)
+const repairSectionRef = ref(null)
+const repairCompRef = ref(null)
 const effectSectionRef = ref(null)
 const adjustSectionRef = ref(null)
 const exportSectionRef = ref(null)
@@ -36,6 +39,7 @@ function sectionEl(name) {
   if (name === 'edit') return editSectionRef.value
   if (name === 'remix') return remixSectionRef.value
   if (name === 'object') return objectSectionRef.value
+  if (name === 'repair') return repairSectionRef.value
   if (name === 'adjust') return adjustSectionRef.value
   if (name === 'export') return exportSectionRef.value
   if (name === 'recipes') return recipesSectionRef.value
@@ -294,12 +298,13 @@ const maskViewRef = ref(null)
 const brushing = ref(false)
 const brushCursor = ref({ x: 0, y: 0, visible: false })
 
-const maskMode = computed(() => openSection.value === 'object' && !!objectCompRef.value?.maskActive)
-const brushDiameter = computed(() => objectCompRef.value?.brushSize || 30)
+const maskComp = computed(() => openSection.value === 'object' ? objectCompRef.value : openSection.value === 'repair' ? repairCompRef.value : null)
+const maskMode = computed(() => !!maskComp.value?.maskActive)
+const brushDiameter = computed(() => maskComp.value?.brushSize || 30)
 const maskOverlayVisible = ref(true)
 
 function maskScale() {
-  const canvas = objectCompRef.value?.maskCanvas
+  const canvas = maskComp.value?.maskCanvas
   const el = splitWrapRef.value
   if (!canvas || !el || !canvas.width || !canvas.height) return 0
   const canvasFit = Math.min(el.clientWidth / canvas.width, el.clientHeight / canvas.height)
@@ -315,7 +320,7 @@ function brushRadius() {
 
 function pointerToImage(e) {
   const el = splitWrapRef.value
-  const canvas = objectCompRef.value?.maskCanvas
+  const canvas = maskComp.value?.maskCanvas
   const scale = maskScale()
   if (!el || !canvas || !scale) return null
   const rect = el.getBoundingClientRect()
@@ -328,7 +333,7 @@ function pointerToImage(e) {
 }
 
 function syncMaskView() {
-  const src = objectCompRef.value?.maskCanvas
+  const src = maskComp.value?.maskCanvas
   const view = maskViewRef.value
   if (!src || !view) return
   if (view.width !== src.width || view.height !== src.height) {
@@ -340,7 +345,7 @@ function syncMaskView() {
   ctx.drawImage(src, 0, 0)
 }
 
-watch(() => objectCompRef.value?.maskVersion, () => {
+watch([maskComp, () => maskComp.value?.maskVersion], () => {
   if (maskMode.value) nextTick(syncMaskView)
 })
 watch(maskMode, (val) => {
@@ -369,7 +374,7 @@ function onViewPointerDown(e) {
     const p = pointerToImage(e)
     if (!p) return
     brushing.value = true
-    objectCompRef.value?.beginStroke(p.x, p.y, brushRadius())
+    maskComp.value?.beginStroke(p.x, p.y, brushRadius())
     e.currentTarget.setPointerCapture(e.pointerId)
     return
   }
@@ -386,7 +391,7 @@ function onViewPointerMove(e) {
     updateBrushCursor(e)
     if (brushing.value) {
       const p = pointerToImage(e)
-      if (p) objectCompRef.value?.strokeTo(p.x, p.y, brushRadius())
+      if (p) maskComp.value?.strokeTo(p.x, p.y, brushRadius())
     }
     return
   }
@@ -402,7 +407,7 @@ function onViewPointerMove(e) {
 function onViewPointerUp() {
   if (brushing.value) {
     brushing.value = false
-    objectCompRef.value?.endStroke()
+    maskComp.value?.endStroke()
     return
   }
   if (panning.value && panMovedDist > 4) {
@@ -647,16 +652,16 @@ const layerUndo = ref([])
 const layerRedo = ref([])
 const canUndoLayer = computed(() => layerUndo.value.length > 0)
 const canRedoLayer = computed(() => layerRedo.value.length > 0)
-const canUndoView = computed(() => maskMode.value ? !!objectCompRef.value?.canUndoMask : canUndoLayer.value)
-const canRedoView = computed(() => maskMode.value ? !!objectCompRef.value?.canRedoMask : canRedoLayer.value)
+const canUndoView = computed(() => maskMode.value ? !!maskComp.value?.canUndoMask : canUndoLayer.value)
+const canRedoView = computed(() => maskMode.value ? !!maskComp.value?.canRedoMask : canRedoLayer.value)
 
 function undoView() {
-  if (maskMode.value) objectCompRef.value?.undoMask()
+  if (maskMode.value) maskComp.value?.undoMask()
   else undoLayer()
 }
 
 function redoView() {
-  if (maskMode.value) objectCompRef.value?.redoMask()
+  if (maskMode.value) maskComp.value?.redoMask()
   else redoLayer()
 }
 
@@ -854,8 +859,8 @@ function onPageKeydown(e) {
   e.preventDefault()
   const redo = isY || e.shiftKey
   if (maskMode.value) {
-    if (redo) objectCompRef.value?.redoMask()
-    else objectCompRef.value?.undoMask()
+    if (redo) maskComp.value?.redoMask()
+    else maskComp.value?.undoMask()
     return
   }
   if (redo) redoLayer()
@@ -1232,8 +1237,8 @@ let folderCancelled = false
 const pipelineRunning = ref(false)
 
 const { sdProgress: genProgress, preview: genPreview } = useGenerationProgress()
-const sectionBusy = reactive({ edit: false, remix: false, object: false })
-const genBusy = computed(() => sectionBusy.edit || sectionBusy.remix || sectionBusy.object || applyingEffect.value || lookBusy.value || recipeRunning.value)
+const sectionBusy = reactive({ edit: false, remix: false, object: false, repair: false })
+const genBusy = computed(() => sectionBusy.edit || sectionBusy.remix || sectionBusy.object || sectionBusy.repair || applyingEffect.value || lookBusy.value || recipeRunning.value)
 const genActive = computed(() => !!genProgress.value && genProgress.value.progress > 0 && genProgress.value.progress < 1)
 const livePreview = computed(() => (genBusy.value && genActive.value && genPreview.value) || '')
 watch(genBusy, (busy) => {
@@ -1755,6 +1760,21 @@ onUnmounted(() => {
           <div class="card-collapse" :class="{ collapsed: openSection !== 'object' }">
             <div class="card-body">
               <ObjectSection ref="objectCompRef" :source="currentB64" :active="openSection === 'object'" @result="onToolResult" @busy="v => sectionBusy.object = v" />
+            </div>
+          </div>
+        </div>
+
+        <div ref="repairSectionRef" class="card" :class="{ collapsed: openSection !== 'repair' }">
+          <div class="card-header card-toggle" @click="setOpenSection('repair')">
+            <span class="card-title">
+              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'repair' }" />
+              <Bandage :size="14" class="section-icon" />
+              {{ t('post.section_repair') }}
+            </span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'repair' }">
+            <div class="card-body">
+              <RepairSection ref="repairCompRef" :source="currentB64" :active="openSection === 'repair'" @result="onToolResult" @busy="v => sectionBusy.repair = v" />
             </div>
           </div>
         </div>

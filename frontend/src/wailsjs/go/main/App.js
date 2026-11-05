@@ -158,6 +158,10 @@ export function EditObject(arg1) {
   return window['go']['main']['App']['EditObject'](arg1);
 }
 
+export function RepairImage(arg1) {
+  return window['go']['main']['App']['RepairImage'](arg1);
+}
+
 export function EnqueueCompound(arg1) {
   return window['go']['main']['App']['EnqueueCompound'](arg1);
 }
