@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"math"
 	"math/rand/v2"
 	"net"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/generation"
 	"github.com/Zazza/imagecaster/internal/preset"
@@ -20,6 +23,7 @@ import (
 type StylistEngine interface {
 	KleinEdit(imageBase64, instruction string, seed *int64) (*generation.GenerateImageResult, error)
 	DescribeImage(imageBase64, prompt string) (string, error)
+	FaceLandmarks(imageBase64 string) ([]faceguard.Point, error)
 }
 
 type AppSessions interface {
@@ -38,6 +42,7 @@ type Look struct {
 	HairCut   string `json:"hair_cut,omitempty"`
 	HairColor string `json:"hair_color,omitempty"`
 	Outfit    string `json:"outfit,omitempty"`
+	Headwear  string `json:"headwear,omitempty"`
 	Glasses   string `json:"glasses,omitempty"`
 	Makeup    string `json:"makeup,omitempty"`
 	Free      string `json:"free,omitempty"`
@@ -49,18 +54,23 @@ const (
 	stylistMaxVariants  = 4
 	stylistDefaultCount = 2
 	stylistLabelMax     = 80
-	stylistKeepSuffix   = "Keep the person's face, identity, pose and background unchanged."
+	stylistKeepSuffix   = "Keep the person's face, identity, head position and angle, pose and background unchanged."
 	stylistAskUser      = "Спроси у человека форму лица, возраст и тон кожи — по фото они определяются ненадёжно."
 	stylistNote         = "Варианты — в приложении, сессия «Стилист»; человек открывает их там. Файлы не открывай: фото не покидают локальную сеть, результат описан в check."
 	stylistDescribe     = "Describe the person's current styling for a stylist, in short lines:\nHair: length (where it ends), cut, color, texture, parting.\nEyewear: none, or frame shape and color.\nClothing: each visible garment with type, color, material.\nAccessories: jewelry, hats, bags, or none.\nMakeup: lips and eyes, or none.\nBackground and lighting: one line.\nDescribe only what is visible. Do not guess age, face shape or skin tone."
+	stylistHairMask     = "Recolor only the person's hair solid bright green (#00FF00), including every strand that falls over the face. Keep everything else unchanged."
+	stylistNoStrands    = "No loose strands of hair across the cheeks or eyes."
+	faceOriginal        = "original"
+	faceNotProtected    = "not protected: "
 	stylistCheck        = "Look at the person in this photo and describe their current styling in four short lines:\nHair: length (where it ends), cut name, color.\nEyewear: none, or frame shape/color and whether lenses are clear or tinted.\nOuter clothing: garment type, material, color.\nMakeup: lips and eyes.\nDescribe only what is visible."
 )
 
-var lookSchema = prop("образ (по-английски): hair_cut, hair_color, outfit, glasses (\"none\" — снять; для очков пиши \"clear lenses\", иначе стёкла тонируются), makeup, free — любые поля", "object",
+var lookSchema = prop("образ (по-английски): hair_cut, hair_color, outfit, headwear, glasses (\"none\" — снять; для очков пиши \"clear lenses\", иначе стёкла тонируются), makeup, free — любые поля", "object",
 	map[string]any{"properties": map[string]any{
 		"hair_cut": prop("стрижка", "string"), "hair_color": prop("цвет волос", "string"),
-		"outfit": prop("одежда", "string"), "glasses": prop("очки", "string"),
-		"makeup": prop("макияж", "string"), "free": prop("прочие изменения", "string"),
+		"outfit": prop("одежда", "string"), "headwear": prop("головной убор", "string"),
+		"glasses": prop("очки", "string"),
+		"makeup":  prop("макияж", "string"), "free": prop("прочие изменения", "string"),
 	}})
 
 func buildLookInstruction(l Look) string {
@@ -71,8 +81,12 @@ func buildLookInstruction(l Look) string {
 		}
 	}
 	add("Change the hairstyle to %s.", l.HairCut)
+	if strings.TrimSpace(l.HairCut) != "" {
+		parts = append(parts, stylistNoStrands)
+	}
 	add("Recolor the hair %s.", l.HairColor)
 	add("Replace the current clothing with %s.", l.Outfit)
+	add("Put on %s.", l.Headwear)
 	switch strings.ToLower(strings.TrimSpace(l.Glasses)) {
 	case "":
 	case "none", "no", "remove", "нет":
@@ -88,7 +102,7 @@ func buildLookInstruction(l Look) string {
 
 func lookLabel(l Look) string {
 	var parts []string
-	for _, v := range []string{l.HairCut, l.HairColor, l.Outfit, l.Glasses, l.Makeup, l.Free} {
+	for _, v := range []string{l.HairCut, l.HairColor, l.Outfit, l.Headwear, l.Glasses, l.Makeup, l.Free} {
 		if v = strings.TrimSpace(v); v != "" {
 			parts = append(parts, v)
 		}
@@ -182,6 +196,8 @@ func variantCount(args map[string]any) (int, error) {
 
 func stylistTry(eng StylistEngine, sessions AppSessions, photo string, look Look, count int) (string, error) {
 	instruction := buildLookInstruction(look)
+	pts, face := faceLandmarksFor(eng, photo, look)
+	hair, hairNote := oldHairFor(eng, photo, look, pts)
 	meta := &preset.GenerationMeta{Label: "Стилист: " + lookLabel(look)}
 	used := map[int64]bool{}
 	var made []map[string]any
@@ -197,16 +213,36 @@ func stylistTry(eng StylistEngine, sessions AppSessions, photo string, look Look
 			genErr = err
 			break
 		}
-		id := sessions.AddToNamedSession(StylistSessionName, res.Image, res.Info, "stylist", false, meta)
+		final, variantFace := res.Image, face
+		var fit map[string]any
+		if pts != nil {
+			if editPts, err := eng.FaceLandmarks(res.Image); err != nil {
+				variantFace = faceNotProtected + "на правке лицо не найдено: " + err.Error()
+			} else {
+				if f, err := faceguard.MeasureBase64(res.Image, pts, editPts); err == nil {
+					fit = map[string]any{"mean": round3(f.Mean), "key": round3(f.Key)}
+				}
+				if guarded, err := faceguard.ApplyBase64WithHair(photo, res.Image, hair, pts, editPts, strings.TrimSpace(look.Makeup) != ""); err != nil {
+					variantFace = faceNotProtected + "склейка не удалась: " + err.Error()
+				} else {
+					final = guarded
+				}
+			}
+		}
+		id := sessions.AddToNamedSession(StylistSessionName, final, res.Info, "stylist", false, meta)
 		if id == 0 {
 			genErr = errors.New("не удалось сохранить вариант в сессию приложения")
 			break
 		}
-		check, err := eng.DescribeImage(res.Image, stylistCheck)
+		check, err := eng.DescribeImage(final, stylistCheck)
 		if err != nil {
 			check = "не удалось описать результат: " + err.Error()
 		}
-		made = append(made, map[string]any{"id": id, "check": check})
+		variant := map[string]any{"id": id, "check": check, "face": variantFace}
+		if fit != nil {
+			variant["fit"] = fit
+		}
+		made = append(made, variant)
 	}
 	if len(made) == 0 {
 		return "", fmt.Errorf("ни один вариант не получился: %w", genErr)
@@ -215,13 +251,44 @@ func stylistTry(eng StylistEngine, sessions AppSessions, photo string, look Look
 		"session":     StylistSessionName,
 		"instruction": instruction,
 		"variants":    made,
+		"face":        face,
 		"note":        stylistNote,
+	}
+	if hairNote != "" {
+		out["old_hair"] = hairNote
 	}
 	if genErr != nil {
 		out["failed"] = count - len(made)
 		out["error"] = genErr.Error()
 	}
 	return toJSON(out), nil
+}
+
+func oldHairFor(eng StylistEngine, photo string, look Look, pts []faceguard.Point) (image.Image, string) {
+	if pts == nil || strings.TrimSpace(look.HairCut+look.HairColor+look.Headwear) == "" {
+		return nil, ""
+	}
+	seed := int64(1)
+	res, err := eng.KleinEdit(photo, stylistHairMask, &seed)
+	if err != nil {
+		return nil, "старые пряди на лице не убраны: " + err.Error()
+	}
+	mask, err := faceguard.HairMaskBase64(photo, res.Image)
+	if err != nil {
+		return nil, "старые пряди на лице не убраны: " + err.Error()
+	}
+	return mask, ""
+}
+
+func faceLandmarksFor(eng StylistEngine, photo string, look Look) ([]faceguard.Point, string) {
+	if strings.TrimSpace(look.Glasses) != "" {
+		return nil, faceNotProtected + "с очками лицо не вклеивается — очки легли бы под исходное лицо"
+	}
+	pts, err := eng.FaceLandmarks(photo)
+	if err != nil {
+		return nil, faceNotProtected + "лицо на фото не найдено: " + err.Error()
+	}
+	return pts, faceOriginal
 }
 
 func registerStylistTools(s *Server) {
@@ -251,8 +318,9 @@ func registerStylistTools(s *Server) {
 
 	s.Register(Tool{
 		Name: "stylist_try",
-		Description: "Стилист: примерить образ на фото. Каждый вариант — одна правка ИСХОДНОГО фото (flux-2-klein), 8–25 с на вариант; варианты сразу появляются в приложении в сессии «Стилист». " +
+		Description: "Стилист: примерить образ на фото. Каждый вариант — одна правка ИСХОДНОГО фото flux-2-klein (держит позу и поворот головы), 10–30 с на вариант; варианты сразу появляются в приложении в сессии «Стилист». " +
 			"Варианты различаются сидом (слабо) — разные идеи давай разными вызовами. Уточнение — снова stylist_try с тем же photo_path и полным изменённым look (правка поверх правки не делается). " +
+			"Черты лица (глаза, нос, рот) после правки вклеиваются с исходного фото по точкам лица, макияж переносится только цветом; с очками (glasses) лицо не вклеивается — поле face в ответе говорит, защищено ли лицо. " +
 			"Ответ: id элементов сессии и check — короткое описание результата локальной vision-моделью (тонировку стёкол не различает). Картинок и путей в ответе нет.",
 		InputSchema: props(map[string]any{
 			"photo_path": prop("путь к исходному фото человека", "string"),
@@ -282,4 +350,8 @@ func registerStylistTools(s *Server) {
 			return stylistTry(eng, sessions, img, *look, count)
 		},
 	})
+}
+
+func round3(v float64) float64 {
+	return math.Round(v*1000) / 1000
 }

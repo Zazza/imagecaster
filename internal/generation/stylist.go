@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/sd"
 )
 
@@ -133,4 +134,20 @@ func (s *Service) DescribeImage(imageBase64, prompt string) (string, error) {
 		return "", err
 	}
 	return s.kids.FilterOutput(strings.TrimSpace(text)), nil
+}
+
+func (s *Service) FaceLandmarks(imageBase64 string) ([]faceguard.Point, error) {
+	det, ok := s.sd.(sd.FaceDetector)
+	if !ok {
+		return nil, errors.New("face landmarks are not supported by the SD client")
+	}
+	pts, err := det.FaceLandmarks(imageBase64)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]faceguard.Point, len(pts))
+	for i, p := range pts {
+		out[i] = faceguard.Point{X: p.X, Y: p.Y}
+	}
+	return out, nil
 }

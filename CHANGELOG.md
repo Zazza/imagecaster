@@ -2,6 +2,20 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.2.0] — 2026-11-05
+
+### Added
+- **Repair section in Post-Process**: paint over scratches and dust and Klein fixes only the painted area at the photo's native resolution; everything outside the mask stays untouched. The Photo Restore effect is renamed to Enhance Quality.
+- **sd-mcp writes to the app**: results of AI-agent tools appear in the app session "ИИ-агент", stylist variants in "Стилист". The app picks them up within about 2 s without switching the active session. sd-mcp must run as the app's OS user.
+- **Stylist for AI agents** (`stylist_describe`, `stylist_try`): try a hairstyle, hair colour, clothing, headwear, glasses or makeup on a photo. Each variant is one flux-2-klein edit of the original photo (10–30 s) that keeps the pose and head angle. The photo is described only by a local vision model and never leaves the LAN; answers contain no images or paths. `SD_MCP_NO_IMAGE_BYTES=1` stops other sd-mcp tools returning image bytes.
+- **Face protection in the stylist**: after the edit, eyes, nose and mouth are pasted back from the original photo using face landmarks, so the face does not drift into another person; makeup is carried over as colour only. If the edited face does not match the original pose, the variant is kept unprotected and the answer says so. With glasses the face is not pasted.
+
+### Fixed
+- A long "look" prompt no longer widens the Post-Process controls; error and "interrupted" messages can be closed.
+
+### Known limits
+- A strand of the old hair lying across the face can partly stay after a hairstyle change, most visibly near the eye.
+
 ## [1.1.1] — 2026-11-04
 
 ### Changed
