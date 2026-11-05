@@ -869,6 +869,7 @@ export const ru = {
   'presets.btn_install': 'Установить',
   'presets.delete_confirm_n': 'Удалить выбранные стили ({count})?',
   'common.steps_n': 'шагов: {count}',
+  'common.close': 'Закрыть',
   'footer.session_label': 'Папка истории',
   'post.group_effect_transform': 'Преобразование',
   'post.effect_realism': 'Реалистичность',

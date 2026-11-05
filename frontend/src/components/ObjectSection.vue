@@ -1,4 +1,5 @@
 <script setup>
+import StatusMessage from './StatusMessage.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -150,7 +151,7 @@ defineExpose({
 
 <template>
   <div>
-    <div v-if="error" class="status status-error">{{ error }}</div>
+    <StatusMessage v-if="error" :text="error" @close="error = ''" />
 
     <div class="object-op-row">
       <button data-testid="object-op-remove" class="btn btn-sm" :class="op === 'remove' ? 'btn-primary' : 'btn-secondary'" @click="op = 'remove'">{{ t('object.op_remove') }}</button>

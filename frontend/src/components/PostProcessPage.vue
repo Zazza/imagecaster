@@ -1,4 +1,5 @@
 <script setup>
+import StatusMessage from './StatusMessage.vue'
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ChevronDown, Wand2, ImagePlus, Eraser, Bandage, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw } from 'lucide-vue-next'
 import { api } from '../api.js'
@@ -1566,7 +1567,7 @@ onUnmounted(() => {
       <h1 class="page-title">{{ t('post.title') }}</h1>
     </div>
 
-    <div v-if="error" class="status status-error">{{ error }}</div>
+    <StatusMessage v-if="error" :text="error" @close="error = ''" />
     <div v-if="successMsg" class="status status-success">{{ successMsg }}</div>
     <div v-if="lookResetFailed" class="status status-warning">{{ t('fi.preserve_identity_reset_failed') }}</div>
 
@@ -2234,6 +2235,7 @@ onUnmounted(() => {
 
 .card-collapse > .card-body {
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   overflow: clip;
   transition: padding 0.2s ease;

@@ -1,4 +1,5 @@
 <script setup>
+import StatusMessage from './StatusMessage.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -292,8 +293,8 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <div v-if="error === 'interrupted'" class="status status-warning">{{ t('progress.interrupted') }}</div>
-    <div v-else-if="error" class="status status-error">{{ error }}</div>
+    <StatusMessage v-if="error === 'interrupted'" kind="warning" :text="t('progress.interrupted')" @close="error = ''" />
+    <StatusMessage v-else-if="error" :text="error" @close="error = ''" />
 
     <div class="edit-mode-row">
       <button type="button" class="btn btn-sm" :class="editLookMode ? 'btn-secondary' : 'btn-primary'" @click="editLookMode = false">{{ t('edit.mode_instruction') }}</button>

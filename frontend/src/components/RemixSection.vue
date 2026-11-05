@@ -1,4 +1,5 @@
 <script setup>
+import StatusMessage from './StatusMessage.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -435,7 +436,7 @@ function onKeydown(e) {
       </div>
     </div>
 
-    <div v-if="error" class="status" :class="error === 'interrupted' ? 'status-warning' : 'status-error'">{{ error }}</div>
+    <StatusMessage v-if="error" :kind="error === 'interrupted' ? 'warning' : 'error'" :text="error" @close="error = ''" />
 
     <div v-if="folderQueue.length" class="fi-folder-badge">
       {{ t('fi.folder_queue', { n: folderQueue.length }) }}
