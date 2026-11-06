@@ -6,6 +6,7 @@ import { t } from '../i18n/index.js'
 import { Image, Trash2, X, Plus, Pencil, Check } from 'lucide-vue-next'
 import QueuePanel from './QueuePanel.vue'
 import ImageViewer from './ImageViewer.vue'
+import { useRemixQueue } from '../remixQueue.js'
 
 const emit = defineEmits(['navigate'])
 
@@ -28,6 +29,39 @@ const thumbnails = ref({})
 const brokenThumbs = ref({})
 
 const itemContainer = ref(null)
+
+const { setPostQueue } = useRemixQueue()
+const selectMode = ref(false)
+const selectedIds = ref([])
+const selectedCount = computed(() => items.value.filter(i => selectedIds.value.includes(i.id)).length)
+
+function toggleSelectItem(item) {
+  const idx = selectedIds.value.indexOf(item.id)
+  if (idx >= 0) selectedIds.value.splice(idx, 1)
+  else selectedIds.value.push(item.id)
+}
+
+function exitSelectMode() {
+  selectMode.value = false
+  selectedIds.value = []
+}
+
+function onSessionCardClick(item) {
+  if (selectMode.value) toggleSelectItem(item)
+  else openViewer(item)
+}
+
+function sendSelectedToPostProcess() {
+  const picked = items.value
+    .filter(i => selectedIds.value.includes(i.id))
+    .map(i => ({ path: 'session:' + i.id, name: 'history_' + i.id }))
+  if (!picked.length) return
+  setPostQueue(picked)
+  exitSelectMode()
+  emit('navigate', { page: 'postprocess' })
+}
+
+watch(activeSessionId, exitSelectMode)
 
 const newSessionName = ref('')
 const showNewSession = ref(false)
@@ -593,6 +627,7 @@ onUnmounted(() => {
           </template>
         </div>
         <div class="session-actions">
+          <button v-if="items.length && !selectMode" class="session-tool-btn text-btn" @click="selectMode = true">{{ t('footer.select_mode') }}</button>
           <button class="session-tool-btn text-btn" @click="doClearSession" :disabled="!items.length">{{ t('footer.btn_clear') }}</button>
           <button class="session-delete-btn" :class="{ confirm: confirmDeleteSession }" @click="doDeleteSession" :disabled="sessions.length <= 1">
             <Trash2 :size="12" /> {{ confirmDeleteSession ? t('footer.confirm_delete') : t('footer.btn_delete') }}
@@ -607,16 +642,23 @@ onUnmounted(() => {
         <button class="session-tool-btn" @click="showNewSession = false"><X :size="12" /></button>
       </div>
 
+      <div v-if="selectMode" class="session-select-bar">
+        <span>{{ t('footer.selected_count', { n: selectedCount }) }}</span>
+        <button class="session-tool-btn text-btn" :disabled="!selectedCount" @click="sendSelectedToPostProcess">{{ t('footer.send_to_postprocess', { n: selectedCount }) }}</button>
+        <button class="session-tool-btn text-btn" @click="exitSelectMode">{{ t('footer.cancel_select') }}</button>
+      </div>
+
       <div v-if="items.length" class="si-grid" ref="itemContainer">
         <div
           v-for="item in items"
           :key="item.id"
           class="si-card"
-          :class="{ 'si-active': item.is_active }"
+          :class="{ 'si-active': item.is_active, 'si-selected': selectMode && selectedIds.includes(item.id) }"
           :data-item-id="item.id"
           :title="itemTitle(item)"
-          @click="openViewer(item)"
+          @click="onSessionCardClick(item)"
         >
+          <div v-if="selectMode && selectedIds.includes(item.id)" class="si-check"><Check :size="12" /></div>
           <span v-if="chainSteps(item) > 1" class="si-steps-badge" aria-hidden="true">{{ chainSteps(item) }}</span>
           <div class="si-thumb">
             <img v-if="thumbnails[item.id] && !brokenThumbs[item.id]" :src="thumbnails[item.id]" alt="" @error="brokenThumbs[item.id] = true" />
@@ -958,6 +1000,35 @@ export default { name: 'AppFooter' }
   align-content: flex-start;
   gap: 8px;
   padding: 8px 12px;
+}
+
+.session-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.si-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.si-check {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-sm);
 }
 
 .si-card {
