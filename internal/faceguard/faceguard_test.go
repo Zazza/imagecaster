@@ -177,22 +177,22 @@ var (
 	fgStripeB = color.RGBA{R: 170, G: 170, B: 170, A: 255}
 )
 
-func TestApply_FaceDetailFromOriginalRestFromEdited(t *testing.T) {
+func TestApply_FeaturesFromOriginalRestFromEdited(t *testing.T) {
 	t.Parallel()
 	orig := fgStripes(fgW, fgH, 2, fgStripeA, fgStripeB)
 	edited := fgSolid(fgW, fgH, fgEditFlat)
 
-	out, err := Apply(orig, edited, fgFace(), fgFace(), false)
+	out, err := Apply(orig, edited, fgFace(), fgFace())
 
 	require.NoError(t, err)
-	for _, p := range [][2]float64{{0.5, 0.50}, {0.42, 0.47}} {
-		_, c := fgRowStats(out, p[0], p[1], 8)
-		assert.Greater(t, c, 30.0, "original stripes must be visible at face point %v", p)
+	for _, p := range [][2]float64{{0.5, 0.48}, {0.38, fgEyeY}, {0.62, fgEyeY}, {fgLipX, fgLipY}} {
+		_, c := fgRowStats(out, p[0], p[1], 6)
+		assert.Greater(t, c, 30.0, "original stripes must be visible at feature point %v", p)
 	}
-	for _, p := range [][2]float64{{0.5, 0.08}, {0.5, 0.15}, {0.06, 0.50}, {0.94, 0.50}, {0.5, 0.95}} {
+	for _, p := range [][2]float64{{0.5, 0.08}, {0.5, 0.15}, {0.06, 0.50}, {0.94, 0.50}, {0.5, 0.95}, {0.5, 0.24}, {0.30, 0.52}, {0.70, 0.52}} {
 		_, c := fgRowStats(out, p[0], p[1], 8)
-		assert.Less(t, c, 8.0, "no original detail outside the face at %v", p)
-		fgNear(t, fgEditFlat, fgAt(out, p[0], p[1]), 12, fmt.Sprintf("edited outside face at %v", p))
+		assert.Less(t, c, 8.0, "no original detail outside the features at %v", p)
+		fgNear(t, fgEditFlat, fgAt(out, p[0], p[1]), 12, fmt.Sprintf("edited outside features at %v", p))
 	}
 }
 
@@ -216,26 +216,20 @@ func fgFillPolygon(img *image.RGBA, poly []Point, c color.RGBA) {
 	}
 }
 
-func TestApply_Makeup(t *testing.T) {
+func TestApply_LipToneFromEdit(t *testing.T) {
 	t.Parallel()
 	pts := fgFace()
 	orig := fgStripes(fgW, fgH, 2, fgStripeA, fgStripeB)
 	edited := fgSolid(fgW, fgH, color.RGBA{R: 135, G: 135, B: 135, A: 255})
 	fgFillPolygon(edited, pts[48:60], fgBlue)
-	lowerLip := fgLipY + 0.025
-	blueness := func(c color.RGBA) int { return int(c.B) - (int(c.R)+int(c.G))/2 }
 
-	off, err := Apply(orig, edited, pts, pts, false)
-	require.NoError(t, err)
-	on, err := Apply(orig, edited, pts, pts, true)
-	require.NoError(t, err)
+	out, err := Apply(orig, edited, pts, pts)
 
-	cOff := fgAt(off, fgLipX, lowerLip)
-	cOn := fgAt(on, fgLipX, lowerLip)
-	assert.Greater(t, blueness(cOn), blueness(cOff)+30, "makeup on must take lip colour from edited: on=%v off=%v", cOn, cOff)
-	assert.Greater(t, int(cOn.B), int(cOn.R)+40, "blue must dominate on lips with makeup: %v", cOn)
-	_, c := fgRowStats(on, 0.5, 0.50, 8)
-	assert.Greater(t, c, 30.0, "face centre keeps original detail with makeup")
+	require.NoError(t, err)
+	c := fgAt(out, fgLipX, fgLipY)
+	assert.Greater(t, int(c.B), int(c.R)+40, "lips take the edit's blue tone: %v", c)
+	_, contrast := fgRowStats(out, fgLipX, fgLipY, 6)
+	assert.Greater(t, contrast, 30.0, "lips keep the original structure")
 }
 
 func TestApply_ResultSizeIsEdited(t *testing.T) {
@@ -243,14 +237,14 @@ func TestApply_ResultSizeIsEdited(t *testing.T) {
 	orig := fgStripes(2*fgW, 2*fgH, 8, fgStripeA, fgStripeB)
 	edited := fgSolid(fgW, fgH, fgEditFlat)
 
-	out, err := Apply(orig, edited, fgFace(), fgFace(), false)
+	out, err := Apply(orig, edited, fgFace(), fgFace())
 
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	assert.Equal(t, fgW, out.Bounds().Dx())
 	assert.Equal(t, fgH, out.Bounds().Dy())
-	_, c := fgRowStats(out, 0.5, 0.50, 12)
-	assert.Greater(t, c, 30.0, "scaled original detail at face centre")
+	_, c := fgRowStats(out, 0.5, 0.48, 6)
+	assert.Greater(t, c, 30.0, "scaled original detail on the nose")
 	fgNear(t, fgEditFlat, fgAt(out, 0.5, 0.08), 12, "far above forehead")
 }
 
@@ -261,13 +255,13 @@ func TestApplyBase64(t *testing.T) {
 
 	t.Run("valid input gives PNG of edited size", func(t *testing.T) {
 		t.Parallel()
-		out, err := ApplyBase64(origB64, editedB64, fgFace(), fgFace(), false)
+		out, err := ApplyBase64(origB64, editedB64, fgFace(), fgFace())
 		require.NoError(t, err)
 		img := fgDecode(t, out)
 		assert.Equal(t, fgW, img.Bounds().Dx())
 		assert.Equal(t, fgH, img.Bounds().Dy())
-		_, c := fgRowStats(img, 0.5, 0.50, 8)
-		assert.Greater(t, c, 30.0, "original detail at face centre")
+		_, c := fgRowStats(img, 0.5, 0.48, 6)
+		assert.Greater(t, c, 30.0, "original detail on the nose")
 		fgNear(t, fgEditFlat, fgAt(img, 0.06, 0.50), 12, "outside oval")
 	})
 
@@ -286,7 +280,7 @@ func TestApplyBase64(t *testing.T) {
 	for _, tt := range errCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := ApplyBase64(tt.orig, tt.edited, fgFace(), fgFace(), false)
+			_, err := ApplyBase64(tt.orig, tt.edited, fgFace(), fgFace())
 			require.Error(t, err)
 		})
 	}
@@ -300,34 +294,28 @@ func fgTransform(pts []Point, scale, dx float64) []Point {
 	return out
 }
 
-func fgWithDisk(w, h int, bg, disk color.RGBA, cx, cy, r float64) *image.RGBA {
-	img := fgSolid(w, h, bg)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			dx := (float64(x)+0.5)/float64(w) - cx
-			dy := ((float64(y)+0.5)/float64(h) - cy) * float64(h) / float64(w)
-			if dx*dx+dy*dy <= r*r {
-				img.SetRGBA(x, y, disk)
-			}
-		}
-	}
-	return img
+func fgLumAt(img image.Image, nx, ny float64) float64 {
+	return fgLum(fgAt(img, nx, ny))
 }
 
 func TestApply_AlignsOriginalToEditedFace(t *testing.T) {
 	t.Parallel()
-	green := color.RGBA{R: 20, G: 220, B: 20, A: 255}
-	const scale, dx, r = 1.1, 0.05, 0.04
+	dark := color.RGBA{R: 20, G: 20, B: 20, A: 255}
+	const scale, dx = 1.1, 0.05
 	origPts := fgFace()
 	editPts := fgTransform(origPts, scale, dx)
-	orig := fgWithDisk(fgW, fgH, fgGray, green, 0.5, 0.5, r)
-	edited := fgWithDisk(fgW, fgH, fgGray, fgBlue, 0.5+dx, 0.5, r*scale)
+	spot := [2]float64{0.5, 0.48}
+	moved := [2]float64{0.5 + scale*(spot[0]-0.5) + dx, 0.5 + scale*(spot[1]-0.5)}
+	orig := fgSolid(fgW, fgH, fgGray)
+	skDot(orig, spot[0]*fgW, spot[1]*fgH, 4, dark)
+	edited := fgSolid(fgW, fgH, fgEditFlat)
+	flat := fgLum(fgEditFlat)
 
-	out, err := Apply(orig, edited, origPts, editPts, false)
+	out, err := Apply(orig, edited, origPts, editPts)
 
 	require.NoError(t, err)
-	fgGreenish(t, fgAt(out, 0.5+dx, 0.5), "edited face center must show the original face center")
-	fgNear(t, fgGray, fgAt(out, 0.5+dx+0.08, 0.5), 40, "next to the face center")
+	assert.Less(t, fgLumAt(out, moved[0], moved[1]), flat-20, "nose spot of the original must land on the edited nose")
+	assert.InDelta(t, flat, fgLumAt(out, spot[0], spot[1]), 8, "no spot at the unaligned position")
 }
 
 func TestApply_RejectsDifferentFace(t *testing.T) {
@@ -340,10 +328,10 @@ func TestApply_RejectsDifferentFace(t *testing.T) {
 	orig := fgSolid(fgW, fgH, fgGray)
 	edited := fgSolid(fgW, fgH, fgRed)
 
-	_, err := Apply(orig, edited, origPts, flipped, false)
+	_, err := Apply(orig, edited, origPts, flipped)
 	require.Error(t, err, "mouth above eyes must not fit by scale+shift")
 
-	_, err = ApplyBase64(fgB64(t, orig), fgB64(t, edited), origPts, flipped, false)
+	_, err = ApplyBase64(fgB64(t, orig), fgB64(t, edited), origPts, flipped)
 	require.Error(t, err)
 }
 
@@ -365,9 +353,9 @@ func TestApply_TooFewPoints(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := Apply(orig, edited, tt.origPts, tt.editPts, false)
+			_, err := Apply(orig, edited, tt.origPts, tt.editPts)
 			require.Error(t, err)
-			_, err = ApplyBase64(fgB64(t, orig), fgB64(t, edited), tt.origPts, tt.editPts, false)
+			_, err = ApplyBase64(fgB64(t, orig), fgB64(t, edited), tt.origPts, tt.editPts)
 			require.Error(t, err)
 		})
 	}
@@ -376,7 +364,7 @@ func TestApply_TooFewPoints(t *testing.T) {
 func TestApply_ExactlyMinimumPoints(t *testing.T) {
 	t.Parallel()
 	full := fgFace()[:68]
-	_, err := Apply(fgSolid(fgW, fgH, fgGray), fgSolid(fgW, fgH, fgRed), full, full, false)
+	_, err := Apply(fgSolid(fgW, fgH, fgGray), fgSolid(fgW, fgH, fgRed), full, full)
 	require.NoError(t, err)
 }
 
@@ -392,56 +380,34 @@ func fgRotatePx(pts []Point, w, h int, cx, cy, deg float64) []Point {
 	return out
 }
 
-func fgDisksPx(w, h int, bg color.RGBA, centerC, markC color.RGBA, centers [][2]float64, r float64) *image.RGBA {
-	img := fgSolid(w, h, bg)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			for i, c := range centers {
-				dx, dy := float64(x)+0.5-c[0], float64(y)+0.5-c[1]
-				if dx*dx+dy*dy <= r*r {
-					if i == 0 {
-						img.SetRGBA(x, y, centerC)
-					} else {
-						img.SetRGBA(x, y, markC)
-					}
-				}
-			}
-		}
-	}
-	return img
-}
-
 func TestApply_AlignsRotatedFace(t *testing.T) {
 	t.Parallel()
-	green := color.RGBA{R: 20, G: 220, B: 20, A: 255}
-	yellow := color.RGBA{R: 230, G: 220, B: 20, A: 255}
-	const deg, r = 10.0, 8.0
+	dark := color.RGBA{R: 20, G: 20, B: 20, A: 255}
+	const deg = 10.0
 	cx, cy := 0.5*fgW, 0.5*fgH
-	mark := [2]float64{cx, cy + 72}
+	mark := [2]float64{fgLipX * fgW, fgLipY * fgH}
 	a := deg * math.Pi / 180
-	rotMark := [2]float64{cx - 72*math.Sin(a), cy + 72*math.Cos(a)}
+	ry := mark[1] - cy
+	rotMark := [2]float64{cx - ry*math.Sin(a), cy + ry*math.Cos(a)}
 
 	origPts := fgFace()
 	editPts := fgRotatePx(origPts, fgW, fgH, cx, cy, deg)
-	orig := fgDisksPx(fgW, fgH, fgGray, green, yellow, [][2]float64{{cx, cy}, mark}, r)
-	edited := fgDisksPx(fgW, fgH, fgGray, fgBlue, fgBlue, [][2]float64{{cx, cy}, rotMark}, r)
+	orig := fgSolid(fgW, fgH, fgGray)
+	skDot(orig, mark[0], mark[1], 5, dark)
+	edited := fgSolid(fgW, fgH, fgEditFlat)
+	flat := fgLum(fgEditFlat)
 
-	out, err := Apply(orig, edited, origPts, editPts, false)
+	out, err := Apply(orig, edited, origPts, editPts)
 
 	require.NoError(t, err, "10° in-plane rotation must fit")
-	fgGreenish(t, fgAt(out, cx/fgW, cy/fgH), "edited face center must show the original face center")
-	c := fgAt(out, rotMark[0]/fgW, rotMark[1]/fgH)
-	assert.True(t, int(c.R) > int(c.B)+60 && int(c.G) > int(c.B)+60, "rotated marker must show the original yellow marker: %v", c)
+	assert.Less(t, fgLumAt(out, rotMark[0]/fgW, rotMark[1]/fgH), flat-20, "lip marker of the original must follow the rotation")
+	assert.InDelta(t, flat, fgLumAt(out, mark[0]/fgW, mark[1]/fgH), 8, "no marker at the unrotated position")
 }
 
-func fgGreenish(t *testing.T, c color.RGBA, msg string) {
-	t.Helper()
-	assert.True(t, int(c.G) > int(c.R)+60 && int(c.G) > int(c.B)+60, "%s: want green-dominant, got %v", msg, c)
-}
-
-func TestApply_RelightsToEditedBrightness(t *testing.T) {
+func TestApply_FeatureToneFromEdited(t *testing.T) {
 	t.Parallel()
-	edited := fgSolid(fgW, fgH, color.RGBA{R: 200, G: 180, B: 160, A: 255})
+	editC := color.RGBA{R: 200, G: 180, B: 160, A: 255}
+	edited := fgSolid(fgW, fgH, editC)
 	dark := color.RGBA{R: 120, G: 108, B: 96, A: 255}
 	orig := fgSolid(fgW, fgH, dark)
 	lo := color.RGBA{R: 95, G: 83, B: 71, A: 255}
@@ -457,13 +423,13 @@ func TestApply_RelightsToEditedBrightness(t *testing.T) {
 	}
 	pts := fgFace()
 
-	out, err := Apply(orig, edited, pts, pts, false)
+	out, err := Apply(orig, edited, pts, pts)
 
 	require.NoError(t, err)
-	mean, contrast := fgRowStats(out, 0.5, 0.50, 16)
-	want := fgLum(color.RGBA{R: 200, G: 180, B: 160})
-	assert.InDelta(t, want, mean, want*0.12, "face brightness must follow edited")
-	assert.Greater(t, contrast, 30.0, "original stripe pattern must stay visible")
+	mean, contrast := fgRowStats(out, 0.5, 0.48, 8)
+	want := fgLum(editC)
+	assert.InDelta(t, want, mean, want*0.08, "nose brightness must follow edited")
+	assert.Greater(t, contrast, 30.0, "original stripe pattern must stay visible on the nose")
 }
 
 func fgJitter(pts []Point, idx []int, distPx float64, seed int64) []Point {
@@ -487,7 +453,7 @@ func TestApply_MismatchThreshold(t *testing.T) {
 		t.Parallel()
 		edit := append([]Point(nil), pts...)
 		edit[48].X += 0.08 * faceW / fgW
-		_, err := Apply(orig, edited, pts, edit, false)
+		_, err := Apply(orig, edited, pts, edit)
 		require.Error(t, err)
 	})
 
@@ -498,7 +464,7 @@ func TestApply_MismatchThreshold(t *testing.T) {
 			all[i] = i
 		}
 		edit := fgJitter(pts, all, 0.02*faceW, 42)
-		_, err := Apply(orig, edited, pts, edit, false)
+		_, err := Apply(orig, edited, pts, edit)
 		require.NoError(t, err)
 	})
 }
@@ -576,7 +542,7 @@ func TestApply_MeanThresholdRejectsUniformJitter(t *testing.T) {
 	require.LessOrEqual(t, fit.Key, 0.05, "precondition: key points within 0.05")
 	require.Greater(t, fit.Mean, 0.03, "precondition: mean above 0.03")
 
-	_, err = Apply(fgStripes(fgW, fgH, 2, fgStripeA, fgStripeB), fgSolid(fgW, fgH, fgEditFlat), pts, edit, false)
+	_, err = Apply(fgStripes(fgW, fgH, 2, fgStripeA, fgStripeB), fgSolid(fgW, fgH, fgEditFlat), pts, edit)
 
 	require.Error(t, err, "mean residual > 0.03 must reject even when key points pass")
 }
@@ -585,151 +551,4 @@ func fgCopy(src *image.RGBA) *image.RGBA {
 	dst := image.NewRGBA(src.Bounds())
 	copy(dst.Pix, src.Pix)
 	return dst
-}
-
-func fgHairGreen(orig *image.RGBA) *image.RGBA {
-	green := fgCopy(orig)
-	for y := 50; y < 250; y++ {
-		for x := 80; x < 100; x++ {
-			green.SetRGBA(x, y, color.RGBA{G: 255, A: 255})
-		}
-	}
-	green.SetRGBA(20, 20, color.RGBA{G: 255, A: 255})
-	return green
-}
-
-func TestHairMask(t *testing.T) {
-	t.Parallel()
-	orig := fgSolid(200, 300, fgGray)
-
-	t.Run("strand is hair, single-pixel noise is removed", func(t *testing.T) {
-		t.Parallel()
-		mask := HairMask(orig, fgHairGreen(orig))
-		require.NotNil(t, mask)
-		assert.Equal(t, orig.Bounds(), mask.Bounds())
-		assert.Greater(t, int(mask.AlphaAt(90, 150).A), 200, "strand centre")
-		assert.Greater(t, int(mask.AlphaAt(85, 60).A), 200, "strand near its end")
-		assert.Equal(t, uint8(0), mask.AlphaAt(150, 150).A, "away from strand")
-		assert.Equal(t, uint8(0), mask.AlphaAt(90, 280).A, "below strand")
-		assert.Equal(t, uint8(0), mask.AlphaAt(20, 20).A, "1x1 noise removed by opening")
-	})
-
-	t.Run("green equal to orig gives empty mask", func(t *testing.T) {
-		t.Parallel()
-		mask := HairMask(orig, fgCopy(orig))
-		require.NotNil(t, mask)
-		b := mask.Bounds()
-		for y := b.Min.Y; y < b.Max.Y; y++ {
-			for x := b.Min.X; x < b.Max.X; x++ {
-				require.Equal(t, uint8(0), mask.AlphaAt(x, y).A, "pixel %d,%d", x, y)
-			}
-		}
-	})
-
-	t.Run("green-ish orig is not hair without a change", func(t *testing.T) {
-		t.Parallel()
-		greenOrig := fgSolid(200, 300, color.RGBA{G: 255, A: 255})
-		mask := HairMask(greenOrig, fgCopy(greenOrig))
-		assert.Equal(t, uint8(0), mask.AlphaAt(100, 150).A)
-	})
-}
-
-func TestHairMaskBase64(t *testing.T) {
-	t.Parallel()
-	orig := fgSolid(200, 300, fgGray)
-
-	mask, err := HairMaskBase64(fgB64(t, orig), fgB64(t, fgHairGreen(orig)))
-	require.NoError(t, err)
-	require.NotNil(t, mask)
-	assert.Equal(t, orig.Bounds(), mask.Bounds())
-	a, _, _, _ := mask.At(90, 150).RGBA()
-	assert.Greater(t, int(a>>8), 200)
-
-	_, err = HairMaskBase64("!!!not-base64!!!", fgB64(t, orig))
-	require.Error(t, err)
-	_, err = HairMaskBase64(fgB64(t, orig), base64.StdEncoding.EncodeToString([]byte("hello")))
-	require.Error(t, err)
-}
-
-func fgRectAlpha(w, h int, rects ...[4]float64) *image.Alpha {
-	m := image.NewAlpha(image.Rect(0, 0, w, h))
-	for _, r := range rects {
-		for y := int(r[1] * float64(h)); y < int(r[3]*float64(h)); y++ {
-			for x := int(r[0] * float64(w)); x < int(r[2]*float64(w)); x++ {
-				m.SetAlpha(x, y, color.Alpha{A: 255})
-			}
-		}
-	}
-	return m
-}
-
-func TestApplyWithHair(t *testing.T) {
-	t.Parallel()
-	pts := fgFace()
-	green := color.RGBA{R: 20, G: 220, B: 20, A: 255}
-	orig := fgStripes(fgW, fgH, 2, fgStripeA, fgStripeB)
-	for y := 0; y < fgH; y++ {
-		for x := 0; x < fgW; x++ {
-			dx, dy := float64(x)+0.5-0.5*fgW, float64(y)+0.5-0.5*fgH
-			if dx*dx+dy*dy <= 64 {
-				orig.SetRGBA(x, y, green)
-			}
-		}
-	}
-	edited := fgSolid(fgW, fgH, fgEditFlat)
-	cheek := [4]float64{0.34, 0.46, 0.42, 0.56}
-	throughEye := [4]float64{0.60, 0.30, 0.64, 0.47}
-	hair := fgRectAlpha(fgW, fgH, cheek, throughEye)
-
-	out, err := ApplyWithHair(orig, edited, hair, pts, pts, false)
-
-	require.NoError(t, err)
-	_, c := fgRowStats(out, 0.38, 0.51, 8)
-	assert.Less(t, c, 8.0, "old strand on cheek must be replaced by edited")
-	fgNear(t, fgEditFlat, fgAt(out, 0.38, 0.51), 25, "cheek strand")
-	fgGreenish(t, fgAt(out, 0.5, 0.5), "marker between eyes and lips outside strand stays original")
-	_, c = fgRowStats(out, 0.62, 0.40, 8)
-	assert.Greater(t, c, 30.0, "eye under a strand stays original")
-	_, c = fgRowStats(out, 0.62, 0.455, 6)
-	assert.Less(t, c, 8.0, "strand below the eye is replaced by edited")
-	_, c = fgRowStats(out, 0.42, 0.66, 8)
-	assert.Greater(t, c, 30.0, "lips without strand stay original")
-}
-
-func TestApplyWithHair_NilIsApply(t *testing.T) {
-	t.Parallel()
-	pts := fgFace()
-	orig := fgStripes(fgW, fgH, 2, fgStripeA, fgStripeB)
-	edited := fgSolid(fgW, fgH, fgEditFlat)
-
-	for _, makeup := range []bool{false, true} {
-		want, err := Apply(orig, edited, pts, pts, makeup)
-		require.NoError(t, err)
-		got, err := ApplyWithHair(orig, edited, nil, pts, pts, makeup)
-		require.NoError(t, err)
-		assert.Equal(t, want.Bounds(), got.Bounds())
-		assert.True(t, bytes.Equal(want.Pix, got.Pix), "makeup=%v: nil hair must equal Apply", makeup)
-
-		wantB64, err := ApplyBase64(fgB64(t, orig), fgB64(t, edited), pts, pts, makeup)
-		require.NoError(t, err)
-		gotB64, err := ApplyBase64WithHair(fgB64(t, orig), fgB64(t, edited), nil, pts, pts, makeup)
-		require.NoError(t, err)
-		assert.Equal(t, wantB64, gotB64, "makeup=%v: nil hair must equal ApplyBase64", makeup)
-	}
-}
-
-func TestApplyBase64WithHair(t *testing.T) {
-	t.Parallel()
-	pts := fgFace()
-	orig := fgStripes(fgW, fgH, 2, fgStripeA, fgStripeB)
-	hair := fgRectAlpha(fgW, fgH, [4]float64{0.34, 0.46, 0.42, 0.56})
-
-	out, err := ApplyBase64WithHair(fgB64(t, orig), fgB64(t, fgSolid(fgW, fgH, fgEditFlat)), hair, pts, pts, false)
-
-	require.NoError(t, err)
-	img := fgDecode(t, out)
-	_, c := fgRowStats(img, 0.38, 0.51, 8)
-	assert.Less(t, c, 8.0, "strand replaced")
-	_, err = ApplyBase64WithHair("!!!", fgB64(t, orig), hair, pts, pts, false)
-	require.Error(t, err)
 }

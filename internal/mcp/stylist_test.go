@@ -46,7 +46,9 @@ type fakeStylist struct {
 	editPNG   func(n int) []byte
 	faceErr   error
 	faceFailV int
+	failFrom  int
 	faces     []string
+	rawEdit   bool
 }
 
 func (f *fakeStylist) KleinEdit(imageBase64, instruction string, seed *int64) (*generation.GenerateImageResult, error) {
@@ -66,9 +68,54 @@ func (f *fakeStylist) KleinEdit(imageBase64, instruction string, seed *int64) (*
 	if f.editPNG != nil {
 		pngBytes = f.editPNG(n)
 	}
+	if !f.rawEdit {
+		pngBytes = styKeepBackground(imageBase64, pngBytes)
+	}
 	b64 := base64.StdEncoding.EncodeToString(pngBytes)
 	f.results = append(f.results, b64)
 	return &generation.GenerateImageResult{Image: b64, Info: json.RawMessage(`{"seed":1}`)}, nil
+}
+
+func styKeepBackground(inputB64 string, edit []byte) []byte {
+	if i := strings.Index(inputB64, ","); strings.HasPrefix(inputB64, "data:") && i >= 0 {
+		inputB64 = inputB64[i+1:]
+	}
+	raw, err := base64.StdEncoding.DecodeString(inputB64)
+	if err != nil {
+		return edit
+	}
+	in, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return edit
+	}
+	out, _, err := image.Decode(bytes.NewReader(edit))
+	if err != nil {
+		return edit
+	}
+	ob, ib := out.Bounds(), in.Bounds()
+	pts := styFace()
+	browMin := pts[17].Y
+	for _, p := range pts[17:27] {
+		browMin = min(browMin, p.Y)
+	}
+	img := image.NewNRGBA(ob)
+	for y := ob.Min.Y; y < ob.Max.Y; y++ {
+		for x := ob.Min.X; x < ob.Max.X; x++ {
+			ny := (float64(y-ob.Min.Y) + 0.5) / float64(ob.Dy())
+			if ny >= browMin {
+				img.Set(x, y, out.At(x, y))
+				continue
+			}
+			sx := ib.Min.X + (x-ob.Min.X)*ib.Dx()/ob.Dx()
+			sy := ib.Min.Y + (y-ob.Min.Y)*ib.Dy()/ob.Dy()
+			img.Set(x, y, in.At(sx, sy))
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func (f *fakeStylist) DescribeImage(imageBase64, prompt string) (string, error) {
@@ -87,6 +134,13 @@ func (f *fakeStylist) FaceLandmarks(imageBase64 string) ([]faceguard.Point, erro
 	}
 	if k := f.faceFailV; k > 0 && len(f.results) >= k && imageBase64 == f.results[k-1] {
 		return nil, fmt.Errorf("no face on result %d", k)
+	}
+	if k := f.failFrom; k > 0 {
+		for j := k - 1; j < len(f.results); j++ {
+			if imageBase64 == f.results[j] {
+				return nil, fmt.Errorf("no face on result %d", j+1)
+			}
+		}
 	}
 	return styFace(), nil
 }
@@ -186,14 +240,31 @@ func (f *fakeSessions) namedCalls() []styNamedCall {
 	return append([]styNamedCall(nil), f.calls...)
 }
 
-func styPNG(n int) []byte {
-	img := image.NewNRGBA(image.Rect(0, 0, 48, 48))
-	c := color.NRGBA{R: uint8(40 * n), G: uint8(255 - 30*n), B: uint8(17 * n), A: 255}
-	for y := 0; y < 48; y++ {
-		for x := 0; x < 48; x++ {
-			img.Set(x, y, c)
+func styTex(seed int64, x, y int) int {
+	h := uint64(seed)*0x9E3779B97F4A7C15 ^ uint64(int64(x))*0xBF58476D1CE4E5B9 ^ uint64(int64(y))*0x94D049BB133111EB
+	h ^= h >> 31
+	h *= 0xD6E8FEB86659FD93
+	h ^= h >> 32
+	return int(h%17) - 8
+}
+
+func styTint(c color.NRGBA, d int) color.NRGBA {
+	f := func(v uint8) uint8 { return uint8(max(0, min(255, int(v)+d))) }
+	return color.NRGBA{R: f(c.R), G: f(c.G), B: f(c.B), A: c.A}
+}
+
+func styTextured(w, h int, c color.NRGBA, seed int64) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, styTint(c, styTex(seed, x, y)))
 		}
 	}
+	return img
+}
+
+func styPNG(n int) []byte {
+	img := styTextured(48, 48, color.NRGBA{R: uint8(40 * n), G: uint8(255 - 30*n), B: uint8(17 * n), A: 255}, 1)
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		panic(err)
@@ -894,12 +965,10 @@ func TestStylistTools_RefuseEnvProxy(t *testing.T) {
 }
 
 func styPhotoPNG(w, h int, c color.NRGBA) []byte {
-	img := image.NewNRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			img.Set(x, y, c)
-		}
-	}
+	return styEncode(styTextured(w, h, c, 1))
+}
+
+func styEncode(img image.Image) []byte {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		panic(err)
@@ -907,9 +976,26 @@ func styPhotoPNG(w, h int, c color.NRGBA) []byte {
 	return buf.Bytes()
 }
 
+var styNoseSpot = [2]float64{0.5, 0.48}
+
+func styDot(img *image.NRGBA, at [2]float64, r float64, c color.NRGBA) {
+	b := img.Bounds()
+	cx, cy := at[0]*float64(b.Dx()), at[1]*float64(b.Dy())
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			dx, dy := float64(x)+0.5-cx, float64(y)+0.5-cy
+			if dx*dx+dy*dy <= r*r {
+				img.Set(x, y, c)
+			}
+		}
+	}
+}
+
 func styWritePortrait(t *testing.T) (string, []byte) {
 	t.Helper()
-	data := styPhotoPNG(200, 300, color.NRGBA{R: 128, G: 128, B: 128, A: 255})
+	img := styTextured(200, 300, color.NRGBA{R: 128, G: 128, B: 128, A: 255}, 1)
+	styDot(img, styNoseSpot, 4, color.NRGBA{R: 20, G: 20, B: 20, A: 255})
+	data := styEncode(img)
 	path := filepath.Join(t.TempDir(), "portrait.png")
 	require.NoError(t, os.WriteFile(path, data, 0o600))
 	return path, data
@@ -968,6 +1054,10 @@ func TestStylistTry_FaceProtected(t *testing.T) {
 		require.NoError(t, err, "variant %d: session image must be PNG", i)
 		assert.Equal(t, image.Rect(0, 0, 200, 300), img.Bounds())
 		assert.True(t, checkImages[c.image], "variant %d: vision check must run on the saved image", i)
+		rawImg, err := png.Decode(bytes.NewReader(styDecodeB64(t, raw[i])))
+		require.NoError(t, err)
+		assert.Less(t, skLumAt(img, styNoseSpot[0], styNoseSpot[1]), skLumAt(rawImg, styNoseSpot[0], styNoseSpot[1])-15,
+			"variant %d: dark spot on the photo's nose must be pasted onto the edit", i)
 	}
 }
 
@@ -1031,9 +1121,8 @@ func TestLook_HeadwearFromArgsAndLabel(t *testing.T) {
 	m, _ := styCall(t, s, "stylist_try", map[string]any{"photo_path": photo, "look": map[string]any{"headwear": "straw hat-XYZ"}, "variants": float64(1)})
 
 	edits := eng.editCalls()
-	require.NotEmpty(t, edits)
-	assert.LessOrEqual(t, len(edits), 2, "one variant plus at most one hair-mask call")
-	assert.Contains(t, edits[len(edits)-1].instruction, "Put on straw hat-XYZ.")
+	require.Len(t, edits, 1, "one variant, one Klein call, no hair-mask pass")
+	assert.Contains(t, edits[0].instruction, "Put on straw hat-XYZ.")
 	assert.Contains(t, m["instruction"], "Put on straw hat-XYZ.")
 	named := sess.namedCalls()
 	require.Len(t, named, 1)
@@ -1059,15 +1148,21 @@ func TestStylistTry_MergeFailureOnlyAffectsItsVariant(t *testing.T) {
 	variants := styVariants(t, m)
 	require.Len(t, variants, 2)
 	assert.Equal(t, "original", styFace0(t, variants[0]))
-	assert.True(t, strings.HasPrefix(styFace0(t, variants[1]), "not protected"), "variant 2 face: %s", out)
+	assert.NotContains(t, variants[0], "attempts", "variant 1 is not retried: %s", out)
+	assert.Equal(t, float64(2), variants[1]["attempts"], "variant 2 is retried after the merge failure: %s", out)
+	assert.NotContains(t, variants[1], "problem", out)
+	assert.Equal(t, "original", styFace0(t, variants[1]), "variant 2 face after the retry: %s", out)
 	assert.False(t, styHasFailure(m), "merge failure is not a variant failure: %s", out)
 
 	named := sess.namedCalls()
 	raw := eng.resultImages()
 	require.Len(t, named, 2)
-	require.Len(t, raw, 2)
+	require.Len(t, raw, 3)
 	assert.NotEqual(t, raw[0], named[0].image, "variant 1 must be face-restored")
-	assert.Equal(t, raw[1], named[1].image, "variant 2 must be saved as raw moss result")
+	assert.NotEqual(t, raw[1], named[1].image, "failed landscape attempt is not saved")
+	img, err := png.Decode(bytes.NewReader(styDecodeB64(t, named[1].image)))
+	require.NoError(t, err)
+	assert.Equal(t, image.Rect(0, 0, 200, 300), img.Bounds(), "variant 2 saves the retried portrait result")
 	lower := strings.ToLower(out)
 	for _, f := range []string{".png", ".jpg", photo, filepath.Dir(photo), "ivborw0kggo"} {
 		assert.NotContains(t, lower, strings.ToLower(f))
@@ -1076,26 +1171,29 @@ func TestStylistTry_MergeFailureOnlyAffectsItsVariant(t *testing.T) {
 
 func TestStylistTry_NoFaceOnMossResult(t *testing.T) {
 	t.Parallel()
-	eng := &fakeStylist{editPNG: styMossPortrait, faceFailV: 2}
+	eng := &fakeStylist{editPNG: styMossPortrait, failFrom: 2}
 	sess := &fakeSessions{}
 	s, _ := styNewServer(t, eng, sess)
 	photo, _ := styWritePortrait(t)
 
 	m, out := styCall(t, s, "stylist_try", map[string]any{"photo_path": photo, "look": map[string]any{"outfit": "a navy suit"}, "variants": float64(2)})
 
-	assert.Len(t, eng.faceCalls(), 3, "landmarks: 1 on the photo + 1 per variant")
+	assert.Len(t, eng.faceCalls(), 5, "landmarks: 1 on the photo + 1 for variant 1 + 3 attempts of variant 2")
 	assert.Equal(t, "original", styFace0(t, m), "top-level face reflects the photo: %s", out)
 	variants := styVariants(t, m)
 	require.Len(t, variants, 2)
 	assert.Equal(t, "original", styFace0(t, variants[0]))
 	assert.True(t, strings.HasPrefix(styFace0(t, variants[1]), "not protected"), "variant 2 face: %s", out)
 
+	assert.Equal(t, float64(3), variants[1]["attempts"], out)
+	assert.Contains(t, variants[1], "problem", out)
+
 	named := sess.namedCalls()
 	raw := eng.resultImages()
 	require.Len(t, named, 2)
-	require.Len(t, raw, 2)
+	require.Len(t, raw, 4)
 	assert.NotEqual(t, raw[0], named[0].image, "variant 1 must be face-restored")
-	assert.Equal(t, raw[1], named[1].image, "variant 2 must be saved as raw moss result")
+	assert.Contains(t, raw[1:], named[1].image, "variant 2 must be saved as a raw moss result")
 	lower := strings.ToLower(out)
 	for _, f := range []string{".png", ".jpg", photo, filepath.Dir(photo), "ivborw0kggo"} {
 		assert.NotContains(t, lower, strings.ToLower(f))
@@ -1113,7 +1211,7 @@ func TestBuildLookInstruction_KeepSuffix(t *testing.T) {
 
 func TestStylistTry_VariantFit(t *testing.T) {
 	t.Parallel()
-	eng := &fakeStylist{editPNG: styMossPortrait, faceFailV: 2}
+	eng := &fakeStylist{editPNG: styMossPortrait, failFrom: 2}
 	s, _ := styNewServer(t, eng, &fakeSessions{})
 	photo, _ := styWritePortrait(t)
 
@@ -1129,112 +1227,6 @@ func TestStylistTry_VariantFit(t *testing.T) {
 		assert.InDelta(t, 0, v, 1e-3, "identical points give zero %s", k)
 	}
 	assert.NotContains(t, variants[1], "fit", "no fit where face was not found on the edit: %s", out)
-}
-
-const styHairMaskInstruction = "Recolor only the person's hair solid bright green (#00FF00), including every strand that falls over the face. Keep everything else unchanged."
-
-func TestStylistTry_HairMaskCall(t *testing.T) {
-	t.Parallel()
-
-	t.Run("hair look: one mask call before variants", func(t *testing.T) {
-		t.Parallel()
-		eng := &fakeStylist{editPNG: styMossPortrait}
-		sess := &fakeSessions{}
-		s, _ := styNewServer(t, eng, sess)
-		photo, data := styWritePortrait(t)
-		look := Look{HairCut: "short bob"}
-
-		m, out := styCall(t, s, "stylist_try", map[string]any{"photo_path": photo, "look": map[string]any{"hair_cut": "short bob"}, "variants": float64(2)})
-
-		edits := eng.editCalls()
-		require.Len(t, edits, 3, "1 hair mask + 2 variants")
-		assert.Equal(t, styHairMaskInstruction, edits[0].instruction)
-		require.NotNil(t, edits[0].seed)
-		assert.Equal(t, int64(1), *edits[0].seed)
-		assert.Equal(t, data, styDecodeB64(t, edits[0].image), "mask is made from the original photo")
-		want := buildLookInstruction(look)
-		seeds := map[int64]bool{}
-		for i, c := range edits[1:] {
-			assert.Equal(t, want, c.instruction, "variant %d", i)
-			assert.Equal(t, data, styDecodeB64(t, c.image), "variant %d uses the original photo", i)
-			require.NotNil(t, c.seed)
-			seeds[*c.seed] = true
-		}
-		assert.Len(t, seeds, 2)
-		assert.Len(t, styVariants(t, m), 2)
-		assert.Len(t, sess.namedCalls(), 2, "hair mask is not saved to the session")
-		assert.NotContains(t, strings.ToLower(out), "ivborw0kggo")
-	})
-
-	for _, hairLook := range []map[string]any{{"hair_color": "copper"}, {"headwear": "a cap"}} {
-		t.Run(fmt.Sprintf("hair field %v triggers mask", hairLook), func(t *testing.T) {
-			t.Parallel()
-			eng := &fakeStylist{editPNG: styMossPortrait}
-			s, _ := styNewServer(t, eng, &fakeSessions{})
-			photo, _ := styWritePortrait(t)
-
-			styCall(t, s, "stylist_try", map[string]any{"photo_path": photo, "look": hairLook, "variants": float64(1)})
-
-			edits := eng.editCalls()
-			require.Len(t, edits, 2)
-			assert.Equal(t, styHairMaskInstruction, edits[0].instruction)
-		})
-	}
-
-	t.Run("outfit only: no mask call, no old_hair", func(t *testing.T) {
-		t.Parallel()
-		eng := &fakeStylist{editPNG: styMossPortrait}
-		s, _ := styNewServer(t, eng, &fakeSessions{})
-		photo, _ := styWritePortrait(t)
-
-		m, _ := styCall(t, s, "stylist_try", map[string]any{"photo_path": photo, "look": map[string]any{"outfit": "a navy suit"}, "variants": float64(2)})
-
-		edits := eng.editCalls()
-		require.Len(t, edits, 2)
-		for _, c := range edits {
-			assert.NotEqual(t, styHairMaskInstruction, c.instruction)
-		}
-		assert.NotContains(t, m, "old_hair")
-	})
-
-	t.Run("no face points: no mask call, no old_hair", func(t *testing.T) {
-		t.Parallel()
-		eng := &fakeStylist{editPNG: styMossPortrait, faceErr: fmt.Errorf("no face")}
-		s, _ := styNewServer(t, eng, &fakeSessions{})
-		photo, _ := styWritePortrait(t)
-
-		m, _ := styCall(t, s, "stylist_try", map[string]any{"photo_path": photo, "look": map[string]any{"hair_cut": "bob"}, "variants": float64(2)})
-
-		edits := eng.editCalls()
-		require.Len(t, edits, 2)
-		for _, c := range edits {
-			assert.NotEqual(t, styHairMaskInstruction, c.instruction)
-		}
-		assert.NotContains(t, m, "old_hair")
-	})
-}
-
-func TestStylistTry_HairMaskFailure(t *testing.T) {
-	t.Parallel()
-	eng := &fakeStylist{editPNG: styMossPortrait, failOn: map[int]bool{1: true}}
-	sess := &fakeSessions{}
-	s, _ := styNewServer(t, eng, sess)
-	photo, _ := styWritePortrait(t)
-
-	m, out := styCall(t, s, "stylist_try", map[string]any{"photo_path": photo, "look": map[string]any{"hair_cut": "bob"}, "variants": float64(2)})
-
-	edits := eng.editCalls()
-	require.Len(t, edits, 3)
-	assert.Equal(t, styHairMaskInstruction, edits[0].instruction)
-	assert.Len(t, styVariants(t, m), 2)
-	assert.Len(t, sess.namedCalls(), 2)
-	oldHair, ok := m["old_hair"].(string)
-	require.True(t, ok, "old_hair must be reported: %s", out)
-	assert.True(t, strings.HasPrefix(oldHair, "старые пряди на лице не убраны"), "old_hair: %s", oldHair)
-	lower := strings.ToLower(out)
-	for _, f := range []string{".png", ".jpg", photo, filepath.Dir(photo), "ivborw0kggo"} {
-		assert.NotContains(t, lower, strings.ToLower(f))
-	}
 }
 
 func TestBuildLookInstruction_NoLooseStrands(t *testing.T) {

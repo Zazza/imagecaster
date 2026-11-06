@@ -90,10 +90,11 @@ const (
 )
 
 type GenerationMeta struct {
-	PresetID *int64     `json:"preset_id,omitempty"`
-	Model    string     `json:"model,omitempty"`
-	Label    string     `json:"label,omitempty"`
-	Chain    []StepMeta `json:"chain,omitempty"`
+	PresetID   *int64     `json:"preset_id,omitempty"`
+	Model      string     `json:"model,omitempty"`
+	Label      string     `json:"label,omitempty"`
+	Chain      []StepMeta `json:"chain,omitempty"`
+	SourceItem int64      `json:"source_item,omitempty"`
 }
 
 type StepMeta struct {

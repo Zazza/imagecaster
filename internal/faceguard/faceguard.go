@@ -23,35 +23,27 @@ type Point struct {
 }
 
 const (
-	minPoints     = 68
-	browLift      = 0.35
-	lidReach      = 0.45
-	lidStrength   = 0.7
-	faceBlurRatio = 0.017
-	lipsBlurRatio = 0.005
-	lidsBlurRatio = 0.013
-	toneBlurRatio = 0.02
-	maxMisfit     = 0.03
-	maxKeyMisfit  = 0.05
-	lightRatio    = 0.25
-	minLightGain  = 0.4
-	maxLightGain  = 2.5
-	hairGreenMin  = 60
-	hairDiffMin   = 60
-	hairGrowRatio = 0.02
-	browDrop      = 0.3
+	minPoints        = 68
+	underReach       = 0.8
+	underLift        = 0.15
+	underBlur        = 0.025
+	faceBlurRatio    = 0.017
+	lipsBlurRatio    = 0.005
+	toneBlurRatio    = 0.02
+	maxMisfit        = 0.03
+	maxKeyMisfit     = 0.05
+	textureGrid      = 48
+	textureBlurRatio = 0.012
+	featToneRatio    = 0.03
+	featGrowRatio    = 0.02
 )
 
 var (
-	keyPoints = []int{36, 39, 42, 45, 30, 48, 54}
-	jaw       = []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
-	browsBack = []int{26, 25, 24, 23, 22, 21, 20, 19, 18, 17}
-	outerLips = []int{48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59}
-	innerLips = []int{60, 61, 62, 63, 64, 65, 66, 67}
-	lidPairs  = [][2][]int{
-		{{36, 37, 38, 39}, {17, 18, 20, 21}},
-		{{42, 43, 44, 45}, {22, 23, 25, 26}},
-	}
+	keyPoints   = []int{36, 39, 42, 45, 30, 48, 54}
+	outerLips   = []int{48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59}
+	innerLips   = []int{60, 61, 62, 63, 64, 65, 66, 67}
+	underLids   = [][]int{{36, 41, 40, 39}, {42, 47, 46, 45}}
+	eyeContours = [][]int{{36, 37, 38, 39, 40, 41}, {42, 43, 44, 45, 46, 47}}
 )
 
 type fpt struct{ x, y float64 }
@@ -232,75 +224,81 @@ func faceMatches(res []float64, faceW float64) bool {
 	return f.Mean <= maxMisfit && f.Key <= maxKeyMisfit
 }
 
-func relight(o, e *image.RGBA, w, h int, sigma float64) {
-	oc, ec := channels(o), channels(e)
-	for k := 0; k < 3; k++ {
-		ob, eb := blurValues(oc[k], w, h, sigma), blurValues(ec[k], w, h, sigma)
-		for i := range ob {
-			g := math.Max(minLightGain, math.Min(maxLightGain, (eb[i]+1)/(ob[i]+1)))
-			o.Pix[i*4+k] = uint8(math.Round(math.Min(255, oc[k][i]*g)))
+func TextureMatch(orig, edited image.Image, origPts, editPts []Point) (float64, error) {
+	eb := edited.Bounds()
+	w, h := eb.Dx(), eb.Dy()
+	if len(origPts) < minPoints || len(editPts) < minPoints {
+		return 0, fmt.Errorf("need %d face points", minPoints)
+	}
+	px := toPixels(editPts, w, h)
+	faceW := faceWidth(px)
+	if faceW < 1 {
+		return 0, errors.New("face too small")
+	}
+	n := min(len(origPts), len(editPts))
+	m, res := fitSimilarity(toPixels(origPts[:n], w, h), px[:n])
+	if len(res) == 0 {
+		return 0, errors.New("face points are degenerate")
+	}
+	o := image.NewRGBA(image.Rect(0, 0, w, h))
+	scaled := toRGBA(orig, w, h)
+	xdraw.CatmullRom.Transform(o, m, scaled, scaled.Bounds(), draw.Src, nil)
+	hpO, hpE := highPass(o, faceW), highPass(toRGBA(edited, w, h), faceW)
+	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+	for _, p := range px[17:minPoints] {
+		x0, y0, x1, y1 = math.Min(x0, p.x), math.Min(y0, p.y), math.Max(x1, p.x), math.Max(y1, p.y)
+	}
+	var a, b []float64
+	for j := 0; j < textureGrid; j++ {
+		for i := 0; i < textureGrid; i++ {
+			x := clamp(int(x0+(x1-x0)*(float64(i)+0.5)/textureGrid), w)
+			y := clamp(int(y0+(y1-y0)*(float64(j)+0.5)/textureGrid), h)
+			a, b = append(a, hpO[y*w+x]), append(b, hpE[y*w+x])
 		}
 	}
+	return pearson(a, b), nil
 }
 
-func HairMask(orig, green image.Image) *image.Alpha {
-	b := orig.Bounds()
-	w, h := b.Dx(), b.Dy()
-	o, g := toRGBA(orig, w, h), toRGBA(green, w, h)
-	p := newPlane(w, h)
-	for i := range p.v {
-		r, gg, bb := int(g.Pix[i*4]), int(g.Pix[i*4+1]), int(g.Pix[i*4+2])
-		diff := absInt(r-int(o.Pix[i*4])) + absInt(gg-int(o.Pix[i*4+1])) + absInt(bb-int(o.Pix[i*4+2]))
-		if gg-max(r, bb) > hairGreenMin && diff > hairDiffMin {
-			p.v[i] = 1
-		}
+func highPass(img *image.RGBA, faceW float64) []float64 {
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	g := make([]float64, w*h)
+	for i := range g {
+		g[i] = 0.299*float64(img.Pix[i*4]) + 0.587*float64(img.Pix[i*4+1]) + 0.114*float64(img.Pix[i*4+2])
 	}
-	p = morph(morph(p, 1, false), 1, true)
-	out := image.NewAlpha(image.Rect(0, 0, w, h))
-	for i, v := range p.v {
-		out.Pix[i] = uint8(v * 255)
+	bl := blurValues(g, w, h, math.Max(2, faceW*textureBlurRatio))
+	for i := range g {
+		g[i] -= bl[i]
 	}
-	return out
+	return g
 }
 
-func HairMaskBase64(origB64, greenB64 string) (image.Image, error) {
+func pearson(a, b []float64) float64 {
+	var ma, mb float64
+	for i := range a {
+		ma, mb = ma+a[i], mb+b[i]
+	}
+	ma, mb = ma/float64(len(a)), mb/float64(len(b))
+	var sab, saa, sbb float64
+	for i := range a {
+		da, db := a[i]-ma, b[i]-mb
+		sab, saa, sbb = sab+da*db, saa+da*da, sbb+db*db
+	}
+	if saa == 0 || sbb == 0 {
+		return 0
+	}
+	return sab / math.Sqrt(saa*sbb)
+}
+
+func TextureMatchBase64(origB64, editedB64 string, origPts, editPts []Point) (float64, error) {
 	o, err := decode(origB64, "original")
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	g, err := decode(greenB64, "hair")
+	e, err := decode(editedB64, "edited")
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return HairMask(o, g), nil
-}
-
-func absInt(v int) int {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
-
-func morph(p *plane, r int, grow bool) *plane {
-	out := newPlane(p.w, p.h)
-	for y := 0; y < p.h; y++ {
-		for x := 0; x < p.w; x++ {
-			v := p.v[y*p.w+x]
-			for dy := -r; dy <= r; dy++ {
-				for dx := -r; dx <= r; dx++ {
-					q := p.v[clamp(y+dy, p.h)*p.w+clamp(x+dx, p.w)]
-					if grow {
-						v = math.Max(v, q)
-					} else {
-						v = math.Min(v, q)
-					}
-				}
-			}
-			out.v[y*p.w+x] = v
-		}
-	}
-	return out
+	return TextureMatch(o, e, origPts, editPts)
 }
 
 func spread(p *plane, sigma float64) *plane {
@@ -327,26 +325,10 @@ func featureMask(px []fpt, w, h int, faceW float64) *plane {
 	add(pick(px, []int{42, 43, 44, 45, 46, 47}))
 	add(pick(px, outerLips))
 	add(pick(px, []int{27, 31, 32, 33, 34, 35}))
-	eyeY := (px[37].y + px[44].y) / 2
-	for _, brow := range [][]int{{17, 18, 19, 20, 21}, {22, 23, 24, 25, 26}} {
-		var poly []fpt
-		for _, i := range brow {
-			poly = append(poly, fpt{px[i].x, px[i].y - (eyeY-px[i].y)*browLift})
-		}
-		for j := len(brow) - 1; j >= 0; j-- {
-			i := brow[j]
-			poly = append(poly, fpt{px[i].x, px[i].y + (eyeY-px[i].y)*browDrop})
-		}
-		add(poly)
-	}
-	return spread(f, faceW*hairGrowRatio).blur(faceW * faceBlurRatio)
+	return spread(f, faceW*featGrowRatio).blur(faceW * faceBlurRatio)
 }
 
-func Apply(orig, edited image.Image, origPts, editPts []Point, makeup bool) (*image.RGBA, error) {
-	return ApplyWithHair(orig, edited, nil, origPts, editPts, makeup)
-}
-
-func ApplyWithHair(orig, edited, hair image.Image, origPts, editPts []Point, makeup bool) (*image.RGBA, error) {
+func Apply(orig, edited image.Image, origPts, editPts []Point) (*image.RGBA, error) {
 	eb := edited.Bounds()
 	w, h := eb.Dx(), eb.Dy()
 	if w == 0 || h == 0 {
@@ -370,81 +352,49 @@ func ApplyWithHair(orig, edited, hair image.Image, origPts, editPts []Point, mak
 	o := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.Draw(o, o.Bounds(), e, image.Point{}, draw.Src)
 	xdraw.CatmullRom.Transform(o, m, scaled, scaled.Bounds(), draw.Src, nil)
-	relight(o, e, w, h, faceW*lightRatio)
 
-	eyeY := (px[37].y + px[44].y) / 2
-	poly := make([]fpt, 0, len(jaw)+len(browsBack))
-	for _, i := range jaw {
-		poly = append(poly, px[i])
-	}
-	for _, i := range browsBack {
-		poly = append(poly, fpt{px[i].x, px[i].y - (eyeY-px[i].y)*browLift})
-	}
-	face := fill(w, h, poly).blur(faceW * faceBlurRatio)
-	if hair != nil {
-		hs := toRGBA(hair, w, h)
-		hw := image.NewRGBA(image.Rect(0, 0, w, h))
-		xdraw.CatmullRom.Transform(hw, m, hs, hs.Bounds(), draw.Src, nil)
-		hp := newPlane(w, h)
-		for i := range hp.v {
-			hp.v[i] = float64(hw.Pix[i*4+3]) / 255 * float64(hw.Pix[i*4]) / 255
-		}
-		hp = spread(hp, faceW*hairGrowRatio).blur(faceW * faceBlurRatio * 0.5)
-		feat := featureMask(px, w, h, faceW)
-		for i := range face.v {
-			face.v[i] *= math.Max(1-hp.v[i], feat.v[i])
-		}
-	}
-
+	feat := featureMask(px, w, h, faceW)
 	out := image.NewRGBA(image.Rect(0, 0, w, h))
 	copy(out.Pix, e.Pix)
-	for i, a := range face.v {
-		for k := 0; k < 3; k++ {
-			j := i*4 + k
-			out.Pix[j] = uint8(math.Round(float64(o.Pix[j])*a + float64(e.Pix[j])*(1-a)))
-		}
-		out.Pix[i*4+3] = 255
-	}
-	if !makeup {
-		return out, nil
-	}
-
-	lips := fill(w, h, pick(px, outerLips))
-	inner := fill(w, h, pick(px, innerLips))
-	for i := range lips.v {
-		lips.v[i] = math.Max(0, lips.v[i]-inner.v[i])
-	}
-	lips = lips.blur(faceW * lipsBlurRatio)
-	lids := newPlane(w, h)
-	for _, pair := range lidPairs {
-		up, br := pick(px, pair[0]), pick(px, pair[1])
-		poly := append([]fpt{}, up...)
-		for i := len(up) - 1; i >= 0; i-- {
-			poly = append(poly, fpt{up[i].x + (br[i].x-up[i].x)*lidReach, up[i].y + (br[i].y-up[i].y)*lidReach})
-		}
-		l := fill(w, h, poly)
-		for i := range lids.v {
-			lids.v[i] = math.Max(lids.v[i], l.v[i])
-		}
-	}
-	lids = lids.blur(faceW * lidsBlurRatio)
-
-	sigma := faceW * toneBlurRatio
+	sigma := faceW * featToneRatio
 	oc, ec := channels(o), channels(e)
 	for k := 0; k < 3; k++ {
 		ob, eb := blurValues(oc[k], w, h, sigma), blurValues(ec[k], w, h, sigma)
-		for i := range lips.v {
-			a := math.Max(lips.v[i], lids.v[i]*lidStrength)
+		for i, a := range feat.v {
 			if a <= 0 {
 				continue
 			}
 			t := eb[i] + oc[k][i] - ob[i]
 			j := i*4 + k
-			v := t*a + float64(out.Pix[j])*(1-a)
+			v := t*a + float64(e.Pix[j])*(1-a)
 			out.Pix[j] = uint8(math.Round(math.Max(0, math.Min(255, v))))
 		}
 	}
 	return out, nil
+}
+
+func underEyeBand(px []fpt, idx []int, w, h int, down float64) *plane {
+	lid := pick(px, idx)
+	reach := math.Hypot(lid[len(lid)-1].x-lid[0].x, lid[len(lid)-1].y-lid[0].y)
+	poly := make([]fpt, 0, 2*len(lid))
+	for _, p := range lid {
+		poly = append(poly, fpt{p.x, p.y + reach*(down-underLift)})
+	}
+	for i := len(lid) - 1; i >= 0; i-- {
+		poly = append(poly, fpt{lid[i].x, lid[i].y + reach*(down+underReach)})
+	}
+	return fill(w, h, poly)
+}
+
+func eyesMask(px []fpt, w, h int) *plane {
+	eyes := newPlane(w, h)
+	for _, idx := range eyeContours {
+		e := fill(w, h, pick(px, idx))
+		for i := range eyes.v {
+			eyes.v[i] = math.Max(eyes.v[i], e.v[i])
+		}
+	}
+	return eyes
 }
 
 func pick(px []fpt, idx []int) []fpt {
@@ -481,11 +431,7 @@ func MeasureBase64(editedB64 string, origPts, editPts []Point) (Fit, error) {
 	return Measure(origPts, editPts, cfg.Width, cfg.Height)
 }
 
-func ApplyBase64(origB64, editedB64 string, origPts, editPts []Point, makeup bool) (string, error) {
-	return ApplyBase64WithHair(origB64, editedB64, nil, origPts, editPts, makeup)
-}
-
-func ApplyBase64WithHair(origB64, editedB64 string, hair image.Image, origPts, editPts []Point, makeup bool) (string, error) {
+func ApplyBase64(origB64, editedB64 string, origPts, editPts []Point) (string, error) {
 	o, err := decode(origB64, "original")
 	if err != nil {
 		return "", err
@@ -498,12 +444,16 @@ func ApplyBase64WithHair(origB64, editedB64 string, hair image.Image, origPts, e
 	if (ob.Dx() > ob.Dy()) != (eb.Dx() > eb.Dy()) {
 		return "", errors.New("orientation of original and edited differ")
 	}
-	res, err := ApplyWithHair(o, e, hair, origPts, editPts, makeup)
+	res, err := Apply(o, e, origPts, editPts)
 	if err != nil {
 		return "", err
 	}
+	return encode(res)
+}
+
+func encode(img image.Image) (string, error) {
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, res); err != nil {
+	if err := png.Encode(&buf, img); err != nil {
 		return "", fmt.Errorf("encode: %w", err)
 	}
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil

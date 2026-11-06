@@ -30,4 +30,4 @@ clean:
 	rm -rf build/
 
 mcp:
-	go build -o build/bin/sd-mcp ./cmd/sd-mcp
+	go build -o build/bin/imagecaster-mcp ./cmd/imagecaster-mcp

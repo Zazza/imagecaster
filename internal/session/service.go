@@ -94,9 +94,10 @@ func normalizeMeta(meta *preset.GenerationMeta, sdModel string) *preset.Generati
 		return nil
 	}
 	m := &preset.GenerationMeta{
-		PresetID: meta.PresetID,
-		Model:    truncateMetaStr(firstNonEmpty(sdModel, meta.Model)),
-		Label:    truncateMetaStr(meta.Label),
+		PresetID:   meta.PresetID,
+		Model:      truncateMetaStr(firstNonEmpty(sdModel, meta.Model)),
+		Label:      truncateMetaStr(meta.Label),
+		SourceItem: meta.SourceItem,
 	}
 	if len(meta.Chain) > 0 {
 		n := len(meta.Chain)
@@ -161,6 +162,21 @@ func (s *Service) AddToNamedSession(name, imageBase64 string, info json.RawMessa
 		s.emit.Emit("session:created", map[string]any{"session_id": si.ID, "name": si.Name})
 	}
 	return s.addItem(sessionID, imageBase64, info, source, isPreview, meta)
+}
+
+func (s *Service) AddToSessionID(sessionID int64, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+	if sessionID == 0 {
+		return 0
+	}
+	return s.addItem(sessionID, imageBase64, info, source, isPreview, meta)
+}
+
+func (s *Service) SessionItems(sessionID int64) ([]preset.SessionItem, error) {
+	return s.db.GetSessionItems(sessionID)
+}
+
+func (s *Service) SessionItem(id int64) (*preset.SessionItem, error) {
+	return s.db.GetSessionItem(id)
 }
 
 func (s *Service) addItem(sessionID int64, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {

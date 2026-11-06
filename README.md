@@ -80,7 +80,7 @@
 | File Browser | Thumbnail grid, fullscreen viewer with zoom, send to Remix/Edit/Export |
 | Export | Resize, convert (PNG/JPEG/WebP), quality/interpolation control, export presets |
 | Queue | Persistent job queue with retry, pause/resume and recovery after restarts |
-| MCP Server | Built-in Model Context Protocol server (`sd-mcp`) — drive the studio from AI agents |
+| MCP Server | Built-in Model Context Protocol server (`imagecaster-mcp`) — drive the studio from AI agents |
 | Light/Dark Theme | System-aware theme with manual toggle; RU/EN interface |
 
 ### Safety
@@ -193,7 +193,7 @@ User writes description in plain language
 │   ├── kids/            # Kids mode filtering
 │   ├── logger/          # Event logger
 │   └── mcp/             # MCP server implementation
-├── cmd/sd-mcp/          # MCP server entrypoint
+├── cmd/imagecaster-mcp/ # MCP server entrypoint
 ├── frontend/
 │   └── src/
 │       ├── components/  # Vue components

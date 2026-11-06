@@ -217,11 +217,23 @@ func (s *Server) dispatch(req rpcRequest) rpcResponse {
 	case "initialize":
 		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{
 			"protocolVersion": protocolVersion,
-			"capabilities":    map[string]any{"tools": map[string]any{}},
-			"serverInfo":      map[string]any{"name": "sd-mcp", "version": "0.1.0"},
+			"capabilities":    map[string]any{"tools": map[string]any{}, "prompts": map[string]any{}},
+			"serverInfo":      map[string]any{"name": "imagecaster-mcp", "version": "0.1.0"},
 		}}
 	case "ping":
 		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{}}
+	case "prompts/list":
+		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"prompts": []map[string]any{stylistPromptInfo()}}}
+	case "prompts/get":
+		var p struct {
+			Name      string            `json:"name"`
+			Arguments map[string]string `json:"arguments,omitempty"`
+		}
+		if err := json.Unmarshal(req.Params, &p); err != nil || p.Name != stylistPromptName {
+			return rpcResponse{JSONRPC: "2.0", ID: req.ID,
+				Error: &rpcError{Code: errInvalidArgs, Message: fmt.Sprintf("unknown prompt %q", p.Name)}}
+		}
+		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: stylistPrompt(p.Arguments["photo"])}
 	case "tools/list":
 		s.mu.RLock()
 		defer s.mu.RUnlock()

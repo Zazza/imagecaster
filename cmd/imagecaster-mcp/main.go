@@ -19,16 +19,23 @@ import (
 	"github.com/Zazza/imagecaster/internal/settings"
 )
 
+func env(name string) string {
+	if v := os.Getenv("IMAGECASTER_MCP_" + name); v != "" {
+		return v
+	}
+	return os.Getenv("SD_MCP_" + name)
+}
+
 func main() {
 	log.SetFlags(0)
 
-	dbPath := flag.String("db", "", "путь к presets.db (по умолчанию env SD_MCP_DB, затем config.Load)")
+	dbPath := flag.String("db", "", "путь к presets.db (по умолчанию env IMAGECASTER_MCP_DB, затем config.Load)")
 	flag.Parse()
 
 	cfg := config.Load()
 	if *dbPath != "" {
 		cfg.DBPath = *dbPath
-	} else if v := os.Getenv("SD_MCP_DB"); v != "" {
+	} else if v := env("DB"); v != "" {
 		cfg.DBPath = v
 	}
 
@@ -56,13 +63,13 @@ func main() {
 	)
 	go gen.ResetReferences()
 
-	outDir := os.Getenv("SD_MCP_OUT")
+	outDir := env("OUT")
 	if outDir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			log.Fatalf("home dir: %v", err)
 		}
-		outDir = filepath.Join(home, "sd-mcp-out")
+		outDir = filepath.Join(home, "imagecaster-mcp-out")
 	}
 	if err := os.MkdirAll(outDir, 0o700); err != nil {
 		log.Fatalf("create out dir: %v", err)
@@ -80,7 +87,7 @@ func main() {
 		Stylist:  gen,
 		Sessions: appSessions,
 
-		NoImageBytes: os.Getenv("SD_MCP_NO_IMAGE_BYTES") == "1",
+		NoImageBytes: env("NO_IMAGE_BYTES") == "1",
 	})
 	mcp.RegisterTools(srv)
 
