@@ -253,3 +253,59 @@ func floor(v float64) float64 {
 	}
 	return i
 }
+
+func Blend(orig, edited, mask image.Image) *image.RGBA {
+	b := orig.Bounds()
+	w, h := b.Dx(), b.Dy()
+	o := toRGBA(orig, w, h)
+	e := toRGBA(edited, w, h)
+	m := maskValues(mask, w, h)
+	a := make([]float64, w*h)
+	for i, v := range m {
+		if v {
+			a[i] = 1
+		}
+	}
+	r := max(2, min(w, h)/200)
+	soft := boxBlurSep(a, w, h, r)
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	for i := 0; i < w*h; i++ {
+		k := soft[i] * 2
+		if k > 1 || m[i] {
+			k = 1
+		}
+		p := i * 4
+		for c := 0; c < 3; c++ {
+			dst.Pix[p+c] = uint8(float64(o.Pix[p+c])*(1-k) + float64(e.Pix[p+c])*k + 0.5)
+		}
+		dst.Pix[p+3] = 255
+	}
+	return dst
+}
+
+func boxBlurSep(a []float64, w, h, r int) []float64 {
+	tmp := make([]float64, len(a))
+	out := make([]float64, len(a))
+	for y := 0; y < h; y++ {
+		row := a[y*w : (y+1)*w]
+		for x := 0; x < w; x++ {
+			var s float64
+			lo, hi := max(0, x-r), min(w-1, x+r)
+			for k := lo; k <= hi; k++ {
+				s += row[k]
+			}
+			tmp[y*w+x] = s / float64(hi-lo+1)
+		}
+	}
+	for x := 0; x < w; x++ {
+		for y := 0; y < h; y++ {
+			var s float64
+			lo, hi := max(0, y-r), min(h-1, y+r)
+			for k := lo; k <= hi; k++ {
+				s += tmp[k*w+x]
+			}
+			out[y*w+x] = s / float64(hi-lo+1)
+		}
+	}
+	return out
+}

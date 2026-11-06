@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
+import { effectTypeLabel } from '../effectTypes.js'
 import PresetForm from './PresetForm.vue'
 import ImportModal from './ImportModal.vue'
 
@@ -250,7 +251,7 @@ onMounted(load)
         <input class="form-input" v-model="filterSearch" :placeholder="t('presets.search_presets')" style="flex: 1; max-width: 300px;" />
         <select class="form-select" v-model="filterType" style="width: auto; min-width: 140px;">
           <option value="">{{ t('presets.all_types') }}</option>
-          <option v-for="at in availableTypes" :key="at" :value="at">{{ at }}</option>
+          <option v-for="at in availableTypes" :key="at" :value="at">{{ effectTypeLabel(at, t) }}</option>
         </select>
       </div>
 
@@ -265,7 +266,7 @@ onMounted(load)
             <input v-if="selectMode" type="checkbox" :checked="selectedIds.has(p.id)" @change="togglePreset(p.id)" />
             <div class="preset-name">{{ p.name }}</div>
           </div>
-          <span class="preset-type">{{ p.preset_type || t('presets.type_general') }}</span>
+          <span class="preset-type">{{ p.preset_type ? effectTypeLabel(p.preset_type, t) : t('presets.type_general') }}</span>
         </div>
         <div class="preset-prompt">{{ p.prompt || t('presets.no_prompt') }}</div>
         <div class="preset-meta">

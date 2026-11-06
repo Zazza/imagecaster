@@ -1064,6 +1064,7 @@ export namespace preset {
 	    model?: string;
 	    label?: string;
 	    chain?: StepMeta[];
+	    source_item?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerationMeta(source);
@@ -1075,6 +1076,7 @@ export namespace preset {
 	        this.model = source["model"];
 	        this.label = source["label"];
 	        this.chain = this.convertValues(source["chain"], StepMeta);
+	        this.source_item = source["source_item"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

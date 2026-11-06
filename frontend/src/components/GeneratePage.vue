@@ -6,6 +6,7 @@ import { parseSeedInput } from '../seed.js'
 import { parseLoras } from '../loraOverride.js'
 import { newCustomStep, restoreCustomSteps, persistCustomSteps, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
+import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
 import { usePresets } from '../composables/usePresets.js'
@@ -91,9 +92,13 @@ const pipelineSavedMsg = ref('')
 
 const isDesktop = ref(window.innerWidth > 1024)
 
+const genTypes = computed(() => presetTypes.value.filter(pt => !isEffectType(pt.name)))
+
 const filteredPresets = computed(() => {
-  if (!selectedTypeId.value) return presets.value
-  return presets.value.filter(p => p.type_id === selectedTypeId.value)
+  const ids = new Set(genTypes.value.map(pt => pt.id))
+  const list = presets.value.filter(p => !isEffectType(p.preset_type) && (!p.type_id || ids.has(p.type_id)))
+  if (!selectedTypeId.value) return list
+  return list.filter(p => p.type_id === selectedTypeId.value)
 })
 
 const selectedPresetLoras = computed(() => {
@@ -850,7 +855,7 @@ onMounted(async () => {
     previewMode.value = s.preview_mode === 'true'
     if (s.gen_type_id) {
       const tid = Number(s.gen_type_id) || null
-      if (tid && presetTypes.value.find(pt => pt.id === tid)) {
+      if (tid && genTypes.value.find(pt => pt.id === tid)) {
         selectedTypeId.value = tid
       }
     }
@@ -1020,7 +1025,7 @@ function onKeydown(e) {
                 <label class="form-label">{{ t('generate.label_type') }}</label>
                 <select class="form-select" v-model="selectedTypeId">
                   <option :value="null">{{ t('generate.all_types') }}</option>
-                  <option v-for="pt in presetTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
+                  <option v-for="pt in genTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
                 </select>
               </div>
               <div class="form-group">

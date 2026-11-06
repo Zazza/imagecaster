@@ -241,6 +241,7 @@ type GenerateFromImageParams struct {
 	HiresProfileID      *int64           `json:"hires_profile_id,omitempty"`
 	Seed                *int64           `json:"seed,omitempty"`
 	Overrides           *PresetOverrides `json:"overrides,omitempty"`
+	MaskBase64          string           `json:"mask_base64,omitempty"`
 }
 
 type lastImageMeta struct {

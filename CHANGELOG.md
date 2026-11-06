@@ -2,6 +2,26 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.3.0] — 2026-11-06
+
+### Added
+- **Batch mode in Post-Process**: send several photos (from the File Browser or with "Select" in the session panel) and Effect, Recipes and "Describe the look" apply to every photo step by step through the queue. Undo rolls the whole batch back; export saves all photos at once under their original names without overwriting. Edit, Remix, Object and Repair stay single-photo. The old "Pipeline" section is gone.
+- **Effect mask**: in the Effect section, "Select area" lets you paint where the effect goes; the effect is applied only inside the painted area with a soft edge of a few pixels. The mask survives applying the effect and is cleared when another photo is opened. Not available in batch mode.
+- **My Images sorting**: by date or name, ascending or descending (newest first by default, remembered); folders always come first and show their date.
+- **Stylist**: rules ship as the MCP prompt `stylist`; photos can come from the app history (`item`, or a whole session folder for `stylist_describe`); retouch of under-eye shadows, teeth, eye whites, eye colour, light and face width (±10 %); skin tone report and `skin_tone` / `skin_lightness` on request.
+
+### Changed
+- **sd-mcp is now imagecaster-mcp**; `IMAGECASTER_MCP_*` variables, the old `SD_MCP_*` are still read.
+- **Stylist face protection**: the skin now comes from the Klein edit, and only eyes, nose and lips are pasted from the original in the edit's tone — old strands, thin hairs and under-eye circles no longer come back. A variant is regenerated up to 3 times when the face does not match, the background changed, or the face texture looks like another person; otherwise the answer says what went wrong.
+- **Post-Process right panel is compact**: sections are one panel without card frames; still one section open at a time.
+- **Effects are hidden on Generate** and shown on the Presets page with readable names ("Effects: Materials" etc.).
+
+### Fixed
+- The queue panel lost the oldest pending and even the running job when more than 100 jobs existed; it now lists every active job plus the 100 newest finished.
+
+### Known limits
+- The stylist's "another person" texture threshold is tuned on few samples; the background check is skipped on close-ups and with glasses. In the worst case one stylist call takes about 6 minutes.
+
 ## [1.2.1] — 2026-11-05
 
 ### Fixed

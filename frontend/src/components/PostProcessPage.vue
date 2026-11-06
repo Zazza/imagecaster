@@ -11,6 +11,8 @@ import { usePresets } from '../composables/usePresets.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import EditSection from './EditSection.vue'
+import { EFFECT_TYPE_GROUPS } from '../effectTypes.js'
+import { useMaskCanvas } from '../composables/useMaskCanvas.js'
 import RemixSection from './RemixSection.vue'
 import ObjectSection from './ObjectSection.vue'
 import RepairSection from './RepairSection.vue'
@@ -498,7 +500,34 @@ const maskViewRef = ref(null)
 const brushing = ref(false)
 const brushCursor = ref({ x: 0, y: 0, visible: false })
 
-const maskComp = computed(() => openSection.value === 'object' ? objectCompRef.value : openSection.value === 'repair' ? repairCompRef.value : null)
+const effectMask = useMaskCanvas()
+const { brushSize: effectBrush, hasMask: effectHasMask } = effectMask
+const effectMaskOn = ref(false)
+const effectMaskComp = reactive({
+  maskActive: computed(() => effectMaskOn.value && !!currentB64.value && !batchActive.value),
+  maskCanvas: effectMask.maskCanvas,
+  maskVersion: effectMask.maskVersion,
+  brushSize: effectMask.brushSize,
+  beginStroke: effectMask.beginStroke,
+  strokeTo: effectMask.strokeTo,
+  endStroke: effectMask.endStroke,
+  undoMask: effectMask.undoMask,
+  redoMask: effectMask.redoMask,
+  canUndoMask: effectMask.hasMask,
+  canRedoMask: effectMask.canRedoMask,
+})
+let effectMaskReset = false
+watch(currentB64, v => {
+  effectMask.applySource(v, !effectMaskReset)
+  effectMaskReset = false
+}, { immediate: true })
+
+function effectMaskParam() {
+  if (!effectMaskOn.value || batchActive.value || !effectHasMask.value) return {}
+  return { mask_base64: effectMask.getMaskBase64() }
+}
+
+const maskComp = computed(() => openSection.value === 'object' ? objectCompRef.value : openSection.value === 'repair' ? repairCompRef.value : openSection.value === 'effect' ? effectMaskComp : null)
 const maskMode = computed(() => !!maskComp.value?.maskActive)
 const brushDiameter = computed(() => maskComp.value?.brushSize || 30)
 const maskOverlayVisible = ref(true)
@@ -664,14 +693,6 @@ function b64Url(b64) {
 
 const { presets, presetTypes, loadPresets } = usePresets()
 
-const EFFECT_TYPE_GROUPS = [
-  { type: 'post', labelKey: 'post.group_effect_base' },
-  { type: 'post_material', labelKey: 'post.group_effect_material' },
-  { type: 'post_skin', labelKey: 'post.group_effect_skin' },
-  { type: 'post_light', labelKey: 'post.group_effect_light' },
-  { type: 'post_film', labelKey: 'post.group_effect_film' },
-  { type: 'post_transform', labelKey: 'post.group_effect_transform' },
-]
 
 const effectGroups = computed(() => {
   const labels = new Map()
@@ -758,7 +779,7 @@ async function applyEffect() {
     const seedVal = parseSeedInput(effectSeedInput.value)
     const presetId = selectedEffectId.value
     const strength = effectStrength.value
-    const jobId = await api.enqueueFromImage(effectJobParams(currentB64.value, seedVal))
+    const jobId = await api.enqueueFromImage({ ...effectJobParams(currentB64.value, seedVal), ...effectMaskParam() })
     if (jobId) {
       effectJobIds.value.add(jobId)
       journalPending.set(jobId, { preset_id: presetId, strength })
@@ -1008,6 +1029,8 @@ function loadImageDimensions(base64) {
 function setSource(b64, name, keepLayerHistory = false) {
   if (batchActive.value) exitBatch(false)
   sourceB64.value = b64
+  if (currentB64.value === b64) effectMask.applySource(b64, false)
+  else effectMaskReset = true
   currentB64.value = b64
   sourceName.value = (name || 'image').replace(/\.[^.]+$/, '') || 'image'
   resetAdjustAll()
@@ -1991,6 +2014,18 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <div v-if="!batchActive" class="fx-mask">
+              <button class="btn btn-sm" :class="effectMaskOn ? 'btn-primary' : 'btn-secondary'" :disabled="!currentB64" @click="effectMaskOn = !effectMaskOn">{{ t('post.effect_mask_btn') }}</button>
+              <template v-if="effectMaskOn">
+                <div class="form-hint">{{ t('post.effect_mask_hint') }}</div>
+                <label class="form-label">{{ t('fi.label_brush_size', { value: effectBrush }) }}</label>
+                <div class="fx-mask-row">
+                  <input type="range" class="form-range" v-model.number="effectBrush" min="5" max="150" step="1" />
+                  <button class="btn btn-sm btn-secondary" :disabled="!effectHasMask" @click="effectMask.clearMask">{{ t('fi.btn_clear_mask') }}</button>
+                </div>
+              </template>
+            </div>
+
             <div class="form-group">
               <label class="form-label">{{ t('fi.seed_label') }}</label>
               <input class="form-input" type="number" v-model="effectSeedInput" min="0" step="1" :placeholder="t('fi.seed_placeholder')" />
@@ -2296,16 +2331,69 @@ onUnmounted(() => {
 .post-controls {
   width: 360px;
   flex-shrink: 0;
+  align-self: flex-start;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   overflow-y: auto;
   min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .post-controls > .card {
   flex-shrink: 0;
   padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.post-controls > .card + .card {
+  border-top: 1px solid var(--border);
+}
+
+.post-controls .card-header {
+  padding: 9px 12px;
+  border-bottom: none;
+}
+
+.post-controls > .card.collapsed .card-header:hover {
+  background: var(--surface-2);
+}
+
+.post-controls > .card:not(.collapsed) .card-header {
+  background: var(--accent-bg);
+}
+
+.post-controls > .card:not(.collapsed) .chevron,
+.post-controls > .card:not(.collapsed) .section-icon {
+  color: var(--accent);
+}
+
+.fx-mask {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.fx-mask-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.fx-mask-row .form-range {
+  flex: 1;
+}
+
+.post-controls .card-collapse > .card-body {
+  padding: 10px 12px 12px;
 }
 
 .card-header {

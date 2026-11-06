@@ -2,11 +2,14 @@ package generation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"image"
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/maskcomp"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/promptutil"
 	"github.com/Zazza/imagecaster/internal/sd"
@@ -237,6 +240,25 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	if params.DenoisingStrength > 1.0 {
 		params.DenoisingStrength = 1.0
 	}
+	var effectMask, maskSource image.Image
+	if params.MaskBase64 != "" {
+		if params.GenMode != "preset" || params.Mode != "img2img" || params.OutputMode == "quality" {
+			return nil, fmt.Errorf("mask requires img2img preset mode with standard output")
+		}
+		if len(params.MaskBase64) > MaxImageBase64Len {
+			return nil, config.ImageTooLarge("mask")
+		}
+		var err error
+		if effectMask, err = decodeB64Image(params.MaskBase64, "mask"); err != nil {
+			return nil, err
+		}
+		if !maskcomp.HasPaint(effectMask) {
+			return nil, errors.New("mask is empty — paint over the area")
+		}
+		if maskSource, err = decodeB64Image(params.ImageBase64, "image"); err != nil {
+			return nil, err
+		}
+	}
 
 	var filterErr error
 	params.ExtraNegativePrompt, filterErr = s.kids.FilterInput(params.ExtraNegativePrompt)
@@ -428,6 +450,15 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 				}
 				upscaleSkipped = qUpscaleSkipped
 				redenoiseSkipped = qRedenoiseSkipped
+			}
+		}
+		if effectMask != nil {
+			edited, err := decodeB64Image(finalImage, "result")
+			if err != nil {
+				return nil, err
+			}
+			if finalImage, err = encodePNGBase64(maskcomp.Blend(maskSource, edited, effectMask)); err != nil {
+				return nil, err
 			}
 		}
 		genMeta := &preset.GenerationMeta{
