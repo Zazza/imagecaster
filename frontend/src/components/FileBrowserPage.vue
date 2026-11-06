@@ -3,8 +3,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { useRemixQueue } from '../remixQueue.js'
+import { sortEntries, normalizeSort } from '../fileSort.js'
 import ImageViewer from './ImageViewer.vue'
-import { FolderUp, Folder, FolderOpen, Image, Send, Download, Check } from 'lucide-vue-next'
+import { FolderUp, Folder, FolderOpen, Image, Send, Download, Check, ArrowUp, ArrowDown } from 'lucide-vue-next'
 
 const emit = defineEmits(['navigate'])
 
@@ -21,7 +22,39 @@ const viewerIndex = ref(-1)
 const selectMode = ref(false)
 const selectedPaths = ref([])
 const { setQueue, setPostQueue } = useRemixQueue()
-const imageEntries = computed(() => entries.value.filter(e => !e.is_dir))
+const SORT_STORAGE_KEY = 'fb_sort'
+
+function loadSort() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || 'null')
+    return normalizeSort(saved?.key, saved?.dir)
+  } catch {
+    return normalizeSort()
+  }
+}
+
+const initialSort = loadSort()
+const sortKey = ref(initialSort.key)
+const sortDir = ref(initialSort.dir)
+
+function saveSort() {
+  try {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ key: sortKey.value, dir: sortDir.value }))
+  } catch {}
+}
+
+function setSortKey(key) {
+  sortKey.value = key
+  saveSort()
+}
+
+function toggleSortDir() {
+  sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  saveSort()
+}
+
+const sortedEntries = computed(() => sortEntries(entries.value, sortKey.value, sortDir.value))
+const imageEntries = computed(() => sortedEntries.value.filter(e => !e.is_dir))
 const imageIndexMap = computed(() => {
   const map = new Map()
   imageEntries.value.forEach((e, i) => map.set(e.path, i))
@@ -296,11 +329,24 @@ onUnmounted(() => {
 
     <div v-if="error" class="fb-error">{{ error }}</div>
 
+    <div v-if="!loading && entries.length" class="fb-sort-bar">
+      <span class="fb-sort-label">{{ t('browser.sort_by') }}</span>
+      <div class="fb-sort-group">
+        <button class="fb-sort-btn" :class="{ active: sortKey === 'date' }" @click="setSortKey('date')">{{ t('browser.sort_date') }}</button>
+        <button class="fb-sort-btn" :class="{ active: sortKey === 'name' }" @click="setSortKey('name')">{{ t('browser.sort_name') }}</button>
+      </div>
+      <button class="fb-sort-btn fb-sort-dir" :title="sortDir === 'asc' ? t('browser.sort_asc') : t('browser.sort_desc')" :aria-label="sortDir === 'asc' ? t('browser.sort_asc') : t('browser.sort_desc')" @click="toggleSortDir">
+        <ArrowUp v-if="sortDir === 'asc'" :size="14" />
+        <ArrowDown v-else :size="14" />
+        {{ sortDir === 'asc' ? t('browser.sort_asc') : t('browser.sort_desc') }}
+      </button>
+    </div>
+
     <div v-if="loading" class="fb-loading">{{ t('browser.loading') }}</div>
 
     <div v-else-if="entries.length" class="fb-grid">
       <div
-        v-for="entry in entries"
+        v-for="entry in sortedEntries"
         :key="entry.path"
         class="fb-card"
         :class="{ 'fb-card-dir': entry.is_dir, 'fb-card-selected': !entry.is_dir && selectMode && isSelected(entry) }"
@@ -308,10 +354,11 @@ onUnmounted(() => {
       >
         <template v-if="entry.is_dir">
           <div class="fb-thumb fb-thumb-dir">
-            <Folder :size="32" />
+            <Folder :size="56" :stroke-width="1.5" />
           </div>
           <div class="fb-card-info">
             <div class="fb-card-name">{{ entry.name }}</div>
+            <div class="fb-card-meta">{{ t('browser.folder') }}</div>
           </div>
         </template>
         <template v-else>
@@ -469,15 +516,58 @@ onUnmounted(() => {
   object-fit: cover;
 }
 
-.fb-card-dir {
-  align-self: start;
+.fb-thumb-dir {
+  color: var(--accent);
 }
 
-.fb-thumb-dir {
-  aspect-ratio: auto;
-  height: 72px;
-  background: var(--surface-1);
+.fb-thumb-dir svg {
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.fb-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.fb-sort-label {
   color: var(--text-dim);
+}
+
+.fb-sort-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.fb-sort-group .fb-sort-btn {
+  border: none;
+  border-radius: 0;
+}
+
+.fb-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fb-sort-btn:hover {
+  border-color: var(--accent);
+}
+
+.fb-sort-btn.active {
+  background: var(--accent);
+  color: #fff;
 }
 
 .fb-thumb-placeholder {

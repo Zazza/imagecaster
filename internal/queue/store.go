@@ -135,9 +135,14 @@ func (s *Store) ListActive() ([]*Job, error) {
 	return jobs, rows.Err()
 }
 
-func (s *Store) ListRecent(limit int) ([]*Job, error) {
+func (s *Store) ListForPanel(finishedLimit int) ([]*Job, error) {
 	rows, err := s.db.Query(
-		fmt.Sprintf(`SELECT %s FROM job_queue ORDER BY created_at DESC LIMIT ?`, jobColumns), limit,
+		fmt.Sprintf(`SELECT %[1]s FROM job_queue WHERE status IN (?, ?, ?)
+			UNION ALL
+			SELECT %[1]s FROM (SELECT %[1]s FROM job_queue WHERE status NOT IN (?, ?, ?) ORDER BY created_at DESC, id DESC LIMIT ?)
+			ORDER BY created_at DESC, id DESC`, jobColumns),
+		StatusPending, StatusRunning, StatusPaused,
+		StatusPending, StatusRunning, StatusPaused, finishedLimit,
 	)
 	if err != nil {
 		return nil, err

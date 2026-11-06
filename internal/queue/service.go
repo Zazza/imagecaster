@@ -115,8 +115,10 @@ func (s *Service) CancelQueue() error {
 	return nil
 }
 
+const panelFinishedLimit = 100
+
 func (s *Service) GetQueue() ([]*Job, error) {
-	return s.store.ListRecent(100)
+	return s.store.ListForPanel(panelFinishedLimit)
 }
 
 func (s *Service) ClearCompleted() error {

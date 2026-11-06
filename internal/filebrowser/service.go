@@ -45,11 +45,15 @@ func BrowseDirectory(dirPath string) ([]FileEntry, error) {
 		name := e.Name()
 		ext := strings.ToLower(filepath.Ext(name))
 		if e.IsDir() {
-			result = append(result, FileEntry{
+			entry := FileEntry{
 				Name:  name,
 				Path:  filepath.Join(dirPath, name),
 				IsDir: true,
-			})
+			}
+			if info, err := e.Info(); err == nil {
+				entry.ModTime = info.ModTime().Format("2006-01-02 15:04")
+			}
+			result = append(result, entry)
 			continue
 		}
 		if !imageExts[ext] {
