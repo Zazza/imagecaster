@@ -14,6 +14,14 @@ export function AutoAdjust(arg1) {
   return window['go']['main']['App']['AutoAdjust'](arg1);
 }
 
+export function BatchReset() {
+  return window['go']['main']['App']['BatchReset']();
+}
+
+export function BatchSaveImage(arg1) {
+  return window['go']['main']['App']['BatchSaveImage'](arg1);
+}
+
 export function BrowseDirectory(arg1) {
   return window['go']['main']['App']['BrowseDirectory'](arg1);
 }
@@ -164,6 +172,10 @@ export function EnqueueCompound(arg1) {
 
 export function EnqueueFromImage(arg1) {
   return window['go']['main']['App']['EnqueueFromImage'](arg1);
+}
+
+export function EnqueueLook(arg1) {
+  return window['go']['main']['App']['EnqueueLook'](arg1);
 }
 
 export function EnqueueTxt2Img(arg1) {

@@ -98,6 +98,24 @@ export namespace generation {
 	        this.describe_prompt = source["describe_prompt"];
 	    }
 	}
+	export class ApplyLookParams {
+	    image_base64: string;
+	    text: string;
+	    strength: number;
+	    seed?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApplyLookParams(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.image_base64 = source["image_base64"];
+	        this.text = source["text"];
+	        this.strength = source["strength"];
+	        this.seed = source["seed"];
+	    }
+	}
 	export class RecipeStep {
 	    preset_id: number;
 	    name: string;

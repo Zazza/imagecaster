@@ -457,36 +457,4 @@ describe('PostProcessPage generation overlay', () => {
     await settle()
     expect(overlay(wrapper).exists()).toBe(false)
   })
-
-  it('folder pipeline run + sd:progress: no overlay', async () => {
-    useRemixQueue().setPostQueue([
-      { path: '/in/a.png', name: 'a.png' },
-      { path: '/in/b.png', name: 'b.png' },
-    ])
-    ReadFileAsBase64.mockReturnValue(Promise.resolve(SOURCE))
-    EnqueueFromImage.mockReturnValue(Promise.resolve('pipe-1'))
-    GetSettings.mockReturnValue(Promise.resolve({ file_browser_path: '/out' }))
-    GetActiveSessionItem.mockReturnValue(Promise.resolve(null))
-    GetSessionImage.mockReturnValue(Promise.resolve(''))
-    ListPresets.mockReturnValue(Promise.resolve(PRESETS))
-    ListPresetTypes.mockReturnValue(Promise.resolve(TYPES))
-    const wrapper = mount(PostProcessPage, { props: { initialSection: 'effect' } })
-    await settle()
-
-    const card = wrapper.findAll('.fx-card').find(c => c.attributes('title') === 'Soft Focus')
-    await card.trigger('click')
-    await settle()
-
-    const run = wrapper.findAll('button').find(b => b.text().includes(t('post.pipeline_run', { n: 2 })))
-    expect(run).toBeTruthy()
-    expect(run.element.disabled).toBe(false)
-    await run.trigger('click')
-    await settle()
-    expect(EnqueueFromImage).toHaveBeenCalled()
-    expect(wrapper.text()).toContain(t('post.pipeline_running', { done: 0, total: 2 }))
-
-    emitProgress({ progress: 0.5, steps: 20, preview: PREVIEW })
-    await settle()
-    expect(overlay(wrapper).exists()).toBe(false)
-  })
 })

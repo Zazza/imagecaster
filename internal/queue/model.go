@@ -6,6 +6,7 @@ const (
 	JobTxt2Img   JobType = "txt2img"
 	JobFromImage JobType = "from_image"
 	JobCompound  JobType = "compound"
+	JobLook      JobType = "look"
 )
 
 type JobStatus string

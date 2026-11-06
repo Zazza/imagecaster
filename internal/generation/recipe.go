@@ -331,6 +331,18 @@ const (
 
 const kleinLookSystemPrompt = "You translate a description of the desired look into a short English prose prompt for an image restyle model. Describe only the visual look: light, color, mood, texture, atmosphere. 1-2 sentences, at most 60 words. Reply with the prompt only."
 
+type ApplyLookParams struct {
+	ImageBase64 string  `json:"image_base64"`
+	Text        string  `json:"text"`
+	Strength    float64 `json:"strength"`
+	Seed        *int64  `json:"seed"`
+}
+
+func ValidateLook(p ApplyLookParams) error {
+	_, err := validateLookParams(p.ImageBase64, p.Text)
+	return err
+}
+
 func validateLookParams(imageBase64, text string) (string, error) {
 	if imageBase64 == "" {
 		return "", fmt.Errorf("image is required")

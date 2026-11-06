@@ -20,6 +20,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/batch"
 	"github.com/Zazza/imagecaster/internal/clipboard"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
@@ -62,6 +63,7 @@ type App struct {
 	ieSvc       *importexport.Service
 	gen         *generation.Service
 	queueSvc    *queue.Service
+	batch       *batch.Store
 	emitter     appEmitter
 }
 
@@ -100,6 +102,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	queueProc := queue.NewProcessor(a.gen, queueStore, a.dataDir, &a.emitter)
 	a.queueSvc = queue.NewService(queueStore, queueProc, &a.emitter)
 	a.queueSvc.SetInterruptFn(func() { _ = a.gen.InterruptGeneration() })
+	a.batch = batch.New(filepath.Join(a.dataDir, "batch"))
 	return a
 }
 
@@ -113,6 +116,9 @@ func (a *App) startup(ctx context.Context) {
 	a.queueSvc.Start(ctx)
 	go a.gen.ResetReferences()
 	go a.sessions.WatchExternal(ctx, externalSessionPoll)
+	if err := a.batch.Reset(); err != nil {
+		a.log.Warn("batch: reset: %s", err)
+	}
 	a.restoreWindowLayout()
 }
 
@@ -302,6 +308,7 @@ type UpscaleImageParams = generation.UpscaleImageParams
 type UpscalePreviewParams = generation.UpscalePreviewParams
 type GenerateCompoundImageParams = generation.GenerateCompoundImageParams
 type GenerateFromImageParams = generation.GenerateFromImageParams
+type ApplyLookParams = generation.ApplyLookParams
 type EditImageParams = generation.EditImageParams
 type ObjectEditParams = generation.ObjectEditParams
 type RepairParams = generation.RepairParams
@@ -939,6 +946,14 @@ func (a *App) ReadThumbnail(filePath string) (string, error) {
 	return filebrowser.ReadThumbnail(filePath)
 }
 
+func (a *App) BatchSaveImage(imageBase64 string) (string, error) {
+	return a.batch.Save(imageBase64)
+}
+
+func (a *App) BatchReset() error {
+	return a.batch.Reset()
+}
+
 func (a *App) SelectBrowserFolder() (string, error) {
 	path, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select Image Folder",
@@ -1271,6 +1286,10 @@ func (a *App) EnqueueTxt2Img(params GenerateImageParams) (int64, error) {
 
 func (a *App) EnqueueFromImage(params GenerateFromImageParams) (int64, error) {
 	return a.queueSvc.Enqueue(queue.JobFromImage, params, "from-image")
+}
+
+func (a *App) EnqueueLook(params ApplyLookParams) (int64, error) {
+	return a.queueSvc.Enqueue(queue.JobLook, params, "look")
 }
 
 func (a *App) EnqueueCompound(params GenerateCompoundImageParams) (int64, error) {

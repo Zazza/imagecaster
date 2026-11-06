@@ -33,6 +33,12 @@ func validateJobParams(jobType JobType, params any) error {
 				return fmt.Errorf("compound preset is required")
 			}
 		}
+	case JobLook:
+		if p, ok := params.(generation.ApplyLookParams); ok {
+			if err := generation.ValidateLook(p); err != nil {
+				return err
+			}
+		}
 	case JobFromImage:
 		if p, ok := params.(generation.GenerateFromImageParams); ok {
 			if p.OutputMode != "" && p.OutputMode != "standard" && p.OutputMode != "quality" {

@@ -18,6 +18,10 @@ export function ApplyLookDirect(arg1:string,arg2:string,arg3:number,arg4:any):Pr
 
 export function AutoAdjust(arg1:string):Promise<adjust.AutoStats>;
 
+export function BatchReset():Promise<void>;
+
+export function BatchSaveImage(arg1:string):Promise<string>;
+
 export function BrowseDirectory(arg1:string):Promise<Array<filebrowser.FileEntry>>;
 
 export function CancelQueue():Promise<void>;
@@ -93,6 +97,8 @@ export function EditObject(arg1:generation.ObjectEditParams):Promise<generation.
 export function EnqueueCompound(arg1:generation.GenerateCompoundImageParams):Promise<number>;
 
 export function EnqueueFromImage(arg1:generation.GenerateFromImageParams):Promise<number>;
+
+export function EnqueueLook(arg1:generation.ApplyLookParams):Promise<number>;
 
 export function EnqueueTxt2Img(arg1:generation.GenerateImageParams):Promise<number>;
 

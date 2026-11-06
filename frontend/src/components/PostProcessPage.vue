@@ -1,7 +1,7 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { ChevronDown, Wand2, ImagePlus, Eraser, Bandage, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw } from 'lucide-vue-next'
+import { ChevronDown, Wand2, ImagePlus, Eraser, Bandage, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw, X } from 'lucide-vue-next'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { parseSeedInput } from '../seed.js'
@@ -15,6 +15,7 @@ import RemixSection from './RemixSection.vue'
 import ObjectSection from './ObjectSection.vue'
 import RepairSection from './RepairSection.vue'
 import RecipeComposition from './RecipeComposition.vue'
+import { createBatch, batchExportSize, batchFileName } from '../postBatch.js'
 
 const props = defineProps({
   initialSection: { type: String, default: 'effect' },
@@ -34,7 +35,6 @@ const effectSectionRef = ref(null)
 const adjustSectionRef = ref(null)
 const exportSectionRef = ref(null)
 const recipesSectionRef = ref(null)
-const pipelineSectionRef = ref(null)
 
 function sectionEl(name) {
   if (name === 'edit') return editSectionRef.value
@@ -44,7 +44,6 @@ function sectionEl(name) {
   if (name === 'adjust') return adjustSectionRef.value
   if (name === 'export') return exportSectionRef.value
   if (name === 'recipes') return recipesSectionRef.value
-  if (name === 'pipeline') return pipelineSectionRef.value
   return effectSectionRef.value
 }
 
@@ -64,6 +63,206 @@ const sourceB64 = ref('')
 const currentB64 = ref('')
 const sourceName = ref('image')
 const imageInfo = ref({ width: 0, height: 0 })
+
+const batch = ref(null)
+const batchActive = computed(() => !!batch.value)
+const batchIndex = ref(0)
+const batchBusy = ref(false)
+const batchExporting = ref(false)
+const batchProgress = ref({ done: 0, total: 0 })
+const batchThumbs = reactive({})
+const batchMsg = ref('')
+let batchCancelled = false
+let batchViewReq = 0
+
+const SESSION_PATH = 'session:'
+
+function readBatchImage(path) {
+  if (path.startsWith(SESSION_PATH)) return api.getSessionImage(Number(path.slice(SESSION_PATH.length)))
+  return api.readFileAsBase64(path)
+}
+
+function readBatchThumb(path) {
+  if (path.startsWith(SESSION_PATH)) return api.getSessionThumb(Number(path.slice(SESSION_PATH.length)))
+  return api.readThumbnail(path)
+}
+
+async function startBatch(items) {
+  if (batch.value) exitBatch(false)
+  try { await api.batchReset() } catch {}
+  batch.value = createBatch(items, {
+    readImage: readBatchImage,
+    saveImage: (b64) => api.batchSaveImage(b64),
+  })
+  batchMsg.value = ''
+  resetAdjustAll()
+  layerUndo.value = []
+  layerRedo.value = []
+  appliedEffects.value = []
+  setOpenSection('effect')
+  loadBatchThumbs()
+  await showBatchItem(0)
+}
+
+async function showBatchItem(i) {
+  const b = batch.value
+  if (!b || !b.items[i]) return
+  batchIndex.value = i
+  const req = ++batchViewReq
+  const item = b.items[i]
+  try {
+    const orig = await readBatchImage(item.path)
+    const curPath = b.currentPath(i)
+    const cur = curPath === item.path ? orig : await readBatchImage(curPath)
+    if (req !== batchViewReq || batch.value !== b) return
+    sourceB64.value = orig
+    currentB64.value = cur
+    sourceName.value = (item.name || 'image').replace(/\.[^.]+$/, '') || 'image'
+    loadImageDimensions(cur)
+    updateFilename()
+  } catch (e) {
+    if (req === batchViewReq) error.value = String(e)
+  }
+}
+
+function loadBatchThumbs() {
+  const b = batch.value
+  if (!b) return
+  b.items.forEach((_, i) => {
+    const path = b.currentPath(i)
+    if (batchThumbs[path]) return
+    readBatchThumb(path).then(t => {
+      if (t) batchThumbs[path] = t
+    }).catch(() => {})
+  })
+}
+
+function batchThumbSrc(i) {
+  const b = batch.value
+  return b ? b64Url(batchThumbs[b.currentPath(i)] || '') : ''
+}
+
+async function runBatchStep(op, onDone) {
+  const b = batch.value
+  if (!b || batchBusy.value || batchExporting.value) return
+  batchBusy.value = true
+  batchCancelled = false
+  batchMsg.value = ''
+  error.value = ''
+  successMsg.value = ''
+  batchProgress.value = { done: 0, total: b.items.length }
+  try {
+    const res = await b.applyStep(op, {
+      isCancelled: () => batchCancelled,
+      onProgress: (done, total) => {
+        batchProgress.value = { done, total }
+        loadBatchThumbs()
+      },
+    })
+    if (res.failed > 0 && !res.cancelled) error.value = t('post.batch_step_failed', { n: res.failed })
+    if (res.cancelled) batchMsg.value = t('post.pipeline_interrupted')
+    if (res.changed > 0 && onDone) onDone(res)
+  } finally {
+    batchBusy.value = false
+    if (batch.value === b) {
+      loadBatchThumbs()
+      await showBatchItem(batchIndex.value)
+    }
+  }
+}
+
+function stopBatch() {
+  if (batchBusy.value) interruptBatch()
+  else batchCancelled = true
+}
+
+async function interruptBatch() {
+  batchCancelled = true
+  for (const [id, resolve] of [...recipeJobResolvers]) {
+    recipeJobResolvers.delete(id)
+    journalPending.delete(id)
+    try { await api.cancelQueueJob(id) } catch {}
+    resolve('')
+  }
+}
+
+async function removeBatchItem(i) {
+  const b = batch.value
+  if (!b || batchBusy.value || batchExporting.value) return
+  if (!b.removeItem(i)) return
+  if (b.items.length === 0) {
+    exitBatch(false)
+    sourceB64.value = ''
+    currentB64.value = ''
+    return
+  }
+  if (i < batchIndex.value) {
+    batchIndex.value--
+    return
+  }
+  if (i === batchIndex.value) await showBatchItem(Math.min(i, b.items.length - 1))
+}
+
+async function undoBatch() {
+  const b = batch.value
+  if (!b || batchBusy.value || batchExporting.value) return
+  if (b.undo()) {
+    batchMsg.value = ''
+    await showBatchItem(batchIndex.value)
+  }
+}
+
+async function resetBatch() {
+  const b = batch.value
+  if (!b || batchBusy.value || batchExporting.value) return
+  while (b.undo()) {}
+  await showBatchItem(batchIndex.value)
+}
+
+function exitBatch(keepCurrent) {
+  if (!batch.value) return
+  const cur = currentB64.value
+  const name = sourceName.value
+  interruptBatch()
+  batch.value = null
+  batchMsg.value = ''
+  for (const k of Object.keys(batchThumbs)) delete batchThumbs[k]
+  api.batchReset().catch(() => {})
+  if (keepCurrent && cur) setSource(cur, name)
+}
+
+async function exportBatch() {
+  const b = batch.value
+  if (!b || batchBusy.value || batchExporting.value) return
+  const folder = await resolveBatchFolder()
+  if (!folder) {
+    error.value = t('post.pipeline_needs_folder')
+    return
+  }
+  batchExporting.value = true
+  batchCancelled = false
+  error.value = ''
+  successMsg.value = ''
+  batchProgress.value = { done: 0, total: b.items.length }
+  const size = batchExportSize({
+    width: width.value,
+    height: height.value,
+    lockRatio: lockRatio.value,
+    previewWidth: imageInfo.value.width,
+    previewHeight: imageInfo.value.height,
+  })
+  const adj = adjustParams()
+  try {
+    const res = await b.exportAll(
+      (b64, item) => api.exportImage({ ...exportParamsFor(batchFileName(item.name, format.value), b64, folder), width: size.width, height: size.height }, adj),
+      { isCancelled: () => batchCancelled, onProgress: (done, total) => { batchProgress.value = { done, total } } },
+    )
+    successMsg.value = t('post.batch_saved', { k: res.saved, m: res.skipped, path: folder })
+    if (res.cancelled) successMsg.value += ' — ' + t('post.pipeline_interrupted')
+  } finally {
+    batchExporting.value = false
+  }
+}
 
 const adjust = reactive({
   brightness: 0,
@@ -531,13 +730,24 @@ function effectJobParams(b64, seed) {
 }
 
 async function applyEffect() {
-  if (applyingEffect.value || pipelineRunning.value || recipeRunning.value || lookBusy.value) return
+  if (applyingEffect.value || batchBusy.value || recipeRunning.value || lookBusy.value) return
   if (!currentB64.value) {
     error.value = t('export.error_no_image')
     return
   }
   if (!selectedEffectId.value) {
     error.value = t('post.error_no_effect')
+    return
+  }
+  if (batchActive.value) {
+    const seedVal = parseSeedInput(effectSeedInput.value)
+    const presetId = selectedEffectId.value
+    const strength = effectStrength.value
+    await runBatchStep(async (b64, i) => {
+      const seed = seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null
+      const job = await trackBatchJob(api.enqueueFromImage({ ...effectJobParams(b64, seed), preset_id: presetId, denoising_strength: strength }))
+      return job ? () => job.wait : ''
+    })
     return
   }
   applyingEffect.value = true
@@ -609,12 +819,19 @@ const lookResultPrompt = ref('')
 const lookResetFailed = ref(false)
 
 async function onEditApplyLook({ text, strength }) {
-  if (lookBusy.value || applyingEffect.value || pipelineRunning.value || recipeRunning.value) return
+  if (lookBusy.value || applyingEffect.value || batchBusy.value || recipeRunning.value) return
   if (!currentB64.value) {
     error.value = t('export.error_no_image')
     return
   }
   if (!text) return
+  if (batchActive.value) {
+    await runBatchStep(async (b64) => {
+      const job = await trackBatchJob(api.enqueueLook({ image_base64: b64, text, strength, seed: null }))
+      return job ? () => job.wait : ''
+    })
+    return
+  }
   lookBusy.value = true
   lookResetFailed.value = false
   lookResultPrompt.value = ''
@@ -653,15 +870,17 @@ const layerUndo = ref([])
 const layerRedo = ref([])
 const canUndoLayer = computed(() => layerUndo.value.length > 0)
 const canRedoLayer = computed(() => layerRedo.value.length > 0)
-const canUndoView = computed(() => maskMode.value ? !!maskComp.value?.canUndoMask : canUndoLayer.value)
-const canRedoView = computed(() => maskMode.value ? !!maskComp.value?.canRedoMask : canRedoLayer.value)
+const canUndoView = computed(() => batchActive.value ? batch.value.canUndo && !batchBusy.value && !batchExporting.value : maskMode.value ? !!maskComp.value?.canUndoMask : canUndoLayer.value)
+const canRedoView = computed(() => batchActive.value ? false : maskMode.value ? !!maskComp.value?.canRedoMask : canRedoLayer.value)
 
 function undoView() {
-  if (maskMode.value) maskComp.value?.undoMask()
+  if (batchActive.value) undoBatch()
+  else if (maskMode.value) maskComp.value?.undoMask()
   else undoLayer()
 }
 
 function redoView() {
+  if (batchActive.value) return
   if (maskMode.value) maskComp.value?.redoMask()
   else redoLayer()
 }
@@ -689,6 +908,10 @@ function redoLayer() {
 }
 
 function resetLayer() {
+  if (batchActive.value) {
+    resetBatch()
+    return
+  }
   pushLayerHistory()
   currentB64.value = sourceB64.value
   appliedEffects.value = []
@@ -783,6 +1006,7 @@ function loadImageDimensions(base64) {
 }
 
 function setSource(b64, name, keepLayerHistory = false) {
+  if (batchActive.value) exitBatch(false)
   sourceB64.value = b64
   currentB64.value = b64
   sourceName.value = (name || 'image').replace(/\.[^.]+$/, '') || 'image'
@@ -859,6 +1083,10 @@ function onPageKeydown(e) {
   if (!isZ && !isY) return
   e.preventDefault()
   const redo = isY || e.shiftKey
+  if (batchActive.value) {
+    if (!redo) undoBatch()
+    return
+  }
   if (maskMode.value) {
     if (redo) maskComp.value?.redoMask()
     else maskComp.value?.undoMask()
@@ -1075,8 +1303,41 @@ function waitForRecipeJob(jobId) {
   return new Promise(resolve => { recipeJobResolvers.set(jobId, resolve) })
 }
 
+function enqueueRecipeStep(step, img) {
+  if (step.prompt && !step.preset_id) {
+    const strength = typeof step.strength === 'number' ? step.strength : 0.5
+    return api.enqueueLook({ image_base64: img, text: step.prompt, strength, seed: null })
+  }
+  return api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img))
+}
+
+async function trackBatchJob(enqueued) {
+  const jobId = await enqueued
+  if (!jobId) return null
+  if (batchCancelled) {
+    try { await api.cancelQueueJob(jobId) } catch {}
+    return null
+  }
+  return { wait: waitForRecipeJob(jobId) }
+}
+
+async function runRecipeChain(img, steps) {
+  const first = await trackBatchJob(enqueueRecipeStep(steps[0], img))
+  if (!first) return ''
+  return async () => {
+    let cur = await first.wait
+    for (let i = 1; i < steps.length && cur; i++) {
+      if (batchCancelled) return ''
+      const job = await trackBatchJob(enqueueRecipeStep(steps[i], cur))
+      if (!job) return ''
+      cur = await job.wait
+    }
+    return cur || ''
+  }
+}
+
 async function applyRecipe(r) {
-  if (recipeRunning.value || applyingEffect.value || pipelineRunning.value || lookBusy.value) return
+  if (recipeRunning.value || applyingEffect.value || batchBusy.value || lookBusy.value) return
   const steps = recipeSteps(r)
   let adjustObj = {}
   try {
@@ -1084,6 +1345,12 @@ async function applyRecipe(r) {
   } catch {}
   if (steps.length === 0) {
     Object.assign(adjust, adjustObj)
+    return
+  }
+  if (batchActive.value) {
+    await runBatchStep(b64 => runRecipeChain(b64, steps), (res) => {
+      if (!res.cancelled) Object.assign(adjust, adjustObj)
+    })
     return
   }
   if (!currentB64.value) {
@@ -1185,33 +1452,37 @@ function exportParamsFor(name, imageBase64, outputDir) {
   }
 }
 
-const pipelineFolder = ref('')
+const batchFolder = ref('')
 
-async function resolvePipelineOutputDir() {
-  if (pipelineFolder.value) return pipelineFolder.value
+async function resolveBatchFolder() {
+  if (batchFolder.value) return batchFolder.value
   try {
     const s = await api.getSettings()
     const p = s && s.file_browser_path
     if (p) {
-      pipelineFolder.value = p
+      batchFolder.value = p
       return p
     }
   } catch {}
   try {
     const picked = await api.selectBrowserFolder()
-    if (picked) pipelineFolder.value = picked
+    if (picked) batchFolder.value = picked
   } catch {}
-  return pipelineFolder.value
+  return batchFolder.value
 }
 
-async function changePipelineFolder() {
+async function changeBatchFolder() {
   try {
     const picked = await api.selectBrowserFolder()
-    if (picked) pipelineFolder.value = picked
+    if (picked) batchFolder.value = picked
   } catch {}
 }
 
 async function doExport() {
+  if (batchActive.value) {
+    await exportBatch()
+    return
+  }
   if (!currentB64.value) {
     error.value = t('export.error_no_image')
     return
@@ -1232,14 +1503,10 @@ async function doExport() {
 }
 
 const { postQueue, clearPostQueue } = useRemixQueue()
-const folderQueue = ref([])
-let folderCancelled = false
-
-const pipelineRunning = ref(false)
 
 const { sdProgress: genProgress, preview: genPreview } = useGenerationProgress()
 const sectionBusy = reactive({ edit: false, remix: false, object: false, repair: false })
-const genBusy = computed(() => sectionBusy.edit || sectionBusy.remix || sectionBusy.object || sectionBusy.repair || applyingEffect.value || lookBusy.value || recipeRunning.value)
+const genBusy = computed(() => sectionBusy.edit || sectionBusy.remix || sectionBusy.object || sectionBusy.repair || applyingEffect.value || lookBusy.value || recipeRunning.value || batchBusy.value)
 const genActive = computed(() => !!genProgress.value && genProgress.value.progress > 0 && genProgress.value.progress < 1)
 const livePreview = computed(() => (genBusy.value && genActive.value && genPreview.value) || '')
 watch(genBusy, (busy) => {
@@ -1248,164 +1515,12 @@ watch(genBusy, (busy) => {
     genPreview.value = ''
   }
 })
-const pipelineTotal = ref(0)
-const pipelineHandled = ref(0)
-const pipelineSaved = ref(0)
-const pipelineSkipped = ref(0)
-const pipelineMsg = ref('')
-const pipelineInterrupted = ref(false)
-const pipelineJobIds = ref(new Set())
-let pipelineEnqueueDone = false
-let pipelineExportChain = Promise.resolve()
-let pipelineFinishing = false
-let pipelineRunStamp = ''
-
-function pipelineFilename(index) {
-  const ext = '.' + format.value
-  const base = (filename.value || 'postprocess').replace(/\.[^.]+$/, '') || 'postprocess'
-  return `${base}_${pipelineRunStamp}_${index + 1}${ext}`
-}
-
-async function runPipeline() {
-  if (pipelineRunning.value) return
-  const items = folderQueue.value
-  if (!items.length) return
-  if (!filename.value.trim()) {
-    error.value = t('post.pipeline_needs_filename')
-    return
-  }
-  pipelineRunning.value = true
-  folderCancelled = false
-  pipelineInterrupted.value = false
-  pipelineEnqueueDone = false
-  pipelineExportChain = Promise.resolve()
-  pipelineFinishing = false
-  pipelineRunStamp = new Date().toTimeString().slice(0, 8).replace(/:/g, '')
-  pipelineTotal.value = items.length
-  pipelineHandled.value = 0
-  pipelineSaved.value = 0
-  pipelineSkipped.value = 0
-  pipelineMsg.value = ''
-  error.value = ''
-  successMsg.value = ''
-  const outDir = await resolvePipelineOutputDir()
-  if (!outDir || folderCancelled) {
-    if (!outDir) error.value = t('post.pipeline_needs_folder')
-    pipelineRunning.value = false
-    return
-  }
-  try {
-    if (selectedEffectId.value) {
-      const seedVal = parseSeedInput(effectSeedInput.value)
-      for (let i = 0; i < items.length; i++) {
-        if (folderCancelled) break
-        let b64 = ''
-        try {
-          b64 = await api.readFileAsBase64(items[i].path)
-        } catch {}
-        if (!b64) {
-          pipelineSkipped.value++
-          pipelineHandled.value++
-          continue
-        }
-        try {
-          const seed = seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null
-          const jobId = await api.enqueueFromImage(effectJobParams(b64, seed))
-          if (jobId) {
-            pipelineJobIds.value.add(jobId)
-          } else {
-            pipelineSkipped.value++
-            pipelineHandled.value++
-          }
-        } catch {
-          pipelineSkipped.value++
-          pipelineHandled.value++
-        }
-      }
-      pipelineEnqueueDone = true
-      if (pipelineJobIds.value.size === 0) finishPipeline()
-    } else {
-      for (let i = 0; i < items.length; i++) {
-        if (folderCancelled) break
-        let b64 = ''
-        try {
-          b64 = await api.readFileAsBase64(items[i].path)
-        } catch {}
-        if (!b64) {
-          pipelineSkipped.value++
-          pipelineHandled.value++
-          continue
-        }
-        try {
-          await api.exportImage(exportParamsFor(pipelineFilename(pipelineHandled.value), b64, pipelineFolder.value), adjustParams())
-          pipelineSaved.value++
-        } catch {
-          pipelineSkipped.value++
-        }
-        pipelineHandled.value++
-      }
-      pipelineEnqueueDone = true
-      finishPipeline()
-    }
-  } catch (e) {
-    error.value = String(e)
-    pipelineEnqueueDone = true
-    finishPipeline()
-  }
-}
-
-async function finishPipeline() {
-  if (!pipelineRunning.value || pipelineFinishing) return
-  pipelineFinishing = true
-  try {
-    await pipelineExportChain
-  } finally {
-    pipelineFinishing = false
-  }
-  if (!pipelineRunning.value) return
-  pipelineRunning.value = false
-  folderQueue.value = []
-  pipelineMsg.value = t('post.pipeline_result', { k: pipelineSaved.value, m: pipelineSkipped.value })
-  if (pipelineInterrupted.value) pipelineMsg.value += ' — ' + t('post.pipeline_interrupted')
-}
-
-async function interruptPipeline() {
-  folderCancelled = true
-  pipelineInterrupted.value = true
-  if (pipelineJobIds.value.size > 0) {
-    const ids = [...pipelineJobIds.value]
-    pipelineJobIds.value = new Set()
-    for (const id of ids) {
-      try { await api.cancelQueueJob(id) } catch {}
-    }
-  }
-  pipelineEnqueueDone = true
-  finishPipeline()
-}
-
 function parseQueueResult(result) {
   try {
     return typeof result === 'string' ? JSON.parse(result) : result
   } catch {
     return null
   }
-}
-
-async function exportPipelineResult(img) {
-  if (!pipelineRunning.value) return
-  const idx = pipelineHandled.value
-  if (!img) {
-    pipelineSkipped.value++
-  } else {
-    try {
-      await api.exportImage(exportParamsFor(pipelineFilename(idx), img, pipelineFolder.value), adjustParams())
-      pipelineSaved.value++
-    } catch {
-      pipelineSkipped.value++
-    }
-  }
-  pipelineHandled.value++
-  if (pipelineEnqueueDone && pipelineJobIds.value.size === 0) finishPipeline()
 }
 
 function onQueueCompleted(data) {
@@ -1429,11 +1544,6 @@ function onQueueCompleted(data) {
       loadImageDimensions(r.image_base64)
     }
     if (effectJobIds.value.size === 0) applyingEffect.value = false
-  }
-  if (data.job_id && pipelineJobIds.value.has(data.job_id)) {
-    pipelineJobIds.value.delete(data.job_id)
-    const img = parseQueueResult(data.result)?.image_base64
-    pipelineExportChain = pipelineExportChain.then(() => exportPipelineResult(img))
   }
 }
 
@@ -1460,17 +1570,10 @@ function handleJobTerminal(data) {
     if (data.error) error.value = data.error
     if (effectJobIds.value.size === 0) applyingEffect.value = false
   }
-  if (data.job_id && pipelineJobIds.value.has(data.job_id)) {
-    pipelineJobIds.value.delete(data.job_id)
-    if (data.error) error.value = data.error
-    pipelineSkipped.value++
-    pipelineHandled.value++
-    if (pipelineEnqueueDone && pipelineJobIds.value.size === 0) finishPipeline()
-  }
 }
 
 async function onQueueChanged() {
-  if (effectJobIds.value.size === 0 && pipelineJobIds.value.size === 0 && recipeJobResolvers.size === 0) return
+  if (effectJobIds.value.size === 0 && recipeJobResolvers.size === 0) return
   let jobs
   try {
     jobs = await api.getQueue() || []
@@ -1478,14 +1581,6 @@ async function onQueueChanged() {
     return
   }
   const byId = new Map(jobs.map(j => [j.id, j]))
-  for (const id of [...pipelineJobIds.value]) {
-    const job = byId.get(id)
-    if (job && job.status !== 'cancelled') continue
-    pipelineJobIds.value.delete(id)
-    pipelineSkipped.value++
-    pipelineHandled.value++
-    if (pipelineEnqueueDone && pipelineJobIds.value.size === 0) finishPipeline()
-  }
   for (const id of [...effectJobIds.value]) {
     const job = byId.get(id)
     if (job && job.status !== 'cancelled') continue
@@ -1501,6 +1596,28 @@ async function onQueueChanged() {
     resolve('')
   }
 }
+
+async function consumePostQueue() {
+  if (!postQueue.value.length) return
+  const items = postQueue.value.slice()
+  clearPostQueue()
+  if (items.length > 1) {
+    await startBatch(items)
+    return
+  }
+  try {
+    const b64 = await readBatchImage(items[0].path)
+    if (b64) setSource(b64, items[0].name)
+  } catch (e) {
+    error.value = String(e)
+  }
+}
+
+let pageMounted = false
+
+watch(() => postQueue.value.length, (n) => {
+  if (n > 0 && pageMounted) consumePostQueue()
+})
 
 let offCompleted = () => {}
 let offFailed = () => {}
@@ -1523,25 +1640,20 @@ onMounted(async () => {
   await loadExportPresets()
   await loadRecipes()
   consumeInitialImage()
-  if (postQueue.value.length > 0) {
-    folderQueue.value = postQueue.value
-    openSection.value = 'pipeline'
-    clearPostQueue()
-    try {
-      const b64 = await api.readFileAsBase64(folderQueue.value[0].path)
-      if (b64) setSource(b64, folderQueue.value[0].name)
-    } catch (e) {
-      error.value = String(e)
-    }
-  }
+  await consumePostQueue()
+  pageMounted = true
   if (!sourceB64.value) {
     await loadLastImage()
   }
 })
 
 onUnmounted(() => {
-  folderCancelled = true
-  pipelineRunning.value = false
+  if (batch.value) {
+    interruptBatch()
+    batch.value = null
+    api.batchReset().catch(() => {})
+  }
+  batchCancelled = true
   recipeCancelled = true
   for (const [id, resolve] of [...recipeJobResolvers]) {
     recipeJobResolvers.delete(id)
@@ -1714,7 +1826,44 @@ onUnmounted(() => {
           </div>
           <div v-if="sourceB64" class="split-meta">
             <span v-if="imageInfo.width">{{ imageInfo.width }} x {{ imageInfo.height }}</span>
-            <button v-if="currentB64 !== sourceB64" class="btn btn-sm btn-secondary" @click="resetLayer">{{ t('post.btn_reset_layer') }}</button>
+            <button v-if="batchActive ? batch.canUndo && !batchBusy && !batchExporting : currentB64 !== sourceB64" class="btn btn-sm btn-secondary" @click="resetLayer">{{ t('post.btn_reset_layer') }}</button>
+          </div>
+          <div v-if="batchActive" class="batch-panel">
+            <div class="batch-bar">
+              <span class="batch-title">{{ t('post.batch_title', { n: batch.items.length }) }}</span>
+              <span class="batch-steps">{{ t('post.batch_steps', { n: batch.steps }) }}</span>
+              <template v-if="batchBusy || batchExporting">
+                <span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span>
+                <span>{{ t('post.batch_progress', { done: batchProgress.done, total: batchProgress.total }) }}</span>
+                <button class="btn btn-sm btn-secondary" @click="stopBatch">{{ t('progress.btn_interrupt') }}</button>
+              </template>
+              <span v-else-if="batchMsg" class="batch-msg">{{ batchMsg }}</span>
+              <button class="btn btn-sm btn-secondary batch-exit" :disabled="batchBusy || batchExporting" @click="exitBatch(true)">{{ t('post.batch_exit') }}</button>
+            </div>
+            <div class="batch-strip">
+              <div
+                v-for="(item, i) in batch.items"
+                :key="item.path"
+                class="batch-thumb"
+                :class="{ active: i === batchIndex, failed: item.failed }"
+                role="button"
+                tabindex="0"
+                :title="item.failed ? item.name + ' — ' + t('post.batch_item_failed') : item.name"
+                @click="showBatchItem(i)"
+                @keydown.enter.self="showBatchItem(i)"
+                @keydown.space.self.prevent="showBatchItem(i)"
+              >
+                <img v-if="batchThumbSrc(i)" :src="batchThumbSrc(i)" :alt="item.name" />
+                <span v-else class="batch-thumb-name">{{ item.name }}</span>
+                <button
+                  class="batch-thumb-remove"
+                  :title="t('post.batch_remove')"
+                  :aria-label="t('post.batch_remove')"
+                  :disabled="batchBusy || batchExporting"
+                  @click.stop="removeBatchItem(i)"
+                ><X :size="10" /></button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1730,7 +1879,7 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'edit' }">
             <div class="card-body">
-              <EditSection :source="currentB64" :look-busy="lookBusy" :look-result-prompt="lookResultPrompt" @result="onToolResult" @busy="v => sectionBusy.edit = v" @apply-look="onEditApplyLook" @apply-recipe="onEditApplyRecipe" @save-recipe="onEditSaveRecipe" />
+              <EditSection :source="currentB64" :batch="batchActive" :look-busy="lookBusy || batchBusy" :look-result-prompt="lookResultPrompt" @result="onToolResult" @busy="v => sectionBusy.edit = v" @apply-look="onEditApplyLook" @apply-recipe="onEditApplyRecipe" @save-recipe="onEditSaveRecipe" />
             </div>
           </div>
         </div>
@@ -1745,7 +1894,8 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
-              <RemixSection :source="currentB64" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
+              <div v-if="batchActive" class="form-hint">{{ t('post.batch_unavailable') }}</div>
+              <RemixSection v-else :source="currentB64" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
             </div>
           </div>
         </div>
@@ -1760,7 +1910,8 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'object' }">
             <div class="card-body">
-              <ObjectSection ref="objectCompRef" :source="currentB64" :active="openSection === 'object'" @result="onToolResult" @busy="v => sectionBusy.object = v" />
+              <div v-if="batchActive" class="form-hint">{{ t('post.batch_unavailable') }}</div>
+              <ObjectSection v-else ref="objectCompRef" :source="currentB64" :active="openSection === 'object'" @result="onToolResult" @busy="v => sectionBusy.object = v" />
             </div>
           </div>
         </div>
@@ -1775,7 +1926,8 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'repair' }">
             <div class="card-body">
-              <RepairSection ref="repairCompRef" :source="currentB64" :active="openSection === 'repair'" @result="onToolResult" @busy="v => sectionBusy.repair = v" />
+              <div v-if="batchActive" class="form-hint">{{ t('post.batch_unavailable') }}</div>
+              <RepairSection v-else ref="repairCompRef" :source="currentB64" :active="openSection === 'repair'" @result="onToolResult" @busy="v => sectionBusy.repair = v" />
             </div>
           </div>
         </div>
@@ -1808,7 +1960,7 @@ onUnmounted(() => {
             >
               <button
                 class="btn btn-sm btn-primary"
-                :disabled="recipeRunning || applyingEffect || pipelineRunning || lookBusy"
+                :disabled="recipeRunning || applyingEffect || batchBusy || batchExporting || lookBusy"
                 @click="applyAutoStyleRecipe"
               >{{ t('post.autostyle_apply') }}</button>
               <button class="btn btn-sm btn-secondary" @click="autoStyleRecipe = null">{{ t('export.btn_cancel') }}</button>
@@ -1851,14 +2003,14 @@ onUnmounted(() => {
             </div>
 
             <button
-              v-if="!applyingEffect"
+              v-if="!applyingEffect && !batchBusy"
               class="btn btn-primary btn-block"
-              :disabled="!currentB64 || !selectedEffectId || pipelineRunning || recipeRunning || lookBusy"
+              :disabled="!currentB64 || !selectedEffectId || batchBusy || batchExporting || recipeRunning || lookBusy"
               @click="applyEffect"
             >
-              {{ t('post.btn_apply_effect') }}
+              {{ batchActive ? t('post.btn_apply_effect_all', { n: batch.items.length }) : t('post.btn_apply_effect') }}
             </button>
-            <button v-else class="btn btn-primary btn-block btn-generating" @click="interruptEffect">
+            <button v-else class="btn btn-primary btn-block btn-generating" @click="batchBusy ? interruptBatch() : interruptEffect()">
               <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
               {{ t('post.applying') }}
             </button>
@@ -1988,6 +2140,18 @@ onUnmounted(() => {
               </select>
             </div>
 
+            <template v-if="batchActive">
+              <div class="pipeline-folder">
+                <span class="pipeline-folder-label">{{ t('post.pipeline_folder') }}:</span>
+                <span class="pipeline-folder-path" :title="batchFolder">{{ batchFolder || t('post.batch_folder_default') }}</span>
+                <button class="btn btn-sm btn-secondary" @click="changeBatchFolder">{{ t('post.pipeline_change_folder') }}</button>
+              </div>
+              <div class="form-hint">{{ t('post.batch_save_hint') }}</div>
+              <button class="btn btn-primary btn-block" :disabled="batchBusy || batchExporting" @click="doExport">
+                {{ batchExporting ? t('export.exporting') : t('post.batch_save_all', { n: batch.items.length }) }}
+              </button>
+            </template>
+            <template v-else>
             <div class="form-group">
               <label class="form-label">{{ t('export.label_filename') }}</label>
               <input class="form-control" type="text" v-model="filename" />
@@ -1996,6 +2160,7 @@ onUnmounted(() => {
             <button class="btn btn-primary btn-block" :disabled="exporting || !currentB64" @click="doExport">
               {{ exporting ? t('export.exporting') : t('post.btn_save_file') }}
             </button>
+            </template>
 
             <div class="form-divider"></div>
             <div class="form-label">{{ t('export.saved_presets') }}</div>
@@ -2091,48 +2256,6 @@ onUnmounted(() => {
                 <button class="btn btn-sm btn-secondary" @click="showRecipeForm = false">{{ t('export.btn_cancel') }}</button>
               </div>
             </div>
-            </div>
-          </div>
-        </div>
-
-        <div ref="pipelineSectionRef" class="card" :class="{ collapsed: openSection !== 'pipeline' }">
-          <div class="card-header card-toggle" @click="setOpenSection('pipeline')">
-            <span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'pipeline' }" />
-              {{ t('post.pipeline_title') }}
-            </span>
-          </div>
-          <div class="card-collapse" :class="{ collapsed: openSection !== 'pipeline' }">
-            <div class="card-body">
-            <div v-if="pipelineFolder" class="pipeline-folder">
-              <span class="pipeline-folder-label">{{ t('post.pipeline_folder') }}:</span>
-              <span class="pipeline-folder-path" :title="pipelineFolder">{{ pipelineFolder }}</span>
-              <button class="btn btn-sm btn-secondary" @click="changePipelineFolder">{{ t('post.pipeline_change_folder') }}</button>
-            </div>
-            <template v-if="folderQueue.length">
-              <div class="folder-badge">{{ t('fi.folder_queue', { n: folderQueue.length }) }}</div>
-              <div class="form-hint">{{ t('post.pipeline_hint') }}</div>
-              <button
-                v-if="!pipelineRunning"
-                class="btn btn-primary btn-block"
-                :disabled="!filename.trim()"
-                @click="runPipeline"
-              >
-                {{ t('post.pipeline_run', { n: folderQueue.length }) }}
-              </button>
-              <template v-else>
-                <div class="pipeline-progress">
-                  <span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span>
-                  {{ t('post.pipeline_running', { done: pipelineHandled, total: pipelineTotal }) }}
-                </div>
-                <div class="pipeline-counters">{{ t('post.pipeline_result', { k: pipelineSaved, m: pipelineSkipped }) }}</div>
-                <button class="btn btn-secondary btn-block" @click="interruptPipeline">{{ t('progress.btn_interrupt') }}</button>
-              </template>
-            </template>
-            <template v-else>
-              <div v-if="pipelineMsg" class="pipeline-result">{{ pipelineMsg }}</div>
-              <div v-else class="preset-empty">{{ t('post.pipeline_empty') }}</div>
-            </template>
             </div>
           </div>
         </div>
@@ -2893,16 +3016,6 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.folder-badge {
-  display: inline-block;
-  margin-bottom: 8px;
-  padding: 4px 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: 12px;
-}
 
 .pipeline-progress {
   display: flex;
@@ -2914,12 +3027,6 @@ onUnmounted(() => {
   margin-bottom: 6px;
 }
 
-.pipeline-counters {
-  font-size: 11px;
-  color: var(--text-dim);
-  text-align: center;
-  margin-bottom: 8px;
-}
 
 .pipeline-folder {
   display: flex;
@@ -2941,11 +3048,103 @@ onUnmounted(() => {
   color: var(--text);
 }
 
-.pipeline-result {
+
+.batch-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 12px;
+  color: var(--text-dim);
+}
+
+.batch-title {
   color: var(--text);
-  text-align: center;
+  font-weight: 600;
+}
+
+.batch-exit {
+  margin-left: auto;
+}
+
+.batch-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
   padding: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.batch-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.batch-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.batch-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.batch-thumb:hover .batch-thumb-remove,
+.batch-thumb:focus-within .batch-thumb-remove {
+  opacity: 1;
+}
+
+.batch-thumb-remove:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.batch-thumb.active {
+  border-color: var(--accent);
+}
+
+.batch-thumb.failed {
+  border-color: var(--danger);
+}
+
+.batch-thumb-name {
+  font-size: 9px;
+  color: var(--text-dim);
+  word-break: break-all;
 }
 
 .btn-block {

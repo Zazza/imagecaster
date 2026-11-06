@@ -14,6 +14,7 @@ const props = defineProps({
   source: { type: String, default: '' },
   lookBusy: { type: Boolean, default: false },
   lookResultPrompt: { type: String, default: '' },
+  batch: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['result', 'apply-look', 'apply-recipe', 'save-recipe', 'busy'])
@@ -296,12 +297,13 @@ onUnmounted(() => {
     <StatusMessage v-if="error === 'interrupted'" kind="warning" :text="t('progress.interrupted')" @close="error = ''" />
     <StatusMessage v-else-if="error" :text="error" @close="error = ''" />
 
-    <div class="edit-mode-row">
+    <div v-if="batch" class="field-hint">{{ t('edit.batch_look_only') }}</div>
+    <div v-else class="edit-mode-row">
       <button type="button" class="btn btn-sm" :class="editLookMode ? 'btn-secondary' : 'btn-primary'" @click="editLookMode = false">{{ t('edit.mode_instruction') }}</button>
       <button type="button" class="btn btn-sm" :class="editLookMode ? 'btn-primary' : 'btn-secondary'" @click="editLookMode = true">{{ t('edit.mode_look') }}</button>
     </div>
 
-    <template v-if="editLookMode">
+    <template v-if="editLookMode || batch">
       <div class="edit-mode-row">
         <button type="button" class="btn btn-sm" :class="lookWay === 'effects' ? 'btn-primary' : 'btn-secondary'" @click="lookWay = 'effects'">{{ t('edit.look_mode_effects') }}</button>
         <button type="button" class="btn btn-sm" :class="lookWay === 'free' ? 'btn-primary' : 'btn-secondary'" @click="lookWay = 'free'">{{ t('edit.look_mode_free') }}</button>
