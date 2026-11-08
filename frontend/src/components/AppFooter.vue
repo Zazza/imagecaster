@@ -401,20 +401,6 @@ function closeViewer() {
   viewerIndex.value = -1
 }
 
-async function viewerRemix() {
-  const item = viewerItem.value
-  if (!item) return
-  closeViewer()
-  await activateItem(item, { page: 'postprocess', section: 'remix' })
-}
-
-async function viewerEdit() {
-  const item = viewerItem.value
-  if (!item) return
-  closeViewer()
-  await activateItem(item, { page: 'postprocess', section: 'edit' })
-}
-
 async function viewerExport() {
   const item = viewerItem.value
   if (!item) return
@@ -715,8 +701,6 @@ onUnmounted(() => {
       @close="closeViewer"
       @prev="viewerPrev"
       @next="viewerNext"
-      @remix="viewerRemix"
-      @edit="viewerEdit"
       @export="viewerExport"
       @delete="viewerDelete"
     />

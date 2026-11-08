@@ -4,9 +4,16 @@
 
 [Русский](README-ru.md) | [Changelog](CHANGELOG.md)
 
-**Why does this exist?** Raw Stable Diffusion is powerful but hostile: every image means fiddling with samplers, CFG, LoRA weights and tag syntax — and the WebUI exposes all of it. ComfyUI solves that with flexibility, but it is a giant node combine that takes hours to wire and forever to maintain. Imagecaster is the opinionated middle ground: **pick a style, describe the scene in plain language, get the image.** The LLM writes the SD prompt for you, the style presets carry the technical settings, pipelines chain multi-step workflows — and Edit mode fixes real photos by plain instruction ("make the cat white"). No node graphs, no tag dictionaries, no settings archaeology. Everything runs locally on your hardware.
+**Why, and how it differs.** Stable Diffusion can do a lot, but every image means hand-tuning: sampler, CFG, LoRA weights, tags. ComfyUI can do everything, but it is a node construction kit you have to wire yourself. Imagecaster is simpler: pick a style, describe the scene in plain language, get the image. An LLM writes the SD prompt, and the technical settings live in the style. Everything runs on your own machine, so you can try as many variants as you like and pay nothing for them.
 
-> **Note:** Imagecaster connects to your local Stable Diffusion WebUI ([Forge / Forge Neo](https://github.com/lllyasviel/stable-diffusion-webui-forge) recommended — see [Setup Guide](docs/setup-en.md)) and an [OpenAI-compatible LLM](https://ollama.com). Both run on your hardware — no cloud, no subscriptions, no data leaving your machine.
+| | What you need to know | Cost per variant | For whom |
+|---|---|---|---|
+| Raw SD (WebUI) | samplers, CFG, LoRA, tag syntax | free, on your hardware | people ready to dig into settings |
+| ComfyUI | all of the above, plus wiring node graphs | free, on your hardware | tinkerers who want full freedom |
+| Cloud services | nothing | subscription or pay per generation | people with no hardware to run a model |
+| **Imagecaster** | **nothing: a style and a plain-language description** | **free, on your hardware** | **people who want the image, not the settings** |
+
+> **Note:** Imagecaster connects to your local Stable Diffusion WebUI ([Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) — see [Setup Guide](docs/setup-en.md)) and an [OpenAI-compatible LLM](https://ollama.com). Both run on your hardware — no cloud, no subscriptions, no data leaving your machine.
 
 ---
 
@@ -89,16 +96,29 @@
 |---------|-------------|
 | Kids Mode | PIN protection, content filtering by category, safe prompt modification |
 
+## Models
+
+| Model | Best for |
+|-------|----------|
+| SD 1.5 / SDXL | Light models for low-end graphics cards, any style |
+| Pony / Illustrious | Anime, cartoon and stylized characters |
+| Flux 1 | Precise following of detailed descriptions, realism |
+| Z-Image Turbo | Fast photorealism |
+| Moss-Image | Precise following of descriptions, photorealistic people, Edit mode |
+| Flux 2 Klein | Post-processing effects, object replace/remove, keeping the face |
+
+Details and the full preset list: [Models and Presets](docs/models-en.md).
+
 ## Requirements
 
 ### External Services
 
 Imagecaster connects to two services on your local network:
 
-- **Stable Diffusion WebUI** — [Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) / Forge Neo recommended, run with `--api`. Works with modern models out of the box (Z-Image Turbo, FLUX.1 fp8, Moss-Image — the catalog can download them). Default: `http://localhost:7860`. See [Setup guide](docs/setup-en.md).
+- **Stable Diffusion WebUI** — [Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) required, run with `--api` (A1111 and the original Forge cover basic generation only). Works with modern models out of the box (Z-Image Turbo, FLUX.1 fp8, Moss-Image — the catalog can download them). Default: `http://localhost:7860`. See [Setup guide](docs/setup-en.md).
 - **LLM API** — any OpenAI-compatible server: [Ollama](https://ollama.com/), [llama.cpp](https://github.com/ggerganov/llama.cpp), or [LM Studio](https://lmstudio.ai/). Default: `http://localhost:11434/v1`
 
-Optional: the [sd-ai-server](https://github.com/Zazza/sd-ai-server) companion enables server mode — backend lifecycle control, GPU stats and model downloads.
+Easiest: [Imagecaster Server](https://github.com/Zazza/imagecaster-server) installs Forge Neo and Ollama on the computer with the graphics card, runs them and downloads models from the catalog.
 
 ### Development
 
@@ -139,7 +159,7 @@ make build   # production binary → build/bin/imagecaster
 
 ## Server
 
-The server component has been extracted to a separate repository: [sd-ai-server](https://github.com/Zazza/sd-ai-server). In server mode the app manages the backend lifecycle (start/stop/restart, GPU stats) and can download models straight from the catalog.
+The server component has been extracted to a separate repository: [imagecaster-server](https://github.com/Zazza/imagecaster-server). In server mode the app manages the backend lifecycle (start/stop/restart, GPU stats) and can download models straight from the catalog.
 
 ## Tech Stack
 
@@ -150,7 +170,7 @@ The server component has been extracted to a separate repository: [sd-ai-server]
 | Frontend | Vue 3 + Vite |
 | Database | SQLite (pure Go, no CGo) |
 | LLM | OpenAI-compatible API |
-| Image Gen | Stable Diffusion WebUI API (Forge / Forge Neo) |
+| Image Gen | Stable Diffusion WebUI API (Forge Neo) |
 
 ## How It Works
 

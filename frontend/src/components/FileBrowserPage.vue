@@ -5,7 +5,7 @@ import { t } from '../i18n/index.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { sortEntries, normalizeSort } from '../fileSort.js'
 import ImageViewer from './ImageViewer.vue'
-import { FolderUp, Folder, FolderOpen, Image, Send, Download, Check, ArrowUp, ArrowDown } from 'lucide-vue-next'
+import { FolderUp, Folder, FolderOpen, Image, Check, ArrowUp, ArrowDown } from 'lucide-vue-next'
 
 const emit = defineEmits(['navigate'])
 
@@ -21,7 +21,7 @@ let loadGeneration = 0
 const viewerIndex = ref(-1)
 const selectMode = ref(false)
 const selectedPaths = ref([])
-const { setQueue, setPostQueue } = useRemixQueue()
+const { setPostQueue } = useRemixQueue()
 const SORT_STORAGE_KEY = 'fb_sort'
 
 function loadSort() {
@@ -180,17 +180,6 @@ async function loadFullImage(entry) {
   fullLoading.value.delete(entry.path)
 }
 
-async function sendToRemix(entry) {
-  try {
-    const b64 = await api.readFileAsBase64(entry.path)
-    if (!b64) return
-    await api.setLastImage(b64)
-    emit('navigate', { page: 'postprocess', section: 'remix' })
-  } catch (e) {
-    error.value = String(e)
-  }
-}
-
 async function sendToPostProcess(entry) {
   try {
     const b64 = await api.readFileAsBase64(entry.path)
@@ -253,16 +242,6 @@ function exitSelectMode() {
   selectedPaths.value = []
 }
 
-function sendSelectedToRemix() {
-  const items = imageEntries.value
-    .filter(e => selectedPaths.value.includes(e.path))
-    .map(e => ({ path: e.path, name: e.name }))
-  if (!items.length) return
-  setQueue(items)
-  exitSelectMode()
-  emit('navigate', { page: 'postprocess', section: 'remix' })
-}
-
 function sendSelectedToPostProcess() {
   const items = imageEntries.value
     .filter(e => selectedPaths.value.includes(e.path))
@@ -316,10 +295,7 @@ onUnmounted(() => {
 
     <div v-if="selectMode" class="fb-select-bar">
       <span class="fb-select-count">{{ t('browser.selected_count', { n: selectedPaths.length }) }}</span>
-      <button class="btn btn-primary" :disabled="!selectedPaths.length" @click="sendSelectedToRemix">
-        {{ t('browser.send_to_remix_multi', { n: selectedPaths.length }) }}
-      </button>
-      <button class="btn btn-secondary" :disabled="!selectedPaths.length" @click="sendSelectedToPostProcess">
+      <button class="btn btn-primary" :disabled="!selectedPaths.length" @click="sendSelectedToPostProcess">
         {{ t('browser.send_to_postprocess_multi', { n: selectedPaths.length }) }}
       </button>
       <button class="btn btn-secondary" @click="exitSelectMode">
@@ -373,14 +349,6 @@ onUnmounted(() => {
           <div v-if="selectMode && isSelected(entry)" class="fb-check">
             <Check :size="14" />
           </div>
-          <div v-if="!selectMode" class="fb-card-actions" @click.stop>
-            <button class="fb-action-btn" :title="t('browser.send_to_remix')" @click="sendToRemix(entry)">
-              <Send :size="12" />
-            </button>
-            <button class="fb-action-btn" :title="t('browser.send_to_postprocess')" @click="sendToPostProcess(entry)">
-              <Download :size="12" />
-            </button>
-          </div>
         </template>
       </div>
     </div>
@@ -398,9 +366,12 @@ onUnmounted(() => {
       :imageBase64="viewerImage"
       :hasPrev="viewerIndex > 0"
       :hasNext="viewerIndex < imageEntries.length - 1"
+      :showActions="true"
+      :canDelete="false"
       @close="viewerIndex = -1"
       @prev="viewerPrev"
       @next="viewerNext"
+      @export="sendToPostProcess(imageEntries[viewerIndex])"
     />
   </div>
 </template>
@@ -592,37 +563,4 @@ onUnmounted(() => {
   margin-top: 2px;
 }
 
-.fb-card-actions {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.fb-card:hover .fb-card-actions {
-  opacity: 1;
-}
-
-.fb-action-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.fb-action-btn:hover {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
 </style>

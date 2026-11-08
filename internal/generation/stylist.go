@@ -10,6 +10,7 @@ import (
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/faceguard"
+	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/sd"
 )
 
@@ -75,6 +76,26 @@ func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd
 }
 
 func (s *Service) KleinEdit(imageBase64, instruction string, seed *int64) (*GenerateImageResult, error) {
+	return s.kleinEdit(imageBase64, instruction, seed, nil)
+}
+
+func (s *Service) KleinEffect(imageBase64, prompt string, strength float64) (*GenerateImageResult, error) {
+	if strength <= 0 || strength > 1 {
+		return nil, errors.New("effect strength must be in (0, 1]")
+	}
+	res, err := s.kleinEdit(imageBase64, prompt, nil, &strength)
+	if err != nil {
+		return nil, err
+	}
+	srcW, srcH := filebrowser.DecodeImageSize(imageBase64)
+	gotW, _ := filebrowser.DecodeImageSize(res.Image)
+	if srcW > 0 && srcH > 0 && gotW > 0 {
+		res.Image = s.kleinUpscaleTo(res.Image, gotW, srcW, srcH, "effect")
+	}
+	return res, nil
+}
+
+func (s *Service) kleinEdit(imageBase64, instruction string, seed *int64, denoise *float64) (*GenerateImageResult, error) {
 	if imageBase64 == "" {
 		return nil, errors.New("image is required")
 	}
@@ -100,12 +121,13 @@ func (s *Service) KleinEdit(imageBase64, instruction string, seed *int64) (*Gene
 	width, height := alignLookSize(cfg.Width, cfg.Height)
 
 	resp, resetFailed, err := s.kleinReferenceImg2Img("stylist", nil, sd.Img2ImgRequest{
-		InitImages:     []string{imageBase64},
-		Prompt:         instruction,
-		NegativePrompt: s.kids.ApplyNegative(""),
-		Width:          width,
-		Height:         height,
-		Seed:           seed,
+		InitImages:        []string{imageBase64},
+		Prompt:            instruction,
+		NegativePrompt:    s.kids.ApplyNegative(""),
+		Width:             width,
+		Height:            height,
+		Seed:              seed,
+		DenoisingStrength: denoise,
 	})
 	if err != nil {
 		return nil, err

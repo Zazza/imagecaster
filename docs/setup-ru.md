@@ -14,9 +14,17 @@
 
 ## Stable Diffusion WebUI
 
-Движок генерации изображений. Imagecaster подключается через REST API. Поддерживаются два варианта: **A1111** (стандартный) и **Forge** (ускоренный).
+Движок генерации изображений. Imagecaster подключается через REST API.
 
-### Вариант 1: A1111 (стандартный, рекомендуется)
+### Рекомендуется: Forge Neo
+
+На Forge Neo работают все функции, включая режим правки (Moss-Image) и модели Z-Image. Проще всего поставить его через [Imagecaster Server](#imagecaster-server) — сервер скачивает и настраивает Forge Neo сам.
+
+Вручную: [sd-webui-forge-classic, ветка `neo`](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) — установка по README репозитория, запуск с флагами `--listen --api`.
+
+A1111 и оригинальный Forge (варианты ниже) подходят только для базовой генерации: модели Z-Image и режим правки на них не работают.
+
+### Вариант 1: A1111
 
 ```bash
 git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
@@ -31,7 +39,7 @@ Windows:
 webui.bat --listen --api --enable-insecure-extension-access
 ```
 
-### Вариант 2: Forge (быстрее, с известными ограничениями)
+### Вариант 2: оригинальный Forge
 
 [Stable Diffusion WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) — оптимизированный форк A1111, работает значительно быстрее.
 
@@ -246,107 +254,11 @@ curl http://localhost:8081/v1/models
 
 ## Imagecaster Server
 
-Автономный сервис для автоматического управления всеми AI-компонентами (SD WebUI, Ollama) — установка, запуск, мониторинг, оптимизация GPU и управление моделями. Идеально для headless-развертываний и серверов.
+Отдельная программа для компьютера с видеокартой: сама ставит Forge Neo и Ollama в одну папку, запускает и перезапускает их, скачивает модели из каталога приложения и пропускает все запросы к видеокарте через одну очередь, чтобы хватало памяти. Imagecaster находит сервер в локальной сети сам (mDNS).
 
-### Установка
+Скачайте архив для своей системы со страницы [Releases](https://github.com/Zazza/imagecaster-server/releases), распакуйте и запустите. Первый запуск скачивает Forge Neo, Python, PyTorch и Ollama — около 20 ГБ без моделей. Нужна видеокарта NVIDIA со свежим драйвером.
 
-```bash
-cd server
-go build -o imagecaster-server .
-```
-
-Или через Docker:
-```bash
-docker compose up --build
-```
-
-### Первый запуск
-
-```bash
-./imagecaster-server --data ~/imagecaster-server
-```
-
-При первом запуске интерактивный мастер настройки проведёт через:
-- Выбор компонентов для установки (SD WebUI, Ollama)
-- Выбор директории данных
-- Настройку GPU-бэкенда (Forge / A1111)
-
-### Конфигурация
-
-Конфигурация хранится в `{data-dir}/server-config.yaml`:
-
-```yaml
-port: 8080
-data_dir: ~/imagecaster-server
-active_sd: forge
-mdns: true
-proxy:
-  enabled: true
-  gpu_slots: 1
-  endpoints:
-    sd:
-      listen_addr: ":7860"
-      target_url: "http://localhost:7860"
-    ollama:
-      listen_addr: ":11434"
-      target_url: "http://localhost:11434"
-```
-
-### Режимы запуска
-
-| Режим | Команда | Описание |
-|-------|---------|----------|
-| TUI (интерактивный) | `./imagecaster-server` | Терминальный дашборд с управлением сервисами |
-| Headless | `./imagecaster-server --headless` | Только вывод логов, без TUI |
-| Кастомный порт | `./imagecaster-server --port 9090` | Переопределить HTTP-порт |
-| Кастомный конфиг | `./imagecaster-server --config /path/to/config.yaml` | Использовать указанный файл конфигурации |
-
-### GPU Proxy
-
-При `proxy.enabled: true` сервер работает как умный обратный прокси:
-- **Очередь с приоритетом** — запросы от студии получают более высокий приоритет
-- **Ограничение GPU-слотов** — только N параллельных запросов разделяют GPU
-- **Охлаждение VRAM** — ожидание >= 50% свободной VRAM между задачами (предотвращает OOM)
-- Конфигурация на уровне эндпоинтов (отдельные порты прокси для SD и Ollama)
-
-### API-эндпоинты
-
-Авторизации нет — сервер рассчитан только на доверенную локальную сеть.
-
-| Эндпоинт | Метод | Что делает |
-|----------|-------|------------|
-| `/` | GET | `{name, version, status}` |
-| `/api/server/status` | GET | `processes`, `health`, `gpu`, `installs`, `models`, процессор и память компьютера `sys` |
-| `/api/server/start/{name}` | POST | запустить процесс |
-| `/api/server/stop/{name}` | POST | остановить процесс |
-| `/api/server/restart/{name}` | POST | перезапустить процесс |
-| `/api/server/logs/{name}` | GET | журнал процесса, `?lines=100` |
-| `/api/server/install/status` | GET | состояние установки всех компонентов |
-| `/api/server/install/status/{key}` | GET | состояние установки одного компонента |
-| `/api/server/install/{key}` | POST | установить компонент |
-| `/api/server/install/logs/{key}` | GET | журнал установки |
-| `/api/server/backends/active` | GET | активный бэкенд `{key, name, process}` |
-| `/api/server/models/sd` | GET / POST | список чекпоинтов / скачать `{url, filename}` |
-| `/api/server/models/lora` | GET / POST | то же для LoRA |
-| `/api/server/models/vae` | GET / POST | то же для VAE |
-| `/api/server/models/llm` | GET / POST | список моделей Ollama / скачать модель |
-| `/api/server/models/llm/pull` | GET | скачать модель Ollama с ходом загрузки в потоке, `?name=` |
-| `/api/server/models/download/stream` | GET | скачать модель с ходом загрузки в потоке, `?type=sd\|lora\|vae&url=&filename=` |
-| `/api/server/models/delete/{sd,lora,vae,llm}/{name}` | DELETE | удалить модель |
-| `/api/gpu/status` | GET | состояние очереди GPU |
-| `/api/gpu/lease`, `/api/gpu/lease/{id}`, `/api/gpu/queue/{id}` | POST / GET / DELETE / PATCH | аренда GPU для внешних программ |
-| `/api/sd/*` | * | прокси к Forge Neo (через очередь GPU) |
-| `/api/llm/*` | * | прокси к Ollama (через очередь GPU) |
-
-### Обнаружение через mDNS
-
-При `mdns: true` сервер анонсирует себя как `_imagecaster._tcp` в локальной сети. Десктопные приложения могут автоматически обнаруживать сервер.
-
-### Проверка
-
-```bash
-curl http://localhost:8080/
-```
+Установка по шагам для Windows, Linux и macOS, настройки и API — в [README сервера](https://github.com/Zazza/imagecaster-server/blob/main/README-ru.md) и [полной документации](https://github.com/Zazza/imagecaster-server/blob/main/docs/server-ru.md).
 
 ---
 

@@ -1,6 +1,8 @@
 package generation
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +18,14 @@ import (
 )
 
 // --- AnalyzeImage ---
+
+const (
+	materialPresetType     = "post_material"
+	materialKeepColorSigma = 0.02
+	materialObjectTemplate = "Change only the material of %s, keep its color exactly the same: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
+	patternPresetType      = "post_pattern"
+	patternObjectTemplate  = "Change only the print pattern of %s, keep its cut and shape: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
+)
 
 func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 	if imageBase64 == "" {
@@ -307,6 +317,18 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		negativePrompt = s.buildPrompts("", promptResult.NegativePrompt, "", "", params.ExtraNegativePrompt).NegativePrompt
 	}
 
+	if effectMask != nil && (p.PresetType == materialPresetType || p.PresetType == patternPresetType) {
+		object, err := s.detectMaskedObject(maskSource, effectMask)
+		if err != nil {
+			return nil, err
+		}
+		template := materialObjectTemplate
+		if p.PresetType == patternPresetType {
+			template = patternObjectTemplate
+		}
+		prompt = fmt.Sprintf(template, object, prompt)
+	}
+
 	if err := s.prepareSDContext(p, "from-image"); err != nil {
 		return nil, err
 	}
@@ -452,12 +474,26 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 				redenoiseSkipped = qRedenoiseSkipped
 			}
 		}
-		if effectMask != nil {
-			edited, err := decodeB64Image(finalImage, "result")
+		keepColor := params.KeepColor && p.PresetType == materialPresetType && params.OutputMode != "quality"
+		if effectMask != nil || keepColor {
+			source := maskSource
+			if source == nil {
+				if source, err = decodeB64ImageAnySize(params.ImageBase64, "image"); err != nil {
+					return nil, err
+				}
+			}
+			edited, err := decodeB64ImageAnySize(finalImage, "result")
 			if err != nil {
 				return nil, err
 			}
-			if finalImage, err = encodePNGBase64(maskcomp.Blend(maskSource, edited, effectMask)); err != nil {
+			out := image.Image(edited)
+			if keepColor {
+				out = maskcomp.KeepColor(source, out, materialKeepColorSigma)
+			}
+			if effectMask != nil {
+				out = maskcomp.Blend(source, out, effectMask)
+			}
+			if finalImage, err = encodePNGBase64(out); err != nil {
 				return nil, err
 			}
 		}
@@ -812,5 +848,17 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		Model: lastModel,
 		Chain: chain,
 	})
+	return img, nil
+}
+
+func decodeB64ImageAnySize(b64, what string) (image.Image, error) {
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", what, err)
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", what, err)
+	}
 	return img, nil
 }

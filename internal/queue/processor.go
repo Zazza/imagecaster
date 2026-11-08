@@ -42,6 +42,8 @@ func (p *processor) ProcessJob(ctx context.Context, job *Job) (*JobResult, error
 		return p.processCompound(job)
 	case JobLook:
 		return p.processLook(job)
+	case JobEdit:
+		return p.processEdit(job)
 	default:
 		return nil, fmt.Errorf("unknown job type: %s", job.Type)
 	}
@@ -90,6 +92,16 @@ func (p *processor) processLook(job *Job) (*JobResult, error) {
 			return nil, fmt.Errorf("invalid params: %w", err)
 		}
 		return p.gen.ApplyLookDirect(params.ImageBase64, params.Text, params.Strength, params.Seed)
+	})
+}
+
+func (p *processor) processEdit(job *Job) (*JobResult, error) {
+	return p.processGeneration(job, func() (*generation.GenerateImageResult, error) {
+		var params generation.EditImageParams
+		if err := json.Unmarshal([]byte(job.Params), &params); err != nil {
+			return nil, fmt.Errorf("invalid params: %w", err)
+		}
+		return p.gen.EditImage(params)
 	})
 }
 

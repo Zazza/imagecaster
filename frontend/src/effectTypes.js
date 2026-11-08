@@ -5,6 +5,10 @@ export const EFFECT_TYPE_GROUPS = [
   { type: 'post_light', labelKey: 'post.group_effect_light' },
   { type: 'post_film', labelKey: 'post.group_effect_film' },
   { type: 'post_transform', labelKey: 'post.group_effect_transform' },
+  { type: 'post_weather', labelKey: 'post.group_effect_weather' },
+  { type: 'post_pattern', labelKey: 'post.group_effect_pattern' },
+  { type: 'post_hair', labelKey: 'post.group_effect_hair' },
+  { type: 'post_background', labelKey: 'post.group_effect_background' },
 ]
 
 export function isEffectType(name) {

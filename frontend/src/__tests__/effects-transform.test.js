@@ -37,6 +37,31 @@ async function mountPage({ presets = PRESETS, types = TYPES } = {}) {
   return wrapper
 }
 
+const GROUP_OF = {
+  'Soft Focus': 'post.group_effect_base',
+  'Film Fade': 'post.group_effect_film',
+  '3D Cartoon': 'post.group_effect_transform',
+  'Photo Enhance': 'post.group_effect_transform',
+  'Zero Fx': 'post.group_effect_base',
+}
+
+function groupSelect(wrapper) {
+  return wrapper.find('.fx-group-pick select')
+}
+
+async function pickGroup(wrapper, key) {
+  expect(groupSelect(wrapper).exists()).toBe(true)
+  await groupSelect(wrapper).setValue(key)
+  await flushPromises()
+}
+
+async function clickEffect(wrapper, name) {
+  await pickGroup(wrapper, GROUP_OF[name])
+  const card = effectCard(wrapper, name)
+  expect(card).toBeTruthy()
+  await card.trigger('click')
+}
+
 function effectCard(wrapper, name) {
   return wrapper.findAll('.fx-card').find(c => c.attributes('title') === name)
 }
@@ -49,22 +74,24 @@ function strengthLabel(wrapper) {
   return wrapper.find('.fx-apply-bar .form-label').text()
 }
 
-function transformGroup(wrapper) {
-  const label = t('post.group_effect_transform')
-  return wrapper.findAll('.fx-group').find(g => g.find('.fx-group-label').text() === label)
+function hasTransformOption(wrapper) {
+  return groupSelect(wrapper).findAll('option').some(o => o.attributes('value') === 'post.group_effect_transform')
 }
 
 describe('Transform effects in post-process', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     clearEventMocks()
   })
 
   it('shows the post_transform group with its effects', async () => {
     const wrapper = await mountPage()
     expect(t('post.group_effect_transform')).not.toBe('post.group_effect_transform')
-    const group = transformGroup(wrapper)
-    expect(group).toBeTruthy()
+    expect(hasTransformOption(wrapper)).toBe(true)
+    await pickGroup(wrapper, 'post.group_effect_transform')
+    const group = wrapper.find('.fx-group')
+    expect(group.exists()).toBe(true)
     const names = group.findAll('.fx-card').map(c => c.attributes('title'))
     expect(names).toEqual(expect.arrayContaining(['3D Cartoon', 'Photo Enhance']))
     expect(names).not.toContain('Soft Focus')
@@ -73,12 +100,13 @@ describe('Transform effects in post-process', () => {
 
   it('no post_transform presets: group is not shown', async () => {
     const wrapper = await mountPage({ presets: PRESETS.filter(p => p.type_id !== 3) })
-    expect(transformGroup(wrapper)).toBeFalsy()
+    expect(groupSelect(wrapper).exists()).toBe(true)
+    expect(hasTransformOption(wrapper)).toBe(false)
   })
 
   it('selecting an effect with denoising_strength 0.85 sets strength to 0.85', async () => {
     const wrapper = await mountPage()
-    await effectCard(wrapper, '3D Cartoon').trigger('click')
+    await clickEffect(wrapper, '3D Cartoon')
     await flushPromises()
     expect(Number(strengthSlider(wrapper).element.value)).toBeCloseTo(0.85, 5)
     expect(strengthLabel(wrapper)).toContain('0.85')
@@ -86,8 +114,8 @@ describe('Transform effects in post-process', () => {
 
   it('selecting another effect with its own strength switches to it', async () => {
     const wrapper = await mountPage()
-    await effectCard(wrapper, '3D Cartoon').trigger('click')
-    await effectCard(wrapper, 'Photo Enhance').trigger('click')
+    await clickEffect(wrapper, '3D Cartoon')
+    await clickEffect(wrapper, 'Photo Enhance')
     await flushPromises()
     expect(Number(strengthSlider(wrapper).element.value)).toBeCloseTo(0.75, 5)
     expect(strengthLabel(wrapper)).toContain('0.75')
@@ -97,12 +125,12 @@ describe('Transform effects in post-process', () => {
     const wrapper = await mountPage()
     await strengthSlider(wrapper).setValue('0.42')
     await flushPromises()
-    await effectCard(wrapper, 'Soft Focus').trigger('click')
+    await clickEffect(wrapper, 'Soft Focus')
     await flushPromises()
     expect(Number(strengthSlider(wrapper).element.value)).toBeCloseTo(0.42, 5)
     expect(strengthLabel(wrapper)).toContain('0.42')
 
-    await effectCard(wrapper, 'Film Fade').trigger('click')
+    await clickEffect(wrapper, 'Film Fade')
     await flushPromises()
     expect(Number(strengthSlider(wrapper).element.value)).toBeCloseTo(0.42, 5)
   })
@@ -114,7 +142,7 @@ describe('Transform effects in post-process', () => {
     ]
     const wrapper = await mountPage({ presets })
     await strengthSlider(wrapper).setValue('0.5')
-    await effectCard(wrapper, 'Zero Fx').trigger('click')
+    await clickEffect(wrapper, 'Zero Fx')
     await flushPromises()
     expect(Number(strengthSlider(wrapper).element.value)).toBeCloseTo(0.5, 5)
   })

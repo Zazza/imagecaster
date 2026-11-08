@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Zazza/imagecaster/internal/generation"
 )
@@ -37,6 +38,15 @@ func validateJobParams(jobType JobType, params any) error {
 		if p, ok := params.(generation.ApplyLookParams); ok {
 			if err := generation.ValidateLook(p); err != nil {
 				return err
+			}
+		}
+	case JobEdit:
+		if p, ok := params.(generation.EditImageParams); ok {
+			if p.ImageBase64 == "" {
+				return fmt.Errorf("image is required")
+			}
+			if strings.TrimSpace(p.Instruction) == "" {
+				return fmt.Errorf("instruction is required")
 			}
 		}
 	case JobFromImage:

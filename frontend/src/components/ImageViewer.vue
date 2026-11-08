@@ -10,8 +10,9 @@ const props = defineProps({
   item: { type: Object, default: null },
   showActions: { type: Boolean, default: false },
   confirmDelete: { type: Boolean, default: false },
+  canDelete: { type: Boolean, default: true },
 })
-const emit = defineEmits(['close', 'prev', 'next', 'remix', 'edit', 'export', 'delete'])
+const emit = defineEmits(['close', 'prev', 'next', 'export', 'delete'])
 
 const promptExpanded = ref(false)
 const infoExpanded = ref(false)
@@ -233,7 +234,7 @@ function onKeydown(e) {
   if (e.key === 'Escape') emit('close')
   if (e.key === 'ArrowLeft' && props.hasPrev) emit('prev')
   if (e.key === 'ArrowRight' && props.hasNext) emit('next')
-  if (e.key === 'Delete') emit('delete')
+  if (e.key === 'Delete' && props.showActions && props.canDelete) emit('delete')
 }
 
 onMounted(() => {
@@ -266,8 +267,9 @@ onUnmounted(() => {
       />
     </div>
     <button class="image-viewer-close" @click="$emit('close')">&times;</button>
-    <div v-if="item" class="image-viewer-tools" @click.stop>
+    <div v-if="item || showActions" class="image-viewer-tools" @click.stop>
       <button
+        v-if="item"
         class="image-viewer-tool-btn"
         :class="{ active: infoExpanded }"
         :title="t('viewer.info_toggle')"
@@ -276,10 +278,9 @@ onUnmounted(() => {
         @click="infoExpanded = !infoExpanded"
       >&#9432;</button>
       <template v-if="showActions && !infoExpanded">
-        <button class="image-viewer-tool-btn" @click="$emit('remix')">{{ t('viewer.remix') }}</button>
-        <button class="image-viewer-tool-btn" @click="$emit('edit')">{{ t('viewer.edit') }}</button>
         <button class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
         <button
+          v-if="canDelete"
           class="image-viewer-tool-btn tool-danger"
           :class="{ confirm: confirmDelete }"
           @click="$emit('delete')"
@@ -340,10 +341,8 @@ onUnmounted(() => {
           <span>{{ metaOnlyLine }}</span>
         </div>
         <div v-if="showActions" class="viewer-actions">
-          <button class="btn btn-primary btn-sm" @click="$emit('remix')">{{ t('viewer.remix') }}</button>
-          <button class="btn btn-secondary btn-sm" @click="$emit('edit')">{{ t('viewer.edit') }}</button>
-          <button class="btn btn-secondary btn-sm" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
-          <button class="btn btn-danger btn-sm" @click="$emit('delete')">{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</button>
+          <button class="btn btn-primary btn-sm" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
+          <button v-if="canDelete" class="btn btn-danger btn-sm" @click="$emit('delete')">{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</button>
         </div>
       </div>
     </div>

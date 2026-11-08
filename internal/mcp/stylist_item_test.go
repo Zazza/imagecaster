@@ -440,7 +440,7 @@ func TestPrompts(t *testing.T) {
 		assert.Contains(t, caps, "prompts")
 	})
 
-	t.Run("list has one stylist prompt", func(t *testing.T) {
+	t.Run("list has stylist and photo_editor prompts", func(t *testing.T) {
 		t.Parallel()
 		s, _ := styNewServer(t, nil, nil)
 		m := styRPC(t, s, "prompts/list", nil)
@@ -448,10 +448,14 @@ func TestPrompts(t *testing.T) {
 		require.True(t, ok, "%v", m)
 		prompts, ok := res["prompts"].([]any)
 		require.True(t, ok, "%v", res)
-		require.Len(t, prompts, 1)
-		p, ok := prompts[0].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "stylist", p["name"])
+		require.Len(t, prompts, 2)
+		var names []any
+		for _, raw := range prompts {
+			p, ok := raw.(map[string]any)
+			require.True(t, ok)
+			names = append(names, p["name"])
+		}
+		assert.ElementsMatch(t, []any{"stylist", "photo_editor"}, names)
 	})
 
 	tests := []struct {

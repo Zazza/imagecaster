@@ -36,6 +36,7 @@ type Deps struct {
 	Cfg      *config.Config
 	OutDir   string
 	Stylist  StylistEngine
+	Editor   EditorEngine
 	Sessions AppSessions
 
 	NoImageBytes bool
@@ -223,17 +224,21 @@ func (s *Server) dispatch(req rpcRequest) rpcResponse {
 	case "ping":
 		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{}}
 	case "prompts/list":
-		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"prompts": []map[string]any{stylistPromptInfo()}}}
+		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"prompts": []map[string]any{stylistPromptInfo(), editorPromptInfo()}}}
 	case "prompts/get":
 		var p struct {
 			Name      string            `json:"name"`
 			Arguments map[string]string `json:"arguments,omitempty"`
 		}
-		if err := json.Unmarshal(req.Params, &p); err != nil || p.Name != stylistPromptName {
-			return rpcResponse{JSONRPC: "2.0", ID: req.ID,
-				Error: &rpcError{Code: errInvalidArgs, Message: fmt.Sprintf("unknown prompt %q", p.Name)}}
+		err := json.Unmarshal(req.Params, &p)
+		switch {
+		case err == nil && p.Name == stylistPromptName:
+			return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: stylistPrompt(p.Arguments["photo"])}
+		case err == nil && p.Name == editorPromptName:
+			return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: editorPrompt(p.Arguments["photo"])}
 		}
-		return rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: stylistPrompt(p.Arguments["photo"])}
+		return rpcResponse{JSONRPC: "2.0", ID: req.ID,
+			Error: &rpcError{Code: errInvalidArgs, Message: fmt.Sprintf("unknown prompt %q", p.Name)}}
 	case "tools/list":
 		s.mu.RLock()
 		defer s.mu.RUnlock()

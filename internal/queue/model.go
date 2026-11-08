@@ -7,6 +7,7 @@ const (
 	JobFromImage JobType = "from_image"
 	JobCompound  JobType = "compound"
 	JobLook      JobType = "look"
+	JobEdit      JobType = "edit"
 )
 
 type JobStatus string

@@ -242,6 +242,7 @@ type GenerateFromImageParams struct {
 	Seed                *int64           `json:"seed,omitempty"`
 	Overrides           *PresetOverrides `json:"overrides,omitempty"`
 	MaskBase64          string           `json:"mask_base64,omitempty"`
+	KeepColor           bool             `json:"keep_color,omitempty"`
 }
 
 type lastImageMeta struct {

@@ -100,7 +100,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   clearEventMocks()
   useRemixQueue().clearPostQueue()
-  useRemixQueue().clearQueue()
   ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
   files = { '/photos/a.png': IMG_A, '/photos/b.png': IMG_B }
   savedCount = 0
@@ -226,16 +225,14 @@ describe('PostProcessPage batch mode', () => {
     expect(ExportImage).not.toHaveBeenCalled()
   })
 
-  it('K3: single-photo tools show the batch hint, Edit offers only the look mode, no pipeline section', async () => {
+  it('K3: Object and Repair show the batch hint, no pipeline section', async () => {
     const wrapper = await mountBatch()
-    for (const key of ['post.section_remix', 'post.section_object', 'post.section_repair']) {
+    for (const key of ['post.section_object', 'post.section_repair']) {
       const header = wrapper.findAll('.card-header.card-toggle').find(h => h.text().includes(t(key)))
       expect(header, key).toBeTruthy()
       const cardEl = header.element.closest('.card')
       expect(cardEl.textContent, key).toContain(t('post.batch_unavailable'))
     }
-    const editHeader = wrapper.findAll('.card-header.card-toggle').find(h => h.text().includes(t('post.section_edit')))
-    expect(editHeader.element.closest('.card').textContent).toContain(t('edit.batch_look_only'))
     expect(wrapper.text()).not.toContain('Конвейер')
   })
 
@@ -289,6 +286,10 @@ describe('PostProcessPage batch mode', () => {
     })
     const wrapper = await mountBatch({ section: 'edit' })
     const editCard = wrapper.findAll('.card-header.card-toggle').find(h => h.text().includes(t('post.section_edit'))).element.closest('.card')
+    const lookBtn = wrapper.findAll('button').find(b => b.text() === t('edit.mode_look') && editCard.contains(b.element))
+    expect(lookBtn).toBeTruthy()
+    await lookBtn.trigger('click')
+    await settle()
     const freeBtn = wrapper.findAll('button').find(b => b.text() === t('edit.look_mode_free') && editCard.contains(b.element))
     expect(freeBtn).toBeTruthy()
     await freeBtn.trigger('click')

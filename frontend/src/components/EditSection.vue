@@ -17,7 +17,7 @@ const props = defineProps({
   batch: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['result', 'apply-look', 'apply-recipe', 'save-recipe', 'busy'])
+const emit = defineEmits(['result', 'apply-look', 'apply-edit', 'apply-recipe', 'save-recipe', 'busy'])
 
 const editLookMode = ref(false)
 const lookWay = ref('effects')
@@ -60,7 +60,7 @@ const selectedStyle = computed(() => stylePresets.value.find((p) => p.id === sty
 
 const selectedStyleLoras = computed(() => parseLoras(selectedStyle.value?.loras || ''))
 
-const canGenerate = computed(() => !!props.source && !!instruction.value.trim() && !generatingImage.value)
+const canGenerate = computed(() => !!props.source && !!instruction.value.trim() && !generatingImage.value && !(props.batch && props.lookBusy))
 
 function addLora() {
   if (loraRows.value.length >= 8) return
@@ -192,6 +192,25 @@ function clearReference() {
 
 let genReqId = 0
 
+function editParams(instr) {
+  const params = {
+    instruction: instr,
+    seed: parseSeedInput(seedInput.value),
+  }
+  if (referenceImage.value) params.reference_image_base64 = referenceImage.value
+  if (stylePresetId.value) {
+    params.style_preset_id = stylePresetId.value
+    if (styleTags.value) params.style_tags = true
+  }
+  const loras = editLorasPayload()
+  if (loras.length) params.loras = loras
+  if (qualityMode.value && selectedResolutionId.value) {
+    params.output_mode = 'quality'
+    params.resolution_id = selectedResolutionId.value
+  }
+  return params
+}
+
 async function generate() {
   if (generatingImage.value) return
   if (!props.source) {
@@ -203,6 +222,10 @@ async function generate() {
     error.value = t('edit.error_no_instruction')
     return
   }
+  if (props.batch) {
+    emit('apply-edit', editParams(instr))
+    return
+  }
   generatingImage.value = true
   effectivePrompt.value = ''
   resetFailed.value = false
@@ -212,24 +235,7 @@ async function generate() {
   resetProgress()
   const reqId = ++genReqId
   try {
-    const seedVal = parseSeedInput(seedInput.value)
-    const params = {
-      image_base64: props.source,
-      instruction: instr,
-      seed: seedVal,
-    }
-    if (referenceImage.value) params.reference_image_base64 = referenceImage.value
-    if (stylePresetId.value) {
-      params.style_preset_id = stylePresetId.value
-      if (styleTags.value) params.style_tags = true
-    }
-    const loras = editLorasPayload()
-    if (loras.length) params.loras = loras
-    if (qualityMode.value && selectedResolutionId.value) {
-      params.output_mode = 'quality'
-      params.resolution_id = selectedResolutionId.value
-    }
-    const result = await api.editImage(params)
+    const result = await api.editImage({ ...editParams(instr), image_base64: props.source })
     if (reqId !== genReqId) return
     if (result?.image) {
       effectivePrompt.value = result.effective_prompt || ''
@@ -297,13 +303,12 @@ onUnmounted(() => {
     <StatusMessage v-if="error === 'interrupted'" kind="warning" :text="t('progress.interrupted')" @close="error = ''" />
     <StatusMessage v-else-if="error" :text="error" @close="error = ''" />
 
-    <div v-if="batch" class="field-hint">{{ t('edit.batch_look_only') }}</div>
-    <div v-else class="edit-mode-row">
+    <div class="edit-mode-row">
       <button type="button" class="btn btn-sm" :class="editLookMode ? 'btn-secondary' : 'btn-primary'" @click="editLookMode = false">{{ t('edit.mode_instruction') }}</button>
       <button type="button" class="btn btn-sm" :class="editLookMode ? 'btn-primary' : 'btn-secondary'" @click="editLookMode = true">{{ t('edit.mode_look') }}</button>
     </div>
 
-    <template v-if="editLookMode || batch">
+    <template v-if="editLookMode">
       <div class="edit-mode-row">
         <button type="button" class="btn btn-sm" :class="lookWay === 'effects' ? 'btn-primary' : 'btn-secondary'" @click="lookWay = 'effects'">{{ t('edit.look_mode_effects') }}</button>
         <button type="button" class="btn btn-sm" :class="lookWay === 'free' ? 'btn-primary' : 'btn-secondary'" @click="lookWay = 'free'">{{ t('edit.look_mode_free') }}</button>
@@ -431,8 +436,9 @@ onUnmounted(() => {
         <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
         {{ t('edit.generating') }}
       </span>
-      <span v-else>{{ t('edit.btn_generate') }}</span>
+      <span v-else>{{ batch ? t('edit.btn_apply_all') : t('edit.btn_generate') }}</span>
     </button>
+    <div v-if="batch" class="field-hint">{{ t('edit.batch_instruction_hint') }}</div>
 
     <div v-if="generatingImage" class="edit-progress">
       <div class="edit-progress-row">

@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	cellSize        = 8
-	diffThreshold   = 28.0
-	maskCellCover   = 0.5
-	featherCells    = 2
-	outlineHalfLine = 3
+	keepColorWorkSide = 512
+	cellSize          = 8
+	diffThreshold     = 28.0
+	maskCellCover     = 0.5
+	featherCells      = 2
+	outlineHalfLine   = 3
 )
 
 var outlineColor = color.RGBA{R: 255, A: 255}
@@ -286,26 +287,75 @@ func Blend(orig, edited, mask image.Image) *image.RGBA {
 func boxBlurSep(a []float64, w, h, r int) []float64 {
 	tmp := make([]float64, len(a))
 	out := make([]float64, len(a))
-	for y := 0; y < h; y++ {
-		row := a[y*w : (y+1)*w]
-		for x := 0; x < w; x++ {
-			var s float64
-			lo, hi := max(0, x-r), min(w-1, x+r)
-			for k := lo; k <= hi; k++ {
-				s += row[k]
-			}
-			tmp[y*w+x] = s / float64(hi-lo+1)
-		}
-	}
-	for x := 0; x < w; x++ {
-		for y := 0; y < h; y++ {
-			var s float64
-			lo, hi := max(0, y-r), min(h-1, y+r)
-			for k := lo; k <= hi; k++ {
-				s += tmp[k*w+x]
-			}
-			out[y*w+x] = s / float64(hi-lo+1)
-		}
-	}
+	blurLine(a, tmp, w, h, 1, w, r)
+	blurLine(tmp, out, h, w, w, 1, r)
 	return out
+}
+
+func blurLine(src, dst []float64, n, lines, step, lineStep, r int) {
+	for l := 0; l < lines; l++ {
+		base := l * lineStep
+		var s float64
+		for k := 0; k <= min(r, n-1); k++ {
+			s += src[base+k*step]
+		}
+		for x := 0; x < n; x++ {
+			lo, hi := max(0, x-r), min(n-1, x+r)
+			dst[base+x*step] = s / float64(hi-lo+1)
+			if x+r+1 < n {
+				s += src[base+(x+r+1)*step]
+			}
+			if x-r >= 0 {
+				s -= src[base+(x-r)*step]
+			}
+		}
+	}
+}
+
+func KeepColor(orig, edited image.Image, sigmaRatio float64) *image.RGBA {
+	b := orig.Bounds()
+	w, h := b.Dx(), b.Dy()
+	o := toRGBA(orig, w, h)
+	e := toRGBA(edited, w, h)
+	scale := min(1, float64(keepColorWorkSide)/float64(min(w, h)))
+	sw, sh := max(1, int(float64(w)*scale+0.5)), max(1, int(float64(h)*scale+0.5))
+	so, se := o, e
+	if sw != w || sh != h {
+		so = image.NewRGBA(image.Rect(0, 0, sw, sh))
+		se = image.NewRGBA(image.Rect(0, 0, sw, sh))
+		xdraw.ApproxBiLinear.Scale(so, so.Bounds(), o, o.Bounds(), draw.Src, nil)
+		xdraw.ApproxBiLinear.Scale(se, se.Bounds(), e, e.Bounds(), draw.Src, nil)
+	}
+	r := max(1, int(sigmaRatio*float64(min(sw, sh))+0.5))
+	diff := make([][]float64, 3)
+	for c := 0; c < 3; c++ {
+		ob := make([]float64, sw*sh)
+		eb := make([]float64, sw*sh)
+		for i := range ob {
+			ob[i] = float64(so.Pix[i*4+c])
+			eb[i] = float64(se.Pix[i*4+c])
+		}
+		for range 3 {
+			ob = boxBlurSep(ob, sw, sh, r)
+			eb = boxBlurSep(eb, sw, sh, r)
+		}
+		for i := range ob {
+			ob[i] -= eb[i]
+		}
+		diff[c] = ob
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		fy := (float64(y)+0.5)*float64(sh)/float64(h) - 0.5
+		for x := 0; x < w; x++ {
+			fx := (float64(x)+0.5)*float64(sw)/float64(w) - 0.5
+			i := (y*w + x) * 4
+			for c := 0; c < 3; c++ {
+				v := float64(e.Pix[i+c]) + sampleBilinear(diff[c], sw, sh, fx, fy)
+				dst.Pix[i+c] = uint8(min(255, max(0, v)) + 0.5)
+			}
+			dst.Pix[i+3] = 255
+		}
+	}
+	return dst
 }

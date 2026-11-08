@@ -19,6 +19,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/adjust"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/promptutil"
@@ -72,6 +73,7 @@ type ExportImageParams struct {
 	Quality       int            `json:"quality"`
 	Interpolation string         `json:"interpolation"`
 	Adjust        *adjust.Params `json:"adjust,omitempty"`
+	Finish        *finish.Params `json:"finish,omitempty"`
 	Filename      string         `json:"filename"`
 	OutputDir     string         `json:"output_dir,omitempty"`
 }
@@ -482,6 +484,14 @@ func processDecoded(img image.Image, params ExportImageParams) (*ProcessedImage,
 		result = dst
 	} else {
 		result = img
+	}
+
+	if params.Finish != nil {
+		finished, err := finish.Apply(result, *params.Finish)
+		if err != nil {
+			return nil, err
+		}
+		result = finished
 	}
 
 	if params.Quality <= 0 {

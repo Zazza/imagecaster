@@ -24,6 +24,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/clipboard"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/generation"
 	"github.com/Zazza/imagecaster/internal/importexport"
 	"github.com/Zazza/imagecaster/internal/kids"
@@ -871,6 +872,43 @@ func (a *App) PreviewAdjust(imageBase64 string, p AdjustParams, maxW int) (strin
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
+type FinishParams = finish.Params
+
+func (a *App) PreviewPost(imageBase64 string, p AdjustParams, f FinishParams, maxW int) (string, error) {
+	if imageBase64 == "" {
+		return "", fmt.Errorf("no image provided")
+	}
+	if len(imageBase64) > generation.MaxImageBase64Len {
+		return "", config.ImageTooLarge("image")
+	}
+	data, err := base64.StdEncoding.DecodeString(imageBase64)
+	if err != nil {
+		return "", fmt.Errorf("decode base64: %w", err)
+	}
+	if err := importexport.CheckImageDataSize(data); err != nil {
+		return "", err
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("decode image: %w", err)
+	}
+	if b := img.Bounds(); maxW > 0 && b.Dx() > maxW {
+		h := max(1, int(float64(b.Dy())*float64(maxW)/float64(b.Dx())))
+		dst := image.NewRGBA(image.Rect(0, 0, maxW, h))
+		xdraw.BiLinear.Scale(dst, dst.Bounds(), img, b, xdraw.Over, nil)
+		img = dst
+	}
+	out, err := finish.Apply(adjust.Apply(img, p), f)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, out, &jpeg.Options{Quality: 85}); err != nil {
+		return "", fmt.Errorf("encode jpeg: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+}
+
 func (a *App) AutoAdjust(imageBase64 string) (adjust.AutoStats, error) {
 	if imageBase64 == "" {
 		return adjust.AutoStats{}, fmt.Errorf("no image provided")
@@ -1290,6 +1328,10 @@ func (a *App) EnqueueFromImage(params GenerateFromImageParams) (int64, error) {
 
 func (a *App) EnqueueLook(params ApplyLookParams) (int64, error) {
 	return a.queueSvc.Enqueue(queue.JobLook, params, "look")
+}
+
+func (a *App) EnqueueEdit(params EditImageParams) (int64, error) {
+	return a.queueSvc.Enqueue(queue.JobEdit, params, "edit")
 }
 
 func (a *App) EnqueueCompound(params GenerateCompoundImageParams) (int64, error) {

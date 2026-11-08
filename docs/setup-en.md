@@ -14,9 +14,17 @@
 
 ## Stable Diffusion WebUI
 
-Image generation engine. Imagecaster connects via REST API. Two variants are supported: **A1111** (standard) and **Forge** (faster).
+Image generation engine. Imagecaster connects via REST API.
 
-### Option 1: A1111 (standard, recommended)
+### Recommended: Forge Neo
+
+Every feature works on Forge Neo, including Edit mode (Moss-Image) and Z-Image models. The easiest way to install it is [Imagecaster Server](#imagecaster-server) — the server downloads and sets up Forge Neo by itself.
+
+Manually: [sd-webui-forge-classic, `neo` branch](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) — install per the repository README, run with `--listen --api`.
+
+A1111 and the original Forge (options below) cover basic generation only: Z-Image models and Edit mode do not work on them.
+
+### Option 1: A1111
 
 ```bash
 git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
@@ -31,7 +39,7 @@ Windows:
 webui.bat --listen --api --enable-insecure-extension-access
 ```
 
-### Option 2: Forge (faster, with known limitations)
+### Option 2: original Forge
 
 [Stable Diffusion WebUI Forge](https://github.com/lllyasviel/stable-diffusion-webui-forge) is an optimized A1111 fork with significantly faster generation.
 
@@ -246,107 +254,11 @@ In Imagecaster -> Settings -> Connection: select **llama.cpp**, URL `http://loca
 
 ## Imagecaster Server
 
-A standalone service that automatically manages all AI components (SD WebUI, Ollama) — installation, startup, health monitoring, GPU optimization, and model management. Ideal for headless or server deployments.
+A separate program for the computer with the graphics card: it installs Forge Neo and Ollama into one folder, starts and restarts them, downloads models from the app's catalog and puts every GPU request through one queue so the card doesn't run out of memory. Imagecaster finds the server on the local network by itself (mDNS).
 
-### Installation
+Download the archive for your system from [Releases](https://github.com/Zazza/imagecaster-server/releases), unpack and run it. The first start downloads Forge Neo, Python, PyTorch and Ollama — about 20 GB without models. Requires an NVIDIA graphics card with a recent driver.
 
-```bash
-cd server
-go build -o imagecaster-server .
-```
-
-Or use Docker:
-```bash
-docker compose up --build
-```
-
-### First Run
-
-```bash
-./imagecaster-server --data ~/imagecaster-server
-```
-
-On first run, an interactive setup wizard will guide you through:
-- Selecting which components to install (SD WebUI, Ollama)
-- Choosing data directory
-- Configuring GPU backend (Forge / A1111)
-
-### Configuration
-
-Configuration is stored in `{data-dir}/server-config.yaml`:
-
-```yaml
-port: 8080
-data_dir: ~/imagecaster-server
-active_sd: forge
-mdns: true
-proxy:
-  enabled: true
-  gpu_slots: 1
-  endpoints:
-    sd:
-      listen_addr: ":7860"
-      target_url: "http://localhost:7860"
-    ollama:
-      listen_addr: ":11434"
-      target_url: "http://localhost:11434"
-```
-
-### Running Modes
-
-| Mode | Command | Description |
-|------|---------|-------------|
-| TUI (interactive) | `./imagecaster-server` | Terminal dashboard with service controls |
-| Headless | `./imagecaster-server --headless` | Log output only, no TUI |
-| Custom port | `./imagecaster-server --port 9090` | Override HTTP port |
-| Custom config | `./imagecaster-server --config /path/to/config.yaml` | Use specific config file |
-
-### GPU Proxy
-
-When `proxy.enabled: true`, the server acts as a smart reverse proxy:
-- **Priority queue** — studio requests get higher priority than external
-- **GPU slot limiting** — only N concurrent requests share the GPU
-- **VRAM cooldown** — waits for >= 50% free VRAM between jobs (prevents OOM)
-- Per-endpoint configuration (separate proxy ports for SD and Ollama)
-
-### API Endpoints
-
-No authorization — the server is meant for a trusted LAN only.
-
-| Endpoint | Method | What it does |
-|----------|--------|--------------|
-| `/` | GET | `{name, version, status}` |
-| `/api/server/status` | GET | `processes`, `health`, `gpu`, `installs`, `models`, host CPU/RAM `sys` |
-| `/api/server/start/{name}` | POST | start a process |
-| `/api/server/stop/{name}` | POST | stop a process |
-| `/api/server/restart/{name}` | POST | restart a process |
-| `/api/server/logs/{name}` | GET | process log, `?lines=100` |
-| `/api/server/install/status` | GET | install state of all components |
-| `/api/server/install/status/{key}` | GET | install state of one component |
-| `/api/server/install/{key}` | POST | install a component |
-| `/api/server/install/logs/{key}` | GET | install log |
-| `/api/server/backends/active` | GET | active backend `{key, name, process}` |
-| `/api/server/models/sd` | GET / POST | list checkpoints / download `{url, filename}` |
-| `/api/server/models/lora` | GET / POST | the same for LoRA |
-| `/api/server/models/vae` | GET / POST | the same for VAE |
-| `/api/server/models/llm` | GET / POST | list Ollama models / pull one |
-| `/api/server/models/llm/pull` | GET | pull an Ollama model with streamed progress, `?name=` |
-| `/api/server/models/download/stream` | GET | download a model with streamed progress, `?type=sd\|lora\|vae&url=&filename=` |
-| `/api/server/models/delete/{sd,lora,vae,llm}/{name}` | DELETE | delete a model |
-| `/api/gpu/status` | GET | GPU queue state |
-| `/api/gpu/lease`, `/api/gpu/lease/{id}`, `/api/gpu/queue/{id}` | POST / GET / DELETE / PATCH | GPU leases for external consumers |
-| `/api/sd/*` | * | proxy to Forge Neo (through the GPU queue) |
-| `/api/llm/*` | * | proxy to Ollama (through the GPU queue) |
-
-### mDNS Discovery
-
-When `mdns: true`, the server advertises itself as `_imagecaster._tcp` on the local network. Desktop apps can auto-discover the server.
-
-### Verification
-
-```bash
-curl http://localhost:8080/
-```
+Step-by-step setup for Windows, Linux and macOS, settings and API — in the [server README](https://github.com/Zazza/imagecaster-server/blob/main/README.md) and the [full documentation](https://github.com/Zazza/imagecaster-server/blob/main/docs/server-en.md).
 
 ---
 

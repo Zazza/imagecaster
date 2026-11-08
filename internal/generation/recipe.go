@@ -40,20 +40,7 @@ const (
 
 var postTypeFamilies = []string{"post", "post_material", "post_skin", "post_light", "post_film"}
 
-var adjustRanges = map[string][2]float64{
-	"brightness":  {-100, 100},
-	"contrast":    {-100, 100},
-	"black_point": {0, 254},
-	"white_point": {1, 255},
-	"gamma":       {0.1, 3},
-	"saturation":  {-100, 100},
-	"temperature": {-100, 100},
-	"balance_r":   {-100, 100},
-	"balance_g":   {-100, 100},
-	"balance_b":   {-100, 100},
-	"sharpen":     {0, 100},
-	"vignette":    {0, 100},
-}
+var adjustRanges = adjust.Ranges
 
 const describeForStylePrompt = "Describe this photo in 1-2 short sentences for a photo style assistant: subject and pose, clothing, lighting, mood, dominant colors. No lists, no camera settings, no advice."
 

@@ -106,7 +106,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   clearEventMocks()
   useRemixQueue().clearPostQueue()
-  useRemixQueue().clearQueue()
   ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
   globalThis.Image = FakeImage
   window.Image = FakeImage

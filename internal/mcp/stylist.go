@@ -155,17 +155,24 @@ func (s *Server) stylistDeps() (StylistEngine, AppSessions, error) {
 	if s.deps.Stylist == nil || s.deps.Sessions == nil {
 		return nil, nil, errors.New("стилист недоступен в этой сборке imagecaster-mcp")
 	}
+	if err := s.localOnly("стилист"); err != nil {
+		return nil, nil, err
+	}
+	return s.deps.Stylist, s.deps.Sessions, nil
+}
+
+func (s *Server) localOnly(role string) error {
 	if cfg := s.deps.Cfg; cfg != nil {
 		for name, u := range map[string]string{"LLM": cfg.LLMUrl, "SD": cfg.SDUrl} {
 			if !isLocalURL(u) {
-				return nil, nil, fmt.Errorf("стилист отключён: адрес %s не в локальной сети, фото не могут покидать LAN", name)
+				return fmt.Errorf("%s отключён: адрес %s не в локальной сети, фото не могут покидать LAN", role, name)
 			}
 			if viaProxy(u) {
-				return nil, nil, fmt.Errorf("стилист отключён: запросы к %s пошли бы через HTTP-прокси из окружения — добавь адрес в NO_PROXY", name)
+				return fmt.Errorf("%s отключён: запросы к %s пошли бы через HTTP-прокси из окружения — добавь адрес в NO_PROXY", role, name)
 			}
 		}
 	}
-	return s.deps.Stylist, s.deps.Sessions, nil
+	return nil
 }
 
 func isLocalURL(raw string) bool {

@@ -85,6 +85,7 @@ func main() {
 		Cfg:      cfg,
 		OutDir:   outDir,
 		Stylist:  gen,
+		Editor:   mcp.EditorAdapter{Gen: gen, DB: db},
 		Sessions: appSessions,
 
 		NoImageBytes: env("NO_IMAGE_BYTES") == "1",

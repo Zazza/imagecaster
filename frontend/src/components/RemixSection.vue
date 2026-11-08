@@ -5,7 +5,6 @@ import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
 import { parseLoras } from '../loraOverride.js'
 import { t } from '../i18n/index.js'
-import { useRemixQueue } from '../remixQueue.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
@@ -17,9 +16,11 @@ import HiresProfileSelector from './HiresProfileSelector.vue'
 const props = defineProps({
   source: { type: String, default: '' },
   active: { type: Boolean, default: false },
+  batch: { type: Boolean, default: false },
+  batchBusy: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['result', 'source', 'busy'])
+const emit = defineEmits(['result', 'source', 'busy', 'apply-batch'])
 
 const { presets, presetTypes, compoundPresets, loadPresets } = usePresets()
 const selectedTypeId = ref(null)
@@ -64,9 +65,6 @@ const overridesPanel = ref(null)
 
 let lastEmittedSource = null
 
-const { queue: remixQueue, clearQueue: clearRemixQueue } = useRemixQueue()
-const folderQueue = ref([])
-let folderCancelled = false
 
 const filteredPresets = computed(() => {
   if (!selectedTypeId.value) return presets.value
@@ -119,7 +117,6 @@ async function analyzeImage() {
 
 watch(() => props.source, (val) => {
   if (val !== lastEmittedSource) {
-    folderQueue.value = []
     tags.value = ''
     error.value = ''
   }
@@ -134,6 +131,28 @@ watch([genMode, kidsModeActive], () => {
   presetOverrides.value = null
   overridesPanel.value?.reset()
 })
+
+function remixParams() {
+  const params = {
+    mode: 'img2img',
+    gen_mode: genMode.value,
+    preset_id: selectedPresetId.value || 0,
+    compound_preset_id: selectedCompoundPresetId.value || 0,
+    denoising_strength: denoisingStrength.value,
+    tags: tags.value,
+    extra_negative_prompt: extraNegativePrompt.value,
+    resolution_id: selectedResolutionId.value || null,
+    hires_profile_id: genMode.value === 'compound' ? (selectedHiresProfileId.value || null) : null,
+    overrides: genMode.value === 'preset' ? presetOverrides.value : null,
+  }
+  if (genMode.value === 'preset') {
+    params.output_mode = (qualityMode.value && selectedResolutionId.value) ? 'quality' : ''
+  }
+  if (genMode.value === 'preset' && kleinPresetSelected.value && preserveIdentity.value) {
+    params.preserve_identity = true
+  }
+  return params
+}
 
 async function generate() {
   if (generatingImage.value) return
@@ -150,6 +169,12 @@ async function generate() {
     return
   }
 
+  if (props.batch) {
+    if (props.batchBusy) return
+    emit('apply-batch', { ...remixParams(), seed: parseSeedInput(seedInput.value) })
+    return
+  }
+
   generatingImage.value = true
   generationStage.value = 'generating'
   genInfo.value = null
@@ -161,68 +186,9 @@ async function generate() {
   enqueuedJobIds.value = new Set()
   batchTotal.value = 0
   batchDone.value = 0
-  folderCancelled = false
-
   try {
-    const params = {
-      image_base64: props.source,
-      mode: 'img2img',
-      gen_mode: genMode.value,
-      preset_id: selectedPresetId.value || 0,
-      compound_preset_id: selectedCompoundPresetId.value || 0,
-      denoising_strength: denoisingStrength.value,
-      tags: tags.value,
-      extra_negative_prompt: extraNegativePrompt.value,
-      resolution_id: selectedResolutionId.value || null,
-      hires_profile_id: genMode.value === 'compound' ? (selectedHiresProfileId.value || null) : null,
-      overrides: genMode.value === 'preset' ? presetOverrides.value : null,
-    }
-    if (genMode.value === 'preset') {
-      params.output_mode = (qualityMode.value && selectedResolutionId.value) ? 'quality' : ''
-    }
-    if (genMode.value === 'preset' && kleinPresetSelected.value && preserveIdentity.value) {
-      params.preserve_identity = true
-    }
+    const params = { ...remixParams(), image_base64: props.source }
     const seedVal = parseSeedInput(seedInput.value)
-    if (folderQueue.value.length > 0) {
-      const items = folderQueue.value
-      let skipped = 0
-      batchTotal.value = items.length
-      for (let i = 0; i < items.length; i++) {
-        if (folderCancelled) break
-        let b64 = ''
-        try {
-          b64 = await api.readFileAsBase64(items[i].path)
-        } catch {
-          skipped++
-          continue
-        }
-        if (!b64) {
-          skipped++
-          continue
-        }
-        try {
-          const jobId = await api.enqueueFromImage({ ...params, image_base64: b64, seed: seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null })
-          if (jobId) enqueuedJobIds.value.add(jobId)
-        } catch {
-          skipped++
-        }
-      }
-      folderQueue.value = []
-      batchTotal.value = batchDone.value + enqueuedJobIds.value.size
-      if (folderCancelled) {
-        error.value = 'interrupted'
-        generatingImage.value = false
-        generationStage.value = ''
-      } else if (enqueuedJobIds.value.size === 0) {
-        error.value = t('fi.folder_skipped', { n: items.length, m: items.length })
-        generatingImage.value = false
-        generationStage.value = ''
-      } else if (skipped > 0) {
-        error.value = t('fi.folder_skipped', { n: skipped, m: items.length })
-      }
-      return
-    }
     const count = Math.max(1, Math.min(100, genCount.value || 1))
     batchTotal.value = count
     for (let i = 0; i < count; i++) {
@@ -312,7 +278,6 @@ function onQueuePaused(data) {
 }
 
 async function interruptBatch() {
-  folderCancelled = true
   if (enqueuedJobIds.value.size > 0) {
     const ids = [...enqueuedJobIds.value]
     enqueuedJobIds.value = new Set()
@@ -373,25 +338,9 @@ onMounted(async () => {
     if (s.fi_count) genCount.value = Math.max(1, Math.min(100, Number(s.fi_count) || 1))
     settingsRestored = true
   } catch {}
-  if (remixQueue.value.length > 0) {
-    folderQueue.value = remixQueue.value
-    clearRemixQueue()
-    try {
-      const b64 = await api.readFileAsBase64(folderQueue.value[0].path)
-      if (b64) {
-        tags.value = ''
-        error.value = ''
-        lastEmittedSource = b64
-        emit('source', b64)
-      }
-    } catch (e) {
-      error.value = String(e)
-    }
-  }
 })
 
 onUnmounted(() => {
-  folderCancelled = true
   document.removeEventListener('keydown', onKeydown)
   offCompleted()
   offFailed()
@@ -437,10 +386,6 @@ function onKeydown(e) {
     </div>
 
     <StatusMessage v-if="error" :kind="error === 'interrupted' ? 'warning' : 'error'" :text="error" @close="error = ''" />
-
-    <div v-if="folderQueue.length" class="fi-folder-badge">
-      {{ t('fi.folder_queue', { n: folderQueue.length }) }}
-    </div>
 
     <div class="form-group" style="margin-top: 12px;">
       <label class="form-label">{{ t('fi.label_denoising', { value: denoisingStrength.toFixed(2) }) }}</label>
@@ -533,6 +478,7 @@ function onKeydown(e) {
         <button v-if="!kidsModeActive" class="btn btn-sm btn-secondary" @click="tags = ''" :disabled="!tags" title="Clear tags">&#10005;</button>
       </div>
       <textarea class="form-textarea" v-model="tags" rows="4" :placeholder="t('fi.placeholder_tags')" :disabled="kidsModeActive"></textarea>
+      <div v-if="batch" class="form-hint">{{ t('fi.batch_describe_hint') }}</div>
       <div v-if="kidsModeActive" style="margin-top: 4px; padding: 6px; background: var(--surface-2); border-radius: 4px; text-align: center; font-size: 11px; color: var(--text-dim);">
         {{ t('fi.kids_tags_restricted') }}
       </div>
@@ -544,15 +490,15 @@ function onKeydown(e) {
     </div>
 
     <div style="display: flex; gap: 8px; width: 100%;">
-      <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center; padding: 12px;" @click="generate" :disabled="generatingImage || !source || (genMode === 'preset' ? !selectedPresetId : !selectedCompoundPresetId)">
+      <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center; padding: 12px;" @click="generate" :disabled="generatingImage || (batch && batchBusy) || !source || (genMode === 'preset' ? !selectedPresetId : !selectedCompoundPresetId)">
         <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
           <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
           {{ progressLabel }}
         </span>
-        <span v-else-if="folderQueue.length">{{ t('fi.folder_generate', { n: folderQueue.length }) }}</span>
+        <span v-else-if="batch">{{ t('fi.btn_apply_all') }}</span>
         <span v-else>{{ genCount <= 1 ? t('fi.btn_generate') : t('fi.btn_generate_n', { count: genCount }) }}</span>
       </button>
-      <input class="form-input" type="number" v-model.number="genCount" min="1" max="100" style="width: 70px; text-align: center;" :disabled="folderQueue.length > 0" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
+      <input v-if="!batch" class="form-input" type="number" v-model.number="genCount" min="1" max="100" style="width: 70px; text-align: center;" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
     </div>
 
     <div v-if="generatingImage" class="remix-progress">
@@ -593,16 +539,6 @@ function onKeydown(e) {
 .form-range {
   width: 100%;
   accent-color: var(--accent);
-}
-.fi-folder-badge {
-  display: inline-block;
-  margin-top: 12px;
-  padding: 4px 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: 12px;
 }
 .remix-progress {
   margin-top: 10px;

@@ -2,6 +2,25 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.4.0] — 2026-11-08
+
+### Added
+- **Format, frame and caption in Post-Process**: a new section crops to 1:1, 4:5, 3:4, 9:16, 16:9 or 3:2 (with a crop-position slider) or fits the whole photo with blurred, white or black margins; adds a white, black or Polaroid frame; writes a caption (top, bottom or centre, S/M/L, Cyrillic supported, readable on any background; on a Polaroid it goes on the bottom margin). Applied on save, including batch save; the preview shows the result. Width and height apply to the photo itself, the frame is added on top. No neural network involved — people stay untouched.
+- **Photo editor for AI agents** (`editor_describe`, `editor_apply`, MCP prompt `photo_editor`): the agent decides, the tools execute. `editor_describe` gives a local-vision description plus measurements (exposure, colour cast, contrast, saturation, auto-levels suggestion, face position) and the list of usable effects; `editor_apply` applies exact adjustment numbers, format/frame/caption (crop can keep the face in frame) and optionally one effect, saving the result to the app session "Фоторедактор" or to the source photo's session. Same LAN-only rule as the stylist; answers contain no images or paths.
+- **Batch Remix and Edit**: with several photos in Post-Process, Remix and Edit get "Apply to all photos" — one queue job per photo, one undoable batch step. "Describe photo" describes the open photo and its text applies to all.
+- **39 new effects**: new groups Weather (fog, autumn leaves, after rain), Prints (polka dots, stripes, floral, leopard, camouflage — applied to the garment under the mask), Hair (wet, glossy, volume, sleek straight, curls) and Background (studio, blurred, city street, beach); plus patent leather, cashmere, crochet, quilted puffer, organza, sun tan, freckles, window light, dappled light, dual neon, sunset silhouette, spotlight, Cinestill 800T, Lomo, Velvia, pop art, charcoal, flat vector, stained glass, mosaic, double exposure and HDR. Ten more materials (cotton, linen, tweed, corduroy, suede, chiffon, tulle, fleece, shearling, metallic).
+- **Material effects change only the masked garment** and keep its colour ("Keep colour", on by default).
+- **Release archives include `imagecaster-mcp`** (next to the app on Linux and Windows, inside `imagecaster.app/Contents/MacOS/` on macOS, so it finds the same `data` folder).
+
+### Changed
+- **Effect groups are a drop-down** instead of a long list.
+- **Viewer**: Remix and Edit buttons removed from the history viewer; My Images opens the same viewer with "To Post-Process"; the per-card buttons in My Images are gone — select and send to Post-Process instead.
+- **README**: "Why, and how it differs" section with a comparison table.
+
+### Known limits
+- New effects were checked on one generated photo and one seed; prints need the mask (without it the print may land on the wrong garment). Rain, snow, frost, plaid, blush, infrared, clay, tilt-shift, long exposure and motion blur were dropped because the model did not render them reliably.
+- The photo editor was tested on stubs only, not yet with a live MCP client; its measurement thresholds are rough guides.
+
 ## [1.3.0] — 2026-11-06
 
 ### Added

@@ -932,6 +932,7 @@ func RegisterTools(s *Server) {
 
 	registerEditTools(s)
 	registerStylistTools(s)
+	registerEditorTools(s)
 }
 
 func infoSeed(info json.RawMessage) int64 {

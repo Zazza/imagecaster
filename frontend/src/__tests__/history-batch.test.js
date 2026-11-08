@@ -326,7 +326,6 @@ describe('PostProcessPage queue from history', () => {
     vi.clearAllMocks()
     clearEventMocks()
     useRemixQueue().clearPostQueue()
-    useRemixQueue().clearQueue()
     ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
     GetSettings.mockImplementation(() => Promise.resolve({ file_browser_path: '/out' }))
     GetActiveSessionItem.mockImplementation(() => Promise.resolve(null))

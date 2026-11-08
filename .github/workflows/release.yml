@@ -60,18 +60,28 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: wails build -ldflags "-X main.version=${VERSION#v}"
 
+      - name: Build MCP server
+        shell: bash
+        run: |
+          case "${{ matrix.goos }}" in
+            windows) out=build/bin/imagecaster-mcp.exe ;;
+            darwin)  out=build/bin/imagecaster.app/Contents/MacOS/imagecaster-mcp ;;
+            *)       out=build/bin/imagecaster-mcp ;;
+          esac
+          go build -o "$out" ./cmd/imagecaster-mcp
+
       - name: Package (macOS)
         if: matrix.goos == 'darwin'
         run: tar czf imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C build/bin imagecaster.app
 
       - name: Package (Linux)
         if: matrix.goos == 'linux'
-        run: tar czf imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C build/bin imagecaster
+        run: tar czf imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C build/bin imagecaster imagecaster-mcp
 
       - name: Package (Windows)
         if: matrix.ext == '.zip'
         shell: pwsh
-        run: Compress-Archive -Path build/bin/imagecaster.exe -DestinationPath imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+        run: Compress-Archive -Path build/bin/imagecaster.exe, build/bin/imagecaster-mcp.exe -DestinationPath imagecaster-${{ matrix.goos }}-${{ matrix.goarch }}.zip
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2

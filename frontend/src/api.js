@@ -36,6 +36,7 @@ import {
   IsQueuePaused, ClearCompletedQueueJobs, ResumePausedQueueJobs,
   SaveWindowLayout, GetFooterHeight,
 } from './wailsjs/go/main/App.js'
+import * as AppBindings from './wailsjs/go/main/App.js'
 
 export const api = {
   listPresets: () => ListPresets(),
@@ -111,6 +112,7 @@ export const api = {
   deletePostRecipe: (id) => DeletePostRecipe(id),
   exportImage: (params, adjust) => ExportImage(adjust ? { ...params, adjust } : params),
   previewAdjust: (imageBase64, adjust, maxW) => PreviewAdjust(imageBase64, adjust, maxW),
+  previewPost: (imageBase64, adjust, finish, maxW) => (AppBindings.PreviewPost ? AppBindings.PreviewPost(imageBase64, adjust, finish, maxW) : window['go']['main']['App']['PreviewPost'](imageBase64, adjust, finish, maxW)),
   autoAdjust: (imageBase64) => AutoAdjust(imageBase64),
   compilePostStyle: (text) => CompilePostStyle(text),
   describeForStyle: (imageBase64) => DescribeForStyle(imageBase64),
@@ -214,6 +216,7 @@ export const api = {
   enqueueTxt2Img: (params) => EnqueueTxt2Img(params),
   enqueueFromImage: (params) => EnqueueFromImage(params),
   enqueueLook: (params) => EnqueueLook(params),
+  enqueueEdit: (params) => (AppBindings.EnqueueEdit ? AppBindings.EnqueueEdit(params) : window['go']['main']['App']['EnqueueEdit'](params)),
   enqueueCompound: (params) => EnqueueCompound(params),
   getQueue: () => GetQueue(),
   removeQueueJob: (id) => RemoveQueueJob(id),

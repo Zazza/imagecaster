@@ -36,6 +36,7 @@ const repairCompRef = ref(null)
 const effectSectionRef = ref(null)
 const adjustSectionRef = ref(null)
 const exportSectionRef = ref(null)
+const finishSectionRef = ref(null)
 const recipesSectionRef = ref(null)
 
 function sectionEl(name) {
@@ -45,6 +46,7 @@ function sectionEl(name) {
   if (name === 'repair') return repairSectionRef.value
   if (name === 'adjust') return adjustSectionRef.value
   if (name === 'export') return exportSectionRef.value
+  if (name === 'finish') return finishSectionRef.value
   if (name === 'recipes') return recipesSectionRef.value
   return effectSectionRef.value
 }
@@ -314,6 +316,29 @@ function adjustParams() {
   return { ...adjust }
 }
 
+const FINISH_RATIOS = ['1:1', '4:5', '3:4', '9:16', '16:9', '3:2']
+const finish = reactive({ ratio: '', fit: 'crop', offset: 0.5, frame: '', caption: '', caption_pos: 'bottom', caption_size: 'm' })
+const finishActive = computed(() => !!finish.ratio || !!finish.frame || !!finish.caption.trim())
+function finishParams() {
+  if (!finishActive.value) return null
+  const p = {}
+  if (finish.ratio) {
+    p.ratio = finish.ratio
+    p.fit = finish.fit
+    if (finish.fit === 'crop') p.offset = finish.offset
+  }
+  if (finish.frame) p.frame = finish.frame
+  if (finish.caption.trim()) {
+    p.caption = finish.caption
+    p.caption_pos = finish.caption_pos
+    p.caption_size = finish.caption_size
+  }
+  return p
+}
+function resetFinish() {
+  Object.assign(finish, { ratio: '', fit: 'crop', offset: 0.5, frame: '', caption: '', caption_pos: 'bottom', caption_size: 'm' })
+}
+
 function resetAdjustKey(key) {
   adjust[key] = sliderMeta[key].def
 }
@@ -355,11 +380,12 @@ let previewTimer = null
 let previewReqId = 0
 
 watch(adjust, schedulePreview)
+watch(finish, schedulePreview)
 watch(currentB64, schedulePreview)
 
 function schedulePreview() {
   clearTimeout(previewTimer)
-  if (adjustNeutral.value) {
+  if (adjustNeutral.value && !finishActive.value) {
     previewReqId++
     previewing.value = false
     previewB64.value = currentB64.value
@@ -373,7 +399,10 @@ async function runPreview() {
   const reqId = ++previewReqId
   previewing.value = true
   try {
-    const res = await api.previewAdjust(currentB64.value, adjustParams(), 900)
+    const fp = finishParams()
+    const res = fp
+      ? await api.previewPost(currentB64.value, adjustParams(), fp, 900)
+      : await api.previewAdjust(currentB64.value, adjustParams(), 900)
     if (reqId !== previewReqId) return
     if (res) previewB64.value = res
   } catch (e) {
@@ -719,6 +748,22 @@ function effectLabel(name) {
 }
 
 const selectedEffectId = ref(null)
+const EFFECT_GROUP_KEY = 'pp.effectGroup'
+const effectGroupKey = ref((() => { try { return localStorage.getItem(EFFECT_GROUP_KEY) || '' } catch { return '' } })())
+const shownEffectGroup = computed(() => effectGroups.value.find(g => g.labelKey === effectGroupKey.value) || effectGroups.value[0] || null)
+function pickEffectGroup(key) {
+  effectGroupKey.value = key
+  try { localStorage.setItem(EFFECT_GROUP_KEY, key) } catch {}
+}
+const selectedEffectName = computed(() => {
+  const id = selectedEffectId.value
+  if (!id) return t('post.effect_none')
+  for (const g of effectGroups.value) {
+    const p = g.presets.find(x => x.id === id)
+    if (p) return effectLabel(p.name)
+  }
+  return t('post.effect_none')
+})
 const effectStrength = ref(0.5)
 
 function selectEffect(p) {
@@ -726,6 +771,15 @@ function selectEffect(p) {
   const d = Number(p.denoising_strength)
   if (Number.isFinite(d) && d > 0) effectStrength.value = Math.min(0.9, Math.max(0.35, d))
 }
+const effectKeepColor = ref(true)
+const effectIsMaterial = computed(() => {
+  const id = selectedEffectId.value
+  return !!id && presets.value.some(p => p.id === id && p.preset_type === 'post_material')
+})
+const effectIsPattern = computed(() => {
+  const id = selectedEffectId.value
+  return !!id && presets.value.some(p => p.id === id && p.preset_type === 'post_pattern')
+})
 const effectSeedInput = ref('')
 const applyingEffect = ref(false)
 const effectJobIds = ref(new Set())
@@ -747,6 +801,7 @@ function effectJobParams(b64, seed) {
     overrides: null,
     preserve_identity: true,
     seed: seed ?? null,
+    keep_color: effectIsMaterial.value && effectKeepColor.value,
   }
 }
 
@@ -871,6 +926,22 @@ async function onEditApplyLook({ text, strength }) {
   } finally {
     lookBusy.value = false
   }
+}
+
+async function onRemixApplyBatch(params) {
+  if (!batchActive.value || lookBusy.value || applyingEffect.value || batchBusy.value || recipeRunning.value) return
+  await runBatchStep(async (b64) => {
+    const job = await trackBatchJob(api.enqueueFromImage({ ...params, image_base64: b64 }))
+    return job ? () => job.wait : ''
+  })
+}
+
+async function onEditApplyBatch(params) {
+  if (!batchActive.value || lookBusy.value || applyingEffect.value || batchBusy.value || recipeRunning.value) return
+  await runBatchStep(async (b64) => {
+    const job = await trackBatchJob(api.enqueueEdit({ ...params, image_base64: b64 }))
+    return job ? () => job.wait : ''
+  })
 }
 
 async function onEditSaveRecipe(payload) {
@@ -1471,6 +1542,7 @@ function exportParamsFor(name, imageBase64, outputDir) {
     quality: quality.value,
     interpolation: interpolation.value,
     filename: name,
+    ...(finishActive.value ? { finish: finishParams() } : {}),
     ...(outputDir ? { output_dir: outputDir } : {}),
   }
 }
@@ -1739,7 +1811,7 @@ onUnmounted(() => {
                 draggable="false"
                 @load="onAfterImgLoad"
               />
-              <div v-if="!maskMode" class="split-before-mask" :style="{ clipPath: `inset(0 ${100 - splitPos}% 0 0)` }">
+              <div v-if="!maskMode && !finishActive" class="split-before-mask" :style="{ clipPath: `inset(0 ${100 - splitPos}% 0 0)` }">
                 <img
                   class="split-img split-before"
                   :src="b64Url(sourceB64)"
@@ -1754,7 +1826,7 @@ onUnmounted(() => {
                 class="brush-cursor"
                 :style="{ left: brushCursor.x + 'px', top: brushCursor.y + 'px', width: brushDiameter + 'px', height: brushDiameter + 'px' }"
               ></div>
-              <div v-if="!maskMode" class="split-divider" :style="{ left: splitPos + '%' }">
+              <div v-if="!maskMode && !finishActive" class="split-divider" :style="{ left: splitPos + '%' }">
                 <div
                   class="split-handle"
                   @pointerdown="onSplitDown"
@@ -1763,8 +1835,8 @@ onUnmounted(() => {
                   @pointercancel="onSplitUp"
                 >&#8596;</div>
               </div>
-              <span v-if="!maskMode" class="split-label split-label-before">{{ t('post.before') }}</span>
-              <span v-if="!maskMode" class="split-label split-label-after">{{ t('post.after') }}</span>
+              <span v-if="!maskMode && !finishActive" class="split-label split-label-before">{{ t('post.before') }}</span>
+              <span v-if="!maskMode && !finishActive" class="split-label split-label-after">{{ t('post.after') }}</span>
               <span v-if="previewing" class="split-processing"><span class="spinner"></span> {{ t('post.processing') }}</span>
               <div v-if="genBusy" class="gen-overlay" data-testid="gen-overlay">
                 <img v-if="livePreview" class="gen-overlay-img" :src="livePreview" alt="" draggable="false" />
@@ -1902,7 +1974,7 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'edit' }">
             <div class="card-body">
-              <EditSection :source="currentB64" :batch="batchActive" :look-busy="lookBusy || batchBusy" :look-result-prompt="lookResultPrompt" @result="onToolResult" @busy="v => sectionBusy.edit = v" @apply-look="onEditApplyLook" @apply-recipe="onEditApplyRecipe" @save-recipe="onEditSaveRecipe" />
+              <EditSection :source="currentB64" :batch="batchActive" :look-busy="lookBusy || batchBusy" :look-result-prompt="lookResultPrompt" @result="onToolResult" @busy="v => sectionBusy.edit = v" @apply-look="onEditApplyLook" @apply-edit="onEditApplyBatch" @apply-recipe="onEditApplyRecipe" @save-recipe="onEditSaveRecipe" />
             </div>
           </div>
         </div>
@@ -1917,8 +1989,7 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
-              <div v-if="batchActive" class="form-hint">{{ t('post.batch_unavailable') }}</div>
-              <RemixSection v-else :source="currentB64" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
+              <RemixSection :source="currentB64" :batch="batchActive" :batch-busy="batchBusy || batchExporting || recipeRunning || lookBusy || applyingEffect" @apply-batch="onRemixApplyBatch" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
             </div>
           </div>
         </div>
@@ -1997,11 +2068,16 @@ onUnmounted(() => {
                 <span class="fx-name">{{ t('post.effect_none') }}</span>
               </button>
             </div>
-            <div v-for="g in effectGroups" :key="g.labelKey" class="fx-group">
-              <div class="fx-group-label">{{ t(g.labelKey) }}</div>
+            <div v-if="effectGroups.length" class="form-group fx-group-pick">
+              <select class="form-select" :value="shownEffectGroup?.labelKey" @change="pickEffectGroup($event.target.value)">
+                <option v-for="g in effectGroups" :key="g.labelKey" :value="g.labelKey">{{ t(g.labelKey) }} ({{ g.presets.length }})</option>
+              </select>
+              <div class="fx-selected">{{ t('post.effect_selected', { name: selectedEffectName }) }}</div>
+            </div>
+            <div v-if="shownEffectGroup" class="fx-group">
               <div class="fx-grid">
                 <button
-                  v-for="p in g.presets"
+                  v-for="p in shownEffectGroup.presets"
                   :key="p.id"
                   class="fx-card"
                   :class="{ active: selectedEffectId === p.id }"
@@ -2014,8 +2090,15 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <div v-if="effectIsMaterial" class="form-group form-inline">
+              <label class="form-label" :title="t('post.effect_keep_color_hint')">
+                <input type="checkbox" v-model="effectKeepColor" /> {{ t('post.effect_keep_color') }}
+              </label>
+            </div>
+
             <div v-if="!batchActive" class="fx-mask">
               <button class="btn btn-sm" :class="effectMaskOn ? 'btn-primary' : 'btn-secondary'" :disabled="!currentB64" @click="effectMaskOn = !effectMaskOn">{{ t('post.effect_mask_btn') }}</button>
+              <div v-if="effectIsPattern && !(effectMaskOn && effectHasMask)" class="form-hint">{{ t('post.effect_pattern_mask_hint') }}</div>
               <template v-if="effectMaskOn">
                 <div class="form-hint">{{ t('post.effect_mask_hint') }}</div>
                 <label class="form-label">{{ t('fi.label_brush_size', { value: effectBrush }) }}</label>
@@ -2114,6 +2197,74 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
+            </div>
+          </div>
+        </div>
+
+        <div ref="finishSectionRef" class="card" :class="{ collapsed: openSection !== 'finish' }">
+          <div class="card-header card-toggle" @click="setOpenSection('finish')">
+            <span class="card-title">
+              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'finish' }" />
+              {{ t('post.finish_title') }}
+            </span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'finish' }">
+            <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">{{ t('post.finish_ratio') }}</label>
+              <select class="form-select" v-model="finish.ratio" data-testid="finish-ratio">
+                <option value="">{{ t('post.finish_ratio_none') }}</option>
+                <option v-for="r in FINISH_RATIOS" :key="r" :value="r">{{ t('post.finish_ratio_' + r.replace(':', '_')) }}</option>
+              </select>
+            </div>
+            <template v-if="finish.ratio">
+              <div class="form-group">
+                <label class="form-label">{{ t('post.finish_fit') }}</label>
+                <select class="form-select" v-model="finish.fit" data-testid="finish-fit">
+                  <option value="crop">{{ t('post.finish_fit_crop') }}</option>
+                  <option value="blur">{{ t('post.finish_fit_blur') }}</option>
+                  <option value="white">{{ t('post.finish_fit_white') }}</option>
+                  <option value="black">{{ t('post.finish_fit_black') }}</option>
+                </select>
+              </div>
+              <div v-if="finish.fit === 'crop'" class="form-group">
+                <label class="form-label">{{ t('post.finish_offset') }}</label>
+                <input type="range" class="form-range" min="0" max="1" step="0.01" v-model.number="finish.offset" data-testid="finish-offset" />
+              </div>
+            </template>
+            <div class="form-group">
+              <label class="form-label">{{ t('post.finish_frame') }}</label>
+              <select class="form-select" v-model="finish.frame" data-testid="finish-frame">
+                <option value="">{{ t('post.finish_frame_none') }}</option>
+                <option value="white">{{ t('post.finish_frame_white') }}</option>
+                <option value="black">{{ t('post.finish_frame_black') }}</option>
+                <option value="polaroid">{{ t('post.finish_frame_polaroid') }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ t('post.finish_caption') }}</label>
+              <textarea class="form-control" rows="2" maxlength="200" v-model="finish.caption" data-testid="finish-caption" :placeholder="t('post.finish_caption_ph')"></textarea>
+            </div>
+            <div v-if="finish.caption.trim()" class="form-row">
+              <div v-if="finish.frame !== 'polaroid'" class="form-group form-group-half">
+                <label class="form-label">{{ t('post.finish_caption_pos') }}</label>
+                <select class="form-select" v-model="finish.caption_pos" data-testid="finish-caption-pos">
+                  <option value="bottom">{{ t('post.finish_pos_bottom') }}</option>
+                  <option value="top">{{ t('post.finish_pos_top') }}</option>
+                  <option value="center">{{ t('post.finish_pos_center') }}</option>
+                </select>
+              </div>
+              <div class="form-group form-group-half">
+                <label class="form-label">{{ t('post.finish_caption_size') }}</label>
+                <select class="form-select" v-model="finish.caption_size" data-testid="finish-caption-size">
+                  <option value="s">S</option>
+                  <option value="m">M</option>
+                  <option value="l">L</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-hint">{{ t('post.finish_hint') }}</div>
+            <button v-if="finishActive" class="btn btn-sm btn-secondary" @click="resetFinish">{{ t('post.finish_reset') }}</button>
             </div>
           </div>
         </div>
@@ -2814,14 +2965,16 @@ onUnmounted(() => {
   margin-bottom: 12px;
 }
 
-.fx-group-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-dim);
-  margin-bottom: 6px;
+.fx-group-pick {
+  margin-bottom: 8px;
 }
+
+.fx-selected {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
 
 .fx-card {
   display: flex;

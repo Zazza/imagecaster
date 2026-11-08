@@ -100,7 +100,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   clearEventMocks()
   useRemixQueue().clearPostQueue()
-  useRemixQueue().clearQueue()
   ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
   const files = { '/photos/a.png': IMG_A, '/photos/b.png': IMG_B }
   ReadFileAsBase64.mockImplementation(p => Promise.resolve(files[p] || ''))
