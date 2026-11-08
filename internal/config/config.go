@@ -149,9 +149,10 @@ const DefaultAnalyzeDescribePrompt = `Опиши это изображение �
 Расскажи, что на нём происходит: главные объекты и их детали, обстановка, свет и цвета, атмосфера, заметные мелочи.
 Пиши живым текстом для человека, а не списком тегов. Не выдумывай того, чего нет на изображении.`
 
-const DefaultEditGarmentPrompt = `Look at this garment photo. Describe ONLY the clothing item — ignore any person, background, or props entirely.
-Cover ALL of these aspects of the garment:
-- Type: skirt, dress, jacket, pants, blouse, coat, etc.
+const DefaultEditGarmentPrompt = `Look at this photo. Describe ONLY the clothing worn or shown — ignore any person, background, or props entirely.
+Describe EVERY visible garment separately: top, bottom, dress, outerwear, and shoes if visible. A blouse with a skirt is two garments — describe both.
+For each garment cover:
+- Type: skirt, dress, jacket, pants, blouse, coat, shoes, etc.
 - Color: exact shade (e.g. "deep burgundy", "light beige", "navy blue")
 - Material: satin, cotton, denim, leather, knit, silk, chiffon, velvet, etc.
 - Length: mini, knee-length, midi, maxi, cropped, full-length
@@ -161,10 +162,11 @@ Cover ALL of these aspects of the garment:
 - Details: buttons, zippers, pleats, ruffles, embroidery, patterns, pockets, belt, lace, sequins, trim
 - Style: casual, formal, evening, athletic, vintage
 
-Output format: ONE flowing English description, no lists, no commentary.
-Example: "a knee-length pleated satin skirt in deep burgundy with a high waistband, side zip closure and subtle sheen, elegant evening style"
+Output format: ONE flowing English description that names each garment in turn; no lists, no commentary.
+Example with two garments: "a cream silk blouse with a soft bow at the neck and long puffed sleeves, tucked into a knee-length pleated satin skirt in deep burgundy with a high waistband, elegant evening style"
+Example with one garment: "a forest green chunky knit sweater, cropped and oversized, with a ribbed crew neck and dropped shoulders, cozy casual style"
 
-` + "DO NOT describe the person, their hair, face, pose, or the background. ONLY the garment."
+` + "DO NOT describe the person, their hair, face, pose, or the background. Do not describe accessories: bags, jewelry, glasses, watches, phones. ONLY the clothing."
 
 func Load() *Config {
 	exe, _ := os.Executable()
