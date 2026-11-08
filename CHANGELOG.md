@@ -2,6 +2,11 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.4.1] — 2026-11-08
+
+### Fixed
+- **Try-on described only one garment of an outfit.** "Describe item" on a photo with a blouse and a skirt (or a jacket, t-shirt and trousers) described just one of them, so the edit changed only that piece. Now every visible garment, shoes included, is described; the person, the background and accessories (bags, jewelry, glasses, watches, phones) are still left out. If you saved your own garment prompt in Settings, it is used as before.
+
 ## [1.4.0] — 2026-11-08
 
 ### Added
