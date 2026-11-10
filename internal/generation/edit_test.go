@@ -50,7 +50,7 @@ func TestBuildEditPrompt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, buildEditPrompt(tt.instruction, tt.styleTags, tt.loras))
+			assert.Equal(t, tt.want, buildEditPrompt(editLoRATag, tt.instruction, tt.styleTags, tt.loras))
 		})
 	}
 }
@@ -129,7 +129,7 @@ func TestLoadEditStyle(t *testing.T) {
 		t.Parallel()
 		db := openTestDB(t)
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		st, err := svc.loadEditStyle(0)
+		st, err := svc.loadEditStyle(0, "moss")
 		require.NoError(t, err)
 		assert.Nil(t, st)
 	})
@@ -138,7 +138,7 @@ func TestLoadEditStyle(t *testing.T) {
 		t.Parallel()
 		db := openTestDB(t)
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		_, err := svc.loadEditStyle(999)
+		_, err := svc.loadEditStyle(999, "moss")
 		assert.ErrorContains(t, err, "style preset not found")
 	})
 
@@ -147,7 +147,7 @@ func TestLoadEditStyle(t *testing.T) {
 		db := openTestDB(t)
 		p := makeTestPreset(t, db, &preset.Preset{Name: "z-style", ModelName: "z-image-turbo", Prompt: "photo"})
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		_, err := svc.loadEditStyle(p.ID)
+		_, err := svc.loadEditStyle(p.ID, "moss")
 		assert.ErrorContains(t, err, "must use a moss model")
 	})
 
@@ -163,7 +163,7 @@ func TestLoadEditStyle(t *testing.T) {
 			Loras:     `[{"name": "Detail_Boost_Moss", "weight": 0.8}, {"name": "Moss_DMD_8step", "weight": 1.0}]`,
 		})
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		st, err := svc.loadEditStyle(p.ID)
+		st, err := svc.loadEditStyle(p.ID, "moss")
 		require.NoError(t, err)
 		require.NotNil(t, st)
 		assert.Equal(t, p.ID, st.presetID)

@@ -36,6 +36,8 @@ const (
 	mossEditMaxLoras          = 8
 	mossEditMaxLoraWeight     = 2.0
 	mossEditMaxLoraNameLen    = 200
+	kleinEditSteps            = 8
+	kleinEditCfgScale         = 1.0
 
 	editLoRATag      = "<lora:Moss_Edit_LoRA:1.0>"
 	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo."
@@ -71,6 +73,29 @@ type EditImageParams struct {
 	OutputMode           string             `json:"output_mode,omitempty"`
 	ResolutionID         *int64             `json:"resolution_id,omitempty"`
 	Seed                 *int64             `json:"seed,omitempty"`
+	Model                string             `json:"model,omitempty"`
+}
+
+type editModelProfile struct {
+	model     string
+	family    string
+	loraTag   string
+	refOption string
+	refOn     any
+	refOff    any
+	steps     int
+	cfg       float64
+	klein     bool
+}
+
+func resolveEditModel(model string) (editModelProfile, error) {
+	switch model {
+	case "", "moss":
+		return editModelProfile{model: mossEditModel, family: "moss", loraTag: editLoRATag, refOption: mossReferenceOption, refOn: mossReferenceOn, refOff: mossReferenceOff, steps: mossEditSteps, cfg: mossEditCfgScale}, nil
+	case "klein":
+		return editModelProfile{model: kleinLookModel, family: "klein", refOption: kleinReferenceOption, refOn: true, refOff: false, steps: kleinEditSteps, cfg: kleinEditCfgScale, klein: true}, nil
+	}
+	return editModelProfile{}, fmt.Errorf("model must be moss or klein, got %q", truncateRunes(model, 40))
 }
 
 type editStyle struct {
@@ -79,9 +104,9 @@ type editStyle struct {
 	loras    []preset.LoRAEntry
 }
 
-func buildEditPrompt(instruction string, styleTags string, loras []preset.LoRAEntry) string {
+func buildEditPrompt(loraTag, instruction string, styleTags string, loras []preset.LoRAEntry) string {
 	var b strings.Builder
-	b.WriteString(editLoRATag)
+	b.WriteString(loraTag)
 	for _, l := range loras {
 		b.WriteString(fmt.Sprintf(" <lora:%s:%g>", l.Name, l.Weight))
 	}
@@ -135,7 +160,7 @@ func sanitizeStyleTags(tags string) string {
 	return tags
 }
 
-func (s *Service) loadEditStyle(presetID int64) (*editStyle, error) {
+func (s *Service) loadEditStyle(presetID int64, family string) (*editStyle, error) {
 	if presetID <= 0 {
 		return nil, nil
 	}
@@ -143,8 +168,8 @@ func (s *Service) loadEditStyle(presetID int64) (*editStyle, error) {
 	if err != nil {
 		return nil, fmt.Errorf("style preset not found: %w", err)
 	}
-	if !config.ModelMatchesCSV(p.ModelName, "moss") {
-		return nil, fmt.Errorf("style preset %q must use a moss model, got %q", p.Name, p.ModelName)
+	if !config.ModelMatchesCSV(p.ModelName, family) {
+		return nil, fmt.Errorf("style preset %q must use a %s model, got %q", p.Name, family, p.ModelName)
 	}
 	st := &editStyle{
 		presetID: p.ID,
@@ -221,6 +246,10 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if params.ImageBase64 == "" {
 		return nil, fmt.Errorf("image is required")
 	}
+	prof, err := resolveEditModel(params.Model)
+	if err != nil {
+		return nil, err
+	}
 	if len(params.ImageBase64) > MaxImageBase64Len {
 		return nil, config.ImageTooLarge("image")
 	}
@@ -246,7 +275,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if params.OutputMode == "quality" && (params.ResolutionID == nil || *params.ResolutionID <= 0) {
 		return nil, fmt.Errorf("quality output mode requires resolution")
 	}
-	style, err := s.loadEditStyle(params.StylePresetID)
+	style, err := s.loadEditStyle(params.StylePresetID, prof.family)
 	if err != nil {
 		return nil, err
 	}
@@ -271,26 +300,26 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	s.StartSDPolling()
 	defer s.StopSDPolling()
 
-	s.guard.EnsureHeadroom(mossEditModel, "edit")
+	s.guard.EnsureHeadroom(prof.model, "edit")
 
-	if err := s.setModel(mossEditModel, "edit"); err != nil {
-		return nil, fmt.Errorf("moss_image_sft_bf16 not available on SD backend: %w", err)
+	if err := s.setModel(prof.model, "edit"); err != nil {
+		return nil, fmt.Errorf("%s not available on SD backend: %w", prof.model, err)
 	}
 	if err := s.sd.SetVAE("Automatic"); err != nil {
 		s.log.Warn("edit: reset vae: %s", err)
 	}
-	if err := s.sd.SetOption(mossReferenceOption, mossReferenceOn); err != nil {
-		if rerr := s.sd.SetOption(mossReferenceOption, mossReferenceOff); rerr != nil {
-			s.log.Warn("edit: disable moss reference after failed enable: %s", rerr)
+	if err := s.sd.SetOption(prof.refOption, prof.refOn); err != nil {
+		if rerr := s.sd.SetOption(prof.refOption, prof.refOff); rerr != nil {
+			s.log.Warn("edit: disable %s reference after failed enable: %s", prof.family, rerr)
 		}
 		return nil, fmt.Errorf("enable edit reference: %w", err)
 	}
 
 	var result *GenerateImageResult
 	defer func() {
-		derr := s.sd.SetOption(mossReferenceOption, mossReferenceOff)
+		derr := s.sd.SetOption(prof.refOption, prof.refOff)
 		if derr != nil {
-			s.log.Warn("edit: disable moss reference: %s", derr)
+			s.log.Warn("edit: disable %s reference: %s", prof.family, derr)
 		}
 		if result != nil {
 			result.EditReferenceResetFailed = derr != nil
@@ -302,12 +331,17 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		return nil, errors.New("decode image size: invalid image")
 	}
 	width, height := alignEditSize(srcW, srcH)
+	workW, workH := width, height
+	if prof.klein {
+		width, height = kleinImg2ImgSize(srcW, srcH)
+		workW, workH = kleinWorkSize(srcW, srcH)
+	}
 
 	styleTags := ""
 	if style != nil && params.StyleTags {
 		styleTags = style.tags
 	}
-	prompt := buildEditPrompt(instruction, styleTags, loras)
+	prompt := buildEditPrompt(prof.loraTag, instruction, styleTags, loras)
 	batchSize := 1
 	batchCount := 1
 	denoise := mossEditDenoise
@@ -318,10 +352,10 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		NegativePrompt:    s.kids.ApplyNegative(""),
 		SamplerName:       mossEditSampler,
 		Scheduler:         mossEditScheduler,
-		Steps:             mossEditSteps,
-		CfgScale:          mossEditCfgScale,
-		Width:             width,
-		Height:            height,
+		Steps:             prof.steps,
+		CfgScale:          prof.cfg,
+		Width:             workW,
+		Height:            workH,
 		Seed:              params.Seed,
 		DenoisingStrength: &denoise,
 		BatchSize:         &batchSize,
@@ -344,12 +378,15 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 
 	finalImage := resp.Images[0]
+	if prof.klein {
+		finalImage = s.kleinUpscaleTo(finalImage, workW, width, height, "edit klein")
+	}
 	finalInfo := resp.Info
 	upscaleSkipped := false
 	redenoiseSkipped := false
 	if params.OutputMode == "quality" {
-		if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
-			s.log.Warn("edit: disable moss reference before quality failed, skipping quality: %s", err)
+		if err := s.sd.SetOption(prof.refOption, prof.refOff); err != nil {
+			s.log.Warn("edit: disable %s reference before quality failed, skipping quality: %s", prof.family, err)
 			upscaleSkipped = true
 			redenoiseSkipped = true
 		} else {
@@ -358,8 +395,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 				NegativePrompt: s.kids.ApplyNegative(""),
 				SamplerName:    mossEditSampler,
 				Scheduler:      mossEditScheduler,
-				Steps:          mossEditSteps,
-				CfgScale:       mossEditCfgScale,
+				Steps:          prof.steps,
+				CfgScale:       prof.cfg,
 				Width:          width,
 				Height:         height,
 				Seed:           params.Seed,
@@ -379,7 +416,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 
 	genMeta := &preset.GenerationMeta{
 		Label: "Edit: " + truncateRunes(instruction, mossEditLabelMax),
-		Model: mossEditModel,
+		Model: prof.model,
 	}
 	if style != nil {
 		pid := style.presetID
@@ -394,7 +431,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		}
 		genMeta.Chain = buildQualityChain(preset.StepMeta{
 			Op:      "base",
-			Model:   mossEditModel,
+			Model:   prof.model,
 			Denoise: &denoise,
 			Loras:   lorasJSON,
 		}, upscaleSkipped, redenoiseSkipped)

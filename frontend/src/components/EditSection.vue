@@ -1,6 +1,6 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
 import { t } from '../i18n/index.js'
@@ -32,7 +32,9 @@ const describingGarment = ref(false)
 const isRefDragOver = ref(false)
 const instruction = ref('')
 const seedInput = ref('')
-const loraRows = ref([])
+const editModel = ref('moss')
+const loraLists = reactive({ moss: [], klein: [] })
+const loraRows = computed(() => loraLists[editModel.value])
 const serverLoras = ref([])
 const lorasLoaded = ref(false)
 const loraLoadError = ref(false)
@@ -53,10 +55,14 @@ const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = use
 
 const stylePresets = computed(() => {
   const list = Array.isArray(allPresets.value) ? allPresets.value : []
-  return list.filter((p) => (p?.model_name || '').toLowerCase().includes('moss'))
+  return list.filter((p) => (p?.model_name || '').toLowerCase().includes(editModel.value))
 })
 
 const selectedStyle = computed(() => stylePresets.value.find((p) => p.id === stylePresetId.value) || null)
+
+watch(editModel, () => {
+  if (stylePresetId.value && !selectedStyle.value) stylePresetId.value = 0
+})
 
 const selectedStyleLoras = computed(() => parseLoras(selectedStyle.value?.loras || ''))
 
@@ -88,8 +94,8 @@ function onLorasToggle(e) {
   if (e.target.open) loadLoras()
 }
 
-function editLorasPayload() {
-  return loraRows.value
+function editLorasPayload(rows = loraRows.value) {
+  return rows
     .filter((r) => r && typeof r.name === 'string' && r.name.trim())
     .map((r) => ({ name: r.name.trim(), weight: sanitizeWeight(r.weight) }))
 }
@@ -197,6 +203,7 @@ function editParams(instr) {
     instruction: instr,
     seed: parseSeedInput(seedInput.value),
   }
+  if (editModel.value === 'klein') params.model = 'klein'
   if (referenceImage.value) params.reference_image_base64 = referenceImage.value
   if (stylePresetId.value) {
     params.style_preset_id = stylePresetId.value
@@ -265,7 +272,9 @@ onMounted(() => {
   })
   api.getSettings().then(async s => {
     if (s?.edit_instruction) instruction.value = s.edit_instruction
-    if (s?.edit_loras) loraRows.value = parseLoras(s.edit_loras)
+    if (s?.edit_model === 'klein') editModel.value = 'klein'
+    if (s?.edit_loras) loraLists.moss = parseLoras(s.edit_loras)
+    if (s?.edit_loras_klein) loraLists.klein = parseLoras(s.edit_loras_klein)
     if (s?.edit_quality_mode) qualityMode.value = s.edit_quality_mode === 'true'
     if (s?.edit_style_tags) styleTags.value = s.edit_style_tags === 'true'
     if (s?.edit_look_mode) lookWay.value = s.edit_look_mode === 'free' ? 'free' : 'effects'
@@ -288,7 +297,9 @@ onUnmounted(() => {
   if (!settingsRestored) return
   api.updateSettings({
     edit_instruction: instruction.value,
-    edit_loras: JSON.stringify(editLorasPayload()),
+    edit_model: editModel.value,
+    edit_loras: JSON.stringify(editLorasPayload(loraLists.moss)),
+    edit_loras_klein: JSON.stringify(editLorasPayload(loraLists.klein)),
     edit_quality_mode: qualityMode.value ? 'true' : 'false',
     edit_resolution_id: selectedResolutionId.value ? String(selectedResolutionId.value) : '',
     edit_style_preset_id: stylePresetId.value ? String(stylePresetId.value) : '',
@@ -384,6 +395,15 @@ onUnmounted(() => {
     </div>
 
     <div class="form-group">
+      <label class="form-label" for="edit-model-select">{{ t('edit.model_label') }}</label>
+      <select id="edit-model-select" data-testid="edit-model-select" class="form-select" v-model="editModel">
+        <option value="moss">Moss</option>
+        <option value="klein">Klein</option>
+      </select>
+      <div v-if="editModel === 'klein'" class="field-hint">{{ t('edit.model_klein_hint') }}</div>
+    </div>
+
+    <div class="form-group">
       <label class="form-label" for="edit-style-select">{{ t('edit.style_label') }}</label>
       <select id="edit-style-select" data-testid="edit-style-select" class="form-select" v-model="stylePresetId">
         <option :value="0">{{ t('edit.style_none') }}</option>
@@ -414,7 +434,7 @@ onUnmounted(() => {
           <input data-testid="edit-lora-weight" class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :aria-label="t('edit.loras_weight')" />
           <button data-testid="edit-lora-remove" type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLora(idx)" :aria-label="t('edit.loras_remove')">&times;</button>
         </div>
-        <div class="lora-hint">{{ t('edit.loras_hint') }}</div>
+        <div class="lora-hint">{{ editModel === 'klein' ? t('edit.loras_hint_klein') : t('edit.loras_hint') }}</div>
       </div>
     </details>
     <datalist id="edit-lora-names">
