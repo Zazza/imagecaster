@@ -13,7 +13,7 @@ import UnifiedPresetsPage from '../components/UnifiedPresetsPage.vue'
 import PresetsPage from '../components/PresetsPage.vue'
 import PresetForm from '../components/PresetForm.vue'
 import {
-  ListPresets, ListPresetTypes, GetPresetsInstallStatus, ListCompoundPresets,
+  ListPresets, ListPresetTypes, GetPresetsInstallStatus, ListCompoundPresets, PreparePresetsExport, DeletePreset,
   GetSDModels, GetSDSamplers, GetSDSchedulers, GetSDUpscalers, GetSDVAEs, GetSDLoRAs,
 } from '../wailsjs/go/main/App.js'
 import { t, en, ru } from '../i18n/index.js'
@@ -167,6 +167,43 @@ describe('Effects tab: select all works on the current tab only', () => {
   }
 })
 
+describe('Effects tab: export and delete act on the current tab only', () => {
+  const cases = [
+    { mode: 'styles', ids: STYLES.map(p => p.id) },
+    { mode: 'effects', ids: EFFECTS.map(p => p.id) },
+  ]
+
+  async function selectAll(wrapper) {
+    await buttonByText(wrapper, t('presets.btn_select')).trigger('click')
+    await settle()
+    await buttonByText(wrapper, t('presets.btn_select_all')).trigger('click')
+    await settle()
+  }
+
+  for (const c of cases) {
+    it(`T3: export on ${c.mode} sends only its presets`, async () => {
+      const wrapper = await mountList(c.mode)
+      await selectAll(wrapper)
+      await buttonByText(wrapper, t('presets.btn_export', { count: c.ids.length })).trigger('click')
+      await settle()
+      expect(PreparePresetsExport).toHaveBeenCalledTimes(1)
+      expect([...PreparePresetsExport.mock.calls[0][0]].sort()).toEqual([...c.ids].sort())
+    })
+
+    it(`T3: delete selected on ${c.mode} deletes only its presets`, async () => {
+      const wrapper = await mountList(c.mode)
+      await selectAll(wrapper)
+      await buttonByText(wrapper, t('presets.btn_delete_selected', { count: c.ids.length })).trigger('click')
+      await settle()
+      const confirm = wrapper.find('.modal').findAll('button').find(b => b.text() === t('presets.btn_delete'))
+      expect(confirm).toBeTruthy()
+      await confirm.trigger('click')
+      await settle()
+      expect(DeletePreset.mock.calls.map(a => a[0]).sort()).toEqual([...c.ids].sort())
+    })
+  }
+})
+
 describe('Effects tab: new preset defaults', () => {
   async function openNew(mode) {
     const wrapper = await mountList(mode)
@@ -201,8 +238,8 @@ describe('Effects tab: empty state', () => {
     const wrapper = await mountList('effects')
     expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.findAll('.preset-card').length).toBe(0)
-    expect(wrapper.find('.empty-state').text()).toContain(t('presets.no_effects'))
-    expect(wrapper.find('.page-title').text()).toBe(t('presets.title_effects'))
+    expect(wrapper.find('.empty-state').text()).toContain('Эффектов пока нет')
+    expect(wrapper.find('.page-title').text()).toBe('Эффекты')
   })
 
   it('T5: only effects exist: styles tab shows empty state and no cards', async () => {
@@ -210,8 +247,8 @@ describe('Effects tab: empty state', () => {
     const wrapper = await mountList('styles')
     expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.findAll('.preset-card').length).toBe(0)
-    expect(wrapper.find('.empty-state').text()).toContain(t('presets.no_presets'))
-    expect(wrapper.find('.page-title').text()).toBe(t('presets.title'))
+    expect(wrapper.find('.empty-state').text()).toContain('Стилей пока нет')
+    expect(wrapper.find('.page-title').text()).toBe('Стили')
   })
 })
 
