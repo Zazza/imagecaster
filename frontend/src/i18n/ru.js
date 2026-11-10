@@ -659,6 +659,7 @@ export const ru = {
   'browser.selected_count': 'Выбрано: {n}',
   'browser.send_to_postprocess_multi': '→ Постобработка ({n})',
 
+  'presets.title_effects': 'Эффекты',
   'presets.title': 'Стили',
   'presets.btn_deselect_all': 'Снять выделение',
   'presets.btn_select_all': 'Выбрать все',
@@ -668,6 +669,7 @@ export const ru = {
   'presets.btn_import': 'Импорт',
   'presets.btn_select': 'Выбор',
   'presets.btn_new': '+ Новый стиль',
+  'presets.no_effects': 'Эффектов пока нет. Создайте первый!',
   'presets.no_presets': 'Стилей пока нет. Создайте первый!',
   'presets.search_presets': 'Поиск стилей...',
   'presets.effect_prefix': 'Эффекты',
@@ -684,6 +686,7 @@ export const ru = {
   'presets.delete_cannot_undo': 'Это действие нельзя отменить.',
 
   'unified.tab_presets': 'Стили',
+  'unified.tab_effects': 'Эффекты',
   'unified.tab_pipelines': 'Рабочие процессы',
 
   'compound.title': 'Рабочие процессы',

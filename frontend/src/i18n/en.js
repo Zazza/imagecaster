@@ -677,6 +677,7 @@ export const en = {
   'browser.send_to_postprocess_multi': '→ Post-Process ({n})',
 
   // PresetsPage.vue
+  'presets.title_effects': 'Effects',
   'presets.title': 'Styles',
   'presets.btn_deselect_all': 'Deselect All',
   'presets.btn_select_all': 'Select All',
@@ -686,6 +687,7 @@ export const en = {
   'presets.btn_import': 'Import',
   'presets.btn_select': 'Select',
   'presets.btn_new': '+ New Style',
+  'presets.no_effects': 'No effects yet. Create your first one!',
   'presets.no_presets': 'No styles yet. Create your first one!',
   'presets.search_presets': 'Search styles...',
   'presets.effect_prefix': 'Effects',
@@ -703,6 +705,7 @@ export const en = {
 
   // UnifiedPresetsPage.vue
   'unified.tab_presets': 'Styles',
+  'unified.tab_effects': 'Effects',
   'unified.tab_pipelines': 'Workflows',
 
   // CompoundPresetsPage.vue

@@ -11,9 +11,11 @@ const activeTab = ref('presets')
   <div class="page-enter">
     <div class="tabs">
       <button class="tab" :class="{ active: activeTab === 'presets' }" @click="activeTab = 'presets'">{{ t('unified.tab_presets') }}</button>
+      <button class="tab" :class="{ active: activeTab === 'effects' }" @click="activeTab = 'effects'">{{ t('unified.tab_effects') }}</button>
       <button class="tab" :class="{ active: activeTab === 'pipelines' }" @click="activeTab = 'pipelines'">{{ t('unified.tab_pipelines') }}</button>
     </div>
-    <PresetsPage v-if="activeTab === 'presets'" />
+    <PresetsPage v-if="activeTab === 'presets'" key="styles" mode="styles" />
+    <PresetsPage v-else-if="activeTab === 'effects'" key="effects" mode="effects" />
     <CompoundPresetsPage v-else />
   </div>
 </template>

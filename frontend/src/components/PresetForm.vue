@@ -5,6 +5,7 @@ import { t } from '../i18n/index.js'
 
 const props = defineProps({
   preset: Object,
+  defaults: Object,
 })
 const emit = defineEmits(['save', 'close'])
 
@@ -25,8 +26,8 @@ try {
 
 const form = reactive({
   name: props.preset?.name || '',
-  preset_type: props.preset?.preset_type || '',
-  type_id: props.preset?.type_id ?? null,
+  preset_type: props.preset?.preset_type || props.defaults?.preset_type || '',
+  type_id: props.preset?.type_id ?? props.defaults?.type_id ?? null,
   prompt: props.preset?.prompt || '',
   negative_prompt: props.preset?.negative_prompt || '',
   sampler: props.preset?.sampler || 'Euler a',

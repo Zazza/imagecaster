@@ -2,11 +2,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
-import { effectTypeLabel } from '../effectTypes.js'
+import { effectTypeLabel, isEffectType } from '../effectTypes.js'
 import PresetForm from './PresetForm.vue'
 import ImportModal from './ImportModal.vue'
 
-const presets = ref([])
+const props = defineProps({
+  mode: { type: String, default: 'styles' },
+})
+
+const allPresets = ref([])
 const presetTypes = ref([])
 const loading = ref(true)
 const showForm = ref(false)
@@ -57,7 +61,7 @@ async function load() {
   loading.value = true
   try {
     const [p, t] = await Promise.all([api.listPresets(), api.listPresetTypes()])
-    presets.value = p || []
+    allPresets.value = p || []
     presetTypes.value = t || []
   } catch (e) {
     console.error(e)
@@ -66,6 +70,21 @@ async function load() {
   }
   loadInstallStatuses()
 }
+
+const effectTypeIds = computed(() => new Set(
+  presetTypes.value.filter(pt => isEffectType((pt.name || '').trim().toLowerCase())).map(pt => pt.id)
+))
+
+const presets = computed(() => {
+  const wantEffects = props.mode === 'effects'
+  return allPresets.value.filter(p => effectTypeIds.value.has(p.type_id) === wantEffects)
+})
+
+const formDefaults = computed(() => {
+  if (props.mode !== 'effects') return null
+  const base = presetTypes.value.find(pt => (pt.name || '').trim().toLowerCase() === 'post')
+  return base ? { type_id: base.id, preset_type: 'post' } : { preset_type: 'post' }
+})
 
 const filteredPresets = computed(() => {
   let list = presets.value
@@ -215,7 +234,7 @@ onMounted(load)
 <template>
   <div>
     <div class="page-header">
-      <h1 class="page-title">{{ t('presets.title') }}</h1>
+      <h1 class="page-title">{{ mode === 'effects' ? t('presets.title_effects') : t('presets.title') }}</h1>
       <div class="header-actions">
         <template v-if="selectMode">
           <button class="btn btn-secondary btn-sm" @click="selectAll">
@@ -243,7 +262,7 @@ onMounted(load)
 
     <div v-else-if="presets.length === 0" class="empty-state">
       <div class="empty-state-icon">&#9776;</div>
-      <p>{{ t('presets.no_presets') }}</p>
+      <p>{{ mode === 'effects' ? t('presets.no_effects') : t('presets.no_presets') }}</p>
     </div>
 
     <template v-else>
@@ -297,6 +316,7 @@ onMounted(load)
     <PresetForm
       v-if="showForm"
       :preset="editingPreset"
+      :defaults="formDefaults"
       @save="handleSave"
       @close="closeForm"
     />
