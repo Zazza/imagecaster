@@ -786,6 +786,86 @@ const effectJobIds = ref(new Set())
 const appliedEffects = ref([])
 const journalPending = new Map()
 
+const MOSS_EFFECT_MODEL = 'moss_image_sft_bf16'
+const effectModelOpen = ref(false)
+const effectModel = ref('klein')
+const effectLoras = reactive({ klein: [], moss: [] })
+const effectLoraChoices = ref([])
+
+function loraWeight(w) {
+  if (w === '' || w === null || w === undefined) return 1
+  const n = Number(w)
+  return Number.isFinite(n) ? n : 1
+}
+
+function cleanLoras(list) {
+  return list.filter(l => l && l.name).map(l => ({ name: String(l.name), weight: loraWeight(l.weight) }))
+}
+
+function parseLoraList(raw) {
+  try {
+    const list = JSON.parse(raw || '[]')
+    return Array.isArray(list) ? cleanLoras(list) : []
+  } catch {
+    return []
+  }
+}
+
+async function loadEffectModel() {
+  try {
+    const s = await api.getSettings()
+    if (s?.effect_model === 'moss') effectModel.value = 'moss'
+    effectLoras.klein = parseLoraList(s?.effect_loras_klein)
+    effectLoras.moss = parseLoraList(s?.effect_loras_moss)
+  } catch (e) {
+    console.warn('effect model settings:', e)
+  }
+}
+
+async function toggleEffectModel() {
+  effectModelOpen.value = !effectModelOpen.value
+  if (effectModelOpen.value && !effectLoraChoices.value.length) {
+    try {
+      effectLoraChoices.value = (await api.getLoRAs() || []).map(l => l.name).filter(Boolean)
+    } catch (e) {
+      console.warn('effect loras:', e)
+    }
+  }
+}
+
+function saveEffectSetting(data) {
+  api.updateSettings(data).catch(e => console.warn('save effect model:', e))
+}
+
+function setEffectModel(model) {
+  effectModel.value = model === 'moss' ? 'moss' : 'klein'
+  saveEffectSetting({ effect_model: effectModel.value })
+}
+
+function saveEffectLoras() {
+  const m = effectModel.value
+  saveEffectSetting({ ['effect_loras_' + m]: JSON.stringify(cleanLoras(effectLoras[m])) })
+}
+
+function addEffectLora() {
+  effectLoras[effectModel.value].push({ name: effectLoraChoices.value[0] || '', weight: 1 })
+  saveEffectLoras()
+}
+
+function removeEffectLora(idx) {
+  effectLoras[effectModel.value].splice(idx, 1)
+  saveEffectLoras()
+}
+
+function effectOverrides(presetId) {
+  const preset = presets.value.find(p => p.id === presetId)
+  const loras = [...parseLoraList(preset?.loras), ...cleanLoras(effectLoras[effectModel.value])]
+  const ov = {}
+  if (effectModel.value === 'moss') ov.model_name = MOSS_EFFECT_MODEL
+  if (effectLoras[effectModel.value].some(l => l.name) || (ov.model_name && loras.length)) ov.loras = JSON.stringify(loras)
+  return Object.keys(ov).length ? ov : null
+}
+
 function effectJobParams(b64, seed) {
   return {
     image_base64: b64,
@@ -798,7 +878,7 @@ function effectJobParams(b64, seed) {
     extra_negative_prompt: '',
     resolution_id: null,
     hires_profile_id: null,
-    overrides: null,
+    overrides: effectOverrides(selectedEffectId.value),
     preserve_identity: true,
     seed: seed ?? null,
     keep_color: effectIsMaterial.value && effectKeepColor.value,
@@ -819,9 +899,10 @@ async function applyEffect() {
     const seedVal = parseSeedInput(effectSeedInput.value)
     const presetId = selectedEffectId.value
     const strength = effectStrength.value
+    const overrides = effectOverrides(presetId)
     await runBatchStep(async (b64, i) => {
       const seed = seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null
-      const job = await trackBatchJob(api.enqueueFromImage({ ...effectJobParams(b64, seed), preset_id: presetId, denoising_strength: strength }))
+      const job = await trackBatchJob(api.enqueueFromImage({ ...effectJobParams(b64, seed), preset_id: presetId, denoising_strength: strength, overrides }))
       return job ? () => job.wait : ''
     })
     return
@@ -1732,6 +1813,7 @@ onMounted(async () => {
   offQueueChanged = EventsOn('queue:changed', onQueueChanged)
   offSessionSelected = EventsOn('session:selected', () => { loadLastImage() })
   await loadPresets()
+  await loadEffectModel()
   await loadExportPresets()
   await loadRecipes()
   consumeInitialImage()
@@ -2107,6 +2189,28 @@ onUnmounted(() => {
                   <button class="btn btn-sm btn-secondary" :disabled="!effectHasMask" @click="effectMask.clearMask">{{ t('fi.btn_clear_mask') }}</button>
                 </div>
               </template>
+            </div>
+
+            <div class="fx-model">
+              <button type="button" class="btn btn-sm btn-secondary fx-model-toggle" @click="toggleEffectModel">
+                {{ t('post.effect_model', { model: effectModel === 'moss' ? 'Moss' : 'Klein' }) }} {{ effectModelOpen ? '▴' : '▾' }}
+              </button>
+              <div v-if="effectModelOpen" class="fx-model-body">
+                <select class="form-select fx-model-select" :value="effectModel" @change="setEffectModel($event.target.value)">
+                  <option value="klein">Klein</option>
+                  <option value="moss">Moss</option>
+                </select>
+                <div v-if="effectModel === 'moss'" class="form-hint">{{ t('post.effect_model_moss_hint') }}</div>
+                <div v-for="(l, i) in effectLoras[effectModel]" :key="effectModel + i" class="fx-lora-row">
+                  <select class="form-select fx-lora-name" v-model="l.name" @change="saveEffectLoras">
+                    <option v-if="l.name && !effectLoraChoices.includes(l.name)" :value="l.name">{{ l.name }}</option>
+                    <option v-for="n in effectLoraChoices" :key="n" :value="n">{{ n }}</option>
+                  </select>
+                  <input class="form-input fx-lora-weight" type="number" v-model.number="l.weight" min="-2" max="2" step="0.05" @change="saveEffectLoras" />
+                  <button type="button" class="btn btn-sm btn-danger-quiet fx-lora-remove" @click="removeEffectLora(i)">&times;</button>
+                </div>
+                <button type="button" class="btn btn-sm btn-secondary fx-lora-add" @click="addEffectLora">{{ t('post.effect_add_lora') }}</button>
+              </div>
             </div>
 
             <div class="form-group">
@@ -2541,6 +2645,32 @@ onUnmounted(() => {
 
 .fx-mask-row .form-range {
   flex: 1;
+}
+
+.fx-model {
+  margin: 10px 0;
+}
+
+.fx-model-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.fx-lora-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fx-lora-row .fx-lora-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.fx-lora-row .fx-lora-weight {
+  width: 72px;
 }
 
 .post-controls .card-collapse > .card-body {

@@ -292,9 +292,17 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		return nil, fmt.Errorf("preset not found: %w", err)
 	}
 	ApplyPresetOverrides(p, params.Overrides)
-	if params.PreserveIdentity && !config.ModelMatchesCSV(p.ModelName, "klein") {
-		return nil, fmt.Errorf("preserve identity requires a klein model, got %q", p.ModelName)
+	mossIdentity := params.PreserveIdentity && config.ModelMatchesCSV(p.ModelName, "moss")
+	if params.PreserveIdentity && !mossIdentity && !config.ModelMatchesCSV(p.ModelName, "klein") {
+		return nil, fmt.Errorf("preserve identity requires a klein or moss model, got %q", p.ModelName)
 	}
+	if mossIdentity {
+		p.Sampler = mossEditSampler
+		p.ScheduleType = mossEditScheduler
+		p.Steps = mossEditSteps
+		p.CfgScale = mossEditCfgScale
+	}
+	refOption, refOn, refOff := identityReference(mossIdentity)
 
 	seed := p.Seed
 	if params.Seed != nil {
@@ -315,6 +323,10 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		prompt = promptResult.Prompt
 		prompt = appendLorasToPrompt(prompt, p.Loras)
 		negativePrompt = s.buildPrompts("", promptResult.NegativePrompt, "", "", params.ExtraNegativePrompt).NegativePrompt
+	}
+
+	if mossIdentity {
+		prompt = editLoRATag + " " + prompt
 	}
 
 	if effectMask != nil && (p.PresetType == materialPresetType || p.PresetType == patternPresetType) {
@@ -348,9 +360,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		if params.PreserveIdentity {
 			s.referenceMu.Lock()
 			defer s.referenceMu.Unlock()
-			if err := s.sd.SetOption(kleinReferenceOption, true); err != nil {
-				if rerr := s.sd.SetOption(kleinReferenceOption, false); rerr != nil {
-					s.log.Warn("from-image: disable klein reference after failed enable: %s", rerr)
+			if err := s.sd.SetOption(refOption, refOn); err != nil {
+				if rerr := s.sd.SetOption(refOption, refOff); rerr != nil {
+					s.log.Warn("from-image: disable identity reference after failed enable: %s", rerr)
 				}
 				return nil, fmt.Errorf("enable identity reference: %w", err)
 			}
@@ -358,9 +370,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 				if refDisabled {
 					return
 				}
-				derr := s.sd.SetOption(kleinReferenceOption, false)
+				derr := s.sd.SetOption(refOption, refOff)
 				if derr != nil {
-					s.log.Warn("from-image: disable klein reference: %s", derr)
+					s.log.Warn("from-image: disable identity reference: %s", derr)
 				}
 				if result != nil {
 					result.PreserveIdentityResetFailed = derr != nil
@@ -400,6 +412,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 				imgW, imgH = alignLookSize(imgW, imgH)
 			}
 		}
+		if mossIdentity {
+			imgW, imgH = alignEditSize(imgW, imgH)
+		}
 		denoising := params.DenoisingStrength
 		if denoising <= 0 {
 			denoising = 0.5
@@ -438,8 +453,8 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		if params.OutputMode == "quality" {
 			qualityReady := true
 			if params.PreserveIdentity {
-				if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
-					s.log.Warn("from-image: disable klein reference before quality failed, skipping quality: %s", err)
+				if err := s.sd.SetOption(refOption, refOff); err != nil {
+					s.log.Warn("from-image: disable identity reference before quality failed, skipping quality: %s", err)
 					upscaleSkipped = true
 					redenoiseSkipped = true
 					qualityReady = false
@@ -861,4 +876,11 @@ func decodeB64ImageAnySize(b64, what string) (image.Image, error) {
 		return nil, fmt.Errorf("parse %s: %w", what, err)
 	}
 	return img, nil
+}
+
+func identityReference(moss bool) (string, any, any) {
+	if moss {
+		return mossReferenceOption, mossReferenceOn, mossReferenceOff
+	}
+	return kleinReferenceOption, true, false
 }
