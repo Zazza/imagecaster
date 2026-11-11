@@ -136,9 +136,6 @@ func (s *Service) GetSettings() (map[string]string, error) {
 		"kids_cat_mature":             "true",
 		"connection_mode":             "direct",
 		"server_url":                  "",
-		"preview_mode":                "false",
-		"preview_width":               "512",
-		"preview_height":              "512",
 	}
 	for k, v := range defaults {
 		if _, ok := settings[k]; !ok {
@@ -160,7 +157,6 @@ func (s *Service) UpdateSettings(data map[string]string) error {
 
 	numericFields := map[string]bool{
 		"llm_num_ctx": true, "llm_num_gpu": true, "llm_max_tokens": true,
-		"preview_width": true, "preview_height": true,
 	}
 	for k, v := range data {
 		if numericFields[k] {

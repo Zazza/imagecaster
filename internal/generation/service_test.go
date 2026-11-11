@@ -816,7 +816,6 @@ func TestGenerateImage_Success(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "base64imagedata", result.Image)
 	assert.Contains(t, result.EffectivePrompt, "1girl")
-	assert.False(t, result.IsPreview)
 }
 
 func TestGenerateImage_WithExtraPrompt(t *testing.T) {
@@ -1247,14 +1246,13 @@ func TestGetLastImage_WithFile(t *testing.T) {
 
 	pngData := []byte("fake png data")
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "last_image.png"), pngData, 0644))
-	meta := lastImageMeta{IsPreview: true, Info: json.RawMessage(`{"seed": 42}`)}
+	meta := lastImageMeta{Info: json.RawMessage(`{"seed": 42}`)}
 	metaBytes, _ := json.Marshal(meta)
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "last_image.json"), metaBytes, 0644))
 
 	result, err := svc.GetLastImage()
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.True(t, result.IsPreview)
 	assert.Equal(t, base64.StdEncoding.EncodeToString(pngData), result.Image)
 }
 
@@ -1344,7 +1342,8 @@ func TestAnalyzeImage_DescribeMode(t *testing.T) {
 	prose := "Ночной город после дождя, мост отражается в мокром асфальте."
 	llmSvc := &mockLLM{
 		describeFn: func(model, prompt, imageBase64 string, maxTokens int) (string, error) {
-			assert.Contains(t, prompt, "литературным текстом")
+			assert.Contains(t, prompt, "literary prose")
+			assert.True(t, strings.HasSuffix(prompt, "Отвечай на русском языке."))
 			return "  " + prose + "  ", nil
 		},
 	}
@@ -1364,7 +1363,7 @@ func TestAnalyzeImage_DescribeMode_CustomPrompt(t *testing.T) {
 
 	llmSvc := &mockLLM{
 		describeFn: func(model, prompt, imageBase64 string, maxTokens int) (string, error) {
-			assert.Equal(t, "custom describe prompt", prompt)
+			assert.Equal(t, "custom describe prompt\n\nОтвечай на русском языке.", prompt)
 			return "текст описания", nil
 		},
 	}
@@ -1685,78 +1684,6 @@ func TestExtractEmbeddedNegative(t *testing.T) {
 			extractEmbeddedNegative(result)
 			assert.Equal(t, tt.expectedPrompt, result.Prompt)
 			assert.Equal(t, tt.expectedNegative, result.NegativePrompt)
-		})
-	}
-}
-
-func TestPadToAspectRatio(t *testing.T) {
-	t.Parallel()
-
-	img := makePNGBase64(t, 100, 100)
-
-	t.Run("same ratio no padding", func(t *testing.T) {
-		t.Parallel()
-		result, err := padToAspectRatio(img, 200, 200)
-		assert.NoError(t, err)
-		assert.Equal(t, img, result)
-	})
-
-	t.Run("different ratio adds padding", func(t *testing.T) {
-		t.Parallel()
-		result, err := padToAspectRatio(img, 200, 100)
-		assert.NoError(t, err)
-		assert.NotEqual(t, img, result)
-	})
-
-	t.Run("invalid base64", func(t *testing.T) {
-		t.Parallel()
-		_, err := padToAspectRatio("not-valid-base64!!!", 512, 512)
-		assert.Error(t, err)
-	})
-}
-
-func TestGetPreviewDimensions(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		previewMode   string
-		previewW      string
-		previewH      string
-		presetW       int
-		presetH       int
-		expectPreview bool
-	}{
-		{"preview off", "false", "", "", 512, 512, false},
-		{"preview on square", "true", "512", "512", 1024, 1024, true},
-		{"preview on landscape", "true", "512", "512", 1024, 768, true},
-		{"preview on portrait", "true", "512", "512", 768, 1024, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			db := openTestDB(t)
-			if tt.previewMode != "" {
-				require.NoError(t, db.SetSetting("preview_mode", tt.previewMode))
-			}
-			if tt.previewW != "" {
-				require.NoError(t, db.SetSetting("preview_width", tt.previewW))
-			}
-			if tt.previewH != "" {
-				require.NoError(t, db.SetSetting("preview_height", tt.previewH))
-			}
-
-			svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-			w, h, preview := svc.getPreviewDimensions(tt.presetW, tt.presetH)
-			assert.Equal(t, tt.expectPreview, preview)
-			if preview {
-				assert.LessOrEqual(t, w, 512)
-				assert.LessOrEqual(t, h, 512)
-				assert.Equal(t, 0, w%8)
-				assert.Equal(t, 0, h%8)
-				assert.GreaterOrEqual(t, w, 64)
-				assert.GreaterOrEqual(t, h, 64)
-			}
 		})
 	}
 }

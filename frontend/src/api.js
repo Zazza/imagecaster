@@ -1,6 +1,6 @@
 import {
   ListPresets, ListPresetsByType, CreatePreset, UpdatePreset, DeletePreset,
-  GenerateSDPrompt, GenerateImage, UpscaleImage, UpscalePreview, SaveImage, FastSaveImage,
+  GenerateSDPrompt, GenerateImage, UpscaleImage, SaveImage, FastSaveImage,
   GetSDModels, GetSDSamplers, GetSDSchedulers, GetSDUpscalers, GetSDVAEs, GetLLMModels,
   GetSettings, UpdateSettings, CheckServices,
   ListDescriptions, CreateDescription, CreateDescriptionFull, UpdateDescription, DeleteDescription,
@@ -47,8 +47,6 @@ export const api = {
   generateSdPrompt: (params) => GenerateSDPrompt(params),
   generateImage: (presetId, extraPrompt, extraNegativePrompt, resolutionId, hiresProfileId, overrides, seed) =>
     GenerateImage({ preset_id: presetId, extra_prompt: extraPrompt, extra_negative_prompt: extraNegativePrompt, resolution_id: resolutionId || null, hires_profile_id: hiresProfileId || null, overrides: overrides || null, seed: seed ?? null }),
-  upscalePreview: (previewImageBase64, presetId, seed, resolutionId, hiresProfileId) =>
-    UpscalePreview({ preview_image_base64: previewImageBase64, preset_id: presetId, seed, resolution_id: resolutionId || null, hires_profile_id: hiresProfileId || null }),
   upscaleImage: (imageBase64, genInfo, presetId) =>
     UpscaleImage({ image_base64: imageBase64, gen_info: typeof genInfo === 'string' ? genInfo : JSON.stringify(genInfo || {}), preset_id: presetId || 0 }),
   saveImage: (base64Data, defaultName) => SaveImage(base64Data, defaultName),

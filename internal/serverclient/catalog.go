@@ -10,20 +10,23 @@ import (
 var catalogData []byte
 
 type CatalogModel struct {
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	SizeGB      float64 `json:"size_gb"`
-	Recommended bool    `json:"recommended,omitempty"`
+	Name          string  `json:"name"`
+	Description   string  `json:"description"`
+	DescriptionRu string  `json:"description_ru,omitempty"`
+	SizeGB        float64 `json:"size_gb"`
+	Recommended   bool    `json:"recommended,omitempty"`
 }
 
 type CatalogSDModel struct {
-	Name        string  `json:"name"`
-	Base        string  `json:"base"`
-	Category    string  `json:"category"`
-	Description string  `json:"description"`
-	URL         string  `json:"url,omitempty"`
-	SizeGB      float64 `json:"size_gb"`
-	Recommended bool    `json:"recommended,omitempty"`
+	Name          string  `json:"name"`
+	Base          string  `json:"base"`
+	Category      string  `json:"category"`
+	CategoryRu    string  `json:"category_ru,omitempty"`
+	Description   string  `json:"description"`
+	DescriptionRu string  `json:"description_ru,omitempty"`
+	URL           string  `json:"url,omitempty"`
+	SizeGB        float64 `json:"size_gb"`
+	Recommended   bool    `json:"recommended,omitempty"`
 }
 
 type CatalogLoRA struct {
@@ -31,7 +34,9 @@ type CatalogLoRA struct {
 	Base          string  `json:"base"`
 	Category      string  `json:"category"`
 	DefaultWeight float64 `json:"default_weight"`
+	CategoryRu    string  `json:"category_ru,omitempty"`
 	Description   string  `json:"description"`
+	DescriptionRu string  `json:"description_ru,omitempty"`
 	URL           string  `json:"url,omitempty"`
 	SizeMB        float64 `json:"size_mb"`
 }

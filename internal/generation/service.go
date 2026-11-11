@@ -7,10 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	"image/png"
-	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -114,7 +111,6 @@ type GenerateImageParams struct {
 	ResolutionID        *int64           `json:"resolution_id,omitempty"`
 	HiresProfileID      *int64           `json:"hires_profile_id,omitempty"`
 	Seed                *int64           `json:"seed,omitempty"`
-	FullSize            bool             `json:"full_size,omitempty"`
 	Overrides           *PresetOverrides `json:"overrides,omitempty"`
 	Idea                string           `json:"idea,omitempty"`
 	IdeaNegative        string           `json:"idea_negative,omitempty"`
@@ -124,7 +120,6 @@ type GenerateImageResult struct {
 	Image                       string          `json:"image"`
 	Parameters                  json.RawMessage `json:"parameters"`
 	Info                        json.RawMessage `json:"info"`
-	IsPreview                   bool            `json:"is_preview"`
 	HiresFixSkipped             bool            `json:"hires_fix_skipped"`
 	HiresFixManual              bool            `json:"hires_fix_manual"`
 	QualityUpscaleSkipped       bool            `json:"quality_upscale_skipped,omitempty"`
@@ -171,15 +166,6 @@ type TestGenerateResultItem struct {
 	CfgScale     float64         `json:"cfg_scale"`
 	ModelName    string          `json:"model_name"`
 	Info         json.RawMessage `json:"info,omitempty"`
-}
-
-type UpscalePreviewParams struct {
-	PreviewImageBase64 string   `json:"preview_image_base64"`
-	PresetID           int64    `json:"preset_id"`
-	Seed               int64    `json:"seed"`
-	DenoisingStrength  *float64 `json:"denoising_strength,omitempty"`
-	ResolutionID       *int64   `json:"resolution_id,omitempty"`
-	HiresProfileID     *int64   `json:"hires_profile_id,omitempty"`
 }
 
 type CustomStep struct {
@@ -247,8 +233,7 @@ type GenerateFromImageParams struct {
 }
 
 type lastImageMeta struct {
-	IsPreview bool            `json:"is_preview"`
-	Info      json.RawMessage `json:"info"`
+	Info json.RawMessage `json:"info"`
 }
 
 // --- Service ---
@@ -622,53 +607,6 @@ func (s *Service) getAnalyzeModel() string {
 
 func intPtr(v int) *int { return &v }
 
-func padToAspectRatio(imageBase64 string, targetW, targetH int) (string, error) {
-	imgData, err := base64.StdEncoding.DecodeString(imageBase64)
-	if err != nil {
-		return "", fmt.Errorf("decode base64: %w", err)
-	}
-
-	img, _, err := image.Decode(bytes.NewReader(imgData))
-	if err != nil {
-		return "", fmt.Errorf("decode image: %w", err)
-	}
-
-	imgW := img.Bounds().Dx()
-	imgH := img.Bounds().Dy()
-
-	targetRatio := float64(targetW) / float64(targetH)
-	imgRatio := float64(imgW) / float64(imgH)
-
-	if math.Abs(targetRatio-imgRatio) < 0.01 {
-		return imageBase64, nil
-	}
-
-	var padW, padH int
-	if imgRatio > targetRatio {
-		padW = imgW
-		padH = int(float64(imgW) / targetRatio)
-	} else {
-		padH = imgH
-		padW = int(float64(imgH) * targetRatio)
-	}
-	padW = (padW / 8) * 8
-	padH = (padH / 8) * 8
-
-	canvas := image.NewRGBA(image.Rect(0, 0, padW, padH))
-	draw.Draw(canvas, canvas.Bounds(), &image.Uniform{color.Black}, image.Point{}, draw.Src)
-
-	offsetX := (padW - imgW) / 2
-	offsetY := (padH - imgH) / 2
-	draw.Draw(canvas, image.Rect(offsetX, offsetY, offsetX+imgW, offsetY+imgH), img, image.Point{}, draw.Over)
-
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, canvas); err != nil {
-		return "", fmt.Errorf("encode image: %w", err)
-	}
-
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
-}
-
 func extractEmbeddedNegative(result *GenerateSDPromptResult) {
 	idx := strings.Index(result.Prompt, "negative_prompt")
 	if idx <= 0 {
@@ -726,42 +664,6 @@ func (s *Service) buildPrompts(presetPrompt, presetNegative, loras, userPrompt, 
 	neg = s.kids.ApplyNegative(neg)
 
 	return builtPrompts{Prompt: prompt, NegativePrompt: neg}
-}
-
-func (s *Service) getPreviewDimensions(presetW, presetH int) (int, int, bool) {
-	if v, _ := s.db.GetSetting("preview_mode"); v != "true" {
-		return presetW, presetH, false
-	}
-	maxW, maxH := 512, 512
-	if pw, _ := s.db.GetSetting("preview_width"); pw != "" {
-		if n, err := strconv.Atoi(pw); err == nil && n > 0 {
-			maxW = n
-		}
-	}
-	if ph, _ := s.db.GetSetting("preview_height"); ph != "" {
-		if n, err := strconv.Atoi(ph); err == nil && n > 0 {
-			maxH = n
-		}
-	}
-	targetRatio := float64(presetW) / float64(presetH)
-	maxRatio := float64(maxW) / float64(maxH)
-	w, h := presetW, presetH
-	if maxRatio > targetRatio {
-		h = maxH
-		w = int(float64(maxH) * targetRatio)
-	} else {
-		w = maxW
-		h = int(float64(maxW) / targetRatio)
-	}
-	w = (w / 8) * 8
-	h = (h / 8) * 8
-	if w < 64 {
-		w = 64
-	}
-	if h < 64 {
-		h = 64
-	}
-	return w, h, true
 }
 
 // --- Resolution / Hires resolve ---
@@ -1118,16 +1020,6 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 
 	width, height := s.resolveResolution(p, params.ResolutionID)
 
-	isPreview := false
-	if !params.FullSize {
-		if pw, ph, preview := s.getPreviewDimensions(width, height); preview {
-			isPreview = true
-			width = pw
-			height = ph
-			hiresFix = nil
-		}
-	}
-
 	req := sd.Txt2ImgRequest{
 		Prompt:                 prompt,
 		NegativePrompt:         negativePrompt,
@@ -1190,13 +1082,12 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 		Image:                   result.Images[0],
 		Parameters:              result.Parameters,
 		Info:                    result.Info,
-		IsPreview:               isPreview,
 		HiresFixSkipped:         hiresSkipped,
 		HiresFixManual:          hiresManual,
 		EffectivePrompt:         prompt,
 		EffectiveNegativePrompt: negativePrompt,
 	}
-	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "generate", isPreview, &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "generate", false, &preset.GenerationMeta{
 		PresetID: &params.PresetID,
 		Label:    p.Name,
 		Model:    p.ModelName,
@@ -1632,106 +1523,12 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 		Image:      result.Images[0],
 		Parameters: result.Parameters,
 		Info:       result.Info,
-		IsPreview:  false,
 	}
 	upscaleMeta := &preset.GenerationMeta{}
 	if params.PresetID > 0 {
 		upscaleMeta.PresetID = &params.PresetID
 	}
 	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "upscale", false, upscaleMeta)
-	return img, nil
-}
-
-// --- UpscalePreview ---
-
-func (s *Service) UpscalePreview(params UpscalePreviewParams) (*GenerateImageResult, error) {
-	if params.PresetID <= 0 {
-		return nil, fmt.Errorf("preset is required")
-	}
-	s.StartSDPolling()
-	defer s.StopSDPolling()
-	p, err := s.db.Get(params.PresetID)
-	if err != nil {
-		return nil, fmt.Errorf("preset not found: %w", err)
-	}
-
-	prompt := p.Prompt
-	negativePrompt := p.NegativePrompt
-
-	negativePrompt = s.kids.ApplyNegative(negativePrompt)
-
-	if err := s.prepareSDContext(p, "upscale-preview"); err != nil {
-		return nil, err
-	}
-
-	samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
-
-	batchSize := 1
-	if p.BatchSize != nil {
-		batchSize = *p.BatchSize
-	}
-	batchCount := 1
-	if p.BatchCount != nil {
-		batchCount = *p.BatchCount
-	}
-	clipSkip := 1
-	if p.ClipSkip != nil {
-		clipSkip = *p.ClipSkip
-	}
-
-	denoisingStrength := 0.55
-	if params.DenoisingStrength != nil && *params.DenoisingStrength > 0 {
-		denoisingStrength = *params.DenoisingStrength
-	}
-
-	width, height := s.resolveResolution(p, params.ResolutionID)
-
-	initImage := params.PreviewImageBase64
-	padded, err := padToAspectRatio(initImage, width, height)
-	if err == nil {
-		initImage = padded
-	}
-
-	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
-		InitImages:        []string{initImage},
-		Prompt:            prompt,
-		NegativePrompt:    negativePrompt,
-		SamplerName:       samplerName,
-		Scheduler:         p.ScheduleType,
-		Steps:             p.Steps,
-		CfgScale:          p.CfgScale,
-		Width:             width,
-		Height:            height,
-		Seed:              &params.Seed,
-		DenoisingStrength: &denoisingStrength,
-		ClipSkip:          &clipSkip,
-		BatchSize:         &batchSize,
-		BatchCount:        &batchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if len(result.Images) == 0 {
-		if ierr := s.checkSDInterrupted(); ierr != nil {
-			return nil, ierr
-		}
-		return nil, fmt.Errorf("no image generated during upscale")
-	}
-
-	img := &GenerateImageResult{
-		Image:      result.Images[0],
-		Parameters: result.Parameters,
-		Info:       result.Info,
-		IsPreview:  false,
-	}
-	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "upscale-preview", false, &preset.GenerationMeta{
-		PresetID: &params.PresetID,
-		Label:    p.Name,
-		Model:    p.ModelName,
-	})
 	return img, nil
 }
 
@@ -1756,7 +1553,6 @@ func (s *Service) GetLastImage() (*GenerateImageResult, error) {
 		Image:      base64.StdEncoding.EncodeToString(pngData),
 		Parameters: nil,
 		Info:       meta.Info,
-		IsPreview:  meta.IsPreview,
 	}, nil
 }
 

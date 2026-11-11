@@ -12,7 +12,7 @@
    "schedule_type": "Karras",
    "steps": 30,
    "cfg_scale": 7.0,
-   "model_name": "leosamsHelloworldXL_helloworldXL70",
+   "model_name": "juggernautXL_ragnarokBy",
    "seed": null,
    "denoising_strength": null,
    "clip_skip": 1,

@@ -17,7 +17,7 @@
 
 ### SD 1.5 / SDXL
 
-Первое поколение моделей Stable Diffusion. В пресетах — `dreamshaper_8` (универсальная), `realisticVisionV60B1_v51HyperVAE` (портреты) и `leosamsHelloworldXL_helloworldXL70` (3D и стилизация). В каталоге ещё около десятка моделей: фотореализм, кино, живопись.
+Первое поколение моделей Stable Diffusion. В пресетах — `dreamshaper_8` (универсальная), `realisticVisionV60B1_v51HyperVAE` (портреты). В каталоге есть и другие модели для фотореализма.
 
 ### Pony / Illustrious
 

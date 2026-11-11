@@ -1,6 +1,6 @@
 <script setup>
 import TitleBar from './components/TitleBar.vue'
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
 import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon } from 'lucide-vue-next'
 import { api } from './api.js'
@@ -122,6 +122,10 @@ const currentPage = computed(() => {
     default: return UnifiedGeneratePage
   }
 })
+
+watch(locale, (l) => {
+  Promise.resolve(api.updateSettings({ ui_locale: l })).catch((e) => console.warn('save ui_locale:', e))
+}, { immediate: true })
 
 onMounted(async () => {
   WindowSetSystemDefaultTheme()

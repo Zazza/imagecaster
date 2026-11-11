@@ -64,7 +64,7 @@
 | Quality Output | Native-resolution pass → neural upscale into the target resolution → low-denoise detail pass; skip warnings surfaced in the UI |
 | Batch Generation | N images with live progress, interrupt and queue recovery |
 | Hires / Resolution Profiles | Independent DB-stored profiles; hires fix profiles with automatic fallback on unsupported backends |
-| Upscale | Preview mode with one-click upscale to full resolution; neural upscaler resolved from the backend's list |
+| Upscale | One-click x2 upscale; neural upscaler resolved from the backend's list |
 | Explicit Seed | Optional seed with batch `seed+i` semantics |
 
 ### LLM Integration

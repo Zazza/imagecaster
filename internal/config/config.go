@@ -145,9 +145,9 @@ Use concrete visual terms only. BAD: "a sense of mystery" → GOOD: "dark shadow
 Start with quality tags (masterpiece, best quality, highly detailed). Use (keyword:1.2) for emphasis.
 Each tag must appear at most once. Output ONLY tags, nothing else.`
 
-const DefaultAnalyzeDescribePrompt = `Опиши это изображение связным литературным текстом на русском языке, 4–6 предложений.
-Расскажи, что на нём происходит: главные объекты и их детали, обстановка, свет и цвета, атмосфера, заметные мелочи.
-Пиши живым текстом для человека, а не списком тегов. Не выдумывай того, чего нет на изображении.`
+const DefaultAnalyzeDescribePrompt = `Describe this image in coherent literary prose, 4–6 sentences.
+Tell what is happening in it: the main subjects and their details, the setting, light and colors, mood, notable small details.
+Write natural text for a person, not a list of tags. Do not invent anything that is not in the image.`
 
 const DefaultEditGarmentPrompt = `Look at this photo. Describe ONLY the clothing worn or shown — ignore any person, background, or props entirely.
 Describe EVERY visible garment separately: top, bottom, dress, outerwear, and shoes if visible. A blouse with a skirt is two garments — describe both.

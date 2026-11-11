@@ -2,9 +2,10 @@
 import StatusMessage from './StatusMessage.vue'
 import { ref, reactive, watch, onMounted } from 'vue'
 import { api } from '../api.js'
-import { t } from '../i18n/index.js'
+import { t, locale } from '../i18n/index.js'
 import ToggleSwitch from './ToggleSwitch.vue'
 import PinModal from './PinModal.vue'
+import FoldBlock from './FoldBlock.vue'
 
 const props = defineProps({
   initialTab: { type: String, default: 'connection' }
@@ -104,13 +105,6 @@ const kidsCatPinModal = ref(false)
 const kidsCatPinError = ref('')
 const kidsCatPending = ref(null)
 
-const generationForm = reactive({
-  preview_mode: false,
-  preview_width: 512,
-  preview_height: 512,
-})
-const generationSaved = ref(false)
-const generationError = ref('')
 
 const memoryForm = reactive({
   heavy_models: '',
@@ -152,6 +146,7 @@ const editGarmentPrompt = ref('')
 const analyzeSaved = ref(false)
 const analyzeError = ref('')
 const defaultAnalyzePrompts = ref(null)
+const defaultGarmentPrompt = ref('')
 
 watch(() => connectionForm.llm_backend, (newVal, oldVal) => {
   if (oldVal && defaultURLs[oldVal] && connectionForm.llm_url === defaultURLs[oldVal]) {
@@ -187,9 +182,6 @@ async function loadSettings() {
     memoryForm.heavy_models = settings.heavy_models || ''
     memoryForm.prose_models = settings.prose_models || ''
     memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
-    generationForm.preview_mode = settings.preview_mode === 'true'
-    generationForm.preview_width = parseInt(settings.preview_width) || 512
-    generationForm.preview_height = parseInt(settings.preview_height) || 512
     promptInstruction.value = settings.sd_prompt_instruction || ''
     promptInstructionProse.value = settings.sd_prompt_instruction_prose || ''
     connectionMode.value = settings.connection_mode || 'direct'
@@ -245,6 +237,15 @@ async function loadSettings() {
   }
   if (!analyzeDescribePrompt.value && defaultAnalyzePrompts.value) {
     analyzeDescribePrompt.value = defaultAnalyzePrompts.value.describe_prompt || ''
+  }
+
+  try {
+    defaultGarmentPrompt.value = await api.getDefaultEditGarmentPrompt()
+  } catch (e) {
+    console.error('getDefaultEditGarmentPrompt:', e)
+  }
+  if (!editGarmentPrompt.value && defaultGarmentPrompt.value) {
+    editGarmentPrompt.value = defaultGarmentPrompt.value
   }
 
   // Load model catalog
@@ -326,7 +327,7 @@ async function startProcess(name) {
     await api.startServerProcess(name)
     pollServerStatus()
   } catch (e) {
-    alert('Start failed: ' + e)
+    alert(t('settings.err_start', { error: String(e) }))
     await loadServerStatus()
   } finally {
     delete processActionLoading[name]
@@ -339,7 +340,7 @@ async function stopProcess(name) {
     await api.stopServerProcess(name)
     pollServerStatus()
   } catch (e) {
-    alert('Stop failed: ' + e)
+    alert(t('settings.err_stop', { error: String(e) }))
     await loadServerStatus()
   } finally {
     delete processActionLoading[name]
@@ -352,7 +353,7 @@ async function restartProcess(name) {
     await api.restartServerProcess(name)
     pollServerStatus()
   } catch (e) {
-    alert('Restart failed: ' + e)
+    alert(t('settings.err_restart', { error: String(e) }))
     await loadServerStatus()
   } finally {
     delete processActionLoading[name]
@@ -416,6 +417,10 @@ async function loadServerModels() {
   finally { serverModelsLoading.llm = false }
 }
 
+function catalogText(m, field) {
+  return (locale.value === 'ru' && m[field + '_ru']) || m[field]
+}
+
 function isCatalogInstalled(type, name) {
   if (type === 'llm') return serverModels.llm.some(i => i.name === name)
   return serverModels[type].some(i => i.name === name + '.safetensors')
@@ -437,7 +442,7 @@ async function downloadModel(type, url, filename) {
     }
     await loadServerModels()
   } catch (e) {
-    alert('Download failed: ' + e)
+    alert(t('settings.err_download', { error: String(e) }))
   } finally {
     delete modelActionLoading[key]
     activeDownload.type = ''
@@ -447,14 +452,14 @@ async function downloadModel(type, url, filename) {
 }
 
 async function deleteModel(type, filename) {
-  if (!confirm(`Delete ${filename}?`)) return
+  if (!confirm(t('settings.confirm_delete_model', { name: filename }))) return
   const key = `del_${type}_${filename}`
   modelActionLoading[key] = true
   try {
     await api.deleteServerModel(type, filename)
     await loadServerModels()
   } catch (e) {
-    alert('Delete failed: ' + e)
+    alert(t('settings.err_delete', { error: String(e) }))
   } finally {
     delete modelActionLoading[key]
   }
@@ -477,7 +482,7 @@ async function pullLLM(name) {
     llmPullName.value = ''
     await loadServerModels()
   } catch (e) {
-    alert('Pull failed: ' + e)
+    alert(t('settings.err_pull', { error: String(e) }))
   } finally {
     delete modelActionLoading['pull_llm']
     activeDownload.type = ''
@@ -487,13 +492,13 @@ async function pullLLM(name) {
 }
 
 async function deleteLLMModel(name) {
-  if (!confirm(`Delete ${name}?`)) return
+  if (!confirm(t('settings.confirm_delete_model', { name }))) return
   modelActionLoading[`del_llm_${name}`] = true
   try {
     await api.deleteServerLLMModel(name)
     await loadServerModels()
   } catch (e) {
-    alert('Delete failed: ' + e)
+    alert(t('settings.err_delete', { error: String(e) }))
   } finally {
     delete modelActionLoading[`del_llm_${name}`]
   }
@@ -623,21 +628,6 @@ function onKidsCatPinCancel() {
   kidsCatPinError.value = ''
 }
 
-async function saveGeneration() {
-  generationSaved.value = false
-  generationError.value = ''
-  try {
-    await api.updateSettings({
-      preview_mode: generationForm.preview_mode ? 'true' : 'false',
-      preview_width: String(generationForm.preview_width),
-      preview_height: String(generationForm.preview_height),
-    })
-    generationSaved.value = true
-  } catch (e) {
-    generationError.value = String(e)
-  }
-}
-
 async function savePromptInstruction() {
   promptInstructionSaved.value = false
   promptInstructionError.value = ''
@@ -665,10 +655,10 @@ async function saveAnalyzePrompts() {
   analyzeError.value = ''
   try {
     const data = {
-      analyze_system_prompt: analyzeSystemPrompt.value,
-      analyze_prompt: analyzeSinglePrompt.value,
-      analyze_describe_prompt: analyzeDescribePrompt.value,
-      edit_garment_prompt: editGarmentPrompt.value,
+      analyze_system_prompt: storedPrompt(analyzeSystemPrompt.value, defaultAnalyzePrompts.value?.system_prompt),
+      analyze_prompt: storedPrompt(analyzeSinglePrompt.value, defaultAnalyzePrompts.value?.single_prompt),
+      analyze_describe_prompt: storedPrompt(analyzeDescribePrompt.value, defaultAnalyzePrompts.value?.describe_prompt),
+      edit_garment_prompt: storedPrompt(editGarmentPrompt.value, defaultGarmentPrompt.value),
     }
     await api.updateSettings(data)
     analyzeSaved.value = true
@@ -682,6 +672,15 @@ function resetAnalyzePrompts() {
   analyzeSystemPrompt.value = defaultAnalyzePrompts.value.system_prompt
   analyzeSinglePrompt.value = defaultAnalyzePrompts.value.single_prompt
   analyzeDescribePrompt.value = defaultAnalyzePrompts.value.describe_prompt || ''
+  if (defaultGarmentPrompt.value) editGarmentPrompt.value = defaultGarmentPrompt.value
+}
+
+function storedPrompt(value, def) {
+  return def && value.trim() === def.trim() ? '' : value
+}
+
+function promptState(value, def) {
+  return value && def && value.trim() !== def.trim() ? t('settings.prompt_custom') : t('settings.prompt_default')
 }
 
 onMounted(loadSettings)
@@ -695,8 +694,7 @@ onMounted(loadSettings)
 
     <div class="tabs">
       <button class="tab" :class="{ active: activeTab === 'connection' }" @click="switchTab('connection')">{{ t('settings.tab_connection') }}</button>
-      <button class="tab" :class="{ active: activeTab === 'generation' }" @click="switchTab('generation')">{{ t('settings.tab_generation') }}</button>
-      <button class="tab" :class="{ active: activeTab === 'analyze' }" @click="switchTab('analyze')">{{ t('settings.tab_analyze') }}</button>
+      <button class="tab" :class="{ active: activeTab === 'prompts' }" @click="switchTab('prompts')">{{ t('settings.tab_prompts') }}</button>
       <button class="tab" :class="{ active: activeTab === 'safety' }" @click="switchTab('safety')">{{ t('settings.tab_safety') }}</button>
       <button class="tab" :class="{ active: activeTab === 'advanced' }" @click="switchTab('advanced')">{{ t('settings.tab_advanced') }}</button>
       <button v-if="connectionMode === 'server'" class="tab" :class="{ active: activeTab === 'catalog' }" @click="activeTab = 'catalog'">{{ t('settings.tab_catalog') }}</button>
@@ -986,103 +984,56 @@ onMounted(loadSettings)
       </details>
     </div>
 
-    <!-- Generation Tab (merged: Generation + Prompt) -->
-    <div v-if="activeTab === 'generation'">
+    <div v-if="activeTab === 'prompts'" class="prompts-tab">
       <div class="card">
-        <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_preview') }}</h3>
-        <StatusMessage v-if="generationSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="generationSaved = false">{{ t('settings.generation_saved') }}</StatusMessage>
-        <StatusMessage v-if="generationError" style="margin-bottom: 16px;" @close="generationError = ''">{{ generationError }}</StatusMessage>
+        <h3 class="prompts-title">{{ t('settings.group_image_prompt') }}</h3>
+        <div class="prompts-sub">{{ t('settings.group_image_prompt_sub') }}</div>
 
-        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-          <ToggleSwitch v-model="generationForm.preview_mode" />
-          <div>
-            <div style="color: var(--text-bright); font-weight: 500;">{{ generationForm.preview_mode ? t('settings.enabled') : t('settings.disabled') }}</div>
-            <div style="color: var(--text-dim); font-size: 12px; margin-top: 2px;">
-              {{ t('settings.preview_description') }}
-            </div>
+        <FoldBlock :title="t('settings.section_sd_prompt')" :hint="t('settings.prompt_instruction_description')" :summary="promptState(promptInstruction, defaultPromptInstruction)">
+          <StatusMessage v-if="promptInstructionSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="promptInstructionSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
+          <StatusMessage v-if="promptInstructionError" style="margin-bottom: 12px;" @close="promptInstructionError = ''">{{ promptInstructionError }}</StatusMessage>
+          <textarea class="form-textarea prompt-area" v-model="promptInstruction" rows="16"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-primary" @click="savePromptInstruction">{{ t('settings.btn_save_instruction') }}</button>
+            <button class="btn btn-secondary" @click="promptInstruction = defaultPromptInstruction">{{ t('settings.btn_reset_default') }}</button>
           </div>
-        </div>
+        </FoldBlock>
 
-        <template v-if="generationForm.preview_mode">
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label">{{ t('settings.label_preview_width') }}</label>
-              <input class="form-input" type="number" v-model.number="generationForm.preview_width" step="64" min="64" max="2048" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">{{ t('settings.label_preview_height') }}</label>
-              <input class="form-input" type="number" v-model.number="generationForm.preview_height" step="64" min="64" max="2048" />
-            </div>
+        <FoldBlock :title="t('settings.section_sd_prompt_prose')" :hint="t('settings.prompt_instruction_prose_description')" :summary="promptState(promptInstructionProse, defaultPromptInstructionProse)">
+          <StatusMessage v-if="promptInstructionProseSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="promptInstructionProseSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
+          <StatusMessage v-if="promptInstructionProseError" style="margin-bottom: 12px;" @close="promptInstructionProseError = ''">{{ promptInstructionProseError }}</StatusMessage>
+          <textarea class="form-textarea prompt-area" v-model="promptInstructionProse" rows="16"></textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-primary" @click="savePromptInstructionProse">{{ t('settings.btn_save_instruction') }}</button>
+            <button class="btn btn-secondary" @click="promptInstructionProse = defaultPromptInstructionProse">{{ t('settings.btn_reset_default') }}</button>
           </div>
-        </template>
-
-        <button class="btn btn-primary" @click="saveGeneration">{{ t('settings.btn_save_generation') }}</button>
+        </FoldBlock>
       </div>
 
       <div class="card" style="margin-top: 16px;">
-        <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_sd_prompt') }}</h3>
-        <StatusMessage v-if="promptInstructionSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="promptInstructionSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
-        <StatusMessage v-if="promptInstructionError" style="margin-bottom: 16px;" @close="promptInstructionError = ''">{{ promptInstructionError }}</StatusMessage>
-        <div style="color: var(--text-dim); font-size: 13px; margin-bottom: 12px; line-height: 1.5;">
-          {{ t('settings.prompt_instruction_description') }}
-        </div>
-        <div class="form-group">
-          <textarea class="form-textarea" v-model="promptInstruction" rows="16" style="font-family: monospace; font-size: 12px; line-height: 1.5;"></textarea>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-primary" @click="savePromptInstruction">{{ t('settings.btn_save_instruction') }}</button>
-          <button class="btn btn-secondary" @click="promptInstruction = defaultPromptInstruction">{{ t('settings.btn_reset_default') }}</button>
-        </div>
-      </div>
+        <h3 class="prompts-title">{{ t('settings.group_describe_photo') }}</h3>
+        <div class="prompts-sub">{{ t('settings.group_describe_photo_sub') }}</div>
 
-      <div class="card" style="margin-top: 16px;">
-        <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_sd_prompt_prose') }}</h3>
-        <StatusMessage v-if="promptInstructionProseSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="promptInstructionProseSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
-        <StatusMessage v-if="promptInstructionProseError" style="margin-bottom: 16px;" @close="promptInstructionProseError = ''">{{ promptInstructionProseError }}</StatusMessage>
-        <div style="color: var(--text-dim); font-size: 13px; margin-bottom: 12px; line-height: 1.5;">
-          {{ t('settings.prompt_instruction_prose_description') }}
-        </div>
-        <div class="form-group">
-          <textarea class="form-textarea" v-model="promptInstructionProse" rows="16" style="font-family: monospace; font-size: 12px; line-height: 1.5;"></textarea>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-primary" @click="savePromptInstructionProse">{{ t('settings.btn_save_instruction') }}</button>
-          <button class="btn btn-secondary" @click="promptInstructionProse = defaultPromptInstructionProse">{{ t('settings.btn_reset_default') }}</button>
+        <FoldBlock :title="t('settings.label_system_prompt')" :hint="t('settings.hint_system_prompt')" :summary="promptState(analyzeSystemPrompt, defaultAnalyzePrompts?.system_prompt)">
+          <textarea class="form-textarea prompt-area" v-model="analyzeSystemPrompt" rows="3"></textarea>
+        </FoldBlock>
+        <FoldBlock :title="t('settings.label_single_analysis')" :hint="t('settings.hint_single_analysis')" :summary="promptState(analyzeSinglePrompt, defaultAnalyzePrompts?.single_prompt)">
+          <textarea class="form-textarea prompt-area" v-model="analyzeSinglePrompt" rows="10"></textarea>
+        </FoldBlock>
+        <FoldBlock :title="t('settings.label_describe_analysis')" :hint="t('settings.hint_describe_analysis')" :summary="promptState(analyzeDescribePrompt, defaultAnalyzePrompts?.describe_prompt)">
+          <textarea class="form-textarea prompt-area" v-model="analyzeDescribePrompt" rows="6"></textarea>
+        </FoldBlock>
+        <FoldBlock :title="t('settings.edit_garment_prompt')" :hint="t('settings.edit_garment_prompt_hint')" :summary="promptState(editGarmentPrompt, defaultGarmentPrompt)">
+          <textarea class="form-textarea prompt-area" v-model="editGarmentPrompt" rows="8"></textarea>
+        </FoldBlock>
+
+        <StatusMessage v-if="analyzeSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="analyzeSaved = false">{{ t('settings.prompts_saved') }}</StatusMessage>
+        <StatusMessage v-if="analyzeError" style="margin-bottom: 12px;" @close="analyzeError = ''">{{ analyzeError }}</StatusMessage>
+        <div class="prompt-actions">
+          <button class="btn btn-primary" @click="saveAnalyzePrompts">{{ t('settings.btn_save_prompts') }}</button>
+          <button class="btn btn-secondary" @click="resetAnalyzePrompts">{{ t('settings.btn_reset_default') }}</button>
         </div>
       </div>
-    </div>
-
-    <!-- Analyze Tab (unchanged) -->
-    <div v-if="activeTab === 'analyze'" class="card">
-      <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_analyze_prompts') }}</h3>
-      <StatusMessage v-if="analyzeSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="analyzeSaved = false">{{ t('settings.prompts_saved') }}</StatusMessage>
-      <StatusMessage v-if="analyzeError" style="margin-bottom: 16px;" @close="analyzeError = ''">{{ analyzeError }}</StatusMessage>
-
-      <div class="form-group">
-        <label class="form-label">{{ t('settings.label_system_prompt') }}</label>
-        <textarea class="form-textarea" v-model="analyzeSystemPrompt" rows="3" style="font-family: monospace; font-size: 12px; line-height: 1.5;"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">{{ t('settings.label_single_analysis') }}</label>
-        <textarea class="form-textarea" v-model="analyzeSinglePrompt" rows="10" style="font-family: monospace; font-size: 12px; line-height: 1.5;"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">{{ t('settings.label_describe_analysis') }}</label>
-        <textarea class="form-textarea" v-model="analyzeDescribePrompt" rows="6" style="font-family: monospace; font-size: 12px; line-height: 1.5;"></textarea>
-      </div>
-
-      <div style="display: flex; gap: 8px;">
-        <button class="btn btn-primary" @click="saveAnalyzePrompts">{{ t('settings.btn_save_prompts') }}</button>
-        <button class="btn btn-secondary" @click="resetAnalyzePrompts">{{ t('settings.btn_reset_default') }}</button>
-      </div>
-
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.edit_garment_prompt') }}</label>
-            <textarea class="form-textarea" v-model="editGarmentPrompt" rows="4"></textarea>
-            <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('settings.edit_garment_prompt_hint') }}</div>
-          </div>
     </div>
 
     <!-- Safety Tab -->
@@ -1272,10 +1223,10 @@ onMounted(loadSettings)
                 <span v-if="isCatalogInstalled('llm', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
                 <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ m.description }} &mdash; {{ m.size_gb }} GB</div>
+              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
             </div>
             <span v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">Delete</button>
+            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
             <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
           </div>
         </div>
@@ -1290,10 +1241,10 @@ onMounted(loadSettings)
                 <span v-if="isCatalogInstalled('llm', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
                 <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ m.description }} &mdash; {{ m.size_gb }} GB</div>
+              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
             </div>
             <span v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">Delete</button>
+            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
             <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
           </div>
         </div>
@@ -1309,10 +1260,10 @@ onMounted(loadSettings)
                 <span v-if="isCatalogInstalled('sd', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
                 <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ m.category }} &mdash; {{ m.description }} &mdash; {{ m.size_gb }} GB</div>
+              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
             </div>
             <span v-if="activeDownload.type === 'sd' && activeDownload.name === m.name + '.safetensors'" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('sd', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', m.name + '.safetensors')">Delete</button>
+            <button v-else-if="isCatalogInstalled('sd', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
             <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('sd', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_sd']">{{ t('settings.btn_download_model') }}</button>
           </div>
         </div>
@@ -1327,10 +1278,10 @@ onMounted(loadSettings)
                 <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
                 <span v-if="isCatalogInstalled('lora', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
               </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ m.category }} &mdash; {{ m.description }} &mdash; {{ m.size_mb }} MB</div>
+              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_mb }} {{ t('settings.unit_mb') }}</div>
             </div>
             <span v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('lora', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('lora', m.name + '.safetensors')">Delete</button>
+            <button v-else-if="isCatalogInstalled('lora', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('lora', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
             <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('lora', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_lora']">{{ t('settings.btn_download_model') }}</button>
           </div>
         </div>
@@ -1341,3 +1292,25 @@ onMounted(loadSettings)
     <PinModal v-if="kidsCatPinModal" mode="verify" :error="kidsCatPinError" @confirm="onKidsCatPinConfirm" @cancel="onKidsCatPinCancel" />
   </div>
 </template>
+
+<style scoped>
+.prompts-title {
+  color: var(--text-bright);
+  margin-bottom: 4px;
+}
+.prompts-sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.prompt-area {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.prompt-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+</style>

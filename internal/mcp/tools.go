@@ -395,7 +395,7 @@ func RegisterTools(s *Server) {
 		Description: "Сгенерировать изображение. Ветка 1: preset_id — стиль пресета, description (и negative) конвертируются LLM в SD-промпт, размер через resolution_id. " +
 			"Ветка 2: prompt+model — прямой прогон без LLM (как Test), размер через width/height. " +
 			"seed фиксирует сид. overrides (ветка 1) — разовые переопределения пресета (модель, сэмплер, шаги, CFG, лоры), hires_profile_id — hires fix. " +
-			"PNG + sidecar .json пишутся в out_dir; ответ: path, seed, prompt, is_preview. save=false — вернёт image_base64 вместо файла.",
+			"PNG + sidecar .json пишутся в out_dir; ответ: path, seed, prompt. save=false — вернёт image_base64 вместо файла.",
 		InputSchema: props(map[string]any{
 			"preset_id":        prop("id пресета (ветка 1)", "integer"),
 			"description":      prop("описание сцены для LLM-конвертации (ветка 1)", "string"),
@@ -404,7 +404,6 @@ func RegisterTools(s *Server) {
 			"model":            prop("модель SD title (ветка 2)", "string"),
 			"seed":             prop("фиксированный сид", "integer"),
 			"resolution_id":    prop("id разрешения (ветка 1)", "integer"),
-			"full_size":        prop("полный размер без preview-уменьшения (ветка 1, по умолчанию false)", "boolean"),
 			"overrides":        overridesSchema,
 			"hires_profile_id": prop("id hires-профиля (ветка 1)", "integer"),
 			"width":            prop("ширина (ветка 2, по умолчанию 512)", "integer"),
@@ -454,7 +453,6 @@ func RegisterTools(s *Server) {
 				if hid := optInt(args, "hires_profile_id"); hid != nil && *hid > 0 {
 					gp.HiresProfileID = hid
 				}
-				gp.FullSize = argBool(args, "full_size")
 				res, err := s.deps.Gen.GenerateImage(gp)
 				if err != nil {
 					return "", err
@@ -463,7 +461,6 @@ func RegisterTools(s *Server) {
 					"seed":            infoSeed(res.Info),
 					"prompt":          res.EffectivePrompt,
 					"negative_prompt": res.EffectiveNegativePrompt,
-					"is_preview":      res.IsPreview,
 				}
 				if save {
 					path, err := s.saveArtifact(p.Name, "gen-"+slugify(p.Name), res.Image, res.Info)
@@ -535,10 +532,9 @@ func RegisterTools(s *Server) {
 				})
 			}
 			out := map[string]any{
-				"seed":       item.Seed,
-				"prompt":     tp.Prompt,
-				"model":      item.ModelName,
-				"is_preview": false,
+				"seed":   item.Seed,
+				"prompt": tp.Prompt,
+				"model":  item.ModelName,
 			}
 			if save {
 				path, err := s.saveArtifact(model, "gen-"+slugify(model), item.Image, info)
@@ -621,7 +617,6 @@ func RegisterTools(s *Server) {
 					ExtraPrompt:         extraPrompt,
 					ExtraNegativePrompt: extraNeg,
 					Seed:                &seed,
-					FullSize:            true,
 					ResolutionID:        resolutionID,
 				}
 				res, err := s.deps.Gen.GenerateImage(gp)

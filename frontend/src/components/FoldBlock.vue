@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-vue-next'
 defineProps({
   title: { type: String, required: true },
   summary: { type: String, default: '' },
+  hint: { type: String, default: '' },
 })
 const emit = defineEmits(['toggle'])
 
@@ -19,8 +20,13 @@ function toggle() {
   <div class="fold" :class="{ 'fold-open': open }">
     <button type="button" class="fold-head" :aria-expanded="open ? 'true' : 'false'" @click="toggle">
       <ChevronDown :size="14" class="fold-chevron" :class="{ closed: !open }" />
-      <span class="fold-title">{{ title }}</span>
-      <span v-if="summary" class="fold-summary">{{ summary }}</span>
+      <span class="fold-text">
+        <span class="fold-line">
+          <span class="fold-title">{{ title }}</span>
+          <span v-if="summary" class="fold-summary">{{ summary }}</span>
+        </span>
+        <span v-if="hint" class="fold-hint">{{ hint }}</span>
+      </span>
     </button>
     <div v-show="open" class="fold-body">
       <slot />
@@ -60,8 +66,24 @@ function toggle() {
 .fold-chevron.closed {
   transform: rotate(-90deg);
 }
+.fold-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.fold-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .fold-title {
   flex-shrink: 0;
+}
+.fold-hint {
+  font-size: 12px;
+  color: var(--text-dim);
 }
 .fold-summary {
   font-family: var(--font-mono);

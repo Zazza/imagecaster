@@ -1,43 +1,62 @@
 {
   "llm_generate": [
     {
+      "name": "qwen3:4b",
+      "description": "For 8 GB GPUs. Small and fast, fine for everyday prompts",
+      "description_ru": "Для видеокарт 8 ГБ. Маленькая и быстрая, для обычных промптов",
+      "size_gb": 2.5
+    },
+    {
       "name": "qwen3:8b",
-      "description": "Best overall - fast, great instruction following, dual-mode (think/no-think)",
+      "description": "For 12 GB GPUs. Good balance of quality and speed",
+      "description_ru": "Для видеокарт 12 ГБ. Хороший баланс качества и скорости",
       "size_gb": 5.2,
       "recommended": true
     },
     {
-      "name": "qwen2.5:14b",
-      "description": "Stable, no thinking tags - clean output for prompt generation",
-      "size_gb": 9.0
-    },
-    {
       "name": "qwen3:14b",
-      "description": "Higher quality for complex prompts. Optimal for 16 GB VRAM",
-      "size_gb": 9.0
+      "description": "For 16 GB GPUs. Larger, for complex scenes and long descriptions",
+      "description_ru": "Для видеокарт 16 ГБ. Крупнее — для сложных сцен и длинных описаний",
+      "size_gb": 9.3
     },
     {
-      "name": "gpt-oss:20b",
-      "description": "OpenAI open-weights, strong instruction following and prompt rewriting",
-      "size_gb": 12.1
+      "name": "qwen3:30b",
+      "description": "For 24 GB GPUs and more. The largest in the list; MoE, so it runs fast for its size",
+      "description_ru": "Для видеокарт от 24 ГБ. Самая крупная в списке; MoE-архитектура, поэтому быстрая для своего размера",
+      "size_gb": 18.6
     }
   ],
   "llm_vision": [
     {
-      "name": "qwen2.5vl:7b",
-      "description": "Strong vision+text, fast, good for image analysis",
-      "size_gb": 5.0,
+      "name": "qwen3.5:4b",
+      "description": "For 8 GB GPUs. Compact, sees images and writes text",
+      "description_ru": "Для видеокарт 8 ГБ. Компактная, понимает картинки и пишет текст",
+      "size_gb": 3.3
+    },
+    {
+      "name": "qwen3-vl:8b",
+      "description": "For 12 GB GPUs. Photo descriptions and tags",
+      "description_ru": "Для видеокарт 12 ГБ. Описания и теги по фото",
+      "size_gb": 6.2,
       "recommended": true
     },
     {
-      "name": "minicpm-v:latest",
-      "description": "Compact vision - OCR, objects, colors, details",
-      "size_gb": 5.5
+      "name": "qwen3.5:9b",
+      "description": "For 16 GB GPUs. Newer generation; also writes text, so it can serve both roles",
+      "description_ru": "Для видеокарт 16 ГБ. Новое поколение; умеет и писать текст, поэтому может работать в обеих ролях",
+      "size_gb": 6.6
     },
     {
       "name": "gemma3:12b",
-      "description": "Multimodal - native image understanding",
-      "size_gb": 8.1
+      "description": "For 16 GB GPUs. Alternative from Google",
+      "description_ru": "Для видеокарт 16 ГБ. Альтернатива от Google",
+      "size_gb": 8.2
+    },
+    {
+      "name": "qwen3.6:27b",
+      "description": "For 24 GB GPUs and more. The largest in the list",
+      "description_ru": "Для видеокарт от 24 ГБ. Самая крупная в списке",
+      "size_gb": 17.8
     }
   ],
   "sd_models": [
@@ -45,7 +64,9 @@
       "name": "z-image-turbo-fp8-aio",
       "base": "Z-Image",
       "category": "Photorealism / Turbo",
+      "category_ru": "Фотореализм / Турбо",
       "description": "Tongyi Z-Image Turbo, all-in-one fp8 - 8 steps, CFG 1, ~3 s per image after load. The workhorse",
+      "description_ru": "Tongyi Z-Image Turbo, всё в одном файле fp8: 8 шагов, CFG 1, около 3 с на картинку после загрузки. Основная рабочая модель",
       "size_gb": 9.6,
       "recommended": true,
       "url": "https://huggingface.co/Elena2810/z-image-turbo-fp8-aio/resolve/main/z-image-turbo-fp8-aio.safetensors"
@@ -54,7 +75,9 @@
       "name": "moss_image_sft_bf16",
       "base": "Moss-Image",
       "category": "Photorealism / Instruction editing",
+      "category_ru": "Фотореализм / Правка по инструкции",
       "description": "OpenMOSS 5B SFT - photorealistic people, native instruction editing (Edit mode). Needs TE+VAE modules placed manually into text_encoder/ and VAE/ dirs (see Comfy-Org/MOSS-Image repo)",
+      "description_ru": "OpenMOSS 5B SFT: фотореалистичные люди, правка по инструкции (режим «Правка»). Модули TE и VAE нужно вручную положить в папки text_encoder/ и VAE/ (см. репозиторий Comfy-Org/MOSS-Image)",
       "size_gb": 9.5,
       "recommended": true,
       "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors"
@@ -63,7 +86,9 @@
       "name": "flux1-dev-fp8",
       "base": "Flux.1",
       "category": "Photorealism / Prose prompts",
+      "category_ru": "Фотореализм / Промпты-тексты",
       "description": "FLUX.1 dev fp8 single file - best prose-prompt following. Gated on Hugging Face (accept license, download manually or with a token)",
+      "description_ru": "FLUX.1 dev fp8 одним файлом: лучше всех следует промптам-текстам. На Hugging Face доступ после принятия лицензии — скачать вручную или с токеном",
       "size_gb": 11.9,
       "recommended": true
     },
@@ -71,7 +96,9 @@
       "name": "juggernautXL_ragnarokBy",
       "base": "SDXL",
       "category": "Photorealism",
+      "category_ru": "Фотореализм",
       "description": "Versatile photorealism - landscapes, characters, objects",
+      "description_ru": "Универсальный фотореализм: пейзажи, персонажи, предметы",
       "size_gb": 6.6,
       "url": "https://civitai.com/api/download/models/1759168"
     },
@@ -79,7 +106,9 @@
       "name": "photon_v1",
       "base": "SDXL",
       "category": "Photorealism",
+      "category_ru": "Фотореализм",
       "description": "Cinematic, film-like look",
+      "description_ru": "Кинематографичный, плёночный вид",
       "size_gb": 2.0,
       "url": "https://huggingface.co/sam749/Photon-v1/resolve/main/photon_v1.safetensors"
     },
@@ -87,7 +116,9 @@
       "name": "realisticVisionV60B1_v51HyperVAE",
       "base": "SD 1.5",
       "category": "Photorealism",
+      "category_ru": "Фотореализм",
       "description": "Portraits and headshots, fast on low VRAM",
+      "description_ru": "Портреты и крупные планы, быстро даже на слабой видеокарте",
       "size_gb": 2.0,
       "url": "https://huggingface.co/numeraz/realisticvisionv60B1/resolve/main/realisticVisionV60B1_v51VAE.safetensors"
     },
@@ -95,29 +126,19 @@
       "name": "epicrealism_naturalSinRC1VAE",
       "base": "SD 1.5",
       "category": "Photorealism",
+      "category_ru": "Фотореализм",
       "description": "Natural skin, soft light portraits",
+      "description_ru": "Естественная кожа, портреты в мягком свете",
       "size_gb": 2.0,
       "url": "https://huggingface.co/philz1337x/epicrealism/resolve/main/epicrealism_naturalSinRC1VAE.safetensors"
-    },
-    {
-      "name": "chilloutmix_v10",
-      "base": "SD 1.5",
-      "category": "Photorealism",
-      "description": "Korean-style realistic portraits",
-      "size_gb": 2.0
-    },
-    {
-      "name": "cyberrealistic_final",
-      "base": "SD 1.5",
-      "category": "Photorealism",
-      "description": "Universal photorealism, solid anatomy",
-      "size_gb": 2.0
     },
     {
       "name": "dreamshaper_8",
       "base": "SD 1.5",
       "category": "Versatile",
+      "category_ru": "Универсальная",
       "description": "All-round styles from photo to illustration",
+      "description_ru": "Любые стили — от фото до иллюстрации",
       "size_gb": 2.0,
       "url": "https://huggingface.co/digiplay/DreamShaper_8/resolve/main/dreamshaper_8.safetensors"
     },
@@ -125,112 +146,36 @@
       "name": "epicrealismXL_pureFix",
       "base": "SDXL",
       "category": "Photorealism",
+      "category_ru": "Фотореализм",
       "description": "SDXL realistic people, clean output",
-      "size_gb": 6.5
-    },
-    {
-      "name": "jaggedBrushworksXL_v10",
-      "base": "SDXL",
-      "category": "Painterly",
-      "description": "Expressive painterly brushwork looks",
-      "size_gb": 6.5
-    },
-    {
-      "name": "leosamsHelloworldXL_helloworldXL70",
-      "base": "SDXL",
-      "category": "3D / Render",
-      "description": "Helloworld XL - semi-3D renders and stylized characters",
-      "size_gb": 6.5
-    },
-    {
-      "name": "zavychromaxl_v100",
-      "base": "SDXL",
-      "category": "Cinematic",
-      "description": "Chroma XL - rich cinematic color",
-      "size_gb": 6.5
-    },
-    {
-      "name": "babesByStableYogiPony_v60FP16",
-      "base": "Pony XL",
-      "category": "Photorealism / Pony",
-      "description": "Pony-based photoreal people",
+      "description_ru": "Реалистичные люди на SDXL, чистый результат",
       "size_gb": 6.5
     },
     {
       "name": "ponyDiffusionV6XL_v6StartWithThisOne",
       "base": "Pony XL",
       "category": "Anime / Pony",
+      "category_ru": "Аниме / Pony",
       "description": "Pony V6 base - huge style ecosystem",
-      "size_gb": 6.5
-    },
-    {
-      "name": "realismByStableYogi_ponyV3VAE",
-      "base": "Pony XL",
-      "category": "Photorealism / Pony",
-      "description": "Realism tuned on Pony",
-      "size_gb": 6.5
-    },
-    {
-      "name": "revEnginePonyxl_v10",
-      "base": "Pony XL",
-      "category": "Stylized / Pony",
-      "description": "Stylized renders on Pony base",
+      "description_ru": "Базовая Pony V6 — огромная экосистема стилей",
       "size_gb": 6.5
     },
     {
       "name": "riMixPONYIllustrious_riMixV2",
       "base": "Pony/Illustrious",
       "category": "Anime realism",
+      "category_ru": "Аниме-реализм",
       "description": "Anime-realism hybrid blend",
-      "size_gb": 6.5
-    },
-    {
-      "name": "fnReal25DNoobxl_v10",
-      "base": "Illustrious",
-      "category": "2.5D",
-      "description": "2.5D semi-realistic characters",
-      "size_gb": 6.5
-    },
-    {
-      "name": "illustriousRealismBy_v10VAE",
-      "base": "Illustrious",
-      "category": "Anime realism",
-      "description": "Realistic people on Illustrious base",
-      "size_gb": 6.5
-    },
-    {
-      "name": "realismIllustriousBy_v55FP16",
-      "base": "Illustrious",
-      "category": "Anime realism",
-      "description": "Realism blend, v55",
-      "size_gb": 6.5
-    },
-    {
-      "name": "veloriamixIllustrious_v20",
-      "base": "Illustrious",
-      "category": "Anime",
-      "description": "Veloria mix - stylized anime characters",
-      "size_gb": 6.8
-    },
-    {
-      "name": "t00nBL00MXL_v10",
-      "base": "Illustrious",
-      "category": "Cartoon",
-      "description": "Bold cartoon/toon looks",
-      "size_gb": 6.5
-    },
-    {
-      "name": "veteAnthroAnime_v02",
-      "base": "Illustrious",
-      "category": "Anthro",
-      "description": "Anthro/furry anime characters",
+      "description_ru": "Смесь аниме и реализма",
       "size_gb": 6.5
     },
     {
       "name": "revAnimated_v2Rebirth",
       "base": "SD 1.5",
       "category": "Anime",
+      "category_ru": "Аниме",
       "description": "Classic anime look",
+      "description_ru": "Классический аниме-стиль",
       "size_gb": 4.0,
       "url": "https://huggingface.co/s6yx/ReV_Animated/resolve/main/revAnimated_v2Rebirth.safetensors"
     }
@@ -240,8 +185,10 @@
       "name": "Moss_Edit_LoRA",
       "base": "Moss-Image",
       "category": "Instruction editing",
+      "category_ru": "Правка по инструкции",
       "default_weight": 1.0,
       "description": "Official edit LoRA for the Edit mode (reference KV instruction editing)",
+      "description_ru": "Официальная LoRA для режима «Правка» (правка по инструкции)",
       "size_mb": 297,
       "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/loras/moss_image_edit_lora_rank_64_bf16.safetensors"
     },
@@ -249,33 +196,42 @@
       "name": "add-detail-xl",
       "base": "SDXL",
       "category": "Detail & Quality",
+      "category_ru": "Детали и качество",
       "default_weight": 0.7,
       "description": "Increases detail and sharpness",
+      "description_ru": "Добавляет детали и резкость",
       "size_mb": 136,
       "url": "https://huggingface.co/LyliaEngine/add-detail-xl/resolve/main/add-detail-xl.safetensors"
     },
     {
       "name": "Add_Details_v1.2",
-      "base": "SD 1.5",
+      "base": "SDXL",
       "category": "Detail & Quality",
+      "category_ru": "Детали и качество",
       "default_weight": 0.6,
-      "description": "Enhances fine details",
-      "size_mb": 144
+      "description": "Detail slider: positive weight adds detail, negative removes it. Also works with Pony and Illustrious",
+      "description_ru": "Ползунок деталей: плюс добавляет детали, минус убирает. Подходит и для Pony, и для Illustrious",
+      "size_mb": 5.2,
+      "url": "https://huggingface.co/thisisdom4/Add_Detail_-_Slider/resolve/main/Add_Details_v1.2.safetensors"
     },
     {
       "name": "HDR_Photography",
       "base": "SDXL",
       "category": "Photography",
+      "category_ru": "Фотография",
       "default_weight": 0.5,
       "description": "HDR photography look",
+      "description_ru": "Вид HDR-фотографии",
       "size_mb": 136
     },
     {
       "name": "hairdetailer",
       "base": "SD 1.5/SDXL",
       "category": "Detail",
+      "category_ru": "Детали",
       "default_weight": 0.6,
       "description": "Hair strand detail",
+      "description_ru": "Прорисовка отдельных прядей волос",
       "size_mb": 68,
       "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/release/hairdetailer.safetensors"
     }

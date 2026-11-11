@@ -45,11 +45,7 @@ func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 		if prompt == "" {
 			prompt = config.DefaultEditGarmentPrompt
 		}
-		if locale, _ := s.db.GetSetting("ui_locale"); locale == "en" {
-			prompt += "\n\nRespond in English."
-		} else {
-			prompt += "\n\nОтвечай на русском языке."
-		}
+		prompt += s.answerLanguageSuffix()
 		s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
 		text, err := s.llm.AnalyzeImageDescribe(model, prompt, imageBase64, maxTokens)
 		s.emitter.Emit("llm:status", map[string]string{"status": "done"})
@@ -64,6 +60,7 @@ func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 		if prompt == "" {
 			prompt = config.DefaultAnalyzeDescribePrompt
 		}
+		prompt += s.answerLanguageSuffix()
 		s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
 		text, err := s.llm.AnalyzeImageDescribe(model, prompt, imageBase64, maxTokens)
 		if err != nil {
@@ -93,6 +90,13 @@ func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 	s.emitter.Emit("llm:status", map[string]string{"status": "done"})
 	tags = s.kids.FilterOutput(tags)
 	return tags, nil
+}
+
+func (s *Service) answerLanguageSuffix() string {
+	if locale, _ := s.db.GetSetting("ui_locale"); locale == "en" {
+		return "\n\nRespond in English."
+	}
+	return "\n\nОтвечай на русском языке."
 }
 
 func (s *Service) GetDefaultAnalyzePrompts() *AnalyzePrompts {
@@ -540,16 +544,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 
 	width, height := s.resolveResolution(p, params.ResolutionID)
 
-	isPreview := false
-	if pw, ph, preview := s.getPreviewDimensions(width, height); preview {
-		isPreview = true
-		width = pw
-		height = ph
-	}
-
 	hiresEnabled, hiresUpscale, hiresDenoising, hiresUpscaler := s.resolveHires(params.HiresProfileID)
 	var hiresFix *bool
-	if hiresEnabled && !isPreview {
+	if hiresEnabled {
 		hiresFix = &hiresEnabled
 	}
 
@@ -588,11 +585,10 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		Image:                   result.Images[0],
 		Parameters:              result.Parameters,
 		Info:                    result.Info,
-		IsPreview:               isPreview,
 		EffectivePrompt:         prompt,
 		EffectiveNegativePrompt: negativePrompt,
 	}
-	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "generate", isPreview, &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "generate", false, &preset.GenerationMeta{
 		PresetID: &params.PresetID,
 		Label:    p.Name,
 		Model:    p.ModelName,
@@ -854,7 +850,6 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 	img := &GenerateImageResult{
 		Image:                   lastImage,
 		Info:                    lastInfo,
-		IsPreview:               false,
 		EffectivePrompt:         "",
 		EffectiveNegativePrompt: "",
 	}

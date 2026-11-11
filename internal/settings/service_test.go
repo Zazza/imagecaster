@@ -273,8 +273,6 @@ func TestGetSettings_ReturnsDefaults(t *testing.T) {
 	assert.Equal(t, "lmstudio", settings["llm_backend"])
 	assert.Equal(t, "5m", settings["llm_keep_alive"])
 	assert.Equal(t, "false", settings["kids_mode"])
-	assert.Equal(t, "512", settings["preview_width"])
-	assert.Equal(t, "512", settings["preview_height"])
 }
 
 func TestGetSettings_OverridesWithStoredValues(t *testing.T) {
@@ -283,14 +281,14 @@ func TestGetSettings_OverridesWithStoredValues(t *testing.T) {
 
 	require.NoError(t, db.SetSetting("llm_url", "http://custom-llm:9999"))
 	require.NoError(t, db.SetSetting("kids_mode", "true"))
-	require.NoError(t, db.SetSetting("preview_width", "1024"))
+	require.NoError(t, db.SetSetting("llm_num_ctx", "1024"))
 
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://custom-llm:9999", settings["llm_url"])
 	assert.Equal(t, "true", settings["kids_mode"])
-	assert.Equal(t, "1024", settings["preview_width"])
+	assert.Equal(t, "1024", settings["llm_num_ctx"])
 }
 
 func TestGetSettings_AllDefaultKeysPresent(t *testing.T) {
@@ -311,7 +309,6 @@ func TestGetSettings_AllDefaultKeysPresent(t *testing.T) {
 		"llm_analyze_top_p", "llm_analyze_num_thread",
 		"kids_mode", "kids_cat_violence", "kids_cat_horror",
 		"kids_cat_weapons", "kids_cat_substances", "kids_cat_mature",
-		"preview_mode", "preview_width", "preview_height",
 	}
 	for _, k := range expectedKeys {
 		_, ok := settings[k]
@@ -399,8 +396,6 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 		"llm_num_ctx":    "8192",
 		"llm_num_gpu":    "1",
 		"llm_max_tokens": "512",
-		"preview_width":  "1024",
-		"preview_height": "768",
 	}
 
 	err := svc.UpdateSettings(data)
@@ -411,8 +406,6 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 	assert.Equal(t, "8192", settings["llm_num_ctx"])
 	assert.Equal(t, "1", settings["llm_num_gpu"])
 	assert.Equal(t, "512", settings["llm_max_tokens"])
-	assert.Equal(t, "1024", settings["preview_width"])
-	assert.Equal(t, "768", settings["preview_height"])
 }
 
 func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
@@ -420,8 +413,8 @@ func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 
 	data := map[string]string{
-		"llm_num_ctx":   "abc",
-		"preview_width": "-100",
+		"llm_num_ctx": "abc",
+		"llm_num_gpu": "-100",
 	}
 
 	err := svc.UpdateSettings(data)
@@ -430,7 +423,7 @@ func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
 	assert.Equal(t, "0", settings["llm_num_ctx"])
-	assert.Equal(t, "0", settings["preview_width"])
+	assert.Equal(t, "0", settings["llm_num_gpu"])
 }
 
 func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
@@ -438,8 +431,8 @@ func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 
 	data := map[string]string{
-		"llm_num_ctx":   "",
-		"preview_width": "",
+		"llm_num_ctx": "",
+		"llm_num_gpu": "",
 	}
 
 	err := svc.UpdateSettings(data)
@@ -448,7 +441,7 @@ func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
 	assert.Equal(t, "0", settings["llm_num_ctx"])
-	assert.Equal(t, "0", settings["preview_width"])
+	assert.Equal(t, "0", settings["llm_num_gpu"])
 }
 
 func TestUpdateSettings_DisallowedSettingIgnored(t *testing.T) {

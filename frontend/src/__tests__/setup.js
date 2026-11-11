@@ -14,7 +14,6 @@ vi.mock('../../wailsjs/go/main/App.js', () => ({
   GenerateSDPrompt: vi.fn(() => Promise.resolve({ prompt: '', negative_prompt: '' })),
   GenerateImage: vi.fn(() => Promise.resolve({ image: '', info: '{}' })),
   UpscaleImage: vi.fn(() => Promise.resolve({ image: '' })),
-  UpscalePreview: vi.fn(() => Promise.resolve({ image: '' })),
   SaveImage: vi.fn(() => Promise.resolve('')),
   GetLastImage: vi.fn(() => Promise.resolve(null)),
   GetSDModels: vi.fn(() => Promise.resolve([])),

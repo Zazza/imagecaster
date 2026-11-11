@@ -441,7 +441,6 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		Image:                   finalImage,
 		Parameters:              resp.Parameters,
 		Info:                    finalInfo,
-		IsPreview:               false,
 		EffectivePrompt:         prompt,
 		QualityUpscaleSkipped:   upscaleSkipped,
 		QualityRedenoiseSkipped: redenoiseSkipped,

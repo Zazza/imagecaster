@@ -38,12 +38,8 @@ const generatedImage = ref('')
 const genInfo = ref(null)
 const sourceImage = ref('')
 const sourceGenInfo = ref(null)
-const isPreview = ref(false)
 const hiresSkipped = ref(false)
-const savedPreview = ref(null)
-const upscaling = ref(false)
 const upscalingX2 = ref(false)
-const previewMode = ref(false)
 const effectivePrompt = ref('')
 const effectiveNegative = ref('')
 
@@ -318,9 +314,7 @@ async function sendToSD() {
   generatedImage.value = ''
   shownItemId.value = null
   genInfo.value = null
-  isPreview.value = false
   hiresSkipped.value = false
-  savedPreview.value = null
   effectivePrompt.value = ''
   effectiveNegative.value = ''
   try {
@@ -355,7 +349,6 @@ async function sendToSD() {
       genInfo.value = result.info
       sourceImage.value = result.image
       sourceGenInfo.value = result.info
-      isPreview.value = result.is_preview || false
       hiresSkipped.value = result.hires_fix_skipped || false
       effectivePrompt.value = result.effective_prompt || ''
       effectiveNegative.value = result.effective_negative_prompt || ''
@@ -388,9 +381,7 @@ async function generateImage() {
   generatedImage.value = ''
   shownItemId.value = null
   genInfo.value = null
-  isPreview.value = false
   hiresSkipped.value = false
-  savedPreview.value = null
   effectivePrompt.value = ''
   effectiveNegative.value = ''
   enqueuedJobIds.value = new Set()
@@ -497,57 +488,6 @@ async function generateImage() {
   }
 }
 
-async function upscalePreview() {
-  if (!generatedImage.value || !selectedPresetId.value || !genInfo.value) return
-  const b64 = await resolveImageBase64()
-  if (!b64) return
-  savedPreview.value = {
-    image: generatedImage.value,
-    itemId: shownItemId.value,
-    info: genInfo.value,
-    sourceImage: sourceImage.value,
-    sourceGenInfo: sourceGenInfo.value,
-  }
-  upscaling.value = true
-  error.value = ''
-  try {
-    let seed = -1
-    let info = genInfo.value
-    if (typeof info === 'string') {
-      try { info = JSON.parse(info) } catch { info = {} }
-    }
-    if (info && typeof info === 'object') {
-      const s = info.seed ?? info.Seed
-      if (s !== undefined) seed = Number(s)
-    }
-    const result = await api.upscalePreview(b64, selectedPresetId.value, seed)
-    if (!result || !result.image) {
-      error.value = t('generate.error_upscale')
-    } else {
-      generatedImage.value = result.image
-      shownItemId.value = result.session_item_id || null
-      genInfo.value = result.info
-      sourceImage.value = result.image
-      sourceGenInfo.value = result.info
-      isPreview.value = false
-    }
-  } catch (e) {
-    error.value = String(e)
-  } finally {
-    upscaling.value = false
-  }
-}
-
-function backToPreview() {
-  if (!savedPreview.value) return
-  generatedImage.value = savedPreview.value.image
-  shownItemId.value = savedPreview.value.itemId || null
-  genInfo.value = savedPreview.value.info
-  sourceImage.value = savedPreview.value.sourceImage
-  sourceGenInfo.value = savedPreview.value.sourceGenInfo
-  isPreview.value = true
-}
-
 async function upscaleImageX2() {
   if (!generatedImage.value) return
   const b64 = await resolveImageBase64()
@@ -564,7 +504,6 @@ async function upscaleImageX2() {
       genInfo.value = result.info
       sourceImage.value = result.image
       sourceGenInfo.value = result.info
-      isPreview.value = false
     }
   } catch (e) {
     error.value = String(e)
@@ -740,7 +679,6 @@ function onQueueCompleted(data) {
         }
         genInfo.value = info
         sourceGenInfo.value = info
-        isPreview.value = false
         hiresSkipped.value = false
       }
     } catch {}
@@ -804,7 +742,6 @@ async function onSessionAdded() {
     sourceImage.value = generatedImage.value
     genInfo.value = item.info || null
     sourceGenInfo.value = item.info || null
-    isPreview.value = item.is_preview || false
     if (enqueuedJobIds.value.size === 0) {
       generatingImage.value = false
       generationStage.value = ''
@@ -866,7 +803,6 @@ onMounted(async () => {
   let resolutionLoaded = false
   try {
     const s = await api.getSettings()
-    previewMode.value = s.preview_mode === 'true'
     if (s.gen_type_id) {
       const tid = Number(s.gen_type_id) || null
       if (tid && genTypes.value.find(pt => pt.id === tid)) {
@@ -949,7 +885,6 @@ onMounted(async () => {
         genInfo.value = item.info || null
         sourceImage.value = generatedImage.value
         sourceGenInfo.value = item.info || null
-        isPreview.value = item.is_preview || false
       }
     } catch {}
   }
@@ -1147,7 +1082,7 @@ function onKeydown(e) {
           <div v-if="generatingImage && !generatedImage" style="text-align: center; padding: 24px;">
             <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" style="max-width: 100%; border-radius: var(--radius-sm); opacity: 0.6; image-rendering: pixelated;" />
             <span v-else class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></span>
-            <p style="margin-top: 12px; color: var(--text-dim);">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ llmStatus === 'thinking' ? t('generate.generating_prompt') : upscalingX2 ? t('generate.upscaling_x2') : upscaling ? t('generate.upscaling_full') : t('generate.generating_image') }}</p>
+            <p style="margin-top: 12px; color: var(--text-dim);">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ llmStatus === 'thinking' ? t('generate.generating_prompt') : upscalingX2 ? t('generate.upscaling_x2') : t('generate.generating_image') }}</p>
             <div v-if="sdProgress && sdProgress.progress > 0" style="margin-top: 12px; max-width: 300px; margin-left: auto; margin-right: auto;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                 <span style="color: var(--text-dim); font-size: 12px;">{{ Math.round(sdProgress.progress * 100) }}%</span>
@@ -1182,16 +1117,11 @@ function onKeydown(e) {
             </div>
           </div>
           <div v-else-if="generatedImage" style="width: 100%; padding: 12px;">
-            <div v-if="isPreview && previewMode" class="status status-info" style="margin-bottom: 8px; text-align: center;">
-              {{ t('generate.preview_info') }}
-            </div>
             <StatusMessage v-if="hiresSkipped" kind="warning" style="margin-bottom: 8px; text-align: center;" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
             <img :src="imageSrc" alt="Generated" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="openGeneratedViewer" />
             <div class="action-row" style="margin-top: 12px;">
               <button v-if="generatedImage" class="btn btn-primary btn-sm" @click="openFastSaveModal">{{ t('generate.btn_quick_save') }}</button>
-              <button v-if="isPreview && previewMode" class="btn btn-sm btn-secondary" @click="upscalePreview">{{ t('generate.btn_upscale_full') }}</button>
-              <button v-if="!isPreview && savedPreview" class="btn btn-sm btn-secondary" @click="backToPreview">{{ t('generate.btn_back_preview') }}</button>
-              <button v-if="generatedImage && !isPreview" class="btn btn-sm btn-secondary" @click="upscaleImageX2" :disabled="upscalingX2">{{ t('generate.btn_upscale_x2') }}</button>
+              <button v-if="generatedImage" class="btn btn-sm btn-secondary" @click="upscaleImageX2" :disabled="upscalingX2">{{ t('generate.btn_upscale_x2') }}</button>
               <button class="btn btn-sm btn-secondary" @click="downloadImage">{{ t('generate.btn_download') }}</button>
               <button class="btn btn-sm btn-secondary" @click="copyPrompt">{{ t('generate.btn_copy') }}</button>
               <button class="btn btn-sm btn-secondary" @click="generateImage">{{ t('generate.btn_regenerate') }}</button>

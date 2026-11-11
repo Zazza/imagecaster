@@ -153,6 +153,10 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("migrate v29: %w", err)
 	}
 
+	if err := migrateV30(db); err != nil {
+		return nil, fmt.Errorf("migrate v30: %w", err)
+	}
+
 	return &DB{db: db}, nil
 }
 
@@ -1582,5 +1586,14 @@ func migrateV29(db *sql.DB) error {
 			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 		)
 	`)
+	return err
+}
+
+const legacyAnalyzeDescribePromptRu = `Опиши это изображение связным литературным текстом на русском языке, 4–6 предложений.
+Расскажи, что на нём происходит: главные объекты и их детали, обстановка, свет и цвета, атмосфера, заметные мелочи.
+Пиши живым текстом для человека, а не списком тегов. Не выдумывай того, чего нет на изображении.`
+
+func migrateV30(db *sql.DB) error {
+	_, err := db.Exec(`DELETE FROM settings WHERE key = 'analyze_describe_prompt' AND value = ?`, legacyAnalyzeDescribePromptRu)
 	return err
 }

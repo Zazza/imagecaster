@@ -309,7 +309,6 @@ type GenerateImageParams = generation.GenerateImageParams
 type GenerateImageResult = generation.GenerateImageResult
 type AnalyzePrompts = generation.AnalyzePrompts
 type UpscaleImageParams = generation.UpscaleImageParams
-type UpscalePreviewParams = generation.UpscalePreviewParams
 type GenerateCompoundImageParams = generation.GenerateCompoundImageParams
 type GenerateFromImageParams = generation.GenerateFromImageParams
 type ApplyLookParams = generation.ApplyLookParams
@@ -348,10 +347,6 @@ func (a *App) GenerateImage(params GenerateImageParams) (*GenerateImageResult, e
 
 func (a *App) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult, error) {
 	return a.gen.UpscaleImage(params)
-}
-
-func (a *App) UpscalePreview(params UpscalePreviewParams) (*GenerateImageResult, error) {
-	return a.gen.UpscalePreview(params)
 }
 
 func (a *App) GetLastImage() (*GenerateImageResult, error) {

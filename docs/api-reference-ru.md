@@ -12,7 +12,6 @@ interface GenerateImageResult {
   image: string                    // base64 PNG
   parameters: any                  // JSON от SD WebUI
   info: any                        // JSON с деталями генерации
-  is_preview: boolean
   effective_prompt: string         // итоговый positive prompt
   effective_negative_prompt: string // итоговый negative prompt
 }
@@ -133,14 +132,11 @@ interface GenerateSDPromptResult {
 
 ---
 
-### UpscaleImage / UpscalePreview
+### UpscaleImage
 Апскейл изображения.
 
 ```typescript
 api.upscaleImage(imageBase64: string, genInfo: any, presetId: number)
-  → Promise<GenerateImageResult>
-
-api.upscalePreview(previewImageBase64: string, presetId: number, seed: number)
   → Promise<GenerateImageResult>
 ```
 

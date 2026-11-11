@@ -17,7 +17,7 @@ Imagecaster uses a dedicated model for each job. Every model except Flux 2 Klein
 
 ### SD 1.5 / SDXL
 
-The first generation of Stable Diffusion models. Presets use `dreamshaper_8` (all-round), `realisticVisionV60B1_v51HyperVAE` (portraits) and `leosamsHelloworldXL_helloworldXL70` (3D and stylized). The catalog has about a dozen more: photorealism, cinematic, painterly.
+The first generation of Stable Diffusion models. Presets use `dreamshaper_8` (all-round), `realisticVisionV60B1_v51HyperVAE` (portraits). The catalog has a few more for photorealism.
 
 ### Pony / Illustrious
 
