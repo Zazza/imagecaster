@@ -227,6 +227,7 @@ export const api = {
   isQueuePaused: () => IsQueuePaused(),
   clearCompletedQueueJobs: () => ClearCompletedQueueJobs(),
   resumePausedQueueJobs: () => ResumePausedQueueJobs(),
+  retryQueueJob: (id) => (AppBindings.RetryQueueJob ? AppBindings.RetryQueueJob(id) : window['go']['main']['App']['RetryQueueJob'](id)),
   saveWindowLayout: (footerHeight) => SaveWindowLayout(footerHeight),
   getFooterHeight: () => GetFooterHeight(),
 }

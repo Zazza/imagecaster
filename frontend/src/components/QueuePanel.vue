@@ -3,25 +3,24 @@ import { ref, computed } from 'vue'
 import { useQueue } from '../composables/useQueue.js'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
-import { X, Pause, Play, Trash2, AlertCircle, CheckCircle, Loader, RotateCcw } from 'lucide-vue-next'
+import { X, Pause, Play, AlertCircle, Loader, RotateCcw } from 'lucide-vue-next'
 
 const {
-  jobs, paused, pending, running, completed, failed, pausedJobs,
+  jobs, paused, pending, running, pausedJobs,
   currentJob, pendingCount, hasActiveJobs, hasPausedJobs, refresh,
 } = useQueue()
 
-const statusOrder = { running: 0, pending: 1, paused: 2, failed: 3, completed: 4 }
+const statusOrder = { running: 0, pending: 1, paused: 2, failed: 3 }
+const hiddenStatuses = new Set(['completed', 'cancelled'])
 
 const sortedJobs = computed(() => {
-  return [...jobs.value].sort((a, b) => {
+  return jobs.value.filter(j => !hiddenStatuses.has(j.status)).sort((a, b) => {
     const diff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
     if (diff !== 0) return diff
     return a.id - b.id
   })
 })
 
-const confirmClear = ref(false)
-let clearTimer = null
 const confirmCancel = ref(false)
 let cancelTimer = null
 
@@ -77,26 +76,20 @@ async function cancelAll() {
   } catch {}
 }
 
-async function clearCompleted() {
-  if (!confirmClear.value) {
-    confirmClear.value = true
-    clearTimeout(clearTimer)
-    clearTimer = setTimeout(() => { confirmClear.value = false }, 3000)
-    return
-  }
-  confirmClear.value = false
-  clearTimeout(clearTimer)
-  try {
-    await api.clearCompletedQueueJobs()
-    await refresh()
-  } catch {}
-}
-
 async function resumePausedJobs() {
   try {
     await api.resumePausedQueueJobs()
     await refresh()
   } catch {}
+}
+
+async function retryJob(id) {
+  try {
+    await api.retryQueueJob(id)
+    await refresh()
+  } catch (e) {
+    console.warn('retry queue job failed', e)
+  }
 }
 
 function formatProgress(p) {
@@ -133,20 +126,15 @@ function formatTime(ts) {
         <button class="q-btn q-btn-danger" :class="{ confirm: confirmCancel }" @click="cancelAll" :disabled="!hasActiveJobs" :title="t('queue.cancel_all')">
           <X :size="12" /> {{ confirmCancel ? t('queue.confirm_cancel') : t('queue.cancel_all') }}
         </button>
-        <button class="q-btn q-btn-clear" :class="{ confirm: confirmClear }" @click="clearCompleted" :disabled="completed.length === 0 && failed.length === 0">
-          <Trash2 :size="12" />
-          {{ confirmClear ? t('queue.confirm_clear') : t('queue.clear_done') }}
-        </button>
       </div>
     </div>
 
     <div class="queue-list">
-      <div v-if="jobs.length === 0" class="queue-empty">{{ t('queue.empty') }}</div>
+      <div v-if="sortedJobs.length === 0" class="queue-empty">{{ t('queue.empty') }}</div>
 
       <div v-for="job in sortedJobs" :key="job.id" class="queue-item" :class="'status-' + job.status">
         <div class="qi-icon">
           <Loader v-if="job.status === 'running'" :size="14" class="spin" />
-          <CheckCircle v-else-if="job.status === 'completed'" :size="14" class="text-success" />
           <AlertCircle v-else-if="job.status === 'failed'" :size="14" class="text-danger" />
           <Pause v-else-if="job.status === 'paused'" :size="14" class="text-warning" />
           <div v-else class="qi-dot" :class="{ active: job.status === 'pending' }"></div>
@@ -181,6 +169,9 @@ function formatTime(ts) {
 
         <div class="qi-actions">
           <button v-if="job.status === 'paused'" class="qi-resume" @click="resumePausedJobs" :title="t('queue.resume_paused')">
+            <RotateCcw :size="12" />
+          </button>
+          <button v-if="job.status === 'failed'" class="qi-retry" @click="retryJob(job.id)" :title="t('queue.retry')" :aria-label="t('queue.retry')">
             <RotateCcw :size="12" />
           </button>
           <button v-if="job.status === 'pending' || job.status === 'failed'" class="qi-remove" @click="removeJob(job.id)" :title="t('queue.remove')">
@@ -258,10 +249,6 @@ export default { name: 'QueuePanel' }
   height: 24px;
   min-width: 112px;
   white-space: nowrap;
-}
-
-.q-btn-clear {
-  min-width: 164px;
 }
 
 .q-btn:hover:not(:disabled) {
@@ -345,7 +332,6 @@ export default { name: 'QueuePanel' }
   background: var(--warning, #f0a030);
 }
 
-.text-success { color: var(--success); }
 .text-danger { color: var(--danger, #e55); }
 
 .qi-content {
@@ -435,6 +421,8 @@ export default { name: 'QueuePanel' }
 
 .qi-actions {
   flex-shrink: 0;
+  display: flex;
+  gap: 4px;
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -460,6 +448,25 @@ export default { name: 'QueuePanel' }
 .qi-remove:hover {
   color: var(--danger, #e55);
   border-color: var(--danger, #e55);
+}
+
+.qi-retry {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+}
+
+.qi-retry:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .qi-resume {

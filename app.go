@@ -114,6 +114,9 @@ func (a *App) startup(ctx context.Context) {
 	a.log.SetContext(ctx)
 	a.log.InstallBridge()
 	a.gen.SetContext(ctx)
+	if err := a.queueSvc.ClearCompleted(); err != nil {
+		a.log.Warn("queue: clear completed: %s", err)
+	}
 	a.queueSvc.Start(ctx)
 	go a.gen.ResetReferences()
 	go a.sessions.WatchExternal(ctx, externalSessionPoll)
@@ -1351,6 +1354,10 @@ func (a *App) GetQueue() ([]*QueueJob, error) {
 
 func (a *App) RemoveQueueJob(id int64) error {
 	return a.queueSvc.RemoveJob(id)
+}
+
+func (a *App) RetryQueueJob(id int64) error {
+	return a.queueSvc.RetryJob(id)
 }
 
 func (a *App) CancelQueueJob(id int64) error {

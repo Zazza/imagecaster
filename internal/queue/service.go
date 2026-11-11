@@ -57,6 +57,19 @@ func (s *Service) RemoveJob(id int64) error {
 	return nil
 }
 
+func (s *Service) RetryJob(id int64) error {
+	ok, err := s.store.RetryFailed(id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("job %d is not failed", id)
+	}
+	s.worker.Notify()
+	s.emit.Emit(EventQueueChanged)
+	return nil
+}
+
 func (s *Service) SetInterruptFn(fn func()) {
 	s.interruptFn = fn
 }

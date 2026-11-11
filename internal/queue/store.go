@@ -280,6 +280,18 @@ func (s *Store) ResumePausedJobs() (int, error) {
 	return int(affected), nil
 }
 
+func (s *Store) RetryFailed(id int64) (bool, error) {
+	result, err := s.db.Exec(
+		`UPDATE job_queue SET status = 'pending', retry_count = 0, next_retry_at = NULL, error = '', progress = 0, progress_detail = '', result = '', started_at = NULL, completed_at = NULL WHERE id = ? AND status = 'failed'`,
+		id,
+	)
+	if err != nil {
+		return false, err
+	}
+	affected, _ := result.RowsAffected()
+	return affected > 0, nil
+}
+
 func (s *Store) HasPausedJobs() (bool, error) {
 	var count int
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM job_queue WHERE status = 'paused'`).Scan(&count)
