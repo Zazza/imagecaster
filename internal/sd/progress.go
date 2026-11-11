@@ -13,15 +13,28 @@ type ProgressResponse struct {
 	Progress    float64 `json:"progress"`
 	ETARelative float64 `json:"eta_relative"`
 	State       struct {
-		Job      string `json:"job"`
-		JobCount int    `json:"job_count"`
-		JobNo    int    `json:"job_no"`
-		Sampling struct {
+		Job           string `json:"job"`
+		JobCount      int    `json:"job_count"`
+		JobNo         int    `json:"job_no"`
+		SamplingStep  int    `json:"sampling_step"`
+		SamplingSteps int    `json:"sampling_steps"`
+		Sampling      struct {
 			Steps       int    `json:"steps"`
 			SamplerName string `json:"sampler_name"`
 		} `json:"sampling"`
 	} `json:"state"`
 	CurrentImage string `json:"current_image"`
+}
+
+func (p *ProgressResponse) TotalSteps() int {
+	if p.State.SamplingSteps > 0 {
+		return p.State.SamplingSteps
+	}
+	return p.State.Sampling.Steps
+}
+
+func (p *ProgressResponse) CurrentStep() int {
+	return p.State.SamplingStep
 }
 
 func (c *Client) GetProgress() (*ProgressResponse, error) {

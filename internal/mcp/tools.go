@@ -38,7 +38,7 @@ func RegisterTools(s *Server) {
 						"progress": prog.Progress,
 						"eta":      prog.ETARelative,
 						"job":      prog.State.Job,
-						"steps":    prog.State.Sampling.Steps,
+						"steps":    prog.TotalSteps(),
 					}
 				}
 				res["sd"] = m

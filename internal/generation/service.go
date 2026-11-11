@@ -331,7 +331,7 @@ func (s *Service) StartSDPolling() {
 					Job:         prog.State.Job,
 					JobCount:    prog.State.JobCount,
 					JobNo:       prog.State.JobNo,
-					Steps:       prog.State.Sampling.Steps,
+					Steps:       prog.TotalSteps(),
 					SamplerName: prog.State.Sampling.SamplerName,
 					Preview:     prog.CurrentImage,
 				})
@@ -537,6 +537,10 @@ func (s *Service) getSDPromptInstruction() string {
 func (s *Service) isProseModel(modelName string) bool {
 	return config.IsNewGenModel(modelName)
 }
+
+const textInImageRule = `
+
+TEXT IN THE IMAGE: if the user asks for written text in the image (a sign, label, caption, inscription, poster, title), put that text into the prompt exactly as the user wrote it, in its original language and alphabet, inside double quotes, exactly once. Do NOT translate it, do NOT add a translation or transliteration next to it, do NOT offer alternatives in parentheses or with "or". Everything else is translated to English as usual.`
 
 func (s *Service) getSDPromptInstructionFor(modelName string) string {
 	if s.isProseModel(modelName) {
@@ -860,7 +864,7 @@ func (s *Service) GenerateSDPrompt(params GenerateSDPromptParams) (*GenerateSDPr
 	}
 
 	instruction := s.getSDPromptInstructionFor(p.ModelName)
-	systemPrompt := instruction
+	systemPrompt := instruction + textInImageRule
 
 	var filterErr error
 	description, filterErr = s.kids.FilterInput(description)
@@ -908,7 +912,7 @@ RESPONSE LENGTH: you have up to %d tokens. Include ALL visual elements from the 
 		}
 	}
 
-	if promptutil.ContainsCyrillic(result.Prompt) {
+	if promptutil.ContainsCyrillicOutsideQuotes(result.Prompt) {
 		if extracted := promptutil.ExtractTagsFromRaw(raw); extracted != "" {
 			result.Prompt = extracted
 		}

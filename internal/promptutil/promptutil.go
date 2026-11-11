@@ -17,6 +17,10 @@ func ContainsCyrillic(s string) bool {
 	return reCyrillicCheck.MatchString(s)
 }
 
+func ContainsCyrillicOutsideQuotes(s string) bool {
+	return ContainsCyrillic(reQuotedStrings.ReplaceAllString(s, ""))
+}
+
 func ExtractJSON(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "```json")

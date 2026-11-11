@@ -139,7 +139,7 @@ func isProse(s string) bool {
 
 func (s *Service) generateLLMPromptFromTags(p *preset.Preset, tags string, mode, extraNegative string) (*GenerateSDPromptResult, error) {
 	sdPromptInstruction := s.getSDPromptInstructionFor(p.ModelName)
-	systemPrompt := s.kids.ApplySystemPrompt(sdPromptInstruction)
+	systemPrompt := s.kids.ApplySystemPrompt(sdPromptInstruction + textInImageRule)
 	maxTokens := s.getMaxTokens()
 	generateModel := s.getGenerateModel()
 
@@ -183,7 +183,7 @@ RESPONSE LENGTH: your response is limited to ~%d tokens. You MUST fit within thi
 		}
 	}
 
-	if promptutil.ContainsCyrillic(promptResult.Prompt) {
+	if promptutil.ContainsCyrillicOutsideQuotes(promptResult.Prompt) {
 		if extracted := promptutil.ExtractTagsFromRaw(raw); extracted != "" {
 			promptResult.Prompt = extracted
 		}
