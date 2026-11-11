@@ -2,6 +2,13 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [1.5.0] — 2026-11-11
+
+### Added
+- **Effects tab in Styles**: Styles now has three tabs — Styles, Effects, Workflows. Effect presets (the post-process groups) moved out of the style list into their own tab, with a type filter that shows only effect groups. A new preset created on the Effects tab starts as an effect. Select all, export and delete work on the current tab only.
+- **Model choice for Post-Process effects**: a collapsed "Model" block in the Effects card switches between Klein (default, as before) and Moss, each with its own LoRA list. Moss follows the strength slider the same way as Klein but takes about 20–60 s per photo instead of 6–10 s. Batch apply uses the same choice. Recipes and auto-style stay on Klein.
+- **Model choice for Post-Process Edit**: Edit gets a Moss (default, as before) / Klein switch. Klein edits in about 10 s instead of 30–90 s and keeps the photo size; each model has its own LoRA list (your saved LoRAs stay with Moss), and the Style list shows only presets of the chosen model. Batch edit and Quality mode use the chosen model. AI-agent tools (MCP) still edit with Moss.
+
 ## [1.4.1] — 2026-11-08
 
 ### Fixed
