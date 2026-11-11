@@ -1,18 +1,31 @@
 <script setup>
+import { watch, onUnmounted } from 'vue'
 import { X } from 'lucide-vue-next'
 import { t } from '../i18n/index.js'
 
-defineProps({
+const props = defineProps({
   text: { type: String, default: '' },
   kind: { type: String, default: 'error' },
+  timeout: { type: Number, default: 0 },
 })
-defineEmits(['close'])
+const emit = defineEmits(['close'])
+
+let timer = null
+function stopTimer() {
+  if (timer) clearTimeout(timer)
+  timer = null
+}
+watch(() => [props.text, props.timeout], () => {
+  stopTimer()
+  if (props.timeout > 0) timer = setTimeout(() => { timer = null; emit('close') }, props.timeout)
+}, { immediate: true })
+onUnmounted(stopTimer)
 </script>
 
 <template>
   <div class="status status-dismissible" :class="'status-' + kind">
     <span class="status-text"><slot>{{ text }}</slot></span>
-    <button type="button" class="status-close" :title="t('common.close')" :aria-label="t('common.close')" @click="$emit('close')">
+    <button type="button" class="status-close" :title="t('common.close')" :aria-label="t('common.close')" @click="stopTimer(); $emit('close')">
       <X :size="14" />
     </button>
   </div>

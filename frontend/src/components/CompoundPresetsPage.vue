@@ -1,4 +1,5 @@
 <script setup>
+import StatusMessage from './StatusMessage.vue'
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
@@ -219,7 +220,7 @@ onMounted(loadData)
       </div>
     </div>
 
-    <div v-if="error" class="status status-error">{{ error }}</div>
+    <StatusMessage v-if="error" @close="error = ''">{{ error }}</StatusMessage>
 
     <div v-if="showForm" class="card" style="max-width: 700px;">
       <h3 style="margin-bottom: 12px;">{{ editing ? t('compound.edit_pipeline') : t('compound.new_pipeline') }}</h3>

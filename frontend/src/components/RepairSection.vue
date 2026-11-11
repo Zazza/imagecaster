@@ -160,7 +160,7 @@ defineExpose({
       <button class="btn btn-sm btn-secondary" style="width: 100%; margin-top: 8px; font-size: 11px;" @click="interruptGeneration">{{ t('progress.btn_interrupt') }}</button>
     </div>
 
-    <div v-if="resetFailed" class="status status-warning" style="margin-top: 8px;">{{ t('fi.preserve_identity_reset_failed') }}</div>
+    <StatusMessage v-if="resetFailed" kind="warning" style="margin-top: 8px;" @close="resetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <details class="repair-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
       <summary>{{ t('repair.more') }}</summary>

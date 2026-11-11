@@ -477,9 +477,9 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div v-if="resetFailed" class="status status-warning">{{ t('edit.reset_failed') }}</div>
-    <div v-if="qualityUpscaleSkipped" class="status status-warning">{{ t('fi.quality_upscale_skipped') }}</div>
-    <div v-if="qualityRedenoiseSkipped" class="status status-warning">{{ t('fi.quality_redenoise_skipped') }}</div>
+    <StatusMessage v-if="resetFailed" kind="warning" @close="resetFailed = false">{{ t('edit.reset_failed') }}</StatusMessage>
+    <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
+    <StatusMessage v-if="qualityRedenoiseSkipped" kind="warning" @close="qualityRedenoiseSkipped = false">{{ t('fi.quality_redenoise_skipped') }}</StatusMessage>
     <div v-if="effectivePrompt" data-testid="edit-effective-prompt" class="edit-effective-prompt" :title="effectivePrompt" @click="copyEffectivePrompt">{{ effectivePrompt }}</div>
     </template>
   </div>

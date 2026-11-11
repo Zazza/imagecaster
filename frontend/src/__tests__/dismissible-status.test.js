@@ -160,6 +160,42 @@ describe('StatusMessage', () => {
   })
 })
 
+describe('StatusMessage timeout', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('emits close by itself after timeout', () => {
+    const w = mount(StatusMessage, { props: { text: 'queued', kind: 'success', timeout: 8000 } })
+    vi.advanceTimersByTime(7999)
+    expect(w.emitted('close')).toBeFalsy()
+    vi.advanceTimersByTime(1)
+    expect(w.emitted('close')).toHaveLength(1)
+  })
+
+  it('without timeout never closes by itself', () => {
+    const w = mount(StatusMessage, { props: { text: 'boom' } })
+    vi.advanceTimersByTime(600000)
+    expect(w.emitted('close')).toBeFalsy()
+  })
+
+  it('new text restarts the timer', async () => {
+    const w = mount(StatusMessage, { props: { text: 'a', timeout: 8000 } })
+    vi.advanceTimersByTime(5000)
+    await w.setProps({ text: 'b' })
+    vi.advanceTimersByTime(5000)
+    expect(w.emitted('close')).toBeFalsy()
+    vi.advanceTimersByTime(3000)
+    expect(w.emitted('close')).toHaveLength(1)
+  })
+
+  it('click closes once, timer does not fire again', async () => {
+    const w = mount(StatusMessage, { props: { text: 'a', timeout: 8000 } })
+    await w.find(closeSelector()).trigger('click')
+    vi.advanceTimersByTime(10000)
+    expect(w.emitted('close')).toHaveLength(1)
+  })
+})
+
 const sections = [
   {
     name: 'ObjectSection',

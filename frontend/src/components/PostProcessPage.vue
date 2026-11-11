@@ -1857,8 +1857,8 @@ onUnmounted(() => {
     </div>
 
     <StatusMessage v-if="error" :text="error" @close="error = ''" />
-    <div v-if="successMsg" class="status status-success">{{ successMsg }}</div>
-    <div v-if="lookResetFailed" class="status status-warning">{{ t('fi.preserve_identity_reset_failed') }}</div>
+    <StatusMessage v-if="successMsg" kind="success" :timeout="8000" :text="successMsg" @close="successMsg = ''" />
+    <StatusMessage v-if="lookResetFailed" kind="warning" @close="lookResetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <div class="post-workspace">
       <div class="post-preview-col">

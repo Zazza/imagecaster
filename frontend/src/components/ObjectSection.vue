@@ -192,7 +192,7 @@ defineExpose({
     <div v-if="detectedObject && !running" style="font-size: 12px; color: var(--text-dim); margin-top: 10px;">
       {{ t('object.detected', { object: detectedObject }) }}
     </div>
-    <div v-if="resetFailed" class="status status-warning" style="margin-top: 8px;">{{ t('fi.preserve_identity_reset_failed') }}</div>
+    <StatusMessage v-if="resetFailed" kind="warning" style="margin-top: 8px;" @close="resetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <details class="object-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
       <summary>{{ t('object.more') }}</summary>

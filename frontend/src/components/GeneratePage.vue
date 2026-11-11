@@ -1,4 +1,5 @@
 <script setup>
+import StatusMessage from './StatusMessage.vue'
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
@@ -828,8 +829,6 @@ async function confirmSavePipeline() {
     showSavePipelineModal.value = false
     error.value = ''
     pipelineSavedMsg.value = t('generate.save_pipeline_success', { name })
-    clearTimeout(pipelineSavedTimer)
-    pipelineSavedTimer = setTimeout(() => { pipelineSavedMsg.value = '' }, 5000)
     await loadPresets()
   } catch (e) {
     error.value = t('generate.error_save_pipeline', { error: String(e) })
@@ -842,7 +841,6 @@ let offCompleted = () => {}
 let offFailed = () => {}
 let offSessionAdded = () => {}
 let offPaused = () => {}
-let pipelineSavedTimer = null
 
 onMounted(async () => {
   const isReset = props.resetting
@@ -964,7 +962,6 @@ onUnmounted(() => {
   offFailed()
   offSessionAdded()
   offPaused()
-  clearTimeout(pipelineSavedTimer)
   document.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
   saveGenState()
@@ -999,12 +996,10 @@ function onKeydown(e) {
       </div>
     </div>
 
-    <div v-if="error && error !== 'interrupted'" class="status status-error">
-      &#9888; {{ error }}
-    </div>
-    <div v-if="error === 'interrupted'" class="status status-warning">{{ error }}</div>
-    <div v-if="successMsg && !error" class="status status-success">{{ successMsg }}</div>
-    <div v-if="pipelineSavedMsg" class="status status-ok">&#10003; {{ pipelineSavedMsg }}</div>
+    <StatusMessage v-if="error && error !== 'interrupted'" @close="error = ''">&#9888; {{ error }}</StatusMessage>
+    <StatusMessage v-if="error === 'interrupted'" kind="warning" @close="error = ''">{{ error }}</StatusMessage>
+    <StatusMessage v-if="successMsg && !error" kind="success" :timeout="8000" :text="successMsg" @close="successMsg = ''" />
+    <StatusMessage v-if="pipelineSavedMsg" kind="ok" :timeout="8000" @close="pipelineSavedMsg = ''">&#10003; {{ pipelineSavedMsg }}</StatusMessage>
 
     <div class="generate-layout">
       <div class="generate-section">
@@ -1172,9 +1167,7 @@ function onKeydown(e) {
             <div v-if="isPreview && previewMode" class="status status-info" style="margin-bottom: 8px; text-align: center;">
               {{ t('generate.preview_info') }}
             </div>
-            <div v-if="hiresSkipped" class="status status-warning" style="margin-bottom: 8px; text-align: center;">
-              {{ t('generate.hires_skipped') }}
-            </div>
+            <StatusMessage v-if="hiresSkipped" kind="warning" style="margin-bottom: 8px; text-align: center;" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
             <img :src="imageSrc" alt="Generated" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="showViewer = true" />
             <div class="action-row" style="margin-top: 12px;">
               <button v-if="generatedImage" class="btn btn-primary btn-sm" @click="openFastSaveModal">{{ t('generate.btn_quick_save') }}</button>

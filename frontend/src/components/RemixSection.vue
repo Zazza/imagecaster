@@ -518,15 +518,9 @@ function onKeydown(e) {
       </div>
     </div>
 
-    <div v-if="qualityUpscaleSkipped" class="status status-warning" style="margin-top: 8px;">
-      {{ t('fi.quality_upscale_skipped') }}
-    </div>
-    <div v-if="qualityRedenoiseSkipped" class="status status-warning" style="margin-top: 8px;">
-      {{ t('fi.quality_redenoise_skipped') }}
-    </div>
-    <div v-if="preserveIdentityResetFailed" class="status status-warning" style="margin-top: 8px;">
-      {{ t('fi.preserve_identity_reset_failed') }}
-    </div>
+    <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" style="margin-top: 8px;" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
+    <StatusMessage v-if="qualityRedenoiseSkipped" kind="warning" style="margin-top: 8px;" @close="qualityRedenoiseSkipped = false">{{ t('fi.quality_redenoise_skipped') }}</StatusMessage>
+    <StatusMessage v-if="preserveIdentityResetFailed" kind="warning" style="margin-top: 8px;" @close="preserveIdentityResetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <details v-if="genInfo" class="gen-info">
       <summary>{{ t('fi.technical_details') }}</summary>

@@ -1,4 +1,5 @@
 <script setup>
+import StatusMessage from './StatusMessage.vue'
 import { ref, reactive, watch, onMounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
@@ -703,8 +704,8 @@ onMounted(loadSettings)
 
     <!-- Connection Tab -->
     <div v-if="activeTab === 'connection'" class="card">
-      <div v-if="connectionSaved" class="status status-success" style="margin-bottom: 16px;">{{ t('settings.saved_immediate') }}</div>
-      <div v-if="connectionError" class="status status-error" style="margin-bottom: 16px;">{{ connectionError }}</div>
+      <StatusMessage v-if="connectionSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="connectionSaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
+      <StatusMessage v-if="connectionError" style="margin-bottom: 16px;" @close="connectionError = ''">{{ connectionError }}</StatusMessage>
 
       <!-- Mode Selector -->
       <div class="form-group">
@@ -907,7 +908,7 @@ onMounted(loadSettings)
       <!-- LLM Models (direct mode only) -->
       <div v-if="connectionMode === 'direct'" class="card" style="margin-top: 24px;">
         <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_llm_models') }}</h3>
-        <div v-if="llmError" class="status status-error" style="margin-bottom: 8px;">{{ llmError }}</div>
+        <StatusMessage v-if="llmError" style="margin-bottom: 8px;" @close="llmError = ''">{{ llmError }}</StatusMessage>
         <div v-if="llmLoading" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
         <div v-else-if="llmModels.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
         <div v-for="m in llmModels" :key="m.id" style="padding: 8px 0; border-bottom: 1px solid var(--border);">
@@ -922,8 +923,8 @@ onMounted(loadSettings)
       <!-- LLM Parameters (shared) -->
       <details class="settings-advanced">
         <summary>{{ t('settings.section_llm_params') }}</summary>
-        <div v-if="llmParamsSaved" class="status status-success" style="margin-bottom: 16px;">{{ t('settings.params_saved') }}</div>
-        <div v-if="llmParamsError" class="status status-error" style="margin-bottom: 16px;">{{ llmParamsError }}</div>
+        <StatusMessage v-if="llmParamsSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="llmParamsSaved = false">{{ t('settings.params_saved') }}</StatusMessage>
+        <StatusMessage v-if="llmParamsError" style="margin-bottom: 16px;" @close="llmParamsError = ''">{{ llmParamsError }}</StatusMessage>
 
         <h4 style="color: var(--text-bright); margin: 16px 0 8px; font-size: 14px;">{{ t('settings.generate_params') }}</h4>
         <div class="form-row-2">
@@ -989,8 +990,8 @@ onMounted(loadSettings)
     <div v-if="activeTab === 'generation'">
       <div class="card">
         <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_preview') }}</h3>
-        <div v-if="generationSaved" class="status status-success" style="margin-bottom: 16px;">{{ t('settings.generation_saved') }}</div>
-        <div v-if="generationError" class="status status-error" style="margin-bottom: 16px;">{{ generationError }}</div>
+        <StatusMessage v-if="generationSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="generationSaved = false">{{ t('settings.generation_saved') }}</StatusMessage>
+        <StatusMessage v-if="generationError" style="margin-bottom: 16px;" @close="generationError = ''">{{ generationError }}</StatusMessage>
 
         <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
           <ToggleSwitch v-model="generationForm.preview_mode" />
@@ -1020,8 +1021,8 @@ onMounted(loadSettings)
 
       <div class="card" style="margin-top: 16px;">
         <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_sd_prompt') }}</h3>
-        <div v-if="promptInstructionSaved" class="status status-success" style="margin-bottom: 16px;">{{ t('settings.instruction_saved') }}</div>
-        <div v-if="promptInstructionError" class="status status-error" style="margin-bottom: 16px;">{{ promptInstructionError }}</div>
+        <StatusMessage v-if="promptInstructionSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="promptInstructionSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
+        <StatusMessage v-if="promptInstructionError" style="margin-bottom: 16px;" @close="promptInstructionError = ''">{{ promptInstructionError }}</StatusMessage>
         <div style="color: var(--text-dim); font-size: 13px; margin-bottom: 12px; line-height: 1.5;">
           {{ t('settings.prompt_instruction_description') }}
         </div>
@@ -1036,8 +1037,8 @@ onMounted(loadSettings)
 
       <div class="card" style="margin-top: 16px;">
         <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_sd_prompt_prose') }}</h3>
-        <div v-if="promptInstructionProseSaved" class="status status-success" style="margin-bottom: 16px;">{{ t('settings.instruction_saved') }}</div>
-        <div v-if="promptInstructionProseError" class="status status-error" style="margin-bottom: 16px;">{{ promptInstructionProseError }}</div>
+        <StatusMessage v-if="promptInstructionProseSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="promptInstructionProseSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
+        <StatusMessage v-if="promptInstructionProseError" style="margin-bottom: 16px;" @close="promptInstructionProseError = ''">{{ promptInstructionProseError }}</StatusMessage>
         <div style="color: var(--text-dim); font-size: 13px; margin-bottom: 12px; line-height: 1.5;">
           {{ t('settings.prompt_instruction_prose_description') }}
         </div>
@@ -1054,8 +1055,8 @@ onMounted(loadSettings)
     <!-- Analyze Tab (unchanged) -->
     <div v-if="activeTab === 'analyze'" class="card">
       <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_analyze_prompts') }}</h3>
-      <div v-if="analyzeSaved" class="status status-success" style="margin-bottom: 16px;">{{ t('settings.prompts_saved') }}</div>
-      <div v-if="analyzeError" class="status status-error" style="margin-bottom: 16px;">{{ analyzeError }}</div>
+      <StatusMessage v-if="analyzeSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="analyzeSaved = false">{{ t('settings.prompts_saved') }}</StatusMessage>
+      <StatusMessage v-if="analyzeError" style="margin-bottom: 16px;" @close="analyzeError = ''">{{ analyzeError }}</StatusMessage>
 
       <div class="form-group">
         <label class="form-label">{{ t('settings.label_system_prompt') }}</label>
@@ -1127,8 +1128,8 @@ onMounted(loadSettings)
     <div v-if="activeTab === 'advanced'">
       <div class="card" style="margin-bottom: 16px;">
         <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.section_memory_guard') }}</h3>
-        <div v-if="memorySaved" class="status status-success" style="margin-bottom: 12px;">{{ t('settings.saved_immediate') }}</div>
-        <div v-if="memoryError" class="status status-error" style="margin-bottom: 12px;">{{ memoryError }}</div>
+        <StatusMessage v-if="memorySaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="memorySaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
+        <StatusMessage v-if="memoryError" style="margin-bottom: 12px;" @close="memoryError = ''">{{ memoryError }}</StatusMessage>
         <div class="form-group">
           <label class="form-label">{{ t('settings.heavy_models') }}</label>
           <input data-testid="settings-heavy-models" class="form-input" type="text" v-model="memoryForm.heavy_models" :placeholder="t('settings.heavy_models_default')" />
@@ -1148,7 +1149,7 @@ onMounted(loadSettings)
       </div>
       <!-- Direct mode: read-only SD models/LoRAs -->
       <template v-if="connectionMode === 'direct'">
-        <div v-if="sdError" class="status status-error">{{ sdError }}</div>
+        <StatusMessage v-if="sdError" @close="sdError = ''">{{ sdError }}</StatusMessage>
         <div class="form-row-2">
           <div class="card">
             <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_sd_models') }}</h3>
