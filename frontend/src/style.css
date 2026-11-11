@@ -20,6 +20,8 @@
   --warning: #e6cf6a;
   --radius: 3px;
   --radius-sm: 3px;
+  --frame: var(--surface);
+  --scroll-thumb: #4d4d4a;
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', 'DejaVu Sans Mono', Consolas, monospace;
 }
@@ -44,6 +46,7 @@
   --danger-hover: #a82828;
   --success: #2f7d33;
   --warning: #8a6d00;
+  --scroll-thumb: #bdb9ae;
 }
 
 * {
@@ -71,10 +74,14 @@ input, textarea, select {
 }
 
 /* Layout */
+html, body {
+  height: 100%;
+}
+
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -169,20 +176,24 @@ input, textarea, select {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--bg);
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
+  background: var(--scroll-thumb);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-dim);
+  background-color: var(--accent);
 }
 
 /* Page header */

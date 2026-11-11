@@ -76,25 +76,27 @@ func main() {
 	imgHandler := &imageFileHandler{db: presets, dataDir: filepath.Dir(cfg.DBPath)}
 
 	if err := wails.Run(&options.App{
-		Title:     "Imagecaster",
-		Width:     1280,
-		Height:    800,
-		Frameless: false,
-		MinWidth:  900,
-		MinHeight: 600,
-		MaxWidth:  7680,
-		MaxHeight: 4320,
+		Title:            "Imagecaster",
+		Width:            1280,
+		Height:           800,
+		Frameless:        true,
+		MinWidth:         900,
+		MinHeight:        600,
+		MaxWidth:         7680,
+		MaxHeight:        4320,
+		BackgroundColour: windowBackground(),
 		AssetServer: &assetserver.Options{
 			Assets:  assets,
 			Handler: imgHandler,
 		},
-		OnStartup:  app.startup,
+		OnStartup: app.startup,
 		Bind: []interface{}{
 			app,
 		},
 		Linux: &linux.Options{
-			WebviewGpuPolicy: linux.WebviewGpuPolicyAlways,
-			Icon:             windowIcon,
+			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,
+			WindowIsTranslucent: true,
+			Icon:                windowIcon,
 		},
 	}); err != nil {
 		log.Fatalf("Error: %v", err)

@@ -1,5 +1,9 @@
 export const ru = {
   'app.title': 'Imagecaster',
+  'window.minimise': 'Свернуть',
+  'window.maximise': 'Развернуть',
+  'window.restore': 'Восстановить',
+  'window.close': 'Закрыть',
   'app.group_create': 'Создание',
   'app.group_refine': 'Доработка',
   'app.group_view': 'Просмотр',

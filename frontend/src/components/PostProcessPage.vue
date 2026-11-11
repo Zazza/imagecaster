@@ -2533,7 +2533,7 @@ onUnmounted(() => {
 .post-workspace {
   display: flex;
   gap: 16px;
-  height: calc(100vh - 180px);
+  height: calc(100vh - 218px);
   min-height: 480px;
 }
 

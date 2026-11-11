@@ -1,6 +1,10 @@
 export const en = {
   // App.vue — Sidebar
   'app.title': 'Imagecaster',
+  'window.minimise': 'Minimise',
+  'window.maximise': 'Maximise',
+  'window.restore': 'Restore',
+  'window.close': 'Close',
   'app.group_create': 'Create',
   'app.group_refine': 'Refine',
   'app.group_view': 'View',

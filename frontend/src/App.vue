@@ -1,4 +1,5 @@
 <script setup>
+import TitleBar from './components/TitleBar.vue'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
 import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon } from 'lucide-vue-next'
@@ -143,6 +144,7 @@ onUnmounted(() => {
 
 <template>
   <div class="app">
+    <TitleBar />
     <div class="app-body">
     <aside class="sidebar">
       <div class="sidebar-logo">
