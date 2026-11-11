@@ -535,11 +535,7 @@ func (s *Service) getSDPromptInstruction() string {
 }
 
 func (s *Service) isProseModel(modelName string) bool {
-	proseModels := config.DefaultProseModels
-	if v, err := s.db.GetSetting("prose_models"); err == nil && v != "" {
-		proseModels = v
-	}
-	return config.ModelMatchesCSV(modelName, proseModels)
+	return config.IsNewGenModel(modelName)
 }
 
 func (s *Service) getSDPromptInstructionFor(modelName string) string {

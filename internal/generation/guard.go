@@ -42,7 +42,7 @@ func (g *MemoryGuard) setting(key, fallback string) string {
 }
 
 func (g *MemoryGuard) isHeavy(modelName string) bool {
-	return config.ModelMatchesCSV(modelName, g.setting("heavy_models", config.DefaultHeavyModels))
+	return config.IsNewGenModel(modelName)
 }
 
 func (g *MemoryGuard) EnsureHeadroom(modelName, logPrefix string) bool {

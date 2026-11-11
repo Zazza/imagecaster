@@ -124,8 +124,6 @@ func (s *Service) GetSettings() (map[string]string, error) {
 		"llm_analyze_num_predict":     "256",
 		"llm_analyze_top_p":           "0.9",
 		"llm_analyze_num_thread":      "0",
-		"heavy_models":                config.DefaultHeavyModels,
-		"prose_models":                config.DefaultProseModels,
 		"sd_prompt_instruction_prose": config.DefaultSDPromptInstructionProse,
 		"llm_auto_unload":             "true",
 		"kids_mode":                   "false",

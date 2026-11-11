@@ -157,6 +157,10 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("migrate v30: %w", err)
 	}
 
+	if err := migrateV31(db); err != nil {
+		return nil, fmt.Errorf("migrate v31: %w", err)
+	}
+
 	return &DB{db: db}, nil
 }
 
@@ -1595,5 +1599,10 @@ const legacyAnalyzeDescribePromptRu = `Опиши это изображение 
 
 func migrateV30(db *sql.DB) error {
 	_, err := db.Exec(`DELETE FROM settings WHERE key = 'analyze_describe_prompt' AND value = ?`, legacyAnalyzeDescribePromptRu)
+	return err
+}
+
+func migrateV31(db *sql.DB) error {
+	_, err := db.Exec(`DELETE FROM settings WHERE key IN ('heavy_models', 'prose_models')`)
 	return err
 }

@@ -105,10 +105,7 @@ const kidsCatPinModal = ref(false)
 const kidsCatPinError = ref('')
 const kidsCatPending = ref(null)
 
-
 const memoryForm = reactive({
-  heavy_models: '',
-  prose_models: '',
   llm_auto_unload: true,
 })
 const memorySaved = ref(false)
@@ -119,8 +116,6 @@ async function saveMemoryGuard() {
   memoryError.value = ''
   try {
     await api.updateSettings({
-      heavy_models: memoryForm.heavy_models.trim(),
-      prose_models: memoryForm.prose_models.trim(),
       llm_auto_unload: memoryForm.llm_auto_unload ? 'true' : 'false',
     })
     memorySaved.value = true
@@ -179,8 +174,6 @@ async function loadSettings() {
     loadConnectionLLMModels()
     kidsMode.value = await api.isKidsModeActive()
     loadKidsCategories()
-    memoryForm.heavy_models = settings.heavy_models || ''
-    memoryForm.prose_models = settings.prose_models || ''
     memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
     promptInstruction.value = settings.sd_prompt_instruction || ''
     promptInstructionProse.value = settings.sd_prompt_instruction_prose || ''
@@ -1081,16 +1074,6 @@ onMounted(loadSettings)
         <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.section_memory_guard') }}</h3>
         <StatusMessage v-if="memorySaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="memorySaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
         <StatusMessage v-if="memoryError" style="margin-bottom: 12px;" @close="memoryError = ''">{{ memoryError }}</StatusMessage>
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.heavy_models') }}</label>
-          <input data-testid="settings-heavy-models" class="form-input" type="text" v-model="memoryForm.heavy_models" :placeholder="t('settings.heavy_models_default')" />
-          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('settings.heavy_models_hint') }}</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.prose_models') }}</label>
-          <input data-testid="settings-prose-models" class="form-input" type="text" v-model="memoryForm.prose_models" :placeholder="t('settings.heavy_models_default')" />
-          <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('settings.prose_models_hint') }}</div>
-        </div>
         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 12px;">
           <input data-testid="settings-llm-auto-unload" type="checkbox" v-model="memoryForm.llm_auto_unload" style="accent-color: var(--accent);" />
           <span style="font-size: 13px;">{{ t('settings.llm_auto_unload') }}</span>

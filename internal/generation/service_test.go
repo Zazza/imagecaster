@@ -2233,26 +2233,6 @@ func TestGetSDPromptInstructionFor(t *testing.T) {
 				return "CUSTOM PROSE"
 			},
 		},
-		{
-			name:      "custom prose models csv overrides default prose list",
-			modelName: "flux-dev",
-			setup: func(t *testing.T, db *preset.DB) {
-				require.NoError(t, db.SetSetting("prose_models", "megatron"))
-			},
-			wantFn: func(t *testing.T, svc *Service) string {
-				return svc.getSDPromptInstruction()
-			},
-		},
-		{
-			name:      "model matching custom prose models csv uses prose",
-			modelName: "megatron-xl",
-			setup: func(t *testing.T, db *preset.DB) {
-				require.NoError(t, db.SetSetting("prose_models", "megatron"))
-			},
-			wantFn: func(t *testing.T, svc *Service) string {
-				return config.DefaultSDPromptInstructionProse
-			},
-		},
 	}
 
 	for _, tt := range tests {

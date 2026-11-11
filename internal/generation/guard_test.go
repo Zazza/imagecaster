@@ -162,7 +162,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		name            string
 		model           string
 		autoUnload      string
-		heavyModels     string
 		backend         string
 		listLoadedFn    func(call int) ([]llm.LoadedModel, error)
 		stats           *sd.MemoryStats
@@ -332,26 +331,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 			wantUnloadCalls: 1,
 		},
 		{
-			name:            "custom heavy models setting matches own name",
-			model:           "megatron-xl",
-			heavyModels:     "megatron",
-			backend:         llm.BackendOllama,
-			listLoadedFn:    loadedOnce([]llm.LoadedModel{vramHeavy}),
-			stats:           cudaStats(gib(3), gib(8)),
-			want:            true,
-			wantUnloadCalls: 1,
-		},
-		{
-			name:            "custom heavy models setting lowers threshold for default heavy model",
-			model:           "flux1-dev-fp8",
-			heavyModels:     "megatron",
-			backend:         llm.BackendOllama,
-			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
-			stats:           cudaStats(gib(10), gib(16)),
-			want:            false,
-			wantUnloadCalls: 0,
-		},
-		{
 			name:            "unload wait timeout still returns true",
 			model:           "flux1-dev-fp8",
 			backend:         llm.BackendOllama,
@@ -369,9 +348,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 			db := openTestDB(t)
 			if tt.autoUnload != "" {
 				require.NoError(t, db.SetSetting("llm_auto_unload", tt.autoUnload))
-			}
-			if tt.heavyModels != "" {
-				require.NoError(t, db.SetSetting("heavy_models", tt.heavyModels))
 			}
 			llmSvc := &guardLLM{backend: tt.backend, listLoadedFn: tt.listLoadedFn}
 			sdSvc := &guardSD{stats: tt.stats, err: tt.memoryErr}
@@ -399,26 +375,21 @@ func TestMemoryGuard_IsHeavy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		model       string
-		heavyModels string
-		want        bool
+		name  string
+		model string
+		want  bool
 	}{
 		{name: "default flux substring", model: "flux1-dev-fp8", want: true},
 		{name: "default moss substring", model: "moss_image_sft_bf16", want: true},
 		{name: "default no match", model: "epicrealismXL_pureFix", want: false},
 		{name: "empty model name", model: "", want: false},
-		{name: "custom setting overrides default list", model: "flux1-dev-fp8", heavyModels: "megatron", want: false},
-		{name: "custom setting match with spaces and case", model: "Megatron-XL", heavyModels: " megatron , sdxl ", want: true},
+		{name: "klein substring", model: "flux-2-klein-4b", want: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			db := openTestDB(t)
-			if tt.heavyModels != "" {
-				require.NoError(t, db.SetSetting("heavy_models", tt.heavyModels))
-			}
 			g := NewMemoryGuard(&guardLLM{}, &guardSD{}, db, logger.New(nil))
 			assert.Equal(t, tt.want, g.isHeavy(tt.model))
 		})

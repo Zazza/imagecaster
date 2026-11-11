@@ -24,9 +24,11 @@ type Config struct {
 	DefaultHeight   int
 }
 
-const DefaultHeavyModels = "flux,z-image,moss,klein"
+var NewGenModelFamilies = []string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan"}
 
-const DefaultProseModels = "flux,z-image,moss,klein"
+func IsNewGenModel(modelName string) bool {
+	return ModelMatchesCSV(modelName, strings.Join(NewGenModelFamilies, ","))
+}
 
 func ModelMatchesCSV(modelName, csv string) bool {
 	name := strings.ToLower(strings.TrimSpace(modelName))
