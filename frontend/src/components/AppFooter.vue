@@ -7,6 +7,7 @@ import { Image, Trash2, X, Plus, Pencil, Check } from 'lucide-vue-next'
 import QueuePanel from './QueuePanel.vue'
 import ImageViewer from './ImageViewer.vue'
 import { useRemixQueue } from '../remixQueue.js'
+import { registerHistoryViewer } from '../historyViewer.js'
 
 const emit = defineEmits(['navigate'])
 
@@ -400,6 +401,20 @@ function openViewer(item) {
 function closeViewer() {
   viewerIndex.value = -1
 }
+
+async function openViewerById(id) {
+  let idx = items.value.findIndex(i => i.id === id)
+  if (idx < 0) {
+    await loadItems()
+    idx = items.value.findIndex(i => i.id === id)
+  }
+  if (idx < 0) return false
+  viewerIndex.value = idx
+  return true
+}
+
+const unregisterHistoryViewer = registerHistoryViewer(openViewerById)
+onUnmounted(unregisterHistoryViewer)
 
 async function viewerExport() {
   const item = viewerItem.value

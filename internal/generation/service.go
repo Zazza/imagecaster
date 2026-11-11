@@ -134,6 +134,7 @@ type GenerateImageResult struct {
 	EditReferenceResetFailed    bool            `json:"edit_reference_reset_failed,omitempty"`
 	PreserveIdentityResetFailed bool            `json:"preserve_identity_reset_failed,omitempty"`
 	DetectedObject              string          `json:"detected_object,omitempty"`
+	SessionItemID               int64           `json:"session_item_id,omitempty"`
 }
 
 type UpscaleImageParams struct {
@@ -1195,7 +1196,7 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 		EffectivePrompt:         prompt,
 		EffectiveNegativePrompt: negativePrompt,
 	}
-	s.sessions.AddToSession(result.Images[0], result.Info, "generate", isPreview, &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "generate", isPreview, &preset.GenerationMeta{
 		PresetID: &params.PresetID,
 		Label:    p.Name,
 		Model:    p.ModelName,
@@ -1637,7 +1638,7 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 	if params.PresetID > 0 {
 		upscaleMeta.PresetID = &params.PresetID
 	}
-	s.sessions.AddToSession(result.Images[0], result.Info, "upscale", false, upscaleMeta)
+	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "upscale", false, upscaleMeta)
 	return img, nil
 }
 
@@ -1726,7 +1727,7 @@ func (s *Service) UpscalePreview(params UpscalePreviewParams) (*GenerateImageRes
 		Info:       result.Info,
 		IsPreview:  false,
 	}
-	s.sessions.AddToSession(result.Images[0], result.Info, "upscale-preview", false, &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "upscale-preview", false, &preset.GenerationMeta{
 		PresetID: &params.PresetID,
 		Label:    p.Name,
 		Model:    p.ModelName,

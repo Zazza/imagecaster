@@ -14,6 +14,7 @@ import { usePresets } from '../composables/usePresets.js'
 import { runIdeasBatch } from '../ideasBatch.js'
 import SavedDescriptionsModal from './SavedDescriptionsModal.vue'
 import ImageViewer from './ImageViewer.vue'
+import { openInHistoryViewer } from '../historyViewer.js'
 import ResolutionSelector from './ResolutionSelector.vue'
 import HiresProfileSelector from './HiresProfileSelector.vue'
 import PresetOverridesPanel from './PresetOverridesPanel.vue'
@@ -77,6 +78,7 @@ const batchDone = ref(0)
 const savedDescs = ref([])
 const showSavedDescs = ref(false)
 const showViewer = ref(false)
+const shownItemId = ref(null)
 
 const moreOptionsOpen = ref(false)
 
@@ -314,6 +316,7 @@ async function sendToSD() {
   generationStage.value = 'image'
   generatingImage.value = true
   generatedImage.value = ''
+  shownItemId.value = null
   genInfo.value = null
   isPreview.value = false
   hiresSkipped.value = false
@@ -348,6 +351,7 @@ async function sendToSD() {
     } else {
       error.value = ''
       generatedImage.value = result.image
+      shownItemId.value = result.session_item_id || null
       genInfo.value = result.info
       sourceImage.value = result.image
       sourceGenInfo.value = result.info
@@ -382,6 +386,7 @@ async function generateImage() {
   resetProgress()
   generatingImage.value = true
   generatedImage.value = ''
+  shownItemId.value = null
   genInfo.value = null
   isPreview.value = false
   hiresSkipped.value = false
@@ -498,6 +503,7 @@ async function upscalePreview() {
   if (!b64) return
   savedPreview.value = {
     image: generatedImage.value,
+    itemId: shownItemId.value,
     info: genInfo.value,
     sourceImage: sourceImage.value,
     sourceGenInfo: sourceGenInfo.value,
@@ -519,6 +525,7 @@ async function upscalePreview() {
       error.value = t('generate.error_upscale')
     } else {
       generatedImage.value = result.image
+      shownItemId.value = result.session_item_id || null
       genInfo.value = result.info
       sourceImage.value = result.image
       sourceGenInfo.value = result.info
@@ -534,6 +541,7 @@ async function upscalePreview() {
 function backToPreview() {
   if (!savedPreview.value) return
   generatedImage.value = savedPreview.value.image
+  shownItemId.value = savedPreview.value.itemId || null
   genInfo.value = savedPreview.value.info
   sourceImage.value = savedPreview.value.sourceImage
   sourceGenInfo.value = savedPreview.value.sourceGenInfo
@@ -552,6 +560,7 @@ async function upscaleImageX2() {
       error.value = t('generate.error_upscale_x2')
     } else {
       generatedImage.value = result.image
+      shownItemId.value = result.session_item_id || null
       genInfo.value = result.info
       sourceImage.value = result.image
       sourceGenInfo.value = result.info
@@ -723,6 +732,7 @@ function onQueueCompleted(data) {
       const r = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
       if (r.image_base64) {
         generatedImage.value = r.image_base64
+        shownItemId.value = r.session_item_id || null
         sourceImage.value = r.image_base64
         let info = null
         if (r.info) {
@@ -790,6 +800,7 @@ async function onSessionAdded() {
     const item = await api.getActiveSessionItem()
     if (!item) return
     generatedImage.value = api.sessionImageUrl(item.id)
+    shownItemId.value = item.id
     sourceImage.value = generatedImage.value
     genInfo.value = item.info || null
     sourceGenInfo.value = item.info || null
@@ -799,6 +810,11 @@ async function onSessionAdded() {
       generationStage.value = ''
     }
   } catch {}
+}
+
+async function openGeneratedViewer() {
+  if (await openInHistoryViewer(shownItemId.value)) return
+  showViewer.value = true
 }
 
 function openSavePipelineModal() {
@@ -928,6 +944,8 @@ onMounted(async () => {
       const item = await api.getActiveSessionItem()
       if (item) {
         generatedImage.value = api.sessionImageUrl(item.id)
+        shownItemId.value = item.id
+    shownItemId.value = item.id
         genInfo.value = item.info || null
         sourceImage.value = generatedImage.value
         sourceGenInfo.value = item.info || null
@@ -1168,7 +1186,7 @@ function onKeydown(e) {
               {{ t('generate.preview_info') }}
             </div>
             <StatusMessage v-if="hiresSkipped" kind="warning" style="margin-bottom: 8px; text-align: center;" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
-            <img :src="imageSrc" alt="Generated" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="showViewer = true" />
+            <img :src="imageSrc" alt="Generated" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="openGeneratedViewer" />
             <div class="action-row" style="margin-top: 12px;">
               <button v-if="generatedImage" class="btn btn-primary btn-sm" @click="openFastSaveModal">{{ t('generate.btn_quick_save') }}</button>
               <button v-if="isPreview && previewMode" class="btn btn-sm btn-secondary" @click="upscalePreview">{{ t('generate.btn_upscale_full') }}</button>

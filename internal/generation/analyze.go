@@ -592,7 +592,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		EffectivePrompt:         prompt,
 		EffectiveNegativePrompt: negativePrompt,
 	}
-	s.sessions.AddToSession(result.Images[0], result.Info, "generate", isPreview, &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "generate", isPreview, &preset.GenerationMeta{
 		PresetID: &params.PresetID,
 		Label:    p.Name,
 		Model:    p.ModelName,
@@ -858,7 +858,7 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		EffectivePrompt:         "",
 		EffectiveNegativePrompt: "",
 	}
-	s.sessions.AddToSession(lastImage, lastInfo, "compound", false, &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(lastImage, lastInfo, "compound", false, &preset.GenerationMeta{
 		Label: label,
 		Model: lastModel,
 		Chain: chain,
