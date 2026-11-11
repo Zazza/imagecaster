@@ -64,12 +64,14 @@ function toggle() {
   flex-shrink: 0;
 }
 .fold-summary {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--accent-mark);
 }
 .fold-summary::before {
   content: '·';

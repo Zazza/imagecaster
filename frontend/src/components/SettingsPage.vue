@@ -830,12 +830,12 @@ onMounted(loadSettings)
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
-                <span :style="{ color: proc.status === 'running' ? '#4ade80' : proc.status === 'starting' ? '#fbbf24' : '#f87171', marginLeft: '8px', fontSize: '12px' }">
+                <span :style="{ color: proc.status === 'running' ? 'var(--success)' : proc.status === 'starting' ? 'var(--warning)' : 'var(--danger)', marginLeft: '8px', fontSize: '12px' }">
                   {{ proc.status === 'running' ? t('settings.process_running') : proc.status === 'starting' ? t('settings.process_starting') : proc.status === 'crashed' ? t('settings.process_crashed') : t('settings.process_stopped') }}
                 </span>
                 <span v-if="proc.pid" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">PID {{ proc.pid }}</span>
                 <span v-if="proc.uptime" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">{{ proc.uptime }}</span>
-                <span v-if="proc.restarts > 0" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.process_restarts', { count: proc.restarts }) }}</span>
+                <span v-if="proc.restarts > 0" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.process_restarts', { count: proc.restarts }) }}</span>
               </div>
               <div style="display: flex; gap: 6px;">
                 <button v-if="proc.status !== 'running' && proc.status !== 'starting'" class="btn btn-primary btn-sm" @click="startProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_start') }}</button>
@@ -865,7 +865,7 @@ onMounted(loadSettings)
               <div v-for="(proc, name) in (serverStatus.processes || {})" :key="'u-'+name" v-show="proc.name && proc.category === 'utility' && name !== 'python'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
                 <div>
                   <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
-                  <span v-if="serverStatus.installs && serverStatus.installs[name]" :style="{ color: serverStatus.installs[name].installed ? '#4ade80' : '#f87171', marginLeft: '8px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: serverStatus.installs[name].installed ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)' }">
+                  <span v-if="serverStatus.installs && serverStatus.installs[name]" :style="{ color: serverStatus.installs[name].installed ? 'var(--success)' : 'var(--danger)', marginLeft: '8px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: serverStatus.installs[name].installed ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)' }">
                     {{ serverStatus.installs[name].installed ? t('settings.installed') : t('settings.not_installed') }}
                   </span>
                   <span v-if="serverStatus.installs && serverStatus.installs[name] && serverStatus.installs[name].version" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">v{{ serverStatus.installs[name].version }}</span>
@@ -1224,7 +1224,7 @@ onMounted(loadSettings)
             <div v-else style="display: flex; flex-wrap: wrap; gap: 6px;">
               <span v-for="m in serverModels.lora" :key="m.name" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;">
                 <span style="font-size: 12px; color: var(--text);">{{ m.name }}</span>
-                <button style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 12px; padding: 0 2px;" @click="deleteModel('lora', m.name)">&times;</button>
+                <button style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px; padding: 0 2px;" @click="deleteModel('lora', m.name)">&times;</button>
               </span>
             </div>
           </div>
@@ -1269,13 +1269,13 @@ onMounted(loadSettings)
             <div>
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
-                <span v-if="isCatalogInstalled('llm', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
-                <span v-if="m.recommended" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
+                <span v-if="isCatalogInstalled('llm', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
+                <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.description }} &mdash; {{ m.size_gb }} GB</div>
             </div>
             <span v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">Delete</button>
+            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">Delete</button>
             <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
           </div>
         </div>
@@ -1287,13 +1287,13 @@ onMounted(loadSettings)
             <div>
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
-                <span v-if="isCatalogInstalled('llm', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
-                <span v-if="m.recommended" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
+                <span v-if="isCatalogInstalled('llm', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
+                <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.description }} &mdash; {{ m.size_gb }} GB</div>
             </div>
             <span v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">Delete</button>
+            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">Delete</button>
             <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
           </div>
         </div>
@@ -1306,13 +1306,13 @@ onMounted(loadSettings)
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
                 <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
-                <span v-if="isCatalogInstalled('sd', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
-                <span v-if="m.recommended" style="color: #fbbf24; font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
+                <span v-if="isCatalogInstalled('sd', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
+                <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.category }} &mdash; {{ m.description }} &mdash; {{ m.size_gb }} GB</div>
             </div>
             <span v-if="activeDownload.type === 'sd' && activeDownload.name === m.name + '.safetensors'" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('sd', m.name)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 12px;" @click="deleteModel('sd', m.name + '.safetensors')">Delete</button>
+            <button v-else-if="isCatalogInstalled('sd', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', m.name + '.safetensors')">Delete</button>
             <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('sd', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_sd']">{{ t('settings.btn_download_model') }}</button>
           </div>
         </div>
@@ -1325,12 +1325,12 @@ onMounted(loadSettings)
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
                 <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
-                <span v-if="isCatalogInstalled('lora', m.name)" style="color: #4ade80; font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
+                <span v-if="isCatalogInstalled('lora', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ m.category }} &mdash; {{ m.description }} &mdash; {{ m.size_mb }} MB</div>
             </div>
             <span v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('lora', m.name)" style="background: none; border: none; color: #f87171; cursor: pointer; font-size: 12px;" @click="deleteModel('lora', m.name + '.safetensors')">Delete</button>
+            <button v-else-if="isCatalogInstalled('lora', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('lora', m.name + '.safetensors')">Delete</button>
             <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('lora', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_lora']">{{ t('settings.btn_download_model') }}</button>
           </div>
         </div>

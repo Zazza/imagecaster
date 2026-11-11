@@ -3,7 +3,7 @@ import StatusMessage from './StatusMessage.vue'
 import FoldBlock from './FoldBlock.vue'
 import { modelLoraText } from '../modelLora.js'
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { ChevronDown, Wand2, ImagePlus, Eraser, Bandage, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw, X } from 'lucide-vue-next'
+import { Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw, X } from 'lucide-vue-next'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { parseSeedInput } from '../seed.js'
@@ -1874,6 +1874,7 @@ onUnmounted(() => {
             </div>
           </div>
           <div class="split-body">
+            <div v-if="sourceB64" class="viewfinder" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
             <div
               v-if="sourceB64"
               ref="splitWrapRef"
@@ -2050,11 +2051,7 @@ onUnmounted(() => {
       <div class="post-controls">
         <div ref="editSectionRef" class="card" :class="{ collapsed: openSection !== 'edit' }">
           <div class="card-header card-toggle" @click="setOpenSection('edit')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'edit' }" />
-              <Wand2 :size="14" class="section-icon" />
-              {{ t('post.section_edit') }}
-            </span><span class="card-subtitle">{{ t('post.sub_edit') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">01</span><span class="card-heading-text"><span class="card-title">{{ t('post.section_edit') }}</span><span class="card-subtitle">{{ t('post.sub_edit') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'edit' }">
             <div class="card-body">
@@ -2065,11 +2062,7 @@ onUnmounted(() => {
 
         <div ref="remixSectionRef" class="card" :class="{ collapsed: openSection !== 'remix' }">
           <div class="card-header card-toggle" @click="setOpenSection('remix')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'remix' }" />
-              <ImagePlus :size="14" class="section-icon" />
-              {{ t('post.section_remix') }}
-            </span><span class="card-subtitle">{{ t('post.sub_remix') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">02</span><span class="card-heading-text"><span class="card-title">{{ t('post.section_remix') }}</span><span class="card-subtitle">{{ t('post.sub_remix') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
@@ -2080,11 +2073,7 @@ onUnmounted(() => {
 
         <div ref="objectSectionRef" class="card" :class="{ collapsed: openSection !== 'object' }">
           <div class="card-header card-toggle" @click="setOpenSection('object')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'object' }" />
-              <Eraser :size="14" class="section-icon" />
-              {{ t('post.section_object') }}
-            </span><span class="card-subtitle">{{ t('post.sub_object') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">03</span><span class="card-heading-text"><span class="card-title">{{ t('post.section_object') }}</span><span class="card-subtitle">{{ t('post.sub_object') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'object' }">
             <div class="card-body">
@@ -2096,11 +2085,7 @@ onUnmounted(() => {
 
         <div ref="repairSectionRef" class="card" :class="{ collapsed: openSection !== 'repair' }">
           <div class="card-header card-toggle" @click="setOpenSection('repair')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'repair' }" />
-              <Bandage :size="14" class="section-icon" />
-              {{ t('post.section_repair') }}
-            </span><span class="card-subtitle">{{ t('post.sub_repair') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">04</span><span class="card-heading-text"><span class="card-title">{{ t('post.section_repair') }}</span><span class="card-subtitle">{{ t('post.sub_repair') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'repair' }">
             <div class="card-body">
@@ -2112,10 +2097,7 @@ onUnmounted(() => {
 
         <div ref="effectSectionRef" class="card" :class="{ collapsed: openSection !== 'effect' }">
           <div class="card-header card-toggle" @click="setOpenSection('effect')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'effect' }" />
-              {{ t('post.effect_title') }}
-            </span><span class="card-subtitle">{{ t('post.sub_effect') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">05</span><span class="card-heading-text"><span class="card-title">{{ t('post.effect_title') }}</span><span class="card-subtitle">{{ t('post.sub_effect') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'effect' }">
             <div class="card-body">
@@ -2252,10 +2234,7 @@ onUnmounted(() => {
 
         <div ref="adjustSectionRef" class="card" :class="{ collapsed: openSection !== 'adjust' }">
           <div class="card-header card-toggle" @click="setOpenSection('adjust')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'adjust' }" />
-              {{ t('post.adjust_title') }}
-            </span><span class="card-subtitle">{{ t('post.sub_adjust') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">06</span><span class="card-heading-text"><span class="card-title">{{ t('post.adjust_title') }}</span><span class="card-subtitle">{{ t('post.sub_adjust') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'adjust' }">
             <div class="card-body">
@@ -2306,10 +2285,7 @@ onUnmounted(() => {
 
         <div ref="finishSectionRef" class="card" :class="{ collapsed: openSection !== 'finish' }">
           <div class="card-header card-toggle" @click="setOpenSection('finish')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'finish' }" />
-              {{ t('post.finish_title') }}
-            </span><span class="card-subtitle">{{ t('post.sub_finish') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">07</span><span class="card-heading-text"><span class="card-title">{{ t('post.finish_title') }}</span><span class="card-subtitle">{{ t('post.sub_finish') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'finish' }">
             <div class="card-body">
@@ -2374,10 +2350,7 @@ onUnmounted(() => {
 
         <div ref="exportSectionRef" class="card" :class="{ collapsed: openSection !== 'export' }">
           <div class="card-header card-toggle" @click="setOpenSection('export')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'export' }" />
-              {{ t('export.export_settings') }}
-            </span><span class="card-subtitle">{{ t('post.sub_export') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">08</span><span class="card-heading-text"><span class="card-title">{{ t('export.export_settings') }}</span><span class="card-subtitle">{{ t('post.sub_export') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'export' }">
             <div class="card-body">
@@ -2491,10 +2464,7 @@ onUnmounted(() => {
 
         <div ref="recipesSectionRef" class="card" :class="{ collapsed: openSection !== 'recipes' }">
           <div class="card-header card-toggle" @click="setOpenSection('recipes')">
-            <span class="card-heading"><span class="card-title">
-              <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'recipes' }" />
-              {{ t('post.recipes_title') }}
-            </span><span class="card-subtitle">{{ t('post.sub_recipes') }}</span></span>
+            <span class="card-heading"><span class="card-num mono">09</span><span class="card-heading-text"><span class="card-title">{{ t('post.recipes_title') }}</span><span class="card-subtitle">{{ t('post.sub_recipes') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'recipes' }">
             <div class="card-body">
@@ -2618,12 +2588,11 @@ onUnmounted(() => {
   background: var(--surface-2);
 }
 
-.post-controls > .card:not(.collapsed) .card-header {
-  background: var(--accent-bg);
+.post-controls > .card:not(.collapsed) {
+  border-color: var(--accent);
 }
 
-.post-controls > .card:not(.collapsed) .chevron,
-.post-controls > .card:not(.collapsed) .section-icon {
+.post-controls > .card:not(.collapsed) .card-num {
   color: var(--accent);
 }
 
@@ -2686,16 +2655,28 @@ onUnmounted(() => {
 
 .card-heading {
   display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.card-num {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.card-heading-text {
+  display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .card-subtitle {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: normal;
   color: var(--text-dim);
-  padding-left: 20px;
 }
 
 .card-toggle {
@@ -2704,24 +2685,7 @@ onUnmounted(() => {
 }
 
 .card-toggle .card-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.chevron {
-  flex-shrink: 0;
-  color: var(--text-dim);
-  transition: transform 0.2s ease;
-}
-
-.section-icon {
-  flex-shrink: 0;
-  color: var(--text-dim);
-}
-
-.chevron.closed {
-  transform: rotate(-90deg);
+  font-weight: 600;
 }
 
 .card-collapse {
@@ -2793,11 +2757,30 @@ onUnmounted(() => {
 }
 
 .split-body {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   padding: 16px;
 }
+
+.viewfinder {
+  position: absolute;
+  inset: 6px;
+  pointer-events: none;
+}
+
+.viewfinder span {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 0 solid var(--accent);
+}
+
+.viewfinder span:nth-child(1) { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
+.viewfinder span:nth-child(2) { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
+.viewfinder span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
+.viewfinder span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
 
 .split-area {
   position: relative;

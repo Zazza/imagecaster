@@ -1,41 +1,49 @@
 :root {
-  --bg: #0c0c10;
-  --surface: #16161e;
-  --surface-1: #16161e;
-  --surface-2: #1e1e2a;
-  --surface-3: #26263a;
-  --border: #2e2e3a;
-  --text: #c5c5d0;
-  --text-dim: #7a7a8e;
-  --text-bright: #eeeef2;
-  --accent: #7c5cfc;
-  --accent-hover: #9b80ff;
-  --accent-bg: rgba(124, 92, 252, 0.12);
+  --bg: #121212;
+  --surface: #1c1c1b;
+  --surface-1: #1c1c1b;
+  --surface-2: #262625;
+  --surface-3: #30302e;
+  --border: #474744;
+  --text: #e2e1dc;
+  --text-dim: #a9a8a3;
+  --text-bright: #f3f2ee;
+  --accent-rgb: 240, 164, 58;
+  --accent: #f0a43a;
+  --accent-hover: #ffb85a;
+  --accent-bg: rgba(var(--accent-rgb), 0.12);
+  --accent-mark: #c98a2e;
+  --on-accent: #1a1206;
   --danger: #e05555;
   --danger-hover: #f07070;
   --success: #4caf50;
-  --warning: #f0a030;
-  --radius: 8px;
-  --radius-sm: 5px;
+  --warning: #e6cf6a;
+  --radius: 3px;
+  --radius-sm: 3px;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'DejaVu Sans Mono', Consolas, monospace;
 }
 
 [data-theme="light"] {
-  --bg: #f4f4f8;
-  --surface: #ffffff;
-  --surface-1: #ffffff;
-  --surface-2: #eaeaef;
-  --surface-3: #dddde3;
-  --border: #ccccd4;
-  --text: #2a2a3a;
-  --text-dim: #6a6a7e;
-  --text-bright: #1a1a2a;
-  --accent: #6a4cfc;
-  --accent-hover: #8a6cff;
-  --accent-bg: rgba(106, 76, 252, 0.1);
-  --danger: #d04040;
-  --danger-hover: #e05050;
-  --success: #3a9a3e;
-  --warning: #d89020;
+  --bg: #e9e7e1;
+  --surface: #fbfaf6;
+  --surface-1: #fbfaf6;
+  --surface-2: #f1efe9;
+  --surface-3: #e6e3db;
+  --border: #ccc8bd;
+  --text: #1d1c19;
+  --text-dim: #5a5850;
+  --text-bright: #121110;
+  --accent-rgb: 168, 81, 11;
+  --accent: #a8510b;
+  --accent-hover: #8f4409;
+  --accent-bg: rgba(var(--accent-rgb), 0.1);
+  --accent-mark: #8a4a12;
+  --on-accent: #ffffff;
+  --danger: #c03030;
+  --danger-hover: #a82828;
+  --success: #2f7d33;
+  --warning: #8a6d00;
 }
 
 * {
@@ -45,7 +53,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
   color: var(--text);
@@ -207,14 +215,14 @@ input, textarea, select {
 
 .btn-primary {
   background: var(--accent);
-  color: white;
-  box-shadow: 0 2px 8px rgba(124, 92, 252, 0.3);
+  color: var(--on-accent);
+  box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(124, 92, 252, 0.4);
+  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.4);
 }
 
 .btn-primary:disabled {
@@ -471,9 +479,9 @@ input, textarea, select {
 }
 
 .status-info {
-  background: rgba(124, 92, 252, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--accent);
-  border: 1px solid rgba(124, 92, 252, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
 }
 
 /* Empty state */
@@ -768,7 +776,7 @@ input, textarea, select {
 /* Preset selected state */
 .preset-selected {
   border-color: var(--accent);
-  background: rgba(124, 92, 252, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 /* Import modal */
@@ -999,7 +1007,7 @@ input, textarea, select {
 .drop-zone-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(124, 92, 252, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
   border: 2px dashed var(--accent);
   border-radius: var(--radius);
   display: flex;
@@ -1529,4 +1537,9 @@ input, textarea, select {
 .action-row .btn-icon-action:hover {
   color: var(--text);
   border-color: var(--text-dim);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }

@@ -317,7 +317,7 @@ export default { name: 'QueuePanel' }
 }
 
 .queue-item.status-running {
-  background: rgba(124, 92, 252, 0.05);
+  background: rgba(var(--accent-rgb), 0.05);
 }
 
 .queue-item.status-paused {

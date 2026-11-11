@@ -293,8 +293,8 @@ onMounted(load)
           <span>{{ t('presets.meta_steps', { count: p.steps }) }}</span>
           <span>CFG {{ p.cfg_scale }}</span>
           <template v-if="getStatus(p.id)">
-            <span v-if="getStatus(p.id).installed" style="color: #4ade80;">{{ t('presets.status_installed') }}</span>
-            <span v-else style="color: #fbbf24;">
+            <span v-if="getStatus(p.id).installed" style="color: var(--success);">{{ t('presets.status_installed') }}</span>
+            <span v-else style="color: var(--warning);">
               {{ t('presets.status_missing') }} {{ [...(getStatus(p.id).missing_sd || []), ...(getStatus(p.id).missing_lora || [])].join(', ') }}
             </span>
           </template>

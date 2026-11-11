@@ -167,7 +167,7 @@ onMounted(() => {
             <input class="form-input" type="number" v-model.number="lora.weight" step="0.1" min="0" max="2" style="flex: 0 0 80px;" />
             <button type="button" class="btn btn-sm btn-secondary" style="padding: 4px 10px;" @click="removeLoRA(idx)">&times;</button>
           </div>
-          <div v-if="!presetLoras.length" style="color: var(--text-dim, #aaa); font-size: 13px;">{{ t('preset.no_loras') }}</div>
+          <div v-if="!presetLoras.length" style="color: var(--text-dim); font-size: 13px;">{{ t('preset.no_loras') }}</div>
         </div>
 
         <div class="form-group">
@@ -273,8 +273,9 @@ onMounted(() => {
 }
 
 .modal {
-  background: #1e1e1e;
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   width: 90%;
   max-width: 700px;
   max-height: 90vh;
@@ -298,13 +299,13 @@ onMounted(() => {
   background: none;
   border: none;
   font-size: 28px;
-  color: #888;
+  color: var(--text-dim);
   cursor: pointer;
   line-height: 1;
 }
 
 .modal-close:hover {
-  color: #fff;
+  color: var(--text-bright);
 }
 
 .form-group {
@@ -315,7 +316,7 @@ onMounted(() => {
   display: block;
   margin-bottom: 6px;
   font-size: 14px;
-  color: #aaa;
+  color: var(--text-dim);
 }
 
 .form-input,
@@ -323,10 +324,10 @@ onMounted(() => {
 .form-textarea {
   width: 100%;
   padding: 8px 12px;
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
-  color: #fff;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
   font-size: 14px;
 }
 
@@ -334,7 +335,7 @@ onMounted(() => {
 .form-select:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #4ade80;
+  border-color: var(--accent);
 }
 
 .form-textarea {
@@ -350,33 +351,34 @@ onMounted(() => {
 
 .btn {
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   cursor: pointer;
   border: none;
 }
 
 .btn-primary {
-  background: #4ade80;
-  color: #000;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .btn-primary:hover {
-  background: #22c55e;
+  background: var(--accent-hover);
 }
 
 .btn-primary:disabled {
-  background: #225533;
+  background: var(--accent);
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .btn-secondary {
-  background: #3a3a3a;
-  color: #fff;
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .btn-secondary:hover {
-  background: #4a4a4a;
+  background: var(--border);
 }
 </style>
 

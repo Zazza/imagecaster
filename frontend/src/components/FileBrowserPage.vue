@@ -430,7 +430,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: var(--radius-sm);
 }
 
@@ -538,7 +538,7 @@ onUnmounted(() => {
 
 .fb-sort-btn.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .fb-thumb-placeholder {
