@@ -1,5 +1,6 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
+import FoldBlock from './FoldBlock.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -74,6 +75,16 @@ const filteredPresets = computed(() => {
 const selectedPresetLoras = computed(() => {
   const p = presets.value.find(p => p.id === selectedPresetId.value)
   return p ? parseLoras(p.loras) : []
+})
+
+const moreSummary = computed(() => {
+  const parts = []
+  const seed = String(seedInput.value ?? '').trim()
+  if (seed !== '' && genMode.value !== 'compound') parts.push(t('remix.more_seed', { seed }))
+  if (selectedResolutionId.value) parts.push(qualityMode.value && genMode.value !== 'compound' ? t('remix.more_size_quality') : t('remix.more_size'))
+  if (genMode.value === 'compound' && selectedHiresProfileId.value) parts.push(t('remix.more_hires'))
+  if (!kidsModeActive.value && String(extraNegativePrompt.value || '').trim()) parts.push(t('remix.more_exclude'))
+  return parts.length ? parts.join(', ') : t('remix.more_default')
 })
 
 const kleinPresetSelected = computed(() => {
@@ -387,45 +398,29 @@ function onKeydown(e) {
 
     <StatusMessage v-if="error" :kind="error === 'interrupted' ? 'warning' : 'error'" :text="error" @close="error = ''" />
 
-    <div class="form-group" style="margin-top: 12px;">
-      <label class="form-label">{{ t('fi.label_denoising', { value: denoisingStrength.toFixed(2) }) }}</label>
-      <input type="range" class="form-range" v-model.number="denoisingStrength" min="0.05" max="1.0" step="0.05" />
-      <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);">
-        <span>{{ t('fi.keep_original') }}</span>
-        <span>{{ t('fi.full_redraw') }}</span>
+    <div class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <label class="form-label" style="margin-bottom: 0;">{{ t('remix.description_label') }}</label>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn btn-sm" :class="analyzeMode === 'quick' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'quick'" style="font-size: 11px; padding: 2px 8px;">{{ t('fi.tags') }}</button>
+          <button class="btn btn-sm" :class="analyzeMode === 'describe' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'describe'" style="font-size: 11px; padding: 2px 8px;">{{ t('fi.describe') }}</button>
+        </div>
       </div>
-    </div>
-
-    <div class="form-group" style="margin-top: 4px;">
-      <label class="form-label" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }">{{ t('fi.seed_label') }}</label>
-      <input data-testid="fi-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :disabled="genMode === 'compound'" :placeholder="t('fi.seed_placeholder')" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }" />
-      <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 4px;">{{ t('fi.preset_only') }}</div>
-      <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.seed_hint') }}</div>
-    </div>
-
-    <div class="form-group" style="margin-top: 4px;">
-      <ResolutionSelector v-model="selectedResolutionId" :none-label="t('fi.resolution_original')" />
-      <div style="margin-top: 6px;">
-        <label :style="{ display: 'flex', alignItems: 'center', gap: '6px', cursor: (genMode === 'compound' || !selectedResolutionId) ? 'not-allowed' : 'pointer', opacity: (genMode === 'compound' || !selectedResolutionId) ? 0.5 : 1 }">
-          <input data-testid="fi-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="genMode === 'compound' || !selectedResolutionId" style="accent-color: var(--accent);" />
-          <span style="font-size: 12px;">{{ t('fi.quality_mode') }}</span>
-        </label>
-        <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 2px;">{{ t('fi.preset_only') }}</div>
-        <div v-else-if="!selectedResolutionId" style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_needs_resolution') }}</div>
-        <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_hint') }}</div>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <button class="btn btn-sm btn-secondary" @click="analyzeImage" :disabled="analyzing || !source">
+          <template v-if="analyzing">
+            <span>{{ t('fi.analyzing') }} ({{ analyzeElapsed }}s)</span>
+          </template>
+          <span v-else>{{ t('fi.btn_analyze') }}</span>
+        </button>
+        <button v-if="!kidsModeActive" class="btn btn-sm btn-secondary" @click="tags = ''" :disabled="!tags" title="Clear tags">&#10005;</button>
       </div>
-      <div v-if="genMode === 'preset' && kleinPresetSelected" style="margin-top: 6px;">
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-          <input data-testid="fi-preserve-identity-checkbox" type="checkbox" v-model="preserveIdentity" style="accent-color: var(--accent);" />
-          <span style="font-size: 12px;">{{ t('fi.preserve_identity') }}</span>
-        </label>
-        <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.preserve_identity_hint') }}</div>
+      <div v-if="!kidsModeActive" class="remix-hint">{{ t('remix.analyze_hint') }}</div>
+      <textarea class="form-textarea" v-model="tags" rows="4" :placeholder="t('fi.placeholder_tags')" :disabled="kidsModeActive"></textarea>
+      <div v-if="batch" class="form-hint">{{ t('fi.batch_describe_hint') }}</div>
+      <div v-if="kidsModeActive" style="margin-top: 4px; padding: 6px; background: var(--surface-2); border-radius: 4px; text-align: center; font-size: 11px; color: var(--text-dim);">
+        {{ t('fi.kids_tags_restricted') }}
       </div>
-    </div>
-
-    <div v-if="genMode === 'compound'" class="form-group" style="margin-top: 4px;">
-      <HiresProfileSelector v-model="selectedHiresProfileId" />
-      <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.hires_hint') }}</div>
     </div>
 
     <div style="display: flex; gap: 8px; margin-bottom: 12px;">
@@ -458,36 +453,56 @@ function onKeydown(e) {
       </select>
     </div>
 
-    <PresetOverridesPanel v-if="genMode === 'preset' && !kidsModeActive" ref="overridesPanel" v-model="presetOverrides" :preset-loras="selectedPresetLoras" />
+    <div v-if="genMode === 'preset' && kleinPresetSelected" class="form-group">
+      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+        <input data-testid="fi-preserve-identity-checkbox" type="checkbox" v-model="preserveIdentity" style="accent-color: var(--accent);" />
+        <span style="font-size: 12px;">{{ t('fi.preserve_identity') }}</span>
+      </label>
+      <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.preserve_identity_hint') }}</div>
+    </div>
 
-    <div class="form-group" style="margin-top: 12px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <label class="form-label" style="margin-bottom: 0;">{{ t('fi.extracted_tags') }}</label>
-        <div style="display: flex; gap: 6px;">
-          <button class="btn btn-sm" :class="analyzeMode === 'quick' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'quick'" style="font-size: 11px; padding: 2px 8px;">{{ t('fi.tags') }}</button>
-          <button class="btn btn-sm" :class="analyzeMode === 'describe' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'describe'" style="font-size: 11px; padding: 2px 8px;">{{ t('fi.describe') }}</button>
+    <div class="form-group">
+      <label class="form-label">{{ t('fi.label_denoising', { value: denoisingStrength.toFixed(2) }) }}</label>
+      <input type="range" class="form-range" v-model.number="denoisingStrength" min="0.05" max="1.0" step="0.05" />
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);">
+        <span>{{ t('fi.keep_original') }}</span>
+        <span>{{ t('fi.full_redraw') }}</span>
+      </div>
+    </div>
+
+    <PresetOverridesPanel :title="t('model.block_title')" v-if="genMode === 'preset' && !kidsModeActive" ref="overridesPanel" v-model="presetOverrides" :preset-loras="selectedPresetLoras" />
+
+    <FoldBlock class="remix-more" :title="t('remix.more_title')" :summary="moreSummary">
+      <div class="form-group">
+        <label class="form-label" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }">{{ t('fi.seed_label') }}</label>
+        <input data-testid="fi-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :disabled="genMode === 'compound'" :placeholder="t('fi.seed_placeholder')" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }" />
+        <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 4px;">{{ t('fi.preset_only') }}</div>
+        <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.seed_hint') }}</div>
+      </div>
+
+      <div class="form-group">
+        <ResolutionSelector v-model="selectedResolutionId" :none-label="t('fi.resolution_original')" />
+        <div style="margin-top: 6px;">
+          <label :style="{ display: 'flex', alignItems: 'center', gap: '6px', cursor: (genMode === 'compound' || !selectedResolutionId) ? 'not-allowed' : 'pointer', opacity: (genMode === 'compound' || !selectedResolutionId) ? 0.5 : 1 }">
+            <input data-testid="fi-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="genMode === 'compound' || !selectedResolutionId" style="accent-color: var(--accent);" />
+            <span style="font-size: 12px;">{{ t('fi.quality_mode') }}</span>
+          </label>
+          <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 2px;">{{ t('fi.preset_only') }}</div>
+          <div v-else-if="!selectedResolutionId" style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_needs_resolution') }}</div>
+          <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_hint') }}</div>
         </div>
       </div>
-      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
-        <button class="btn btn-sm btn-secondary" @click="analyzeImage" :disabled="analyzing || !source">
-          <template v-if="analyzing">
-            <span>{{ t('fi.analyzing') }} ({{ analyzeElapsed }}s)</span>
-          </template>
-          <span v-else>{{ t('fi.btn_analyze') }}</span>
-        </button>
-        <button v-if="!kidsModeActive" class="btn btn-sm btn-secondary" @click="tags = ''" :disabled="!tags" title="Clear tags">&#10005;</button>
-      </div>
-      <textarea class="form-textarea" v-model="tags" rows="4" :placeholder="t('fi.placeholder_tags')" :disabled="kidsModeActive"></textarea>
-      <div v-if="batch" class="form-hint">{{ t('fi.batch_describe_hint') }}</div>
-      <div v-if="kidsModeActive" style="margin-top: 4px; padding: 6px; background: var(--surface-2); border-radius: 4px; text-align: center; font-size: 11px; color: var(--text-dim);">
-        {{ t('fi.kids_tags_restricted') }}
-      </div>
-    </div>
 
-    <div v-if="!kidsModeActive" class="form-group">
-      <label class="form-label">{{ t('fi.label_extra_exclude') }}</label>
-      <textarea class="form-textarea" v-model="extraNegativePrompt" rows="2" :placeholder="t('fi.placeholder_extra_exclude')"></textarea>
-    </div>
+      <div v-if="genMode === 'compound'" class="form-group">
+        <HiresProfileSelector v-model="selectedHiresProfileId" />
+        <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.hires_hint') }}</div>
+      </div>
+
+      <div v-if="!kidsModeActive" class="form-group">
+        <label class="form-label">{{ t('fi.label_extra_exclude') }}</label>
+        <textarea class="form-textarea" v-model="extraNegativePrompt" rows="2" :placeholder="t('fi.placeholder_extra_exclude')"></textarea>
+      </div>
+    </FoldBlock>
 
     <div style="display: flex; gap: 8px; width: 100%;">
       <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center; padding: 12px;" @click="generate" :disabled="generatingImage || (batch && batchBusy) || !source || (genMode === 'preset' ? !selectedPresetId : !selectedCompoundPresetId)">
@@ -530,6 +545,12 @@ function onKeydown(e) {
 </template>
 
 <style scoped>
+.remix-hint {
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 .form-range {
   width: 100%;
   accent-color: var(--accent);

@@ -1,5 +1,7 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
+import FoldBlock from './FoldBlock.vue'
+import { modelLoraText } from '../modelLora.js'
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ChevronDown, Wand2, ImagePlus, Eraser, Bandage, Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw, X } from 'lucide-vue-next'
 import { api } from '../api.js'
@@ -787,7 +789,6 @@ const appliedEffects = ref([])
 const journalPending = new Map()
 
 const MOSS_EFFECT_MODEL = 'moss_image_sft_bf16'
-const effectModelOpen = ref(false)
 const effectModel = ref('klein')
 const effectLoras = reactive({ klein: [], moss: [] })
 const effectLoraChoices = ref([])
@@ -822,9 +823,10 @@ async function loadEffectModel() {
   }
 }
 
-async function toggleEffectModel() {
-  effectModelOpen.value = !effectModelOpen.value
-  if (effectModelOpen.value && !effectLoraChoices.value.length) {
+const effectModelSummary = computed(() => modelLoraText(effectModel.value === 'moss' ? 'Moss' : 'Klein', effectLoras[effectModel.value]))
+
+async function onEffectModelToggle(open) {
+  if (open && !effectLoraChoices.value.length) {
     try {
       effectLoraChoices.value = (await api.getLoRAs() || []).map(l => l.name).filter(Boolean)
     } catch (e) {
@@ -2048,11 +2050,11 @@ onUnmounted(() => {
       <div class="post-controls">
         <div ref="editSectionRef" class="card" :class="{ collapsed: openSection !== 'edit' }">
           <div class="card-header card-toggle" @click="setOpenSection('edit')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'edit' }" />
               <Wand2 :size="14" class="section-icon" />
               {{ t('post.section_edit') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_edit') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'edit' }">
             <div class="card-body">
@@ -2063,11 +2065,11 @@ onUnmounted(() => {
 
         <div ref="remixSectionRef" class="card" :class="{ collapsed: openSection !== 'remix' }">
           <div class="card-header card-toggle" @click="setOpenSection('remix')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'remix' }" />
               <ImagePlus :size="14" class="section-icon" />
               {{ t('post.section_remix') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_remix') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
@@ -2078,11 +2080,11 @@ onUnmounted(() => {
 
         <div ref="objectSectionRef" class="card" :class="{ collapsed: openSection !== 'object' }">
           <div class="card-header card-toggle" @click="setOpenSection('object')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'object' }" />
               <Eraser :size="14" class="section-icon" />
               {{ t('post.section_object') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_object') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'object' }">
             <div class="card-body">
@@ -2094,11 +2096,11 @@ onUnmounted(() => {
 
         <div ref="repairSectionRef" class="card" :class="{ collapsed: openSection !== 'repair' }">
           <div class="card-header card-toggle" @click="setOpenSection('repair')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'repair' }" />
               <Bandage :size="14" class="section-icon" />
               {{ t('post.section_repair') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_repair') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'repair' }">
             <div class="card-body">
@@ -2110,10 +2112,10 @@ onUnmounted(() => {
 
         <div ref="effectSectionRef" class="card" :class="{ collapsed: openSection !== 'effect' }">
           <div class="card-header card-toggle" @click="setOpenSection('effect')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'effect' }" />
               {{ t('post.effect_title') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_effect') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'effect' }">
             <div class="card-body">
@@ -2191,16 +2193,13 @@ onUnmounted(() => {
               </template>
             </div>
 
-            <div class="fx-model">
-              <button type="button" class="btn btn-sm btn-secondary fx-model-toggle" @click="toggleEffectModel">
-                {{ t('post.effect_model', { model: effectModel === 'moss' ? 'Moss' : 'Klein' }) }} {{ effectModelOpen ? '▴' : '▾' }}
-              </button>
-              <div v-if="effectModelOpen" class="fx-model-body">
+            <FoldBlock class="fx-model" :title="t('model.block_title')" :summary="effectModelSummary" @toggle="onEffectModelToggle">
+              <div class="fx-model-body">
                 <select class="form-select fx-model-select" :value="effectModel" @change="setEffectModel($event.target.value)">
                   <option value="klein">Klein</option>
                   <option value="moss">Moss</option>
                 </select>
-                <div v-if="effectModel === 'moss'" class="form-hint">{{ t('post.effect_model_moss_hint') }}</div>
+                <div class="form-hint">{{ effectModel === 'moss' ? t('model.hint_moss') : t('model.hint_klein') }}</div>
                 <div v-for="(l, i) in effectLoras[effectModel]" :key="effectModel + i" class="fx-lora-row">
                   <select class="form-select fx-lora-name" v-model="l.name" @change="saveEffectLoras">
                     <option v-if="l.name && !effectLoraChoices.includes(l.name)" :value="l.name">{{ l.name }}</option>
@@ -2211,7 +2210,7 @@ onUnmounted(() => {
                 </div>
                 <button type="button" class="btn btn-sm btn-secondary fx-lora-add" @click="addEffectLora">{{ t('post.effect_add_lora') }}</button>
               </div>
-            </div>
+            </FoldBlock>
 
             <div class="form-group">
               <label class="form-label">{{ t('fi.seed_label') }}</label>
@@ -2253,10 +2252,10 @@ onUnmounted(() => {
 
         <div ref="adjustSectionRef" class="card" :class="{ collapsed: openSection !== 'adjust' }">
           <div class="card-header card-toggle" @click="setOpenSection('adjust')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'adjust' }" />
               {{ t('post.adjust_title') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_adjust') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'adjust' }">
             <div class="card-body">
@@ -2307,10 +2306,10 @@ onUnmounted(() => {
 
         <div ref="finishSectionRef" class="card" :class="{ collapsed: openSection !== 'finish' }">
           <div class="card-header card-toggle" @click="setOpenSection('finish')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'finish' }" />
               {{ t('post.finish_title') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_finish') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'finish' }">
             <div class="card-body">
@@ -2375,10 +2374,10 @@ onUnmounted(() => {
 
         <div ref="exportSectionRef" class="card" :class="{ collapsed: openSection !== 'export' }">
           <div class="card-header card-toggle" @click="setOpenSection('export')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'export' }" />
               {{ t('export.export_settings') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_export') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'export' }">
             <div class="card-body">
@@ -2492,10 +2491,10 @@ onUnmounted(() => {
 
         <div ref="recipesSectionRef" class="card" :class="{ collapsed: openSection !== 'recipes' }">
           <div class="card-header card-toggle" @click="setOpenSection('recipes')">
-            <span class="card-title">
+            <span class="card-heading"><span class="card-title">
               <ChevronDown :size="14" class="chevron" :class="{ closed: openSection !== 'recipes' }" />
               {{ t('post.recipes_title') }}
-            </span>
+            </span><span class="card-subtitle">{{ t('post.sub_recipes') }}</span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'recipes' }">
             <div class="card-body">
@@ -2647,10 +2646,6 @@ onUnmounted(() => {
   flex: 1;
 }
 
-.fx-model {
-  margin: 10px 0;
-}
-
 .fx-model-body {
   display: flex;
   flex-direction: column;
@@ -2687,6 +2682,20 @@ onUnmounted(() => {
 
 .card.collapsed .card-header {
   border-bottom: none;
+}
+
+.card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card-subtitle {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-dim);
+  padding-left: 20px;
 }
 
 .card-toggle {

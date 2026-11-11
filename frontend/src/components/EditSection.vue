@@ -1,5 +1,7 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
+import FoldBlock from './FoldBlock.vue'
+import { modelLoraText } from '../modelLora.js'
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -90,9 +92,11 @@ async function loadLoras() {
   }
 }
 
-function onLorasToggle(e) {
-  if (e.target.open) loadLoras()
+function onLorasToggle(open) {
+  if (open) loadLoras()
 }
+
+const modelLoraSummary = computed(() => modelLoraText(editModel.value === 'klein' ? 'Klein' : 'Moss', loraRows.value))
 
 function editLorasPayload(rows = loraRows.value) {
   return rows
@@ -395,15 +399,6 @@ onUnmounted(() => {
     </div>
 
     <div class="form-group">
-      <label class="form-label" for="edit-model-select">{{ t('edit.model_label') }}</label>
-      <select id="edit-model-select" data-testid="edit-model-select" class="form-select" v-model="editModel">
-        <option value="moss">Moss</option>
-        <option value="klein">Klein</option>
-      </select>
-      <div v-if="editModel === 'klein'" class="field-hint">{{ t('edit.model_klein_hint') }}</div>
-    </div>
-
-    <div class="form-group">
       <label class="form-label" for="edit-style-select">{{ t('edit.style_label') }}</label>
       <select id="edit-style-select" data-testid="edit-style-select" class="form-select" v-model="stylePresetId">
         <option :value="0">{{ t('edit.style_none') }}</option>
@@ -422,21 +417,27 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <details class="edit-loras" @toggle="onLorasToggle">
-      <summary>{{ t('edit.loras') }}</summary>
-      <div class="edit-loras-body">
-        <div v-if="loraLoadError" class="field-hint field-hint-warn">{{ t('overrides.load_error') }}</div>
-        <div class="lora-head">
-          <button data-testid="edit-lora-add" type="button" class="btn btn-sm btn-secondary" @click="addLora">{{ t('edit.loras_add') }}</button>
-        </div>
-        <div v-for="(row, idx) in loraRows" :key="idx" class="lora-row">
-          <input data-testid="edit-lora-name" class="form-input" type="text" v-model="row.name" list="edit-lora-names" :placeholder="t('edit.loras_name')" :aria-label="t('edit.loras_name')" />
-          <input data-testid="edit-lora-weight" class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :aria-label="t('edit.loras_weight')" />
-          <button data-testid="edit-lora-remove" type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLora(idx)" :aria-label="t('edit.loras_remove')">&times;</button>
-        </div>
-        <div class="lora-hint">{{ editModel === 'klein' ? t('edit.loras_hint_klein') : t('edit.loras_hint') }}</div>
+    <FoldBlock class="edit-model-lora" :title="t('model.block_title')" :summary="modelLoraSummary" @toggle="onLorasToggle">
+      <div class="form-group">
+        <label class="form-label" for="edit-model-select">{{ t('edit.model_label') }}</label>
+        <select id="edit-model-select" data-testid="edit-model-select" class="form-select" v-model="editModel">
+          <option value="moss">Moss</option>
+          <option value="klein">Klein</option>
+        </select>
+        <div class="field-hint">{{ editModel === 'klein' ? t('model.hint_klein') : t('model.hint_moss') }}</div>
       </div>
-    </details>
+      <div v-if="loraLoadError" class="field-hint field-hint-warn">{{ t('overrides.load_error') }}</div>
+      <div class="lora-head">
+        <label class="form-label">{{ t('edit.loras') }}</label>
+        <button data-testid="edit-lora-add" type="button" class="btn btn-sm btn-secondary" @click="addLora">{{ t('edit.loras_add') }}</button>
+      </div>
+      <div v-for="(row, idx) in loraRows" :key="idx" class="lora-row">
+        <input data-testid="edit-lora-name" class="form-input" type="text" v-model="row.name" list="edit-lora-names" :placeholder="t('edit.loras_name')" :aria-label="t('edit.loras_name')" />
+        <input data-testid="edit-lora-weight" class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :aria-label="t('edit.loras_weight')" />
+        <button data-testid="edit-lora-remove" type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLora(idx)" :aria-label="t('edit.loras_remove')">&times;</button>
+      </div>
+      <div class="lora-hint">{{ editModel === 'klein' ? t('edit.loras_hint_klein') : t('edit.loras_hint') }}</div>
+    </FoldBlock>
     <datalist id="edit-lora-names">
       <option v-for="l in serverLoras" :key="l.name" :value="l.name" />
     </datalist>
@@ -603,28 +604,10 @@ onUnmounted(() => {
   font-size: 10px;
   color: var(--text-dim);
 }
-.edit-loras {
-  margin-bottom: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.edit-loras summary {
-  cursor: pointer;
-  color: var(--text-dim);
-  font-size: 13px;
-  padding: 8px 12px;
-  user-select: none;
-}
-.edit-loras summary:hover {
-  color: var(--text);
-}
-.edit-loras-body {
-  padding: 4px 12px 12px;
-}
 .lora-head {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 6px;
 }
 .lora-row {

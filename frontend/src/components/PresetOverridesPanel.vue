@@ -1,5 +1,7 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import FoldBlock from './FoldBlock.vue'
+import { modelLoraText } from '../modelLora.js'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { buildLorasOverride, sanitizeWeight, sameLoras } from '../loraOverride.js'
@@ -7,6 +9,7 @@ import { buildLorasOverride, sanitizeWeight, sameLoras } from '../loraOverride.j
 const props = defineProps({
   modelValue: { type: Object, default: null },
   presetLoras: { type: Array, default: () => [] },
+  title: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -115,9 +118,16 @@ async function loadLists() {
   }
 }
 
-function onToggle(e) {
-  if (e.target.open) loadLists()
+function onToggle(open) {
+  if (open) loadLists()
 }
+
+const summary = computed(() => {
+  const model = ovModel.value || t('overrides.as_preset')
+  const base = ovIgnoreLoras.value ? model + ' · ' + t('model.no_lora') : modelLoraText(model, loraRows.value)
+  const n = [ovSampler.value, ovScheduler.value, ovSteps.value, ovCfg.value, ovClipSkip.value].filter(v => v !== '' && v !== null && v !== undefined).length
+  return n ? base + ' · ' + t('model.params_count', { n }) : base
+})
 
 syncLoraRows()
 
@@ -125,8 +135,7 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <details class="preset-overrides" @toggle="onToggle">
-    <summary>{{ t('overrides.title') }}</summary>
+  <FoldBlock class="preset-overrides" :title="title || t('overrides.title')" :summary="summary" @toggle="onToggle">
     <div class="preset-overrides-body">
       <div v-if="loadError" class="overrides-hint" style="color: var(--status-warn, #e6a23c);">{{ t('overrides.load_error') }}</div>
       <div class="overrides-grid">
@@ -187,28 +196,12 @@ defineExpose({ reset })
       </datalist>
       <div class="overrides-hint">{{ t('overrides.hint') }}</div>
     </div>
-  </details>
+  </FoldBlock>
 </template>
 
 <style scoped>
-.preset-overrides {
-  margin-top: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.preset-overrides summary {
-  cursor: pointer;
-  color: var(--text-dim);
-  font-size: 13px;
-  padding: 8px 12px;
-  user-select: none;
-}
-.preset-overrides summary:hover {
-  color: var(--text);
-}
 .preset-overrides-body {
-  padding: 4px 12px 12px;
+  padding: 0;
 }
 .overrides-grid {
   display: grid;

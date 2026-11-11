@@ -98,11 +98,11 @@ async function mountPage() {
 }
 
 async function openModel(wrapper) {
-  const toggle = wrapper.find('.fx-model-toggle')
+  const toggle = wrapper.find('.fx-model .fold-head')
   expect(toggle.exists()).toBe(true)
   await toggle.trigger('click')
   await settle()
-  expect(wrapper.find('.fx-model-body').exists()).toBe(true)
+  expect(wrapper.find('.fx-model').classes()).toContain('fold-open')
 }
 
 async function pickModel(wrapper, value) {
@@ -162,8 +162,8 @@ function settingsCallsWith(key) {
 describe('Effect model block in post-process', () => {
   it('T6: block is collapsed by default, model is Klein, apply sends no overrides', async () => {
     const wrapper = await mountPage()
-    expect(wrapper.find('.fx-model-toggle').exists()).toBe(true)
-    expect(wrapper.find('.fx-model-body').exists()).toBe(false)
+    expect(wrapper.find('.fx-model .fold-head').exists()).toBe(true)
+    expect(wrapper.find('.fx-model').classes()).not.toContain('fold-open')
 
     await applyEffect(wrapper)
     const p = lastParams()
@@ -183,9 +183,9 @@ describe('Effect model block in post-process', () => {
   it('T6: toggle collapses the opened block again', async () => {
     const wrapper = await mountPage()
     await openModel(wrapper)
-    await wrapper.find('.fx-model-toggle').trigger('click')
+    await wrapper.find('.fx-model .fold-head').trigger('click')
     await settle()
-    expect(wrapper.find('.fx-model-body').exists()).toBe(false)
+    expect(wrapper.find('.fx-model').classes()).not.toContain('fold-open')
   })
 
   it('T6b: LoRA name choices come from SD LoRA list', async () => {
@@ -309,7 +309,7 @@ describe('Effect model block in post-process', () => {
       effect_loras_moss: '[{"name":"LoraB","weight":0.5}]',
     }))
     const wrapper = await mountPage()
-    expect(wrapper.find('.fx-model-body').exists()).toBe(false)
+    expect(wrapper.find('.fx-model').classes()).not.toContain('fold-open')
     await applyEffect(wrapper)
     const p = lastParams()
     expect(p.overrides.model_name).toBe(MOSS_MODEL)
