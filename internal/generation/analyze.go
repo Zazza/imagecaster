@@ -297,8 +297,8 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	}
 	ApplyPresetOverrides(p, params.Overrides)
 	mossIdentity := params.PreserveIdentity && config.ModelMatchesCSV(p.ModelName, "moss")
-	if params.PreserveIdentity && !mossIdentity && !config.ModelMatchesCSV(p.ModelName, "klein") {
-		return nil, fmt.Errorf("preserve identity requires a klein or moss model, got %q", p.ModelName)
+	if params.PreserveIdentity && !mossIdentity && !config.IsFlux2Klein(p.ModelName) {
+		return nil, fmt.Errorf("preserve identity requires a flux-2-klein or moss model, got %q", p.ModelName)
 	}
 	if mossIdentity {
 		p.Sampler = mossEditSampler
@@ -383,7 +383,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 				}
 			}()
 		}
-		if !params.PreserveIdentity && config.ModelMatchesCSV(p.ModelName, "klein") {
+		if !params.PreserveIdentity && config.IsFlux2Klein(p.ModelName) {
 			if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
 				s.log.Warn("from-image: clear stale klein reference: %s", err)
 			}
@@ -404,7 +404,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			imgW, imgH = s.fitImageToResolution(srcW, srcH, params.ResolutionID)
 		}
 		kleinOutW, kleinOutH := 0, 0
-		if config.ModelMatchesCSV(p.ModelName, "klein") {
+		if config.IsFlux2Klein(p.ModelName) {
 			if params.ResolutionID == nil || *params.ResolutionID <= 0 {
 				kleinOutW, kleinOutH = kleinImg2ImgSize(imgW, imgH)
 				if rawW > 0 && rawH > 0 {

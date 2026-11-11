@@ -19,6 +19,8 @@ var newGenBases = map[string]bool{
 	"Moss-Image":   true,
 	"Flux.1":       true,
 	"Flux.2":       true,
+	"Flux.3":       true,
+	"Krea-2":       true,
 	"Qwen-Image":   true,
 	"Chroma":       true,
 	"HunyuanImage": true,
@@ -30,6 +32,7 @@ var taggedBases = map[string]bool{
 	"Pony XL":          true,
 	"Illustrious":      true,
 	"Pony/Illustrious": true,
+	"Anima":            true,
 }
 
 func checkModelFamily(name, base string) error {

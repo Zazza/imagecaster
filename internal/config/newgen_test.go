@@ -9,7 +9,7 @@ import (
 func TestNewGenModelFamilies_ExactList(t *testing.T) {
 	t.Parallel()
 	assert.ElementsMatch(t,
-		[]string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan"},
+		[]string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan", "krea"},
 		NewGenModelFamilies,
 	)
 }

@@ -728,8 +728,7 @@ export default { name: 'AppFooter' }
 
 <style scoped>
 .app-footer {
-  border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--frame);
   flex-shrink: 0;
   min-height: 30px;
   position: relative;
@@ -772,6 +771,8 @@ export default { name: 'AppFooter' }
 
 .footer-bar {
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   justify-content: space-between;
   align-items: center;
   padding: 6px 16px;

@@ -1,7 +1,8 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { api } from '../api.js'
+import { defaultDownloads, loadDefaultPlan, runDefaultPlan } from '../modelDownloads.js'
 import { t, locale } from '../i18n/index.js'
 import ToggleSwitch from './ToggleSwitch.vue'
 import PinModal from './PinModal.vue'
@@ -36,8 +37,9 @@ const discovering = ref(false)
 const serverStatus = ref(null)
 
 // --- Server models ---
-const serverModels = reactive({ sd: [], lora: [], vae: [], llm: [] })
-const serverModelsLoading = reactive({ sd: false, lora: false, vae: false, llm: false })
+const serverModels = reactive({ sd: [], lora: [], vae: [], text_encoder: [], llm: [] })
+const serverModelsLoading = reactive({ sd: false, lora: false, vae: false, text_encoder: false, llm: false })
+const serverModelsKnown = reactive({})
 const serverModelDownload = reactive({ type: 'sd', url: '', filename: '' })
 const llmPullName = ref('')
 const modelActionLoading = reactive({})
@@ -45,7 +47,20 @@ const processActionLoading = reactive({})
 const visibleLogs = reactive({})
 const processLogs = reactive({})
 const utilitiesExpanded = ref(false)
-const activeDownload = reactive({ type: '', name: '', progress: '' })
+const activeDownload = reactive({ type: '', name: '', progress: '', model: '' })
+const catalogNotice = ref('')
+const defaultPlan = computed(() => defaultDownloads.plan)
+const presetNotice = reactive({})
+const presetsMissing = ref({})
+
+async function loadPresetsMissing() {
+  try {
+    presetsMissing.value = (await api.catalogPresetsMissing()) || {}
+  } catch (e) {
+    console.warn('catalog presets status', e)
+    presetsMissing.value = {}
+  }
+}
 
 // --- Model catalog ---
 const modelCatalog = ref(null)
@@ -396,13 +411,19 @@ async function saveServerConnection() {
 }
 
 async function loadServerModels() {
-  for (const type of ['sd', 'lora', 'vae']) {
+  for (const type of ['sd', 'lora', 'vae', 'text_encoder']) {
     serverModelsLoading[type] = true
     try {
       serverModels[type] = await api.getServerModels(type) || []
-    } catch { serverModels[type] = [] }
+      serverModelsKnown[type] = true
+    } catch {
+      serverModels[type] = []
+      serverModelsKnown[type] = false
+    }
     finally { serverModelsLoading[type] = false }
   }
+  await loadDefaultPlan()
+  await loadPresetsMissing()
   serverModelsLoading.llm = true
   try {
     serverModels.llm = await api.getServerLLMModels() || []
@@ -417,6 +438,89 @@ function catalogText(m, field) {
 function isCatalogInstalled(type, name) {
   if (type === 'llm') return serverModels.llm.some(i => i.name === name)
   return serverModels[type].some(i => i.name === name + '.safetensors')
+}
+
+function sdMainFilename(m) {
+  return m.filename || m.name + '.safetensors'
+}
+
+function hasServerFile(type, filename) {
+  return (serverModels[type] || []).some(i => i.name === filename)
+}
+
+function missingModules(m) {
+  return (m.modules || []).filter(mod => serverModelsKnown[mod.type] !== false && !hasServerFile(mod.type, mod.filename))
+}
+
+function unverifiedModules(m) {
+  return (m.modules || []).filter(mod => serverModelsKnown[mod.type] === false)
+}
+
+function isSDModelInstalled(m) {
+  return hasServerFile('sd', sdMainFilename(m)) && missingModules(m).length === 0 && unverifiedModules(m).length === 0
+}
+
+function isSDModelUnverified(m) {
+  return hasServerFile('sd', sdMainFilename(m)) && missingModules(m).length === 0 && unverifiedModules(m).length > 0
+}
+
+async function addCatalogPresets(m) {
+  try {
+    const added = await api.installCatalogPresets(m.name)
+    presetNotice[m.name] = added
+      ? t('settings.catalog_presets_added_short', { count: added })
+      : t('settings.catalog_presets_exist_short')
+  } catch (e) {
+    presetNotice[m.name] = String(e)
+  }
+  await loadPresetsMissing()
+}
+
+async function downloadDefaultPlan() {
+  const plan = defaultPlan.value
+  if (!plan || !plan.items.length) return
+  if (!confirm(t('settings.confirm_download_all', { count: plan.items.length, size: plan.total_gb }))) return
+  catalogNotice.value = ''
+  const failed = await runDefaultPlan(serverURL.value)
+  await loadServerModels()
+  if (failed.length) alert(t('settings.err_download', { error: failed.join('\n') }))
+  else catalogNotice.value = t('settings.download_all_done')
+}
+
+async function downloadSDModel(m) {
+  modelActionLoading.dl_sd = true
+  activeDownload.model = m.name
+  catalogNotice.value = ''
+  try {
+    const files = (m.modules || []).filter(mod => !hasServerFile(mod.type, mod.filename))
+      .map(mod => ({ type: mod.type, url: mod.url, filename: mod.filename }))
+    if (!hasServerFile('sd', sdMainFilename(m))) files.push({ type: 'sd', url: m.url, filename: sdMainFilename(m) })
+    for (const f of files) {
+      activeDownload.type = f.type
+      activeDownload.name = f.filename
+      activeDownload.progress = f.filename
+      if (serverURL.value) {
+        await api.downloadServerModelStream(serverURL.value, f.type, f.url, f.filename, (line) => {
+          activeDownload.progress = f.filename + ': ' + line
+        })
+      } else {
+        await api.downloadServerModel(f.type, f.url, f.filename)
+      }
+    }
+    if (m.presets) {
+      const added = await api.installCatalogPresets(m.name)
+      catalogNotice.value = t('settings.catalog_presets_added', { model: m.name, count: added || 0 })
+    }
+  } catch (e) {
+    alert(t('settings.err_download', { error: String(e) }))
+  } finally {
+    await loadServerModels()
+    delete modelActionLoading.dl_sd
+    activeDownload.type = ''
+    activeDownload.name = ''
+    activeDownload.progress = ''
+    activeDownload.model = ''
+  }
 }
 
 async function downloadModel(type, url, filename) {
@@ -1235,19 +1339,38 @@ onMounted(loadSettings)
         <!-- SD Models -->
         <div class="card" style="margin-bottom: 16px;">
           <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.title_sd_models') }}</h3>
+          <div v-if="defaultPlan" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0 12px; border-bottom: 1px solid var(--border);">
+            <div style="font-size: 12px; color: var(--text-dim);">
+              <div v-if="defaultPlan.items.length">{{ t('settings.download_all_hint', { count: defaultPlan.items.length, size: defaultPlan.total_gb }) }}</div>
+              <div v-else style="color: var(--success);">{{ t('settings.download_all_complete') }}</div>
+              <div>{{ t('settings.download_all_optional') }}</div>
+            </div>
+            <span v-if="defaultDownloads.running" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ defaultDownloads.progress }}</span>
+            <button v-else-if="defaultPlan.items.length" class="btn btn-primary btn-sm" style="white-space: nowrap;" @click="downloadDefaultPlan" :disabled="!!modelActionLoading['dl_sd']">{{ t('settings.btn_download_all') }}</button>
+          </div>
+          <div v-if="catalogNotice" style="color: var(--success); font-size: 12px; margin: 8px 0;">{{ catalogNotice }}</div>
           <div v-for="m in modelCatalog.sd_models" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
             <div>
               <div style="color: var(--text-bright); font-size: 13px;">
                 {{ m.name }}
                 <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
-                <span v-if="isCatalogInstalled('sd', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
+                <span v-if="isSDModelInstalled(m)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
+                <span v-else-if="isSDModelUnverified(m)" style="color: var(--warning); font-size: 11px; margin-left: 4px;">{{ t('settings.installed_unverified') }}</span>
                 <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
+              <div v-if="m.modules && m.modules.length" style="color: var(--text-dim); font-size: 11px;">
+                {{ t('settings.catalog_modules') }}
+                <span v-for="mod in m.modules" :key="mod.filename" style="margin-right: 8px;" :style="{ color: hasServerFile(mod.type, mod.filename) ? 'var(--success)' : 'var(--text-dim)' }">{{ mod.filename }} ({{ mod.size_gb }} {{ t('settings.unit_gb') }})</span>
+              </div>
             </div>
-            <span v-if="activeDownload.type === 'sd' && activeDownload.name === m.name + '.safetensors'" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
-            <button v-else-if="isCatalogInstalled('sd', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
-            <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('sd', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_sd']">{{ t('settings.btn_download_model') }}</button>
+            <span v-if="activeDownload.model === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
+            <span v-else-if="isSDModelInstalled(m) || isSDModelUnverified(m)" style="display: flex; gap: 8px; align-items: center; white-space: nowrap;">
+              <span v-if="presetNotice[m.name]" style="color: var(--success); font-size: 11px;">{{ presetNotice[m.name] }}</span>
+              <button v-if="m.presets && presetsMissing[m.name] > 0" class="btn btn-secondary btn-sm" @click="addCatalogPresets(m)">{{ t('settings.btn_add_presets') }}</button>
+              <button style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', sdMainFilename(m))">{{ t('settings.btn_delete_model') }}</button>
+            </span>
+            <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
           </div>
         </div>
 

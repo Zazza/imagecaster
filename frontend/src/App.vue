@@ -11,8 +11,52 @@ import PostProcessPage from './components/PostProcessPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
+import WelcomeModal from './components/WelcomeModal.vue'
+import { WELCOME_KEY, welcomeClosed, isFreshInstall, startupTab } from './welcome.js'
+import { RELEASE_NOTES } from './releaseNotes.js'
+import { loadDefaultPlan } from './modelDownloads.js'
 
 const page = ref('generate')
+const APP_VERSION = RELEASE_NOTES[0]?.version || ''
+const welcome = ref(null)
+
+function readWelcome() {
+  try { return JSON.parse(localStorage.getItem(WELCOME_KEY) || 'null') } catch { return null }
+}
+
+function closeWelcome(dontShow) {
+  try {
+    localStorage.setItem(WELCOME_KEY, JSON.stringify(welcomeClosed(readWelcome(), APP_VERSION, dontShow)))
+  } catch (e) {
+    console.warn('welcome state not saved', e)
+  }
+  welcome.value = null
+}
+
+function welcomeToSettings(dontShow) {
+  closeWelcome(dontShow)
+  onNavigate({ page: 'settings', tab: 'connection' })
+}
+
+async function checkFreshInstall() {
+  try {
+    const models = await api.getServerModels('sd')
+    if ((models || []).length !== 0) return false
+  } catch {
+    return false
+  }
+  return isFreshInstall(await loadDefaultPlan(), 0)
+}
+
+async function initWelcome() {
+  const state = readWelcome()
+  const tab = startupTab(state, APP_VERSION, false)
+  if (tab) {
+    welcome.value = tab
+    return
+  }
+  if (await checkFreshInstall()) welcome.value = startupTab(state, APP_VERSION, true)
+}
 const resetKey = ref(0)
 const confirmReset = ref(false)
 const resetting = ref(false)
@@ -136,6 +180,7 @@ onMounted(async () => {
       document.documentElement.setAttribute('data-theme', s.theme)
     }
   } catch {}
+  initWelcome()
   window.addEventListener('beforeunload', () => {
     api.saveWindowLayout(0).catch(() => {})
   })
@@ -151,7 +196,7 @@ onUnmounted(() => {
     <TitleBar />
     <div class="app-body">
     <aside class="sidebar">
-      <div class="sidebar-logo">
+      <div class="sidebar-logo" :title="t('welcome.tab_about')" @click="welcome = 'about'">
         <img src="./assets/logo.png" alt="logo" class="logo-img" /> {{ t('app.title') }}
       </div>
       <nav class="sidebar-nav">
@@ -199,6 +244,7 @@ onUnmounted(() => {
         </button>
       </div>
     </aside>
+    <div class="app-col">
     <main class="main">
       <SettingsPage v-show="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
       <template v-if="page !== 'settings'">
@@ -208,7 +254,9 @@ onUnmounted(() => {
         <component v-else :is="currentPage" />
       </template>
     </main>
-    </div>
     <AppFooter @navigate="onNavigate" />
+    </div>
+    </div>
+    <WelcomeModal v-if="welcome" :tab="welcome" @close="closeWelcome" @settings="welcomeToSettings" />
   </div>
 </template>

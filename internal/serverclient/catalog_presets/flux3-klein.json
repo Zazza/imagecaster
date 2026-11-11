@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "presets": [
+    {
+      "name": "Photo Realism (FLUX.3)",
+      "preset_type": "realistic",
+      "type_name": "realistic",
+      "tags": "realistic, flux3",
+      "loras": "[]",
+      "prompt": "A photorealistic RAW photograph shot with a professional camera: natural lighting, realistic skin and surface textures, sharp focus on the subject, shallow depth of field, subtle film grain, muted natural colors.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 16,
+      "cfg_scale": 1.0,
+      "model_name": "flux3-image-klein-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Portrait Photo (FLUX.3)",
+      "preset_type": "portrait",
+      "type_name": "portrait",
+      "tags": "portrait, flux3",
+      "loras": "[]",
+      "prompt": "A professional portrait photograph: detailed face with realistic skin texture and visible pores, natural window light, catchlights in the eyes, 85mm lens, creamy bokeh background, honest natural expression.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 16,
+      "cfg_scale": 1.0,
+      "model_name": "flux3-image-klein-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Cinematic Still (FLUX.3)",
+      "preset_type": "cinematic",
+      "type_name": "cinematic",
+      "tags": "cinematic, flux3",
+      "loras": "[]",
+      "prompt": "A cinematic film still: dramatic lighting with strong contrast, anamorphic lens character, film grain, movie color grading with teal and orange tones, carefully staged depth composition, 35mm cinema look.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 16,
+      "cfg_scale": 1.0,
+      "model_name": "flux3-image-klein-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Concept Art (FLUX.3)",
+      "preset_type": "concept-art",
+      "type_name": "concept-art",
+      "tags": "concept-art, flux3",
+      "loras": "[]",
+      "prompt": "Professional concept art: matte-painting technique, cinematic composition, wide tonal range, painterly rendering, production-design quality for film or games.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 16,
+      "cfg_scale": 1.0,
+      "model_name": "flux3-image-klein-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    }
+  ]
+}

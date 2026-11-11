@@ -1134,6 +1134,18 @@ func (a *App) GetModelCatalog() (*ModelCatalog, error) {
 	return a.settingsSvc.GetModelCatalog()
 }
 
+func (a *App) GetDefaultDownloadPlan() (*settings.DownloadPlan, error) {
+	return a.settingsSvc.GetDefaultDownloadPlan()
+}
+
+func (a *App) CatalogPresetsMissing() (map[string]int, error) {
+	return a.settingsSvc.CatalogPresetsMissing()
+}
+
+func (a *App) InstallCatalogPresets(modelName string) (int, error) {
+	return a.settingsSvc.InstallCatalogPresets(modelName)
+}
+
 func (a *App) GetPresetsInstallStatus() ([]preset.PresetInstallStatus, error) {
 	sdModels, _ := a.settingsSvc.GetServerModels("sd")
 	loraModels, _ := a.settingsSvc.GetServerModels("lora")
@@ -1161,25 +1173,17 @@ func (a *App) InstallPresetDeps(presetID int64) error {
 		return fmt.Errorf("load catalog: %w", err)
 	}
 
-	sdModels, _ := a.settingsSvc.GetServerModels("sd")
 	loraModels, _ := a.settingsSvc.GetServerModels("lora")
 
-	sdSet := make(map[string]bool)
-	for _, m := range sdModels {
-		sdSet[m.Name] = true
-	}
 	loraSet := make(map[string]bool)
 	for _, m := range loraModels {
 		loraSet[m.Name] = true
 	}
 
-	if p.ModelName != "" && !sdSet[p.ModelName+".safetensors"] {
-		for _, cm := range catalog.SDModels {
-			if cm.Name == p.ModelName && cm.URL != "" {
-				if err := a.settingsSvc.DownloadServerModel("sd", cm.URL, p.ModelName+".safetensors"); err != nil {
-					return fmt.Errorf("download SD model %s: %w", p.ModelName, err)
-				}
-				break
+	if p.ModelName != "" {
+		if cm := catalog.FindSDModel(p.ModelName); cm != nil && cm.URL != "" {
+			if err := a.settingsSvc.DownloadCatalogSDModel(cm.Name); err != nil {
+				return err
 			}
 		}
 	}

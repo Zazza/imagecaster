@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "presets": [
+    {
+      "name": "Photo Realism (Krea 2)",
+      "preset_type": "realistic",
+      "type_name": "realistic",
+      "tags": "realistic, krea2",
+      "loras": "[]",
+      "prompt": "A photorealistic RAW photograph shot with a professional camera: natural lighting, realistic skin and surface textures, sharp focus on the subject, shallow depth of field, subtle film grain, muted natural colors.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 8,
+      "cfg_scale": 1.0,
+      "model_name": "Krea-2-Turbo-Q4_K_M",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Portrait Photo (Krea 2)",
+      "preset_type": "portrait",
+      "type_name": "portrait",
+      "tags": "portrait, krea2",
+      "loras": "[]",
+      "prompt": "A professional portrait photograph: detailed face with realistic skin texture and visible pores, natural window light, catchlights in the eyes, 85mm lens, creamy bokeh background, honest natural expression.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 8,
+      "cfg_scale": 1.0,
+      "model_name": "Krea-2-Turbo-Q4_K_M",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Cinematic Still (Krea 2)",
+      "preset_type": "cinematic",
+      "type_name": "cinematic",
+      "tags": "cinematic, krea2",
+      "loras": "[]",
+      "prompt": "A cinematic film still: dramatic lighting with strong contrast, anamorphic lens character, film grain, movie color grading with teal and orange tones, carefully staged depth composition, 35mm cinema look.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 8,
+      "cfg_scale": 1.0,
+      "model_name": "Krea-2-Turbo-Q4_K_M",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Fantasy Art (Krea 2)",
+      "preset_type": "fantasy",
+      "type_name": "fantasy",
+      "tags": "fantasy, krea2",
+      "loras": "[]",
+      "prompt": "Epic fantasy artwork: painterly concept-art style, magical atmosphere with ethereal light, intricate ornamental details, dramatic sky, epic sense of scale, ArtStation quality.",
+      "negative_prompt": "",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 8,
+      "cfg_scale": 1.0,
+      "model_name": "Krea-2-Turbo-Q4_K_M",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    }
+  ]
+}

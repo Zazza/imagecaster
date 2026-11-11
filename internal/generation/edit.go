@@ -13,6 +13,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/serverclient"
 )
 
 const (
@@ -57,8 +58,17 @@ func forgeModulesForModel(model string) []string {
 	if config.ModelMatchesCSV(model, "moss") {
 		return mossForgeModules
 	}
-	if config.ModelMatchesCSV(model, "klein") {
+	if config.IsFlux2Klein(model) {
 		return kleinForgeModules
+	}
+	if catalog, err := serverclient.LoadCatalog(); err == nil {
+		if m := catalog.FindSDModel(model); m != nil && len(m.Modules) > 0 {
+			files := make([]string, 0, len(m.Modules))
+			for _, mod := range m.Modules {
+				files = append(files, mod.Filename)
+			}
+			return files
+		}
 	}
 	return []string{}
 }

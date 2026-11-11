@@ -1,13 +1,13 @@
 :root {
   --bg: #121212;
-  --surface: #1c1c1b;
-  --surface-1: #1c1c1b;
-  --surface-2: #262625;
-  --surface-3: #30302e;
-  --border: #474744;
-  --text: #e2e1dc;
-  --text-dim: #a9a8a3;
-  --text-bright: #f3f2ee;
+  --surface: #1c1c1c;
+  --surface-1: #1c1c1c;
+  --surface-2: #262626;
+  --surface-3: #2f2f2f;
+  --border: #464646;
+  --text: #e0e0e0;
+  --text-dim: #a8a8a8;
+  --text-bright: #f2f2f2;
   --accent-rgb: 240, 164, 58;
   --accent: #f0a43a;
   --accent-hover: #ffb85a;
@@ -21,7 +21,7 @@
   --radius: 3px;
   --radius-sm: 3px;
   --frame: var(--surface);
-  --scroll-thumb: #4d4d4a;
+  --scroll-thumb: #4c4c4c;
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', 'DejaVu Sans Mono', Consolas, monospace;
 }
@@ -95,7 +95,6 @@ html, body {
 .sidebar {
   width: 240px;
   background: var(--surface);
-  border-right: 1px solid var(--border);
   padding: 20px 0;
   flex-shrink: 0;
   display: flex;
@@ -103,6 +102,7 @@ html, body {
 }
 
 .sidebar-logo {
+  cursor: pointer;
   padding: 0 20px 20px;
   font-size: 18px;
   font-weight: 700;
@@ -168,10 +168,22 @@ html, body {
   border-left: 2px solid var(--accent);
 }
 
+.app-col {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--frame);
+}
+
 .main {
   flex: 1;
+  min-height: 0;
   padding: 24px 32px;
   overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
 }
 
 /* Scrollbar */
@@ -935,7 +947,6 @@ html, body {
 .sidebar-footer {
   margin-top: auto;
   padding: 12px 8px 0;
-  border-top: 1px solid var(--border);
   display: flex;
   gap: 6px;
 }

@@ -134,6 +134,10 @@ func (c *Client) GetModels(modelType string) ([]ModelInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("list %s models: status %d", modelType, resp.StatusCode)
+	}
 
 	var models []ModelInfo
 	if err := json.NewDecoder(resp.Body).Decode(&models); err != nil {

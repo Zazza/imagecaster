@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "presets": [
+    {
+      "name": "Photo Realism (Qwen-Image)",
+      "preset_type": "realistic",
+      "type_name": "realistic",
+      "tags": "realistic, qwen-image",
+      "loras": "[]",
+      "prompt": "A photorealistic RAW photograph shot with a professional camera: natural lighting, realistic skin and surface textures, sharp focus on the subject, shallow depth of field, subtle film grain, muted natural colors.",
+      "negative_prompt": "blurry, low quality, distorted text, misspelled text, watermark, deformed hands",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 20,
+      "cfg_scale": 6.0,
+      "model_name": "qwen_image_2.1-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Poster with Text (Qwen-Image)",
+      "preset_type": "poster",
+      "type_name": "poster",
+      "tags": "poster, text, qwen-image",
+      "loras": "[]",
+      "prompt": "A modern graphic poster: bold clean typography with the title text rendered sharply and spelled exactly, strong layout grid, flat vivid colors, high-contrast print design.",
+      "negative_prompt": "blurry, low quality, distorted text, misspelled text, watermark, deformed hands",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 20,
+      "cfg_scale": 6.0,
+      "model_name": "qwen_image_2.1-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Watercolor Art (Qwen-Image)",
+      "preset_type": "watercolor",
+      "type_name": "watercolor",
+      "tags": "watercolor, qwen-image",
+      "loras": "[]",
+      "prompt": "Watercolor painting: soft translucent washes, visible paper texture, gently bleeding pigments, delicate brushwork, airy pastel palette.",
+      "negative_prompt": "blurry, low quality, distorted text, misspelled text, watermark, deformed hands",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 20,
+      "cfg_scale": 6.0,
+      "model_name": "qwen_image_2.1-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    },
+    {
+      "name": "Fantasy Art (Qwen-Image)",
+      "preset_type": "fantasy",
+      "type_name": "fantasy",
+      "tags": "fantasy, qwen-image",
+      "loras": "[]",
+      "prompt": "Epic fantasy artwork: painterly concept-art style, magical atmosphere with ethereal light, intricate ornamental details, dramatic sky, epic sense of scale, ArtStation quality.",
+      "negative_prompt": "blurry, low quality, distorted text, misspelled text, watermark, deformed hands",
+      "sampler": "Euler",
+      "schedule_type": "Simple",
+      "steps": 20,
+      "cfg_scale": 6.0,
+      "model_name": "qwen_image_2.1-Q8_0",
+      "clip_skip": null,
+      "vae": "",
+      "denoising_strength": null
+    }
+  ]
+}

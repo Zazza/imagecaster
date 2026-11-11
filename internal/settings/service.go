@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -382,4 +383,165 @@ func (s *Service) DeleteServerLLMModel(name string) error {
 
 func (s *Service) GetModelCatalog() (*serverclient.Catalog, error) {
 	return serverclient.LoadCatalog()
+}
+
+type DownloadItem struct {
+	Type     string  `json:"type"`
+	Filename string  `json:"filename"`
+	URL      string  `json:"url"`
+	SizeGB   float64 `json:"size_gb"`
+	Model    string  `json:"model"`
+}
+
+type DownloadPlan struct {
+	Items   []DownloadItem `json:"items"`
+	TotalGB float64        `json:"total_gb"`
+}
+
+const mossEditLoRA = "Moss_Edit_LoRA"
+
+func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
+	catalog, err := serverclient.LoadCatalog()
+	if err != nil {
+		return nil, err
+	}
+	models, loras, err := s.db.BundledDependencies()
+	if err != nil {
+		return nil, err
+	}
+	present := map[string]map[string]bool{}
+	unlisted := map[string]bool{}
+	has := func(modelType, filename string) bool {
+		if present[modelType] == nil {
+			present[modelType] = map[string]bool{}
+			if items, err := s.GetServerModels(modelType); err == nil {
+				for _, it := range items {
+					present[modelType][it.Name] = true
+				}
+			} else {
+				unlisted[modelType] = true
+				s.log.Warn("list server %s models: %s", modelType, err)
+			}
+		}
+		return present[modelType][filename]
+	}
+	plan := &DownloadPlan{Items: []DownloadItem{}}
+	queued := map[string]bool{}
+	add := func(item DownloadItem) {
+		key := item.Type + "/" + item.Filename
+		if queued[key] || has(item.Type, item.Filename) || unlisted[item.Type] {
+			return
+		}
+		queued[key] = true
+		plan.Items = append(plan.Items, item)
+		plan.TotalGB += item.SizeGB
+	}
+	addLoRA := func(name string) {
+		for _, l := range catalog.LoRA {
+			if l.Name != name || l.URL == "" {
+				continue
+			}
+			add(DownloadItem{Type: "lora", Filename: name + ".safetensors", URL: l.URL, SizeGB: l.SizeMB / 1024, Model: name})
+			return
+		}
+	}
+	for _, name := range models {
+		m := catalog.FindSDModel(name)
+		if m == nil || m.URL == "" {
+			continue
+		}
+		for _, mod := range m.Modules {
+			add(DownloadItem{Type: mod.Type, Filename: mod.Filename, URL: mod.URL, SizeGB: mod.SizeGB, Model: m.Name})
+		}
+		add(DownloadItem{Type: "sd", Filename: m.MainFilename(), URL: m.URL, SizeGB: m.SizeGB, Model: m.Name})
+		if config.ModelMatchesCSV(m.Name, "moss") {
+			addLoRA(mossEditLoRA)
+		}
+	}
+	for _, name := range loras {
+		addLoRA(name)
+	}
+	plan.TotalGB = math.Round(plan.TotalGB*100) / 100
+	return plan, nil
+}
+
+func (s *Service) CatalogPresetsMissing() (map[string]int, error) {
+	catalog, err := serverclient.LoadCatalog()
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]int{}
+	for _, m := range catalog.SDModels {
+		if m.Presets == "" {
+			continue
+		}
+		raw, err := serverclient.LoadCatalogPresets(m.Presets)
+		if err != nil {
+			return nil, err
+		}
+		n, err := s.db.MissingPresets(raw)
+		if err != nil {
+			return nil, err
+		}
+		result[m.Name] = n
+	}
+	return result, nil
+}
+
+func (s *Service) InstallCatalogPresets(modelName string) (int, error) {
+	catalog, err := serverclient.LoadCatalog()
+	if err != nil {
+		return 0, err
+	}
+	m := catalog.FindSDModel(modelName)
+	if m == nil {
+		return 0, fmt.Errorf("model %q is not in the catalog", modelName)
+	}
+	if m.Presets == "" {
+		return 0, nil
+	}
+	raw, err := serverclient.LoadCatalogPresets(m.Presets)
+	if err != nil {
+		return 0, err
+	}
+	return s.db.InstallPresets(raw)
+}
+
+func (s *Service) DownloadCatalogSDModel(modelName string) error {
+	catalog, err := serverclient.LoadCatalog()
+	if err != nil {
+		return err
+	}
+	m := catalog.FindSDModel(modelName)
+	if m == nil || m.URL == "" {
+		return fmt.Errorf("model %q has no download link in the catalog", modelName)
+	}
+	present := map[string]map[string]bool{}
+	has := func(modelType, filename string) bool {
+		if present[modelType] == nil {
+			present[modelType] = map[string]bool{}
+			if items, err := s.GetServerModels(modelType); err == nil {
+				for _, it := range items {
+					present[modelType][it.Name] = true
+				}
+			} else {
+				s.log.Warn("list server %s models: %s", modelType, err)
+			}
+		}
+		return present[modelType][filename]
+	}
+	for _, mod := range m.Modules {
+		if has(mod.Type, mod.Filename) {
+			continue
+		}
+		if err := s.DownloadServerModel(mod.Type, mod.URL, mod.Filename); err != nil {
+			return fmt.Errorf("download %s %s: %w", mod.Type, mod.Filename, err)
+		}
+	}
+	if !has("sd", m.MainFilename()) {
+		if err := s.DownloadServerModel("sd", m.URL, m.MainFilename()); err != nil {
+			return fmt.Errorf("download SD model %s: %w", m.Name, err)
+		}
+	}
+	return nil
 }
