@@ -82,10 +82,33 @@ const shownItemId = ref(null)
 
 const openSection = ref('main')
 
-// Масштаб результата: вписать (по умолчанию) или проценты, как превью Постобработки
+// Масштаб результата: вписать (по умолчанию) или проценты от натурального
+// размера картинки — как зум превью Постобработки.
 const genZoomFit = ref(true)
 const genZoomPct = ref(100)
-const genZoomLabel = computed(() => genZoomFit.value ? t('viewer.zoom_fit') : genZoomPct.value + '%')
+const genNatural = ref({ w: 0, h: 0 })
+const genStageEl = ref(null)
+const genStageSize = ref({ w: 0, h: 0 })
+let genStageRO = null
+const genFitScale = computed(() => {
+  if (!genNatural.value.w || !genStageSize.value.w) return 1
+  return Math.min(genStageSize.value.w / genNatural.value.w, genStageSize.value.h / genNatural.value.h)
+})
+const genZoomLabel = computed(() => genZoomFit.value ? t('viewer.zoom_fit') : Math.round(genZoomPct.value) + '%')
+function ensureStageObserver() {
+  if (genStageRO || !genStageEl.value) return
+  const measure = () => {
+    const r = genStageEl.value?.getBoundingClientRect()
+    if (r) genStageSize.value = { w: r.width, h: r.height }
+  }
+  measure()
+  genStageRO = new ResizeObserver(measure)
+  genStageRO.observe(genStageEl.value)
+}
+function onResultLoad(e) {
+  genNatural.value = { w: e.target.naturalWidth, h: e.target.naturalHeight }
+  ensureStageObserver()
+}
 function toggleZoomFit() {
   genZoomFit.value = !genZoomFit.value
   if (!genZoomFit.value) genZoomPct.value = 100
@@ -93,7 +116,7 @@ function toggleZoomFit() {
 function zoomResultBy(delta) {
   if (genZoomFit.value) {
     genZoomFit.value = false
-    genZoomPct.value = 100
+    genZoomPct.value = Math.max(20, Math.min(400, Math.round(genFitScale.value * 100)))
   }
   genZoomPct.value = Math.max(20, Math.min(400, genZoomPct.value + delta))
 }
@@ -101,6 +124,7 @@ function onStageWheel(e) {
   if (!e.deltaY) return
   zoomResultBy(e.deltaY < 0 ? 10 : -10)
 }
+onUnmounted(() => { genStageRO?.disconnect() })
 
 function setOpenSection(name) {
   if (openSection.value === name) return
@@ -1022,9 +1046,9 @@ function onKeydown(e) {
           </div>
           <div v-else-if="generatedImage" class="gen-result">
             <StatusMessage v-if="hiresSkipped" kind="warning" style="margin-bottom: 8px; text-align: center;" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
-            <div class="gen-stage" :class="{ fit: genZoomFit }" @wheel="onStageWheel">
+            <div ref="genStageEl" class="gen-stage" :class="{ fit: genZoomFit }" @wheel="onStageWheel">
               <div class="viewfinder" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-              <img :src="imageSrc" alt="Generated" class="img-fade-in gen-stage-img" :style="genZoomFit ? '' : { width: genZoomPct + '%' }" @click="openGeneratedViewer" />
+              <img :src="imageSrc" alt="Generated" class="img-fade-in gen-stage-img" :style="genZoomFit ? '' : { width: Math.round(genNatural.w * genZoomPct / 100) + 'px' }" @load="onResultLoad" @click="openGeneratedViewer" />
               <div class="split-zoom" @pointerdown.stop @click.stop @dblclick.stop @wheel.stop>
                 <button class="split-zoom-btn" :title="t('viewer.zoom_fit')" @click="toggleZoomFit">{{ genZoomLabel }}</button>
                 <button class="split-zoom-btn" :title="t('viewer.zoom_out')" :disabled="!genZoomFit && genZoomPct <= 20" @click="zoomResultBy(-10)">−</button>
@@ -1401,17 +1425,6 @@ function onKeydown(e) {
 </style>
 <style scoped>
 /* Картинка результата — по центру и в размер колонки, как превью Постобработки */
-.gen-preview-col .generate-image-area > div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.gen-preview-col .generate-image-area img {
-  max-width: 100%;
-  max-height: calc(100vh - 220px);
-  object-fit: contain;
-  object-position: center;
-}
 </style>
 <style scoped>
 /* Кнопка генерации — обычный размер, не на всю ширину */
@@ -1430,9 +1443,12 @@ function onKeydown(e) {
 }
 
 /* Область результата занимает всю высоту колонки */
+/* Область результата занимает всю высоту колонки */
 .gen-preview-col .generate-image-area {
   flex: 1;
   min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 /* Результат — тёмная сцена с визиром и зумом, как превью Постобработки */
@@ -1460,6 +1476,11 @@ function onKeydown(e) {
 .gen-stage-img {
   display: block;
   cursor: zoom-in;
+}
+.gen-stage .gen-stage-img {
+  max-width: none;
+  max-height: none;
+  flex-shrink: 0;
 }
 .gen-stage.fit .gen-stage-img {
   max-width: 100%;
