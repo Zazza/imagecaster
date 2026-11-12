@@ -193,13 +193,13 @@ function redoButton(wrapper) {
 }
 
 describe('PostProcessPage batch mode', () => {
-  it('K2b: apply effect to all passes the chosen effect model and LoRA to every photo', async () => {
-    const wrapper = await mountBatch({ settings: { effect_model: 'moss', effect_loras_moss: '[{"name":"LoraB","weight":0.5}]' } })
+  it('K2b: apply effect to all passes the Klein LoRA to every photo, never a Moss model', async () => {
+    const wrapper = await mountBatch({ settings: { effect_model: 'moss', effect_loras_klein: '[{"name":"LoraB","weight":0.5}]' } })
     await startEffectStep(wrapper)
 
     expect(EnqueueFromImage).toHaveBeenCalledTimes(2)
     for (const [params] of EnqueueFromImage.mock.calls) {
-      expect(params.overrides.model_name).toBe('moss_image_sft_bf16')
+      expect(params.overrides.model_name).toBeFalsy()
       expect(JSON.parse(params.overrides.loras)).toContainEqual({ name: 'LoraB', weight: 0.5 })
     }
   })

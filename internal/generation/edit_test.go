@@ -28,29 +28,29 @@ func TestBuildEditPrompt(t *testing.T) {
 		{
 			name:        "no loras no style",
 			instruction: "make hair red",
-			want:        "<lora:Moss_Edit_LoRA:1.0>Change only make hair red" + editPromptSuffix,
+			want:        "Change only make hair red" + editPromptSuffix,
 		},
 		{
-			name:        "user loras after edit tag, before formula",
+			name:        "user loras before formula",
 			instruction: "make hair red",
 			loras: []preset.LoRAEntry{
 				{Name: "Detail_Boost_Moss", Weight: 0.8},
 				{Name: "Moss_DMD_8step", Weight: 1},
 			},
-			want: "<lora:Moss_Edit_LoRA:1.0> <lora:Detail_Boost_Moss:0.8> <lora:Moss_DMD_8step:1>Change only make hair red" + editPromptSuffix,
+			want: " <lora:Detail_Boost_Moss:0.8> <lora:Moss_DMD_8step:1>Change only make hair red" + editPromptSuffix,
 		},
 		{
 			name:        "style tags before formula",
 			instruction: "make hair red",
 			styleTags:   "moss_xvstyle, RAW photo, film grain",
 			loras:       []preset.LoRAEntry{{Name: "Moss_DMD_8step", Weight: 1}},
-			want:        "<lora:Moss_Edit_LoRA:1.0> <lora:Moss_DMD_8step:1> moss_xvstyle, RAW photo, film grain. Change only make hair red" + editPromptSuffix,
+			want:        " <lora:Moss_DMD_8step:1> moss_xvstyle, RAW photo, film grain. Change only make hair red" + editPromptSuffix,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, buildEditPrompt(editLoRATag, tt.instruction, tt.styleTags, tt.loras))
+			assert.Equal(t, tt.want, buildEditPrompt(tt.instruction, tt.styleTags, tt.loras))
 		})
 	}
 }
@@ -129,7 +129,7 @@ func TestLoadEditStyle(t *testing.T) {
 		t.Parallel()
 		db := openTestDB(t)
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		st, err := svc.loadEditStyle(0, "moss")
+		st, err := svc.loadEditStyle(0, "klein")
 		require.NoError(t, err)
 		assert.Nil(t, st)
 	})
@@ -138,32 +138,32 @@ func TestLoadEditStyle(t *testing.T) {
 		t.Parallel()
 		db := openTestDB(t)
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		_, err := svc.loadEditStyle(999, "moss")
+		_, err := svc.loadEditStyle(999, "klein")
 		assert.ErrorContains(t, err, "style preset not found")
 	})
 
-	t.Run("non-moss preset rejected", func(t *testing.T) {
+	t.Run("non-klein preset rejected", func(t *testing.T) {
 		t.Parallel()
 		db := openTestDB(t)
 		p := makeTestPreset(t, db, &preset.Preset{Name: "z-style", ModelName: "z-image-turbo", Prompt: "photo"})
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		_, err := svc.loadEditStyle(p.ID, "moss")
-		assert.ErrorContains(t, err, "must use a moss model")
+		_, err := svc.loadEditStyle(p.ID, "klein")
+		assert.ErrorContains(t, err, "must use a klein model")
 	})
 
-	t.Run("moss preset loads tags and loras", func(t *testing.T) {
+	t.Run("klein preset loads tags and loras", func(t *testing.T) {
 		t.Parallel()
 		db := openTestDB(t)
 		p := makeTestPreset(t, db, &preset.Preset{
 			Name:      "Moss Film",
-			ModelName: "moss_image_sft_bf16",
+			ModelName: "flux-2-klein-4b",
 			Prompt:    "moss_xvstyle, RAW photo <lora:sneaky:1>",
 			Steps:     8,
 			CfgScale:  1.0,
 			Loras:     `[{"name": "Detail_Boost_Moss", "weight": 0.8}, {"name": "Moss_DMD_8step", "weight": 1.0}]`,
 		})
 		svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-		st, err := svc.loadEditStyle(p.ID, "moss")
+		st, err := svc.loadEditStyle(p.ID, "klein")
 		require.NoError(t, err)
 		require.NotNil(t, st)
 		assert.Equal(t, p.ID, st.presetID)
@@ -219,7 +219,7 @@ func TestEditImage_Validation(t *testing.T) {
 	}
 }
 
-func TestEditImage_NonMossStylePreset(t *testing.T) {
+func TestEditImage_NonKleinStylePreset(t *testing.T) {
 	t.Parallel()
 
 	db := openTestDB(t)
@@ -231,7 +231,7 @@ func TestEditImage_NonMossStylePreset(t *testing.T) {
 		Instruction:   "make hair red",
 		StylePresetID: p.ID,
 	})
-	assert.ErrorContains(t, err, "must use a moss model")
+	assert.ErrorContains(t, err, "must use a klein model")
 }
 
 func TestEditImage_StyleAndUserLorasOverflow(t *testing.T) {
@@ -246,7 +246,7 @@ func TestEditImage_StyleAndUserLorasOverflow(t *testing.T) {
 	require.NoError(t, err)
 	style := makeTestPreset(t, db, &preset.Preset{
 		Name:      "Moss Big",
-		ModelName: "moss_image_sft_bf16",
+		ModelName: "flux-2-klein-4b",
 		Prompt:    "tags",
 		Loras:     string(lorasJSON),
 	})
@@ -304,12 +304,12 @@ func TestEditImage_ReferenceSequence(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	assert.Equal(t, []string{
-		"option:" + mossReferenceOption + "=" + mossReferenceOn,
-		"option:" + mossReferenceOption + "=" + mossReferenceOff,
+		"option:" + kleinReferenceOption + "=true",
+		"option:" + kleinReferenceOption + "=false",
 	}, ops)
 	require.NotNil(t, capturedReq.DenoisingStrength)
 	assert.InDelta(t, 1.0, *capturedReq.DenoisingStrength, 1e-9)
-	assert.Equal(t, mossEditSteps, capturedReq.Steps)
+	assert.Equal(t, kleinEditSteps, capturedReq.Steps)
 	assert.False(t, result.EditReferenceResetFailed)
 }
 
@@ -319,7 +319,7 @@ func TestEditImage_ReferenceResetFailureFlagged(t *testing.T) {
 	db := openTestDB(t)
 	sdSvc := &mockSD{}
 	sdSvc.setOption = func(key string, value any) error {
-		if value == mossReferenceOff {
+		if value == false {
 			return fmt.Errorf("options boom")
 		}
 		return nil
@@ -344,7 +344,7 @@ func TestEditImage_StylePreset(t *testing.T) {
 	db := openTestDB(t)
 	style := makeTestPreset(t, db, &preset.Preset{
 		Name:      "Moss Film Real",
-		ModelName: "moss_image_sft_bf16",
+		ModelName: "flux-2-klein-4b",
 		Prompt:    "moss_xvstyle, RAW photo, film grain",
 		Steps:     8,
 		CfgScale:  1.0,
@@ -376,9 +376,9 @@ func TestEditImage_StylePreset(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	assert.Equal(t, "<lora:Moss_Edit_LoRA:1.0> <lora:Detail_Boost_Moss:0.8> <lora:Extra_Lora:0.5>Change only make hair red"+editPromptSuffix, capturedReq.Prompt)
-	assert.Equal(t, mossEditSteps, capturedReq.Steps)
-	assert.InDelta(t, mossEditCfgScale, capturedReq.CfgScale, 1e-9)
+	assert.Equal(t, " <lora:Detail_Boost_Moss:0.8> <lora:Extra_Lora:0.5>Change only make hair red"+editPromptSuffix, capturedReq.Prompt)
+	assert.Equal(t, kleinEditSteps, capturedReq.Steps)
+	assert.InDelta(t, kleinEditCfgScale, capturedReq.CfgScale, 1e-9)
 
 	require.Len(t, sessions.items, 1)
 	meta := sessions.items[0].meta
@@ -393,7 +393,7 @@ func TestEditImage_StyleTagsOptIn(t *testing.T) {
 	db := openTestDB(t)
 	style := makeTestPreset(t, db, &preset.Preset{
 		Name:      "Moss Film Real",
-		ModelName: "moss_image_sft_bf16",
+		ModelName: "flux-2-klein-4b",
 		Prompt:    "moss_xvstyle, RAW photo",
 	})
 
@@ -482,19 +482,19 @@ func TestEditImage_QualityPipeline(t *testing.T) {
 	defer mu.Unlock()
 
 	wantOps := []string{
-		"option:" + mossReferenceOption + "=" + mossReferenceOn,
-		"img2img#1:512x512:denoise=1.00",
-		"option:" + mossReferenceOption + "=" + mossReferenceOff,
-		"upscale:ESRGAN:4.00",
+		"option:" + kleinReferenceOption + "=true",
+		"img2img#1:1024x1024:denoise=1.00",
+		"option:" + kleinReferenceOption + "=false",
+		"upscale:ESRGAN:2.00",
 		"img2img#2:2048x2048:denoise=0.35",
-		"option:" + mossReferenceOption + "=" + mossReferenceOff,
+		"option:" + kleinReferenceOption + "=false",
 	}
 	assert.Equal(t, wantOps, ops)
 
 	assert.Equal(t, "final-b64", result.Image)
 	assert.False(t, result.QualityUpscaleSkipped)
 	assert.False(t, result.QualityRedenoiseSkipped)
-	assert.Contains(t, result.EffectivePrompt, "<lora:Moss_Edit_LoRA:1.0> <lora:Detail_Boost_Moss:0.8>Change only")
+	assert.Contains(t, result.EffectivePrompt, " <lora:Detail_Boost_Moss:0.8>Change only")
 
 	require.Len(t, sessions.items, 1)
 	item := sessions.items[0]
@@ -505,40 +505,6 @@ func TestEditImage_QualityPipeline(t *testing.T) {
 	assert.Equal(t, "base", meta.Chain[0].Op)
 	assert.Equal(t, "upscale", meta.Chain[1].Op)
 	assert.Equal(t, "redenoise", meta.Chain[2].Op)
-}
-
-func TestEditImage_BigSourceEditsAtSourceResolution(t *testing.T) {
-	t.Parallel()
-
-	db := openTestDB(t)
-	upscaleCalls := 0
-	var mu sync.Mutex
-	var capturedReq sd.Img2ImgRequest
-	sdSvc := &mockSD{}
-	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		capturedReq = req
-		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
-	}
-	sdSvc.upscale = func(base64Img, upscaler string, scale float64) (string, error) {
-		upscaleCalls++
-		return "must-not-be-called", nil
-	}
-	svc := newTestService(t, db, &mockLLM{}, sdSvc)
-
-	result, err := svc.EditImage(EditImageParams{
-		ImageBase64: makePNGBase64(t, 2048, 4096),
-		Instruction: "the pants to a skirt",
-	})
-	require.NoError(t, err)
-
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Equal(t, 1024, capturedReq.Width)
-	assert.Equal(t, 2048, capturedReq.Height)
-	assert.Equal(t, 0, upscaleCalls)
-	assert.Equal(t, "edited-b64", result.Image)
 }
 
 func TestEditImage_QualityRedenoiseFailureSkips(t *testing.T) {

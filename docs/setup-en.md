@@ -18,7 +18,7 @@ Image generation engine. Imagecaster connects via REST API.
 
 ### Recommended: Forge Neo
 
-Every feature works on Forge Neo, including Edit mode (Moss-Image) and Z-Image models. The easiest way to install it is [Imagecaster Server](#imagecaster-server) — the server downloads and sets up Forge Neo by itself.
+Every feature works on Forge Neo, including Edit mode (Flux 2 Klein) and Z-Image models. The easiest way to install it is [Imagecaster Server](#imagecaster-server) — the server downloads and sets up Forge Neo by itself.
 
 Manually: [sd-webui-forge-classic, `neo` branch](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) — install per the repository README, run with `--listen --api`.
 
@@ -60,7 +60,7 @@ webui.bat --listen --api --enable-insecure-extension-access
 
 > **Z-Image models:** the bundled `(Z-Image)` preset family uses `z-image-turbo` checkpoints. The original Forge does **not** support this architecture — use a fork with Z-Image support (e.g. [sd-webui-forge-classic, `neo` branch](https://github.com/Haoming02/sd-webui-forge-classic)); it is a drop-in replacement speaking the same REST API. All other bundled preset families work on any of the backends above.
 
-> **Moss-Image model (Edit mode):** instruction editing needs the `moss_image_sft_bf16` checkpoint and Forge Neo (the reference engine). The checkpoint downloads from the catalog (Settings → Catalog); place the `qwen35_9b_int8_convrot.safetensors` text encoder and the `flux2-vae_small.safetensors` VAE manually into `models/text_encoder/` and `models/VAE/` (the Comfy-Org/MOSS-Image repo). The app wires the modules automatically when switching models.
+> **Moss-Image model:** used for text-to-image generation only (Edit mode runs on Flux 2 Klein). The `moss_image_sft_bf16` checkpoint downloads from the catalog (Settings → Catalog); place the `qwen35_9b_int8_convrot.safetensors` text encoder and the `flux2-vae_small.safetensors` VAE manually into `models/text_encoder/` and `models/VAE/` (the Comfy-Org/MOSS-Image repo). The app wires the modules automatically when switching models.
 
 ### Flags
 

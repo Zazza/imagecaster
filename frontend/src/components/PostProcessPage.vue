@@ -788,9 +788,7 @@ const effectJobIds = ref(new Set())
 const appliedEffects = ref([])
 const journalPending = new Map()
 
-const MOSS_EFFECT_MODEL = 'moss_image_sft_bf16'
-const effectModel = ref('klein')
-const effectLoras = reactive({ klein: [], moss: [] })
+const effectLoras = ref([])
 const effectLoraChoices = ref([])
 
 function loraWeight(w) {
@@ -815,15 +813,13 @@ function parseLoraList(raw) {
 async function loadEffectModel() {
   try {
     const s = await api.getSettings()
-    if (s?.effect_model === 'moss') effectModel.value = 'moss'
-    effectLoras.klein = parseLoraList(s?.effect_loras_klein)
-    effectLoras.moss = parseLoraList(s?.effect_loras_moss)
+    effectLoras.value = parseLoraList(s?.effect_loras_klein)
   } catch (e) {
     console.warn('effect model settings:', e)
   }
 }
 
-const effectModelSummary = computed(() => modelLoraText(effectModel.value === 'moss' ? 'Moss' : 'Klein', effectLoras[effectModel.value]))
+const effectModelSummary = computed(() => modelLoraText('Klein', effectLoras.value))
 
 async function onEffectModelToggle(open) {
   if (open && !effectLoraChoices.value.length) {
@@ -839,33 +835,24 @@ function saveEffectSetting(data) {
   api.updateSettings(data).catch(e => console.warn('save effect model:', e))
 }
 
-function setEffectModel(model) {
-  effectModel.value = model === 'moss' ? 'moss' : 'klein'
-  saveEffectSetting({ effect_model: effectModel.value })
-}
-
 function saveEffectLoras() {
-  const m = effectModel.value
-  saveEffectSetting({ ['effect_loras_' + m]: JSON.stringify(cleanLoras(effectLoras[m])) })
+  saveEffectSetting({ effect_loras_klein: JSON.stringify(cleanLoras(effectLoras.value)) })
 }
 
 function addEffectLora() {
-  effectLoras[effectModel.value].push({ name: effectLoraChoices.value[0] || '', weight: 1 })
+  effectLoras.value.push({ name: effectLoraChoices.value[0] || '', weight: 1 })
   saveEffectLoras()
 }
 
 function removeEffectLora(idx) {
-  effectLoras[effectModel.value].splice(idx, 1)
+  effectLoras.value.splice(idx, 1)
   saveEffectLoras()
 }
 
 function effectOverrides(presetId) {
   const preset = presets.value.find(p => p.id === presetId)
-  const loras = [...parseLoraList(preset?.loras), ...cleanLoras(effectLoras[effectModel.value])]
-  const ov = {}
-  if (effectModel.value === 'moss') ov.model_name = MOSS_EFFECT_MODEL
-  if (effectLoras[effectModel.value].some(l => l.name) || (ov.model_name && loras.length)) ov.loras = JSON.stringify(loras)
-  return Object.keys(ov).length ? ov : null
+  if (!effectLoras.value.some(l => l.name)) return null
+  return { loras: JSON.stringify([...parseLoraList(preset?.loras), ...cleanLoras(effectLoras.value)]) }
 }
 
 function effectJobParams(b64, seed) {
@@ -2177,12 +2164,8 @@ onUnmounted(() => {
 
             <FoldBlock class="fx-model" :title="t('model.block_title')" :summary="effectModelSummary" @toggle="onEffectModelToggle">
               <div class="fx-model-body">
-                <select class="form-select fx-model-select" :value="effectModel" @change="setEffectModel($event.target.value)">
-                  <option value="klein">Klein</option>
-                  <option value="moss">Moss</option>
-                </select>
-                <div class="form-hint">{{ effectModel === 'moss' ? t('model.hint_moss') : t('model.hint_klein') }}</div>
-                <div v-for="(l, i) in effectLoras[effectModel]" :key="effectModel + i" class="fx-lora-row">
+                <div class="form-hint">{{ t('model.hint_klein') }}</div>
+                <div v-for="(l, i) in effectLoras" :key="i" class="fx-lora-row">
                   <select class="form-select fx-lora-name" v-model="l.name" @change="saveEffectLoras">
                     <option v-if="l.name && !effectLoraChoices.includes(l.name)" :value="l.name">{{ l.name }}</option>
                     <option v-for="n in effectLoraChoices" :key="n" :value="n">{{ n }}</option>

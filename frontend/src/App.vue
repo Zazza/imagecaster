@@ -112,7 +112,6 @@ async function resetAll() {
       fi_count: '',
       fi_hires_profile_id: '',
       edit_instruction: '',
-      edit_loras: '',
       edit_quality_mode: 'false',
       edit_resolution_id: '',
       edit_style_preset_id: '',

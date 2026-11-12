@@ -58,7 +58,7 @@
 | Image-to-Image (Remix) | Transform existing images with denoising control, batch count, quality mode |
 | Inpainting | Canvas mask editor with fullscreen mode, brush controls, undo |
 | Smart Remove | AI-powered object removal — draw mask, context auto-analyzed by LLM vision |
-| **Edit Mode** | True instruction editing on reference-capable models (Moss-Image on Forge Neo): the model changes what you ask for and keeps the face, pose and scene. Style presets contribute LoRAs without restyling the photo |
+| **Edit Mode** | True instruction editing on Flux 2 Klein with the reference engine: the model changes what you ask for and keeps the face, pose and scene. Style presets contribute LoRAs without restyling the photo |
 | Custom Mode | Assemble a pipeline inline (per-step presets, denoise and LoRAs), run it or save as a workflow |
 | Pipelines | Multi-step compound presets with per-step LoRAs, import/export as JSON |
 | Quality Output | Native-resolution pass → neural upscale into the target resolution → low-denoise detail pass; skip warnings surfaced in the UI |
@@ -104,7 +104,7 @@
 | Pony / Illustrious | Anime, cartoon and stylized characters |
 | Flux 1 | Precise following of detailed descriptions, realism |
 | Z-Image Turbo | Fast photorealism |
-| Moss-Image | Precise following of descriptions, photorealistic people, Edit mode |
+| Moss-Image | Precise following of descriptions, photorealistic people |
 | Flux 2 Klein | Post-processing effects, object replace/remove, keeping the face |
 
 Details and the full preset list: [Models and Presets](docs/models-en.md).

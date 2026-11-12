@@ -135,10 +135,10 @@ func lastWithPrefix(ops []string, prefix string) string {
 }
 
 const (
-	kleinRefOn  = "option:" + kleinReferenceOption + "=true"
-	kleinRefOff = "option:" + kleinReferenceOption + "=false"
-	mossRefOn   = "option:" + mossReferenceOption + "=" + mossReferenceOn
-	mossRefOff  = "option:" + mossReferenceOption + "=" + mossReferenceOff
+	kleinRefOn    = "option:" + kleinReferenceOption + "=true"
+	kleinRefOff   = "option:" + kleinReferenceOption + "=false"
+	mossRefPrefix = "option:moss_do_reference="
+	mossModelName = "moss_image_sft_bf16"
 )
 
 func TestEditImageParams_ModelJSON(t *testing.T) {
@@ -157,41 +157,29 @@ func TestEditImageParams_ModelJSON(t *testing.T) {
 	assert.Equal(t, "klein", p.Model)
 }
 
-func TestEditModel_T1_MossDefault(t *testing.T) {
+func TestEditModel_T1_DefaultIsKlein(t *testing.T) {
 	t.Parallel()
+	svc, rec, _, _ := editModelSetup(t)
 
-	for _, model := range []string{"", "moss"} {
-		t.Run("model="+model, func(t *testing.T) {
-			t.Parallel()
-			svc, rec, _, _ := editModelSetup(t)
+	result, err := svc.EditImage(EditImageParams{
+		ImageBase64: makePNGBase64(t, 512, 512),
+		Instruction: "make hair red",
+		Loras:       []preset.LoRAEntry{{Name: "Klein_Detail", Weight: 0.8}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
 
-			result, err := svc.EditImage(EditImageParams{
-				ImageBase64: makePNGBase64(t, 512, 512),
-				Instruction: "make hair red",
-				Loras:       []preset.LoRAEntry{{Name: "Detail_Boost_Moss", Weight: 0.8}},
-				Model:       model,
-			})
-			require.NoError(t, err)
-			require.NotNil(t, result)
-
-			assert.Equal(t, []string{mossRefOn, "img2img", mossRefOff}, rec.filtered(mossReferenceOption))
-			assert.NotContains(t, rec.filtered(kleinReferenceOption), kleinRefOn)
-
-			_, models, reqs := rec.snapshot()
-			assert.Contains(t, models, mossEditModel)
-			assert.NotContains(t, models, kleinLookModel)
-			require.Len(t, reqs, 1)
-			req := reqs[0]
-			assert.True(t, strings.HasPrefix(req.Prompt, editLoRATag), "prompt %q", req.Prompt)
-			assert.Contains(t, req.Prompt, "<lora:Detail_Boost_Moss:0.8>")
-			assert.Equal(t, 30, req.Steps)
-			assert.InDelta(t, 4.0, req.CfgScale, 1e-9)
-			assert.Equal(t, 512, req.Width)
-			assert.Equal(t, 512, req.Height)
-			require.NotNil(t, req.DenoisingStrength)
-			assert.InDelta(t, 1.0, *req.DenoisingStrength, 1e-9)
-		})
-	}
+	ops, models, reqs := rec.snapshot()
+	assert.Contains(t, models, kleinLookModel)
+	assert.NotContains(t, models, mossModelName)
+	assert.Contains(t, ops, kleinRefOn)
+	assert.Equal(t, kleinRefOff, lastWithPrefix(ops, "option:"+kleinReferenceOption+"="))
+	assert.Empty(t, lastWithPrefix(ops, mossRefPrefix))
+	require.Len(t, reqs, 1)
+	assert.NotContains(t, reqs[0].Prompt, "Moss_Edit_LoRA")
+	assert.Contains(t, reqs[0].Prompt, "<lora:Klein_Detail:0.8>")
+	assert.Equal(t, 8, reqs[0].Steps)
+	assert.InDelta(t, 1.0, reqs[0].CfgScale, 1e-9)
 }
 
 func TestEditModel_T2_KleinRequest(t *testing.T) {
@@ -209,7 +197,7 @@ func TestEditModel_T2_KleinRequest(t *testing.T) {
 
 	ops, models, reqs := rec.snapshot()
 	assert.Contains(t, models, kleinLookModel)
-	assert.NotContains(t, models, mossEditModel)
+	assert.NotContains(t, models, mossModelName)
 
 	kOps := rec.filtered(kleinReferenceOption)
 	iOn := indexOf(kOps, kleinRefOn)
@@ -219,7 +207,7 @@ func TestEditModel_T2_KleinRequest(t *testing.T) {
 	assert.Less(t, iOn, iImg, "klein reference enabled before img2img: %v", kOps)
 	assert.Equal(t, kleinRefOff, lastWithPrefix(ops, "option:"+kleinReferenceOption+"="))
 	assert.Greater(t, lastIndexOf(kOps, kleinRefOff), lastIndexOf(kOps, "img2img"))
-	assert.NotContains(t, ops, mossRefOn)
+	assert.Empty(t, lastWithPrefix(ops, mossRefPrefix))
 
 	require.Len(t, reqs, 1)
 	req := reqs[0]
@@ -250,7 +238,7 @@ func TestEditModel_T3_KleinImg2ImgErrorDisablesReference(t *testing.T) {
 	ops, _, _ := rec.snapshot()
 	assert.Contains(t, ops, kleinRefOn)
 	assert.Equal(t, kleinRefOff, lastWithPrefix(ops, "option:"+kleinReferenceOption+"="))
-	assert.NotContains(t, ops, mossRefOn)
+	assert.Empty(t, lastWithPrefix(ops, mossRefPrefix))
 }
 
 func TestEditModel_T4_StylePresetModelMismatch(t *testing.T) {
@@ -262,8 +250,7 @@ func TestEditModel_T4_StylePresetModelMismatch(t *testing.T) {
 		styleModel string
 	}{
 		{name: "klein edit with moss preset", editModel: "klein", styleModel: "moss_image_sft_bf16"},
-		{name: "moss edit with klein preset", editModel: "moss", styleModel: "flux-2-klein-4b"},
-		{name: "default edit with klein preset", editModel: "", styleModel: "flux-2-klein-4b"},
+		{name: "default edit with moss preset", editModel: "", styleModel: "moss_image_sft_bf16"},
 		{name: "klein edit with z-image preset", editModel: "klein", styleModel: "z-image-turbo"},
 	}
 	for _, tt := range tests {
@@ -324,7 +311,7 @@ func TestEditModel_T4_KleinStylePresetApplied(t *testing.T) {
 func TestEditModel_T5_UnknownModelRejectedBeforeForge(t *testing.T) {
 	t.Parallel()
 
-	for _, model := range []string{"bogus", "KLEIN-XL", "z-image"} {
+	for _, model := range []string{"bogus", "KLEIN-XL", "z-image", "moss"} {
 		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 			svc, rec, _, sessions := editModelSetup(t)
@@ -364,8 +351,8 @@ func TestEditModel_T6_KleinQuality(t *testing.T) {
 	require.NotNil(t, result)
 
 	ops, models, reqs := rec.snapshot()
-	assert.NotContains(t, models, mossEditModel)
-	assert.NotContains(t, ops, mossRefOn)
+	assert.NotContains(t, models, mossModelName)
+	assert.Empty(t, lastWithPrefix(ops, mossRefPrefix))
 	assert.Equal(t, kleinRefOff, lastWithPrefix(ops, "option:"+kleinReferenceOption+"="))
 
 	require.GreaterOrEqual(t, len(reqs), 2, "base edit + redenoise expected")

@@ -398,8 +398,6 @@ type DownloadPlan struct {
 	TotalGB float64        `json:"total_gb"`
 }
 
-const mossEditLoRA = "Moss_Edit_LoRA"
-
 func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 	catalog, err := serverclient.LoadCatalog()
 	if err != nil {
@@ -454,9 +452,6 @@ func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 			add(DownloadItem{Type: mod.Type, Filename: mod.Filename, URL: mod.URL, SizeGB: mod.SizeGB, Model: m.Name})
 		}
 		add(DownloadItem{Type: "sd", Filename: m.MainFilename(), URL: m.URL, SizeGB: m.SizeGB, Model: m.Name})
-		if config.ModelMatchesCSV(m.Name, "moss") {
-			addLoRA(mossEditLoRA)
-		}
 	}
 	for _, name := range loras {
 		addLoRA(name)

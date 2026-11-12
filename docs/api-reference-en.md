@@ -85,7 +85,7 @@ EventsOn("remove:stage", (stage) => { ... })         // "analyzing" | "generatin
 ---
 
 ### EditImage
-Instruction-based photo editing (Edit mode, the moss model on Forge Neo with the reference engine).
+Instruction-based photo editing (Edit mode, the flux-2-klein model with the reference engine).
 
 ```typescript
 api.editImage(params: EditImageParams)
@@ -96,16 +96,17 @@ api.editImage(params: EditImageParams)
 interface EditImageParams {
   image_base64: string              // required, up to 16 MB
   instruction: string               // required, any language, up to 2000 chars
-  style_preset_id: number           // optional: a moss preset (contributes LoRAs only)
+  style_preset_id: number           // optional: a klein preset (contributes LoRAs only)
   style_tags: boolean               // optional: also apply the preset's prompt tags (off by default)
   loras: Array<{name, weight}>      // optional: up to 8 user LoRAs (stacked with the style's)
   output_mode: "" | "standard" | "quality"  // quality requires resolution_id
   resolution_id: number             // target box for quality mode
   seed: number                      // optional
+  model: "" | "klein"              // optional, empty = klein; any other value is rejected
 }
 ```
 
-The prompt is built as `<lora:Moss_Edit_LoRA:1.0>[style LoRAs][user LoRAs][style tags] Change only {instruction}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` The `moss_do_reference` option is enabled right before the request and reset afterwards; a failed reset flags the result with `edit_reference_reset_failed: true`.
+The prompt is built as `[style LoRAs][user LoRAs][style tags] Change only {instruction}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` The `klein_do_reference` option is enabled right before the request and reset afterwards; a failed reset flags the result with `edit_reference_reset_failed: true`.
 
 **Direct path, no queue** (like TestGenerate); serialized by a service-level mutex.
 

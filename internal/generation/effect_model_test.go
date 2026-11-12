@@ -112,56 +112,6 @@ func emoParams(t *testing.T, presetID int64, model, loras string) GenerateFromIm
 	return p
 }
 
-func TestEffectModel_MossTogglesMossReference(t *testing.T) {
-	t.Parallel()
-	svc, rec, id := emoSetup(t)
-
-	_, err := svc.GenerateFromImage(emoParams(t, id, mossEditModel, `[{"name":"X","weight":0.7}]`))
-	require.NoError(t, err)
-
-	assert.Equal(t, []string{
-		"option:" + mossReferenceOption + "=" + mossReferenceOn,
-		"img2img",
-		"option:" + mossReferenceOption + "=" + mossReferenceOff,
-	}, rec.filtered(mossReferenceOption))
-	assert.NotContains(t, rec.filtered(kleinReferenceOption), "option:"+kleinReferenceOption+"=true")
-}
-
-func TestEffectModel_MossImg2ImgRequest(t *testing.T) {
-	t.Parallel()
-	svc, rec, id := emoSetup(t)
-
-	_, err := svc.GenerateFromImage(emoParams(t, id, mossEditModel, `[{"name":"X","weight":0.7}]`))
-	require.NoError(t, err)
-
-	reqs := rec.requests()
-	require.Len(t, reqs, 1)
-	req := reqs[0]
-	assert.True(t, strings.HasPrefix(req.Prompt, editLoRATag), "prompt %q must start with %q", req.Prompt, editLoRATag)
-	assert.Contains(t, req.Prompt, "<lora:X:0.7>")
-	assert.Contains(t, req.Prompt, emoPresetPrompt)
-	assert.Equal(t, 30, req.Steps)
-	assert.Equal(t, 4.0, req.CfgScale)
-	assert.Equal(t, "Simple", req.Scheduler)
-	assert.Contains(t, req.SamplerName, "Euler")
-	require.NotNil(t, req.DenoisingStrength)
-	assert.InDelta(t, 0.6, *req.DenoisingStrength, 1e-9)
-}
-
-func TestEffectModel_MossImg2ImgErrorStillDisablesReference(t *testing.T) {
-	t.Parallel()
-	svc, rec, id := emoSetup(t)
-	rec.img2err = fmt.Errorf("forge failed")
-
-	_, err := svc.GenerateFromImage(emoParams(t, id, mossEditModel, ""))
-	require.Error(t, err)
-
-	ops := rec.filtered(mossReferenceOption)
-	require.NotEmpty(t, ops)
-	assert.Equal(t, "option:"+mossReferenceOption+"="+mossReferenceOff, ops[len(ops)-1])
-	assert.Contains(t, ops, "option:"+mossReferenceOption+"="+mossReferenceOn)
-}
-
 func TestEffectModel_KleinWithoutOverrides(t *testing.T) {
 	t.Parallel()
 	svc, rec, id := emoSetup(t)
@@ -174,7 +124,7 @@ func TestEffectModel_KleinWithoutOverrides(t *testing.T) {
 		"img2img",
 		"option:" + kleinReferenceOption + "=false",
 	}, rec.filtered(kleinReferenceOption))
-	assert.Equal(t, []string{"img2img"}, rec.filtered(mossReferenceOption))
+	assert.Equal(t, []string{"img2img"}, rec.filtered("moss_do_reference"))
 
 	reqs := rec.requests()
 	require.Len(t, reqs, 1)
@@ -191,6 +141,7 @@ func TestEffectModel_PreserveIdentityRejectsOtherModels(t *testing.T) {
 	}{
 		{"sdxl", "sdxl_base.safetensors"},
 		{"sd15", "epicrealism_naturalSin.safetensors"},
+		{"moss", "moss_image_sft_bf16"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

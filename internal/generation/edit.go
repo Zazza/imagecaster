@@ -17,30 +17,22 @@ import (
 )
 
 const (
-	mossEditModel             = "moss_image_sft_bf16"
-	kleinLookModel            = "flux-2-klein-4b.safetensors"
-	mossReferenceOption       = "moss_do_reference"
-	kleinReferenceOption      = "klein_do_reference"
-	mossReferenceOn           = "Moss-Image-Edit"
-	mossReferenceOff          = "Disable"
-	mossEditSteps             = 30
-	mossEditCfgScale          = 4.0
-	mossEditSampler           = "Euler"
-	mossEditScheduler         = "Simple"
-	mossEditDenoise           = 1.0
-	mossEditAlign             = 16
-	mossEditMaxDim            = 2048
-	mossEditStitchMaxDim      = 768
-	vramReleaseModel          = "z-image-turbo-fp8-aio"
-	mossEditLabelMax          = 60
-	mossEditMaxInstructionLen = 2000
-	mossEditMaxLoras          = 8
-	mossEditMaxLoraWeight     = 2.0
-	mossEditMaxLoraNameLen    = 200
-	kleinEditSteps            = 8
-	kleinEditCfgScale         = 1.0
+	kleinLookModel        = "flux-2-klein-4b.safetensors"
+	kleinReferenceOption  = "klein_do_reference"
+	editSampler           = "Euler"
+	editScheduler         = "Simple"
+	editDenoise           = 1.0
+	editAlign             = 16
+	editMaxDim            = 2048
+	vramReleaseModel      = "z-image-turbo-fp8-aio"
+	editLabelMax          = 60
+	editMaxInstructionLen = 2000
+	editMaxLoras          = 8
+	editMaxLoraWeight     = 2.0
+	editMaxLoraNameLen    = 200
+	kleinEditSteps        = 8
+	kleinEditCfgScale     = 1.0
 
-	editLoRATag      = "<lora:Moss_Edit_LoRA:1.0>"
 	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo."
 
 	mossTEModulePath   = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors"
@@ -89,23 +81,19 @@ type EditImageParams struct {
 type editModelProfile struct {
 	model     string
 	family    string
-	loraTag   string
 	refOption string
 	refOn     any
 	refOff    any
 	steps     int
 	cfg       float64
-	klein     bool
 }
 
 func resolveEditModel(model string) (editModelProfile, error) {
 	switch model {
-	case "", "moss":
-		return editModelProfile{model: mossEditModel, family: "moss", loraTag: editLoRATag, refOption: mossReferenceOption, refOn: mossReferenceOn, refOff: mossReferenceOff, steps: mossEditSteps, cfg: mossEditCfgScale}, nil
-	case "klein":
-		return editModelProfile{model: kleinLookModel, family: "klein", refOption: kleinReferenceOption, refOn: true, refOff: false, steps: kleinEditSteps, cfg: kleinEditCfgScale, klein: true}, nil
+	case "", "klein":
+		return editModelProfile{model: kleinLookModel, family: "klein", refOption: kleinReferenceOption, refOn: true, refOff: false, steps: kleinEditSteps, cfg: kleinEditCfgScale}, nil
 	}
-	return editModelProfile{}, fmt.Errorf("model must be moss or klein, got %q", truncateRunes(model, 40))
+	return editModelProfile{}, fmt.Errorf("model must be klein, got %q", truncateRunes(model, 40))
 }
 
 type editStyle struct {
@@ -114,9 +102,8 @@ type editStyle struct {
 	loras    []preset.LoRAEntry
 }
 
-func buildEditPrompt(loraTag, instruction string, styleTags string, loras []preset.LoRAEntry) string {
+func buildEditPrompt(instruction string, styleTags string, loras []preset.LoRAEntry) string {
 	var b strings.Builder
-	b.WriteString(loraTag)
 	for _, l := range loras {
 		b.WriteString(fmt.Sprintf(" <lora:%s:%g>", l.Name, l.Weight))
 	}
@@ -131,8 +118,8 @@ func sanitizeEditLoras(loras []preset.LoRAEntry) ([]preset.LoRAEntry, error) {
 	if len(loras) == 0 {
 		return nil, nil
 	}
-	if len(loras) > mossEditMaxLoras {
-		return nil, fmt.Errorf("too many loras (max %d)", mossEditMaxLoras)
+	if len(loras) > editMaxLoras {
+		return nil, fmt.Errorf("too many loras (max %d)", editMaxLoras)
 	}
 	out := make([]preset.LoRAEntry, 0, len(loras))
 	for _, l := range loras {
@@ -143,8 +130,8 @@ func sanitizeEditLoras(loras []preset.LoRAEntry) ([]preset.LoRAEntry, error) {
 		if strings.ContainsAny(name, "<>:") || strings.ContainsFunc(name, unicode.IsControl) {
 			return nil, fmt.Errorf("invalid lora name %q", truncateRunes(name, 40))
 		}
-		if len([]rune(name)) > mossEditMaxLoraNameLen {
-			return nil, fmt.Errorf("lora name too long (max %d characters)", mossEditMaxLoraNameLen)
+		if len([]rune(name)) > editMaxLoraNameLen {
+			return nil, fmt.Errorf("lora name too long (max %d characters)", editMaxLoraNameLen)
 		}
 		w := l.Weight
 		if math.IsNaN(w) || math.IsInf(w, 0) {
@@ -153,8 +140,8 @@ func sanitizeEditLoras(loras []preset.LoRAEntry) ([]preset.LoRAEntry, error) {
 		if w < 0 {
 			w = 0
 		}
-		if w > mossEditMaxLoraWeight {
-			w = mossEditMaxLoraWeight
+		if w > editMaxLoraWeight {
+			w = editMaxLoraWeight
 		}
 		out = append(out, preset.LoRAEntry{Name: name, Weight: w})
 	}
@@ -164,8 +151,8 @@ func sanitizeEditLoras(loras []preset.LoRAEntry) ([]preset.LoRAEntry, error) {
 func sanitizeStyleTags(tags string) string {
 	tags = loraTagPrefixRe.ReplaceAllString(stripAngleTags(tags), "")
 	tags = strings.TrimSpace(strings.Trim(tags, ", \n\r\t"))
-	if len([]rune(tags)) > mossEditMaxInstructionLen {
-		tags = truncateRunes(tags, mossEditMaxInstructionLen)
+	if len([]rune(tags)) > editMaxInstructionLen {
+		tags = truncateRunes(tags, editMaxInstructionLen)
 	}
 	return tags
 }
@@ -192,7 +179,7 @@ func (s *Service) loadEditStyle(presetID int64, family string) (*editStyle, erro
 		} else {
 			for _, l := range loras {
 				if strings.Contains(strings.ToLower(l.Name), "dmd") {
-					s.log.Info("edit style %q: skip lora %q (distillation loras degrade edit quality at the fixed 30-step CFG 4 contract)", p.Name, l.Name)
+					s.log.Info("edit style %q: skip lora %q (distillation loras degrade edit quality)", p.Name, l.Name)
 					continue
 				}
 				st.loras = append(st.loras, l)
@@ -232,7 +219,7 @@ func truncateRunes(s string, max int) string {
 }
 
 func alignEditSize(w, h int) (int, int) {
-	return alignEditSizeCapped(w, h, mossEditMaxDim)
+	return alignEditSizeCapped(w, h, editMaxDim)
 }
 
 func alignEditSizeCapped(w, h, maxDim int) (int, int) {
@@ -241,8 +228,8 @@ func alignEditSizeCapped(w, h, maxDim int) (int, int) {
 		w = int(float64(w) * scale)
 		h = int(float64(h) * scale)
 	}
-	w = w / mossEditAlign * mossEditAlign
-	h = h / mossEditAlign * mossEditAlign
+	w = w / editAlign * editAlign
+	h = h / editAlign * editAlign
 	if w < 64 {
 		w = 64
 	}
@@ -271,8 +258,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if instruction == "" {
 		return nil, fmt.Errorf("instruction is required")
 	}
-	if len([]rune(instruction)) > mossEditMaxInstructionLen {
-		return nil, fmt.Errorf("instruction too long (max %d characters)", mossEditMaxInstructionLen)
+	if len([]rune(instruction)) > editMaxInstructionLen {
+		return nil, fmt.Errorf("instruction too long (max %d characters)", editMaxInstructionLen)
 	}
 	var filterErr error
 	instruction, filterErr = s.kids.FilterInput(instruction)
@@ -291,8 +278,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 	combinedLoras := params.Loras
 	if style != nil {
-		if len(style.loras)+len(params.Loras) > mossEditMaxLoras {
-			return nil, fmt.Errorf("too many loras: style %d + own %d > max %d", len(style.loras), len(params.Loras), mossEditMaxLoras)
+		if len(style.loras)+len(params.Loras) > editMaxLoras {
+			return nil, fmt.Errorf("too many loras: style %d + own %d > max %d", len(style.loras), len(params.Loras), editMaxLoras)
 		}
 		combinedLoras = append(append([]preset.LoRAEntry{}, style.loras...), params.Loras...)
 	}
@@ -340,28 +327,24 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if srcW <= 0 || srcH <= 0 {
 		return nil, errors.New("decode image size: invalid image")
 	}
-	width, height := alignEditSize(srcW, srcH)
-	workW, workH := width, height
-	if prof.klein {
-		width, height = kleinImg2ImgSize(srcW, srcH)
-		workW, workH = kleinWorkSize(srcW, srcH)
-	}
+	width, height := kleinImg2ImgSize(srcW, srcH)
+	workW, workH := kleinWorkSize(srcW, srcH)
 
 	styleTags := ""
 	if style != nil && params.StyleTags {
 		styleTags = style.tags
 	}
-	prompt := buildEditPrompt(prof.loraTag, instruction, styleTags, loras)
+	prompt := buildEditPrompt(instruction, styleTags, loras)
 	batchSize := 1
 	batchCount := 1
-	denoise := mossEditDenoise
+	denoise := editDenoise
 
 	baseReq := sd.Img2ImgRequest{
 		InitImages:        []string{params.ImageBase64},
 		Prompt:            prompt,
 		NegativePrompt:    s.kids.ApplyNegative(""),
-		SamplerName:       mossEditSampler,
-		Scheduler:         mossEditScheduler,
+		SamplerName:       editSampler,
+		Scheduler:         editScheduler,
 		Steps:             prof.steps,
 		CfgScale:          prof.cfg,
 		Width:             workW,
@@ -388,9 +371,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 
 	finalImage := resp.Images[0]
-	if prof.klein {
-		finalImage = s.kleinUpscaleTo(finalImage, workW, width, height, "edit klein")
-	}
+	finalImage = s.kleinUpscaleTo(finalImage, workW, width, height, "edit klein")
 	finalInfo := resp.Info
 	upscaleSkipped := false
 	redenoiseSkipped := false
@@ -403,8 +384,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 			qualityReq := sd.Txt2ImgRequest{
 				Prompt:         prompt,
 				NegativePrompt: s.kids.ApplyNegative(""),
-				SamplerName:    mossEditSampler,
-				Scheduler:      mossEditScheduler,
+				SamplerName:    editSampler,
+				Scheduler:      editScheduler,
 				Steps:          prof.steps,
 				CfgScale:       prof.cfg,
 				Width:          width,
@@ -425,7 +406,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	}
 
 	genMeta := &preset.GenerationMeta{
-		Label: "Edit: " + truncateRunes(instruction, mossEditLabelMax),
+		Label: "Edit: " + truncateRunes(instruction, editLabelMax),
 		Model: prof.model,
 	}
 	if style != nil {
@@ -470,9 +451,6 @@ func (s *Service) ResetReferences() {
 	defer s.referenceMu.Unlock()
 	if err := s.sd.HealthCheck(); err != nil {
 		return
-	}
-	if err := s.sd.SetOption(mossReferenceOption, mossReferenceOff); err != nil {
-		s.log.Warn("reset moss reference: %s", err)
 	}
 	if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
 		s.log.Warn("reset klein reference: %s", err)

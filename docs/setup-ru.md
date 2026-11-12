@@ -18,7 +18,7 @@
 
 ### Рекомендуется: Forge Neo
 
-На Forge Neo работают все функции, включая режим правки (Moss-Image) и модели Z-Image. Проще всего поставить его через [Imagecaster Server](#imagecaster-server) — сервер скачивает и настраивает Forge Neo сам.
+На Forge Neo работают все функции, включая режим правки (Flux 2 Klein) и модели Z-Image. Проще всего поставить его через [Imagecaster Server](#imagecaster-server) — сервер скачивает и настраивает Forge Neo сам.
 
 Вручную: [sd-webui-forge-classic, ветка `neo`](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) — установка по README репозитория, запуск с флагами `--listen --api`.
 
@@ -60,7 +60,7 @@ webui.bat --listen --api --enable-insecure-extension-access
 
 > **Модели Z-Image:** бандл-семейство пресетов `(Z-Image)` использует чекпоинты `z-image-turbo`. Оригинальный Forge эту архитектуру **не поддерживает** — нужен форк с поддержкой Z-Image (например, [sd-webui-forge-classic, ветка `neo`](https://github.com/Haoming02/sd-webui-forge-classic)); это замена «как есть» с тем же REST API. Остальные бандл-семейства работают на любом из бэкендов выше.
 
-> **Модель Moss-Image (режим правки):** для редактирования по инструкции нужен чекпоинт `moss_image_sft_bf16` и Forge Neo (reference-движок). Чекпоинт скачивается из каталога (Настройки → Каталог); текстовый энкодер `qwen35_9b_int8_convrot.safetensors` и VAE `flux2-vae_small.safetensors` положите вручную в `models/text_encoder/` и `models/VAE/` (репозиторий Comfy-Org/MOSS-Image). Приложение подключает модули автоматически при смене модели.
+> **Модель Moss-Image:** только для генерации по описанию (режим правки работает на Flux 2 Klein). Чекпоинт `moss_image_sft_bf16` скачивается из каталога (Настройки → Каталог); текстовый энкодер `qwen35_9b_int8_convrot.safetensors` и VAE `flux2-vae_small.safetensors` положите вручную в `models/text_encoder/` и `models/VAE/` (репозиторий Comfy-Org/MOSS-Image). Приложение подключает модули автоматически при смене модели.
 
 ### Флаги
 

@@ -278,32 +278,29 @@ describe('3a. Model block in Edit', () => {
     return foldByTitle(wrapper, t('model.block_title'))
   }
 
-  it('is collapsed by default and contains the model select and LoRA rows', async () => {
-    const wrapper = await mountEdit({ edit_loras: '[{"name":"MossL","weight":0.8}]' })
+  it('is collapsed by default, has Klein LoRA rows and no model select', async () => {
+    const wrapper = await mountEdit({ edit_loras_klein: '[{"name":"KleinL","weight":0.8}]' })
     const fold = block(wrapper)
     expect(t('model.block_title')).toBe('Модель и LoRA')
     expect(isOpen(fold)).toBe(false)
-    expect(fold.find('[data-testid="edit-model-select"]').exists()).toBe(true)
+    expect(fold.find('[data-testid="edit-model-select"]').exists()).toBe(false)
     expect(fold.findAll('[data-testid="edit-lora-name"]').length).toBe(1)
-    expect(wrapper.find('[data-testid="edit-model-select"]').isVisible()).toBe(false)
   })
 
-  it('header summary "Moss · без LoRA" by default', async () => {
+  it('header summary "Klein · без LoRA" by default', async () => {
     const wrapper = await mountEdit()
-    expect(headText(block(wrapper))).toContain('Moss' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
   })
 
-  it('header summary counts saved LoRA rows: "Moss · 2 LoRA"', async () => {
-    const wrapper = await mountEdit({ edit_loras: '[{"name":"M1","weight":0.8},{"name":"M2","weight":0.5}]' })
-    expect(headText(block(wrapper))).toContain('Moss' + SEP + '2 LoRA')
+  it('header summary counts saved Klein LoRA rows: "Klein · 2 LoRA"', async () => {
+    const wrapper = await mountEdit({ edit_loras_klein: '[{"name":"K1","weight":0.8},{"name":"K2","weight":0.5}]' })
+    expect(headText(block(wrapper))).toContain('Klein' + SEP + '2 LoRA')
   })
 
-  it('header summary shows Klein after switching the model', async () => {
-    const wrapper = await mountEdit({ edit_loras_klein: '[{"name":"K1","weight":0.5}]' })
-    await toggleFold(block(wrapper))
-    await wrapper.find('[data-testid="edit-model-select"]').setValue('klein')
-    await settle()
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + '1 LoRA')
+  it('old Moss LoRA list and edit_model=moss are ignored', async () => {
+    const wrapper = await mountEdit({ edit_model: 'moss', edit_loras: '[{"name":"M1","weight":0.8}]' })
+    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).not.toContain('Moss')
   })
 
   it('a LoRA row with an empty name is not counted', async () => {
@@ -312,27 +309,23 @@ describe('3a. Model block in Edit', () => {
     await wrapper.find('[data-testid="edit-lora-add"]').trigger('click')
     await settle()
     expect(wrapper.findAll('[data-testid="edit-lora-name"]').length).toBe(1)
-    expect(headText(block(wrapper))).toContain('Moss' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
     await wrapper.find('[data-testid="edit-lora-name"]').setValue('   ')
     await settle()
-    expect(headText(block(wrapper))).toContain('Moss' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
     await wrapper.find('[data-testid="edit-lora-name"]').setValue('Real')
     await settle()
-    expect(headText(block(wrapper))).toContain('Moss' + SEP + '1 LoRA')
+    expect(headText(block(wrapper))).toContain('Klein' + SEP + '1 LoRA')
   })
 
-  it('opened block shows the Moss hint for Moss and the Klein hint for Klein', async () => {
+  it('opened block shows the Klein hint and no Moss', async () => {
     const wrapper = await mountEdit()
     await toggleFold(block(wrapper))
     expect(isOpen(block(wrapper))).toBe(true)
     const body = () => block(wrapper).find('.fold-body')
     expect(body().isVisible()).toBe(true)
-    expect(body().text()).toContain(t('model.hint_moss'))
-    expect(body().text()).not.toContain(t('model.hint_klein'))
-    await wrapper.find('[data-testid="edit-model-select"]').setValue('klein')
-    await settle()
     expect(body().text()).toContain(t('model.hint_klein'))
-    expect(body().text()).not.toContain(t('model.hint_moss'))
+    expect(body().text()).not.toContain('Moss')
   })
 })
 
@@ -363,12 +356,13 @@ describe('3b. Model block in Effect', () => {
     expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
   })
 
-  it('header summary "Moss · 2 LoRA" from saved settings', async () => {
+  it('saved effect_model=moss with Moss LoRAs shows "Klein · без LoRA"', async () => {
     const wrapper = await mountPage({
       effect_model: 'moss',
       effect_loras_moss: '[{"name":"LoraA","weight":0.5},{"name":"LoraB","weight":0.7}]',
     })
-    expect(headText(block(wrapper))).toContain('Moss' + SEP + '2 LoRA')
+    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).not.toContain('Moss')
   })
 
   it('saved rows with empty names are not counted', async () => {
@@ -390,18 +384,14 @@ describe('3b. Model block in Effect', () => {
     expect(headText(block(wrapper))).toContain('Klein' + SEP + '1 LoRA')
   })
 
-  it('opened block shows the hint for the selected model', async () => {
+  it('opened block shows the Klein hint, no model select and no Moss', async () => {
     const wrapper = await mountPage()
     await toggleFold(block(wrapper))
     const body = () => block(wrapper).find('.fold-body')
     expect(body().isVisible()).toBe(true)
     expect(body().text()).toContain(t('model.hint_klein'))
-    expect(body().text()).not.toContain(t('model.hint_moss'))
-    await wrapper.find('.fx-model-body .fx-model-select').setValue('moss')
-    await settle()
-    expect(body().text()).toContain(t('model.hint_moss'))
-    expect(body().text()).not.toContain(t('model.hint_klein'))
-    expect(headText(block(wrapper))).toContain('Moss')
+    expect(body().find('.fx-model-select').exists()).toBe(false)
+    expect(body().text()).not.toContain('Moss')
   })
 })
 

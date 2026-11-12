@@ -19,7 +19,6 @@ import { t } from '../i18n/index.js'
 
 enableAutoUnmount(afterEach)
 
-const MOSS_MODEL = 'moss_image_sft_bf16'
 const TYPES = [{ id: 1, name: 'post' }]
 const PLAIN = { id: 10, name: 'Soft Focus', preset_type: 'post', type_id: 1, denoising_strength: null, loras: '' }
 const WITH_LORA = { id: 11, name: 'Lora Look', preset_type: 'post', type_id: 1, denoising_strength: null, loras: '[{"name":"PresetL","weight":1}]' }
@@ -105,13 +104,6 @@ async function openModel(wrapper) {
   expect(wrapper.find('.fx-model').classes()).toContain('fold-open')
 }
 
-async function pickModel(wrapper, value) {
-  const select = wrapper.find('.fx-model-body .fx-model-select')
-  expect(select.exists()).toBe(true)
-  await select.setValue(value)
-  await settle()
-}
-
 function loraRows(wrapper) {
   return wrapper.findAll('.fx-model-body .fx-lora-row')
 }
@@ -171,12 +163,14 @@ describe('Effect model block in post-process', () => {
     expect(p.overrides == null).toBe(true)
   })
 
-  it('T6: opened block shows Klein and Moss options, Klein selected', async () => {
+  it('T6: opened block has no model select and no Moss, only Klein LoRA rows', async () => {
     const wrapper = await mountPage()
     await openModel(wrapper)
-    const select = wrapper.find('.fx-model-body .fx-model-select')
-    expect(select.findAll('option').map(o => o.attributes('value'))).toEqual(expect.arrayContaining(['klein', 'moss']))
-    expect(select.element.value).toBe('klein')
+    const body = wrapper.find('.fx-model-body')
+    expect(body.find('.fx-model-select').exists()).toBe(false)
+    expect(body.findAll('option').map(o => o.attributes('value'))).not.toContain('moss')
+    expect(wrapper.find('.fx-model').text()).not.toContain('Moss')
+    expect(wrapper.find('.fx-model').text()).toContain('Klein')
     expect(loraRows(wrapper).length).toBe(0)
   })
 
@@ -233,66 +227,6 @@ describe('Effect model block in post-process', () => {
     expect(p.overrides == null).toBe(true)
   })
 
-  it('T6c: Klein and Moss keep separate LoRA lists', async () => {
-    const wrapper = await mountPage()
-    await openModel(wrapper)
-    await addLora(wrapper, 'LoraA', 0.7)
-    expect(loraRows(wrapper).length).toBe(1)
-
-    await pickModel(wrapper, 'moss')
-    expect(loraRows(wrapper).length).toBe(0)
-
-    await applyEffect(wrapper)
-    const p = lastParams()
-    expect(p.overrides.model_name).toBe(MOSS_MODEL)
-    const loras = p.overrides.loras ? JSON.parse(p.overrides.loras) : []
-    expect(loras.map(l => l.name)).not.toContain('LoraA')
-
-    await pickModel(wrapper, 'klein')
-    expect(loraRows(wrapper).length).toBe(1)
-    expect(loraRows(wrapper)[0].find('select.fx-lora-name').element.value).toBe('LoraA')
-  })
-
-  it('T7: Moss + LoraB 0.5 → Moss model and LoraB sent, settings saved', async () => {
-    const wrapper = await mountPage()
-    await openModel(wrapper)
-    await pickModel(wrapper, 'moss')
-    await addLora(wrapper, 'LoraB', 0.5)
-    await applyEffect(wrapper)
-
-    const p = lastParams()
-    expect(p.overrides.model_name).toBe(MOSS_MODEL)
-    expect(sentLoras(p)).toContainEqual({ name: 'LoraB', weight: 0.5 })
-
-    expect(settingsCallsWith('effect_model').map(a => a.effect_model)).toContain('moss')
-    const mossSaves = settingsCallsWith('effect_loras_moss')
-    expect(mossSaves.length).toBeGreaterThan(0)
-    expect(JSON.parse(mossSaves[mossSaves.length - 1].effect_loras_moss)).toContainEqual({ name: 'LoraB', weight: 0.5 })
-  })
-
-  it('T7: Moss + preset LoRA → both preset and Moss LoRA sent', async () => {
-    const wrapper = await mountPage()
-    await openModel(wrapper)
-    await pickModel(wrapper, 'moss')
-    await addLora(wrapper, 'LoraB', 0.5)
-    await applyEffect(wrapper, 'Lora Look')
-    const p = lastParams()
-    expect(p.overrides.model_name).toBe(MOSS_MODEL)
-    const loras = sentLoras(p)
-    expect(loras).toContainEqual({ name: 'PresetL', weight: 1 })
-    expect(loras).toContainEqual({ name: 'LoraB', weight: 0.5 })
-  })
-
-  it('T7: Moss without any LoRA → model set, loras field absent', async () => {
-    const wrapper = await mountPage()
-    await openModel(wrapper)
-    await pickModel(wrapper, 'moss')
-    await applyEffect(wrapper)
-    const p = lastParams()
-    expect(p.overrides.model_name).toBe(MOSS_MODEL)
-    expect(p.overrides.loras).toBeUndefined()
-  })
-
   it('T7: Klein LoRA is saved to effect_loras_klein', async () => {
     const wrapper = await mountPage()
     await openModel(wrapper)
@@ -301,19 +235,35 @@ describe('Effect model block in post-process', () => {
     expect(saves.length).toBeGreaterThan(0)
     expect(JSON.parse(saves[saves.length - 1].effect_loras_klein)).toContainEqual({ name: 'LoraA', weight: 0.7 })
     expect(settingsCallsWith('effect_loras_moss').length).toBe(0)
+    expect(settingsCallsWith('effect_model').length).toBe(0)
   })
 
-  it('T7b: saved Moss + LoraB from settings applies without opening the block', async () => {
+  it('T7b: saved effect_model=moss is treated as Klein: no model override, Moss LoRAs not sent', async () => {
     GetSettings.mockReturnValue(Promise.resolve({
       effect_model: 'moss',
       effect_loras_moss: '[{"name":"LoraB","weight":0.5}]',
     }))
     const wrapper = await mountPage()
-    expect(wrapper.find('.fx-model').classes()).not.toContain('fold-open')
+    expect(wrapper.find('.fx-model').text()).not.toContain('Moss')
     await applyEffect(wrapper)
     const p = lastParams()
-    expect(p.overrides.model_name).toBe(MOSS_MODEL)
-    expect(sentLoras(p)).toContainEqual({ name: 'LoraB', weight: 0.5 })
+    expect(p.overrides == null || !p.overrides.model_name).toBe(true)
+    expect(p.overrides == null || !(p.overrides.loras || '').includes('LoraB')).toBe(true)
+  })
+
+  it('T7b: saved effect_model=moss keeps the saved Klein LoRA list', async () => {
+    GetSettings.mockReturnValue(Promise.resolve({
+      effect_model: 'moss',
+      effect_loras_klein: '[{"name":"LoraA","weight":0.7}]',
+      effect_loras_moss: '[{"name":"LoraB","weight":0.5}]',
+    }))
+    const wrapper = await mountPage()
+    await applyEffect(wrapper)
+    const p = lastParams()
+    const loras = sentLoras(p)
+    expect(loras).toContainEqual({ name: 'LoraA', weight: 0.7 })
+    expect(loras.map(l => l.name)).not.toContain('LoraB')
+    expect(p.overrides.model_name).toBeFalsy()
   })
 
   it('T7b: saved Klein LoRA list from settings is used on apply', async () => {

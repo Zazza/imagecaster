@@ -12,7 +12,7 @@ Imagecaster uses a dedicated model for each job. Every model except Flux 2 Klein
 | **Pony / Illustrious** | Anime, cartoon and stylized characters |
 | **Flux 1** | Follows detailed plain-language descriptions precisely, realism |
 | **Z-Image Turbo** | Photorealism, the fastest of the set: 8 steps instead of the usual 20–50 |
-| **Moss-Image** | Follows detailed descriptions as precisely as Flux 1, photorealistic people, Edit mode: changes exactly what the instruction says, understands Russian |
+| **Moss-Image** | Follows detailed descriptions as precisely as Flux 1, photorealistic people |
 | **Flux 2 Klein** | Post-processing: effects, object replace and remove, remix that keeps the face, stylist |
 
 ### SD 1.5 / SDXL
@@ -33,7 +33,7 @@ SDXL-based models fine-tuned on anime and drawn characters. Presets use `riMixPO
 
 ### Moss-Image
 
-`moss_image_sft_bf16` follows detailed descriptions as precisely as Flux 1 and is also the main Edit mode model: "replace the pants with a skirt" changes the clothes and keeps the person, pose and background. Instructions can be written in Russian. Besides the checkpoint it needs the `qwen35_9b_int8_convrot.safetensors` text encoder in `models/text_encoder/` and the `flux2-vae_small.safetensors` VAE in `models/VAE/` (the Comfy-Org/MOSS-Image repo).
+`moss_image_sft_bf16` follows detailed descriptions as precisely as Flux 1. It is used for text-to-image generation only: Edit, Effect and Preserve face run on Flux 2 Klein. Besides the checkpoint it needs the `qwen35_9b_int8_convrot.safetensors` text encoder in `models/text_encoder/` and the `flux2-vae_small.safetensors` VAE in `models/VAE/` (the Comfy-Org/MOSS-Image repo).
 
 ### Flux 2 Klein
 

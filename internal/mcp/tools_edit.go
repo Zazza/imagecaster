@@ -117,14 +117,14 @@ func registerEditTools(s *Server) {
 
 	s.Register(Tool{
 		Name: "edit",
-		Description: "Правка фото по текстовой инструкции (moss image edit, reference-режим): лицо, поза и фон сохраняются, меняется то, что сказано. Инструкции на русском работают. " +
-			"reference_image_path — фото вещи для примерки. style_preset_id — moss-пресет (его лоры, style_tags=true — ещё и теги). quality=true + resolution_id — апскейл и доводка. " +
+		Description: "Правка фото по текстовой инструкции (flux-2-klein, reference-режим): лицо, поза и фон сохраняются, меняется то, что сказано. Инструкции на русском работают. " +
+			"reference_image_path — фото вещи для примерки. style_preset_id — klein-пресет (его лоры, style_tags=true — ещё и теги). quality=true + resolution_id — апскейл и доводка. " +
 			"Результат: PNG + sidecar в out_dir.",
 		InputSchema: props(map[string]any{
 			"image_path":           prop("путь к исходному изображению", "string"),
 			"instruction":          prop("что изменить", "string"),
 			"reference_image_path": prop("референс (фото одежды для примерки)", "string"),
-			"style_preset_id":      prop("id moss-пресета для стиля", "integer"),
+			"style_preset_id":      prop("id klein-пресета для стиля", "integer"),
 			"style_tags":           prop("добавить теги стиль-пресета (по умолчанию false)", "boolean"),
 			"loras":                lorasSchema,
 			"quality":              prop("качественный режим (требует resolution_id)", "boolean"),

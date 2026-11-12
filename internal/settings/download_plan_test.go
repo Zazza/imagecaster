@@ -160,7 +160,11 @@ func TestDownloadPlan_CatalogFacts(t *testing.T) {
 	ds := catalogModel(t, "dreamshaper_8")
 	assert.NotEmpty(t, ds.URL)
 	assert.Empty(t, ds.Modules)
-	assert.NotEmpty(t, catalogLoRA(t, "Moss_Edit_LoRA").URL)
+	cat, err := serverclient.LoadCatalog()
+	require.NoError(t, err)
+	for _, l := range cat.LoRA {
+		assert.NotEqual(t, "Moss_Edit_LoRA", l.Name)
+	}
 }
 
 func TestDownloadPlan_EmptyDB(t *testing.T) {
@@ -196,8 +200,7 @@ func TestDownloadPlan_ModulesThenMainFile(t *testing.T) {
 		assert.Less(t, i, main, m)
 	}
 	assert.ElementsMatch(t, append(append([]string{}, modules...),
-		"sd/"+catalogModel(t, "moss_image_sft_bf16").MainFilename(),
-		"lora/Moss_Edit_LoRA.safetensors"), keys)
+		"sd/"+catalogModel(t, "moss_image_sft_bf16").MainFilename()), keys)
 	for _, it := range plan.Items {
 		assert.NotEmpty(t, it.URL, it.Filename)
 	}
@@ -330,61 +333,34 @@ func TestDownloadPlan_UnusedCatalogModelsNeverPlanned(t *testing.T) {
 	}
 }
 
-func TestDownloadPlan_MossEditLoRA(t *testing.T) {
+func TestDownloadPlan_NoMossEditLoRA(t *testing.T) {
 	t.Parallel()
-	lora := catalogLoRA(t, "Moss_Edit_LoRA")
-	t.Run("added with moss", func(t *testing.T) {
-		t.Parallel()
-		svc := planService(t, emptyServer(), bundled("moss_image_sft_bf16.safetensors"))
-		plan := loadPlan(t, svc)
-		it := findItem(plan, "lora", "Moss_Edit_LoRA.safetensors")
-		require.NotNil(t, it, itemKeys(plan))
-		assert.Equal(t, lora.URL, it.URL)
-		assert.InDelta(t, lora.SizeMB/1024, it.SizeGB, 1e-9)
-	})
-	t.Run("not added when on server", func(t *testing.T) {
-		t.Parallel()
-		srv := emptyServer()
-		srv["lora"] = []string{"Moss_Edit_LoRA.safetensors"}
-		svc := planService(t, srv, bundled("moss_image_sft_bf16.safetensors"))
-		plan := loadPlan(t, svc)
-		assert.Nil(t, findItem(plan, "lora", "Moss_Edit_LoRA.safetensors"))
-		assert.NotEmpty(t, plan.Items)
-	})
-	t.Run("added even when moss files are on server", func(t *testing.T) {
-		t.Parallel()
-		moss := catalogModel(t, "moss_image_sft_bf16")
-		srv := emptyServer()
-		srv["sd"] = []string{moss.MainFilename()}
-		for _, m := range moss.Modules {
-			srv[m.Type] = append(srv[m.Type], m.Filename)
-		}
-		svc := planService(t, srv, bundled("moss_image_sft_bf16.safetensors"))
-		plan := loadPlan(t, svc)
-		assert.Equal(t, []string{"lora/Moss_Edit_LoRA.safetensors"}, itemKeys(plan))
-	})
-	t.Run("not added without moss", func(t *testing.T) {
-		t.Parallel()
-		svc := planService(t, emptyServer(), bundled("dreamshaper_8.safetensors"))
-		plan := loadPlan(t, svc)
-		assert.Nil(t, findItem(plan, "lora", "Moss_Edit_LoRA.safetensors"))
-	})
-	t.Run("once even if presets also use it", func(t *testing.T) {
-		t.Parallel()
-		svc := planService(t, emptyServer(), planPreset{
-			model:   "moss_image_sft_bf16.safetensors",
-			loras:   `[{"name":"Moss_Edit_LoRA","weight":1}]`,
-			bundled: true,
-		})
-		plan := loadPlan(t, svc)
-		n := 0
-		for _, k := range itemKeys(plan) {
-			if k == "lora/Moss_Edit_LoRA.safetensors" {
-				n++
+	moss := catalogModel(t, "moss_image_sft_bf16")
+	tests := []struct {
+		name     string
+		onServer bool
+	}{
+		{name: "moss to download", onServer: false},
+		{name: "moss already on server", onServer: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := emptyServer()
+			if tt.onServer {
+				srv["sd"] = []string{moss.MainFilename()}
+				for _, m := range moss.Modules {
+					srv[m.Type] = append(srv[m.Type], m.Filename)
+				}
 			}
-		}
-		assert.Equal(t, 1, n)
-	})
+			svc := planService(t, srv, bundled("moss_image_sft_bf16.safetensors"))
+			plan := loadPlan(t, svc)
+			assert.Nil(t, findItem(plan, "lora", "Moss_Edit_LoRA.safetensors"), itemKeys(plan))
+			if tt.onServer {
+				assert.Empty(t, plan.Items)
+			}
+		})
+	}
 }
 
 func TestDownloadPlan_PresetLoRAs(t *testing.T) {

@@ -74,10 +74,10 @@
     {
       "name": "moss_image_sft_bf16",
       "base": "Moss-Image",
-      "category": "Photorealism / Instruction editing",
-      "category_ru": "Фотореализм / Правка по инструкции",
-      "description": "OpenMOSS 5B SFT - photorealistic people, native instruction editing (Edit mode). Text encoder, tokenizer and VAE are downloaded with the model",
-      "description_ru": "OpenMOSS 5B SFT: фотореалистичные люди, правка по инструкции (режим «Правка»). Энкодер текста, токенизатор и VAE скачиваются вместе с моделью",
+      "category": "Photorealism",
+      "category_ru": "Фотореализм",
+      "description": "OpenMOSS 5B SFT - photorealistic people, precise prompt following. Text encoder, tokenizer and VAE are downloaded with the model",
+      "description_ru": "OpenMOSS 5B SFT: фотореалистичные люди, точное следование описанию. Энкодер текста, токенизатор и VAE скачиваются вместе с моделью",
       "size_gb": 9.5,
       "recommended": true,
       "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors",
@@ -360,17 +360,6 @@
     }
   ],
   "lora": [
-    {
-      "name": "Moss_Edit_LoRA",
-      "base": "Moss-Image",
-      "category": "Instruction editing",
-      "category_ru": "Правка по инструкции",
-      "default_weight": 1.0,
-      "description": "Official edit LoRA for the Edit mode (reference KV instruction editing)",
-      "description_ru": "Официальная LoRA для режима «Правка» (правка по инструкции)",
-      "size_mb": 297,
-      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/loras/moss_image_edit_lora_rank_64_bf16.safetensors"
-    },
     {
       "name": "add-detail-xl",
       "base": "SDXL",
