@@ -12,6 +12,7 @@ export const serverState = reactive({
   url: '',
   version: '',
   missing: [],
+  reason: '',
   error: '',
   checking: false,
   dismissed: false,
@@ -31,6 +32,7 @@ export async function checkServer() {
     serverState.url = r?.url || ''
     serverState.version = r?.version || ''
     serverState.missing = r?.missing || []
+    serverState.reason = r?.reason || ''
     serverState.error = r?.error || ''
   } catch (e) {
     serverState.state = 'not_found'

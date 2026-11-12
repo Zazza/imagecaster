@@ -219,11 +219,15 @@ func TestCheckServer(t *testing.T) {
 		features    []string
 		wantState   string
 		wantMissing []string
+		wantReason  string
 	}{
 		{name: "ok with llamacpp", srvName: serverclient.ServerName, features: fullFeatures(), wantState: ServerOK},
 		{name: "ok with ollama", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "ollama"}, wantState: ServerOK},
-		{name: "old server without features", srvName: serverclient.ServerName, features: nil, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "llamacpp"}},
-		{name: "missing download_stream", srvName: serverclient.ServerName, features: []string{"sdcpp", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"download_stream"}},
+		{name: "old server without features", srvName: serverclient.ServerName, features: nil, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "llamacpp"}, wantReason: "old_version"},
+		{name: "forge server without sdcpp", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp"}, wantReason: "no_sdcpp"},
+		{name: "forge server without sdcpp and download_stream", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream"}, wantReason: "no_sdcpp"},
+		{name: "missing download_stream", srvName: serverclient.ServerName, features: []string{"sdcpp", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"download_stream"}, wantReason: "missing_features"},
+		{name: "missing llm backend", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
 		{name: "foreign server", srvName: "Something Else", features: fullFeatures(), wantState: ServerNotFound},
 	}
 	for _, tt := range tests {
@@ -239,6 +243,7 @@ func TestCheckServer(t *testing.T) {
 
 			assert.Equal(t, tt.wantState, got.State)
 			assert.Equal(t, ts.URL, got.URL)
+			assert.Equal(t, tt.wantReason, got.Reason)
 			switch tt.wantState {
 			case ServerOK:
 				assert.Empty(t, got.Missing)
@@ -258,6 +263,7 @@ func TestCheckServer_NotConfigured(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 	got := svc.CheckServer()
 	assert.Equal(t, ServerNotConfigured, got.State)
+	assert.Empty(t, got.Reason)
 }
 
 func TestCheckServer_Unreachable(t *testing.T) {
@@ -273,6 +279,7 @@ func TestCheckServer_Unreachable(t *testing.T) {
 	assert.Equal(t, ServerNotFound, got.State)
 	assert.Equal(t, url, got.URL)
 	assert.NotEmpty(t, got.Error)
+	assert.Empty(t, got.Reason)
 }
 
 func TestUpdateSettings_ServerURLAppliedImmediately(t *testing.T) {
@@ -316,4 +323,13 @@ func TestUpdateSettings_IgnoresDirectModeKeys(t *testing.T) {
 			assert.NotEqual(t, tt.value, sdSvc.setURLVal)
 		})
 	}
+}
+
+func TestServerCheck_ReasonJSON(t *testing.T) {
+	t.Parallel()
+	b, err := json.Marshal(ServerCheck{State: ServerOutdated, Reason: "no_sdcpp"})
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(b, &m))
+	assert.Equal(t, "no_sdcpp", m["reason"])
 }

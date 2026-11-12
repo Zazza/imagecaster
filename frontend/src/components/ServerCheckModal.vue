@@ -14,6 +14,9 @@ const searched = ref(false)
 const address = ref(serverState.url || '')
 const busy = ref(false)
 const outdated = computed(() => serverState.state === 'outdated')
+const outdatedKind = computed(() => ({ old_version: 'old', no_sdcpp: 'forge' })[serverState.reason] || 'incompatible')
+const FEATURE_KEYS = { sdcpp: 'server.feature_sdcpp', download_stream: 'server.feature_download_stream', llamacpp: 'server.feature_llm', ollama: 'server.feature_llm' }
+const missingText = computed(() => [...new Set(serverState.missing.map(f => FEATURE_KEYS[f] ? t(FEATURE_KEYS[f]) : f))].join(', '))
 
 async function search() {
   searching.value = true
@@ -66,13 +69,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   <div class="modal-overlay">
     <div class="modal server-check-modal" role="dialog" aria-modal="true">
       <div class="modal-header">
-        <h2 class="server-check-title">{{ outdated ? t('server.outdated_title') : t('server.not_found_title') }}</h2>
+        <h2 class="server-check-title">{{ outdated ? t(`server.outdated_${outdatedKind}_title`) : t('server.not_found_title') }}</h2>
         <button class="modal-close" :title="t('welcome.close')" @click="close"><X :size="16" /></button>
       </div>
 
       <template v-if="outdated">
-        <p class="server-check-lead">{{ t('server.outdated_lead', { url: serverState.url, version: serverState.version || '?' }) }}</p>
-        <p class="server-check-lead dim">{{ t('server.outdated_models') }}</p>
+        <p class="server-check-lead">{{ t(`server.outdated_${outdatedKind}_lead`, { url: serverState.url, version: serverState.version || '?', missing: missingText }) }}</p>
+        <p v-if="outdatedKind === 'old'" class="server-check-lead dim">{{ t('server.outdated_models') }}</p>
       </template>
       <template v-else>
         <p class="server-check-lead">{{ serverState.url ? t('server.not_found_lead', { url: serverState.url }) : t('server.not_configured_lead') }}</p>
@@ -102,7 +105,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
       <p v-if="serverState.error && !outdated" class="server-check-lead err">{{ serverState.error }}</p>
 
       <div class="server-check-actions">
-        <button class="btn btn-secondary" @click="openInstall">{{ outdated ? t('server.how_to_update') : t('server.how_to_install') }}</button>
+        <button class="btn btn-secondary" @click="openInstall">{{ !outdated ? t('server.how_to_install') : outdatedKind === 'forge' ? t('server.server_guide') : t('server.how_to_update') }}</button>
         <span class="server-check-spacer"></span>
         <button class="btn btn-secondary" :disabled="busy || serverState.checking" @click="retry">{{ t('server.retry') }}</button>
         <button class="btn btn-secondary" @click="close">{{ t('server.close_limited') }}</button>

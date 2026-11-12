@@ -267,7 +267,7 @@ onUnmounted(() => {
     </aside>
     <div class="app-col">
     <div v-if="serverState.state && serverState.state !== 'ok' && !showServerCheck" class="server-banner">
-      <span>{{ serverState.state === 'outdated' ? t('server.banner_outdated') : t('server.banner_offline') }}</span>
+      <span>{{ serverState.state === 'outdated' ? t({ old_version: 'server.banner_outdated', no_sdcpp: 'server.banner_forge' }[serverState.reason] || 'server.banner_incompatible') : t('server.banner_offline') }}</span>
       <button class="btn btn-secondary btn-sm" @click="showServerCheck = true">{{ t('server.banner_fix') }}</button>
     </div>
     <main class="main">

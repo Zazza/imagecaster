@@ -7,6 +7,10 @@ const (
 	ServerNotConfigured = "not_configured"
 	ServerNotFound      = "not_found"
 	ServerOutdated      = "outdated"
+
+	ReasonOldVersion = "old_version"
+	ReasonNoSDCpp    = "no_sdcpp"
+	ReasonNoFeature  = "missing_features"
 )
 
 type ServerCheck struct {
@@ -14,6 +18,7 @@ type ServerCheck struct {
 	URL     string   `json:"url"`
 	Version string   `json:"version,omitempty"`
 	Missing []string `json:"missing,omitempty"`
+	Reason  string   `json:"reason,omitempty"`
 	Error   string   `json:"error,omitempty"`
 }
 
@@ -27,7 +32,19 @@ func (s *Service) CheckServer() ServerCheck {
 		return ServerCheck{State: ServerNotFound, URL: u, Error: err.Error()}
 	}
 	if missing := info.MissingFeatures(); len(missing) > 0 {
-		return ServerCheck{State: ServerOutdated, URL: u, Version: info.Version, Missing: missing}
+		return ServerCheck{State: ServerOutdated, URL: u, Version: info.Version, Missing: missing, Reason: outdatedReason(info.Features, missing)}
 	}
 	return ServerCheck{State: ServerOK, URL: u, Version: info.Version}
+}
+
+func outdatedReason(features, missing []string) string {
+	if len(features) == 0 {
+		return ReasonOldVersion
+	}
+	for _, m := range missing {
+		if m == "sdcpp" {
+			return ReasonNoSDCpp
+		}
+	}
+	return ReasonNoFeature
 }

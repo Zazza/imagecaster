@@ -195,11 +195,11 @@ describe('limited mode gate (condition 2)', () => {
   })
 })
 
-async function mountModal(state, { url = 'http://srv:7860', found = [], locale = 'ru' } = {}) {
+async function mountModal(state, { url = 'http://srv:7860', found = [], locale = 'ru', extra = {} } = {}) {
   const env = await load()
   env.i18n.setLocale(locale)
   env.App.DiscoverServers.mockResolvedValue(found)
-  env.App.CheckServer.mockResolvedValue(resp(state, { url }))
+  env.App.CheckServer.mockResolvedValue(resp(state, { url, ...extra }))
   await env.ss.checkServer()
   env.App.CheckServer.mockClear()
   const Modal = (await import('../components/ServerCheckModal.vue')).default
@@ -304,10 +304,102 @@ describe('ServerCheckModal (condition 3)', () => {
     expect(w.emitted('close')).toBeTruthy()
   })
 
-  it('outdated shows outdated text and does not search the network', async () => {
-    const { App, i18n, w } = await mountModal('outdated')
-    expect(w.text()).toContain(i18n.t('server.outdated_title'))
+  it('outdated does not search the network and shows no not_found text', async () => {
+    const { App, i18n, w } = await mountModal('outdated', { extra: { reason: 'old_version' } })
+    expect(w.text()).toContain(i18n.t('server.outdated_old_title'))
     expect(w.text()).not.toContain(i18n.t('server.not_found_title'))
     expect(App.DiscoverServers).not.toHaveBeenCalled()
+  })
+})
+
+const FEATURE_KEY = { sdcpp: 'server.feature_sdcpp', download_stream: 'server.feature_download_stream', llamacpp: 'server.feature_llm', ollama: 'server.feature_llm' }
+
+function featureText(t, missing) {
+  return [...new Set(missing.map(n => FEATURE_KEY[n] ? t(FEATURE_KEY[n]) : n))].join(', ')
+}
+
+const OUTDATED_TITLES = ['server.outdated_old_title', 'server.outdated_forge_title', 'server.outdated_incompatible_title']
+
+describe('ServerCheckModal outdated reasons', () => {
+  const cases = [
+    ['old_version', ['sdcpp', 'download_stream', 'llamacpp'], 'server.outdated_old_title', 'server.outdated_old_lead', true],
+    ['no_sdcpp', ['sdcpp'], 'server.outdated_forge_title', 'server.outdated_forge_lead', false],
+    ['missing_features', ['download_stream', 'llamacpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
+    ['', ['download_stream', 'llamacpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
+    ['something_new', ['download_stream', 'llamacpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
+    [undefined, ['download_stream', 'llamacpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
+  ]
+  for (const locale of ['ru', 'en']) {
+    it.each(cases)(`${locale}: reason %j shows its title, lead and models note`, async (reason, missing, title, lead, models) => {
+      const extra = { version: '1.5', missing }
+      if (reason !== undefined) extra.reason = reason
+      const { i18n, w } = await mountModal('outdated', { locale, extra })
+      const text = w.text()
+      expect(text).toContain(i18n.t(title))
+      for (const other of OUTDATED_TITLES.filter(k => k !== title)) expect(text).not.toContain(i18n.t(other))
+      expect(text).toContain(i18n.t(lead, { url: 'http://srv:7860', version: '1.5', missing: featureText(i18n.t, missing) }))
+      if (models) expect(text).toContain(i18n.t('server.outdated_models'))
+      else expect(text).not.toContain(i18n.t('server.outdated_models'))
+    })
+  }
+
+  it.each(['ru', 'en'])('%s: missing_features lead shows feature texts, not raw names, joined by comma', async (locale) => {
+    const { i18n, w } = await mountModal('outdated', { locale, extra: { reason: 'missing_features', missing: ['sdcpp', 'download_stream', 'llamacpp'] } })
+    const text = w.text()
+    expect(text).toContain([i18n.t('server.feature_sdcpp'), i18n.t('server.feature_download_stream'), i18n.t('server.feature_llm')].join(', '))
+    expect(text).not.toContain('download_stream')
+    expect(text).not.toContain('llamacpp')
+  })
+
+  it('llamacpp and ollama together appear once as feature_llm', async () => {
+    const { i18n, w } = await mountModal('outdated', { locale: 'en', extra: { reason: 'missing_features', missing: ['llamacpp', 'ollama', 'download_stream'] } })
+    const llm = i18n.t('server.feature_llm')
+    const text = w.text()
+    expect(text).toContain(`${llm}, ${i18n.t('server.feature_download_stream')}`)
+    expect(text.split(llm).length - 1).toBe(1)
+  })
+
+  it('an unknown feature name is shown as is', async () => {
+    const { i18n, w } = await mountModal('outdated', { locale: 'en', extra: { reason: 'missing_features', missing: ['download_stream', 'magic_x'] } })
+    expect(w.text()).toContain(`${i18n.t('server.feature_download_stream')}, magic_x`)
+  })
+
+  it.each([
+    ['outdated', 'no_sdcpp', 'server.server_guide'],
+    ['outdated', 'old_version', 'server.how_to_update'],
+    ['outdated', 'missing_features', 'server.how_to_update'],
+    ['outdated', '', 'server.how_to_update'],
+    ['outdated', 'something_new', 'server.how_to_update'],
+    ['not_found', '', 'server.how_to_install'],
+    ['not_configured', '', 'server.how_to_install'],
+  ])('%s with reason %j: guide button says %s', async (state, reason, key) => {
+    for (const locale of ['ru', 'en']) {
+      const { i18n, w } = await mountModal(state, { locale, url: state === 'not_configured' ? '' : 'http://srv:7860', extra: { reason } })
+      const labels = w.findAll('button').map(b => b.text())
+      expect(labels.some(l => l.includes(i18n.t(key))), `${locale} ${key}`).toBe(true)
+      for (const other of ['server.server_guide', 'server.how_to_update', 'server.how_to_install'].filter(k => k !== key)) {
+        expect(labels.some(l => l.includes(i18n.t(other))), `${locale} ${other}`).toBe(false)
+      }
+      w.unmount()
+    }
+  })
+})
+
+describe('serverState.reason', () => {
+  it.each(['old_version', 'no_sdcpp', 'missing_features'])('is filled from the check result: %s', async (reason) => {
+    const { App, ss } = await load()
+    App.CheckServer.mockResolvedValue(resp('outdated', { reason }))
+    await ss.checkServer()
+    expect(ss.serverState.reason).toBe(reason)
+  })
+
+  it('is empty when the result has no reason, also after a previous reason', async () => {
+    const { App, ss } = await load()
+    expect(ss.serverState.reason).toBe('')
+    App.CheckServer.mockResolvedValue(resp('outdated', { reason: 'no_sdcpp' }))
+    await ss.checkServer()
+    App.CheckServer.mockResolvedValue(resp('ok'))
+    await ss.checkServer()
+    expect(ss.serverState.reason).toBe('')
   })
 })
