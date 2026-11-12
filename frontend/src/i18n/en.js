@@ -394,6 +394,7 @@ export const en = {
   'settings.download_all_complete': 'Everything for the default presets is downloaded',
   'settings.download_all_optional': 'Models not used by presets (Krea 2, Qwen-Image, FLUX.3 and others) - use the model\'s Download button, it adds their presets',
   'settings.confirm_download_all': 'Download {count} files, {size} GB in total, to the server?',
+  'settings.download_file_of': 'File {n} of {total}: {name}',
   'settings.download_all_done': 'Everything for the presets is downloaded',
   'settings.installed_unverified': 'Model downloaded, text encoder unverified: the server does not list them',
   'welcome.tab_about': "What it is",

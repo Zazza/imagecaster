@@ -37,6 +37,7 @@ import {
   SaveWindowLayout, GetFooterHeight,
 } from './wailsjs/go/main/App.js'
 import * as AppBindings from './wailsjs/go/main/App.js'
+import { parseProgress } from './downloadProgress.js'
 
 export const api = {
   listPresets: () => ListPresets(),
@@ -156,13 +157,8 @@ export const api = {
           es.close()
           reject(new Error(e.data.slice(7).trim()))
         } else {
-          try {
-            const p = JSON.parse(e.data)
-            const pct = p.total > 0 ? ` (${p.percent.toFixed(1)}%)` : ''
-            onProgress(`${formatBytes(p.downloaded)} / ${p.total > 0 ? formatBytes(p.total) : '???'}${pct}`)
-          } catch {
-            onProgress(e.data)
-          }
+          const p = parseProgress(e.data)
+          onProgress(p.text, p.percent)
         }
       }
       es.onerror = () => {
@@ -185,7 +181,8 @@ export const api = {
           es.close()
           reject(new Error(e.data.slice(7).trim()))
         } else {
-          onProgress(e.data)
+          const p = parseProgress(e.data)
+          onProgress(p.text, p.percent)
         }
       }
       es.onerror = (e) => {
@@ -232,9 +229,3 @@ export const api = {
   getFooterHeight: () => GetFooterHeight(),
 }
 
-function formatBytes(b) {
-  if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB'
-  if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB'
-  if (b >= 1024) return (b / 1024).toFixed(1) + ' KB'
-  return b + ' B'
-}

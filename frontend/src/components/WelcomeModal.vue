@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import { t, locale } from '../i18n/index.js'
 import { RELEASE_NOTES } from '../releaseNotes.js'
 import { defaultDownloads, loadDefaultPlan, runDefaultPlan } from '../modelDownloads.js'
+import DownloadProgress from './DownloadProgress.vue'
 
 const props = defineProps({ tab: { type: String, default: 'about' } })
 const emit = defineEmits(['close', 'settings'])
@@ -78,7 +79,8 @@ const openSettings = () => emit('settings', dontShow.value)
             <button class="btn btn-primary btn-sm" @click="openSettings">{{ t('welcome.open_settings') }}</button>
           </template>
           <template v-else-if="plan">
-            <p v-if="defaultDownloads.running" class="welcome-progress">{{ defaultDownloads.progress }}</p>
+            <DownloadProgress v-if="defaultDownloads.running" wide class="welcome-progress" :percent="defaultDownloads.percent" :text="defaultDownloads.progress"
+              :label="defaultDownloads.steps ? t('settings.download_file_of', { n: defaultDownloads.step, total: defaultDownloads.steps, name: defaultDownloads.file }) : ''" />
             <template v-else-if="plan.items.length">
               <p class="welcome-lead">{{ t('welcome.models_missing', { count: plan.items.length, size: plan.total_gb }) }}</p>
               <button class="btn btn-primary btn-sm" @click="downloadAll">{{ t('settings.btn_download_all') }}</button>
@@ -120,7 +122,7 @@ const openSettings = () => emit('settings', dontShow.value)
 .welcome-lead.dim { color: var(--text-dim); font-size: 13px; }
 .welcome-lead.ok { color: var(--success); }
 .welcome-lead.err { color: var(--danger); font-size: 12px; }
-.welcome-progress { margin: 0 0 12px; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); overflow-wrap: anywhere; }
+.welcome-progress { margin: 0 0 12px; }
 .welcome-news { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
 .welcome-models { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
 .welcome-subtitle { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text-bright); }

@@ -7,6 +7,7 @@ import { t, locale } from '../i18n/index.js'
 import ToggleSwitch from './ToggleSwitch.vue'
 import PinModal from './PinModal.vue'
 import FoldBlock from './FoldBlock.vue'
+import DownloadProgress from './DownloadProgress.vue'
 
 const props = defineProps({
   initialTab: { type: String, default: 'connection' }
@@ -47,7 +48,28 @@ const processActionLoading = reactive({})
 const visibleLogs = reactive({})
 const processLogs = reactive({})
 const utilitiesExpanded = ref(false)
-const activeDownload = reactive({ type: '', name: '', progress: '', model: '' })
+const activeDownload = reactive({ type: '', name: '', progress: '', percent: null, model: '', step: 0, steps: 0 })
+const activeLabel = computed(() => (activeDownload.steps > 1
+  ? t('settings.download_file_of', { n: activeDownload.step, total: activeDownload.steps, name: activeDownload.name })
+  : ''))
+const defaultLabel = computed(() => (defaultDownloads.steps
+  ? t('settings.download_file_of', { n: defaultDownloads.step, total: defaultDownloads.steps, name: defaultDownloads.file })
+  : ''))
+
+function onDownloadProgress(text, percent) {
+  activeDownload.progress = text
+  activeDownload.percent = percent
+}
+
+function resetActiveDownload() {
+  activeDownload.type = ''
+  activeDownload.name = ''
+  activeDownload.progress = ''
+  activeDownload.percent = null
+  activeDownload.model = ''
+  activeDownload.step = 0
+  activeDownload.steps = 0
+}
 const catalogNotice = ref('')
 const defaultPlan = computed(() => defaultDownloads.plan)
 const modelPresets = ref({})
@@ -493,14 +515,14 @@ async function downloadSDModel(m) {
     const files = (m.modules || []).filter(mod => !hasServerFile(mod.type, mod.filename))
       .map(mod => ({ type: mod.type, url: mod.url, filename: mod.filename }))
     if (!hasServerFile('sd', sdMainFilename(m))) files.push({ type: 'sd', url: m.url, filename: sdMainFilename(m) })
-    for (const f of files) {
+    activeDownload.steps = files.length
+    for (const [i, f] of files.entries()) {
       activeDownload.type = f.type
       activeDownload.name = f.filename
-      activeDownload.progress = f.filename
+      activeDownload.step = i + 1
+      onDownloadProgress('', null)
       if (serverURL.value) {
-        await api.downloadServerModelStream(serverURL.value, f.type, f.url, f.filename, (line) => {
-          activeDownload.progress = f.filename + ': ' + line
-        })
+        await api.downloadServerModelStream(serverURL.value, f.type, f.url, f.filename, onDownloadProgress)
       } else {
         await api.downloadServerModel(f.type, f.url, f.filename)
       }
@@ -512,10 +534,7 @@ async function downloadSDModel(m) {
   } finally {
     await loadServerModels()
     delete modelActionLoading.dl_sd
-    activeDownload.type = ''
-    activeDownload.name = ''
-    activeDownload.progress = ''
-    activeDownload.model = ''
+    resetActiveDownload()
   }
 }
 
@@ -524,12 +543,10 @@ async function downloadModel(type, url, filename) {
   modelActionLoading[key] = true
   activeDownload.type = type
   activeDownload.name = filename
-  activeDownload.progress = 'Starting download...'
+  onDownloadProgress('', null)
   try {
     if (serverURL.value) {
-      await api.downloadServerModelStream(serverURL.value, type, url, filename, (line) => {
-        activeDownload.progress = line
-      })
+      await api.downloadServerModelStream(serverURL.value, type, url, filename, onDownloadProgress)
     } else {
       await api.downloadServerModel(type, url, filename)
     }
@@ -538,9 +555,7 @@ async function downloadModel(type, url, filename) {
     alert(t('settings.err_download', { error: String(e) }))
   } finally {
     delete modelActionLoading[key]
-    activeDownload.type = ''
-    activeDownload.name = ''
-    activeDownload.progress = ''
+    resetActiveDownload()
   }
 }
 
@@ -563,12 +578,10 @@ async function pullLLM(name) {
   modelActionLoading['pull_llm'] = true
   activeDownload.type = 'llm'
   activeDownload.name = name
-  activeDownload.progress = 'Starting pull...'
+  onDownloadProgress('', null)
   try {
     if (serverURL.value) {
-      await api.pullServerLLMModelStream(serverURL.value, name, (line) => {
-        activeDownload.progress = line
-      })
+      await api.pullServerLLMModelStream(serverURL.value, name, onDownloadProgress)
     } else {
       await api.pullServerLLMModel(name)
     }
@@ -578,9 +591,7 @@ async function pullLLM(name) {
     alert(t('settings.err_pull', { error: String(e) }))
   } finally {
     delete modelActionLoading['pull_llm']
-    activeDownload.type = ''
-    activeDownload.name = ''
-    activeDownload.progress = ''
+    resetActiveDownload()
   }
 }
 
@@ -1243,9 +1254,7 @@ onMounted(loadSettings)
                 {{ modelActionLoading['dl_sd'] ? t('settings.btn_downloading') : t('settings.btn_download_model') }}
               </button>
             </div>
-            <div v-if="activeDownload.progress && activeDownload.type === 'sd'" style="margin-top: 8px; padding: 6px 10px; background: var(--bg-dark); border-radius: 6px; color: var(--text-dim); font-size: 12px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              {{ activeDownload.progress }}
-            </div>
+            <DownloadProgress v-if="activeDownload.type === 'sd' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
           </div>
 
           <!-- LoRA -->
@@ -1281,9 +1290,7 @@ onMounted(loadSettings)
                 {{ modelActionLoading['pull_llm'] ? t('settings.btn_pulling') : t('settings.btn_pull_llm') }}
               </button>
             </div>
-            <div v-if="activeDownload.progress && activeDownload.type === 'llm'" style="margin-top: 8px; padding: 6px 10px; background: var(--bg-dark); border-radius: 6px; color: var(--text-dim); font-size: 12px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              {{ activeDownload.progress }}
-            </div>
+            <DownloadProgress v-if="activeDownload.type === 'llm' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
           </div>
         </template>
       </template>
@@ -1308,7 +1315,7 @@ onMounted(loadSettings)
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
             </div>
-            <span v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
+            <DownloadProgress v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
             <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
             <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
           </div>
@@ -1326,7 +1333,7 @@ onMounted(loadSettings)
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
             </div>
-            <span v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
+            <DownloadProgress v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
             <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
             <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
           </div>
@@ -1341,7 +1348,7 @@ onMounted(loadSettings)
               <div v-else style="color: var(--success);">{{ t('settings.download_all_complete') }}</div>
               <div>{{ t('settings.download_all_optional') }}</div>
             </div>
-            <span v-if="defaultDownloads.running" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ defaultDownloads.progress }}</span>
+            <DownloadProgress v-if="defaultDownloads.running" :percent="defaultDownloads.percent" :text="defaultDownloads.progress" :label="defaultLabel" />
             <button v-else-if="defaultPlan.items.length" class="btn btn-primary btn-sm" style="white-space: nowrap;" @click="downloadDefaultPlan" :disabled="!!modelActionLoading['dl_sd']">{{ t('settings.btn_download_all') }}</button>
           </div>
           <div v-if="catalogNotice" style="color: var(--success); font-size: 12px; margin: 8px 0;">{{ catalogNotice }}</div>
@@ -1364,7 +1371,7 @@ onMounted(loadSettings)
                 <div>{{ modelPresets[m.name].join(', ') }}</div>
               </details>
             </div>
-            <span v-if="activeDownload.model === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
+            <DownloadProgress v-if="activeDownload.model === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
             <span v-else-if="isSDModelInstalled(m) || isSDModelUnverified(m)" style="display: flex; gap: 8px; align-items: center; white-space: nowrap;">
               <button style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', sdMainFilename(m))">{{ t('settings.btn_delete_model') }}</button>
             </span>
@@ -1384,7 +1391,7 @@ onMounted(loadSettings)
               </div>
               <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_mb }} {{ t('settings.unit_mb') }}</div>
             </div>
-            <span v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
+            <DownloadProgress v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
             <button v-else-if="isCatalogInstalled('lora', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('lora', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
             <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('lora', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_lora']">{{ t('settings.btn_download_model') }}</button>
           </div>

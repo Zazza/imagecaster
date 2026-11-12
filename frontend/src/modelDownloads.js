@@ -5,6 +5,10 @@ export const defaultDownloads = reactive({
   plan: null,
   running: false,
   progress: '',
+  percent: null,
+  file: '',
+  step: 0,
+  steps: 0,
   failed: [],
   finished: false,
 })
@@ -25,13 +29,17 @@ export async function runDefaultPlan(serverURL) {
   defaultDownloads.finished = false
   defaultDownloads.failed = []
   try {
+    defaultDownloads.steps = plan.items.length
     for (const [i, f] of plan.items.entries()) {
-      const head = `${i + 1}/${plan.items.length} ${f.filename}`
-      defaultDownloads.progress = head
+      defaultDownloads.step = i + 1
+      defaultDownloads.file = f.filename
+      defaultDownloads.progress = ''
+      defaultDownloads.percent = null
       try {
         if (serverURL) {
-          await api.downloadServerModelStream(serverURL, f.type, f.url, f.filename, (line) => {
-            defaultDownloads.progress = head + ': ' + line
+          await api.downloadServerModelStream(serverURL, f.type, f.url, f.filename, (text, percent) => {
+            defaultDownloads.progress = text
+            defaultDownloads.percent = percent
           })
         } else {
           await api.downloadServerModel(f.type, f.url, f.filename)
@@ -43,6 +51,10 @@ export async function runDefaultPlan(serverURL) {
   } finally {
     defaultDownloads.running = false
     defaultDownloads.progress = ''
+    defaultDownloads.percent = null
+    defaultDownloads.file = ''
+    defaultDownloads.step = 0
+    defaultDownloads.steps = 0
     defaultDownloads.finished = true
     await loadDefaultPlan()
   }

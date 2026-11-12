@@ -381,6 +381,7 @@ export const ru = {
   'settings.download_all_complete': 'Всё для пресетов по умолчанию уже скачано',
   'settings.download_all_optional': 'Модели, которых нет в пресетах (Krea 2, Qwen-Image, FLUX.3 и другие), скачиваются кнопкой «Скачать» у модели вместе со своими пресетами',
   'settings.confirm_download_all': 'Скачать на сервер {count} файлов, всего {size} ГБ?',
+  'settings.download_file_of': 'Файл {n} из {total}: {name}',
   'settings.download_all_done': 'Всё для пресетов скачано',
   'settings.installed_unverified': 'Модель скачана, энкодер текста не проверить: сервер не показывает их список',
   'welcome.tab_about': "Что это",
