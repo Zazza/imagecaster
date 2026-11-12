@@ -5,6 +5,7 @@ All notable changes to Imagecaster are documented here.
 ## [Unreleased]
 
 ### Changed
+- Generate page rebuilt in the Post-Processing style: the image takes the wide left column, the controls live in a numbered accordion on the right (Create — style and description; Parameters; Style tweaks; Direct prompts), the page title is gone
 - Post-Processing page is tighter: the redundant page title is gone, side and inner paddings and the gaps between blocks are smaller, so the image and the controls take more of the window
 
 ## [1.5.0] — 2026-11-11

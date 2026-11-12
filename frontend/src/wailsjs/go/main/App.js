@@ -34,6 +34,10 @@ export function CancelQueueJob(arg1) {
   return window['go']['main']['App']['CancelQueueJob'](arg1);
 }
 
+export function CheckServer() {
+  return window['go']['main']['App']['CheckServer']();
+}
+
 export function CheckServices() {
   return window['go']['main']['App']['CheckServices']();
 }
@@ -158,6 +162,10 @@ export function DownloadServerModel(arg1, arg2, arg3) {
   return window['go']['main']['App']['DownloadServerModel'](arg1, arg2, arg3);
 }
 
+export function DownloadServerModelStream(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DownloadServerModelStream'](arg1, arg2, arg3, arg4);
+}
+
 export function EditImage(arg1) {
   return window['go']['main']['App']['EditImage'](arg1);
 }
@@ -168,6 +176,10 @@ export function EditObject(arg1) {
 
 export function EnqueueCompound(arg1) {
   return window['go']['main']['App']['EnqueueCompound'](arg1);
+}
+
+export function EnqueueEdit(arg1) {
+  return window['go']['main']['App']['EnqueueEdit'](arg1);
 }
 
 export function EnqueueFromImage(arg1) {
@@ -230,6 +242,10 @@ export function GetDefaultAnalyzePrompts() {
   return window['go']['main']['App']['GetDefaultAnalyzePrompts']();
 }
 
+export function GetDefaultDownloadPlan() {
+  return window['go']['main']['App']['GetDefaultDownloadPlan']();
+}
+
 export function GetDefaultEditGarmentPrompt() {
   return window['go']['main']['App']['GetDefaultEditGarmentPrompt']();
 }
@@ -266,16 +282,16 @@ export function GetModelCatalog() {
   return window['go']['main']['App']['GetModelCatalog']();
 }
 
+export function GetModelPresets() {
+  return window['go']['main']['App']['GetModelPresets']();
+}
+
 export function GetPreset(arg1) {
   return window['go']['main']['App']['GetPreset'](arg1);
 }
 
 export function GetPresetType(arg1) {
   return window['go']['main']['App']['GetPresetType'](arg1);
-}
-
-export function GetPresetsInstallStatus() {
-  return window['go']['main']['App']['GetPresetsInstallStatus']();
 }
 
 export function GetQueue() {
@@ -434,8 +450,16 @@ export function PreviewAdjust(arg1, arg2, arg3) {
   return window['go']['main']['App']['PreviewAdjust'](arg1, arg2, arg3);
 }
 
+export function PreviewPost(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PreviewPost'](arg1, arg2, arg3, arg4);
+}
+
 export function PullServerLLMModel(arg1) {
   return window['go']['main']['App']['PullServerLLMModel'](arg1);
+}
+
+export function PullServerLLMModelStream(arg1, arg2) {
+  return window['go']['main']['App']['PullServerLLMModelStream'](arg1, arg2);
 }
 
 export function ReadClipboardImage() {
@@ -476,6 +500,10 @@ export function ResumePausedQueueJobs() {
 
 export function ResumeQueue() {
   return window['go']['main']['App']['ResumeQueue']();
+}
+
+export function RetryQueueJob(arg1) {
+  return window['go']['main']['App']['RetryQueueJob'](arg1);
 }
 
 export function SaveExportPreset(arg1) {
@@ -526,6 +554,10 @@ export function SwitchSession(arg1) {
   return window['go']['main']['App']['SwitchSession'](arg1);
 }
 
+export function SyncPresets() {
+  return window['go']['main']['App']['SyncPresets']();
+}
+
 export function UpdateCompoundPreset(arg1) {
   return window['go']['main']['App']['UpdateCompoundPreset'](arg1);
 }
@@ -556,10 +588,6 @@ export function UpdateSettings(arg1) {
 
 export function UpscaleImage(arg1) {
   return window['go']['main']['App']['UpscaleImage'](arg1);
-}
-
-export function UpscalePreview(arg1) {
-  return window['go']['main']['App']['UpscalePreview'](arg1);
 }
 
 export function ValidateImportModels(arg1) {

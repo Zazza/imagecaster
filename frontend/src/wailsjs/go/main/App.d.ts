@@ -11,6 +11,7 @@ import {kids} from '../models';
 import {llm} from '../models';
 import {queue} from '../models';
 import {sd} from '../models';
+import {finish} from '../models';
 
 export function AnalyzeImage(arg1:string,arg2:string):Promise<string>;
 
@@ -27,6 +28,8 @@ export function BrowseDirectory(arg1:string):Promise<Array<filebrowser.FileEntry
 export function CancelQueue():Promise<void>;
 
 export function CancelQueueJob(arg1:number):Promise<void>;
+
+export function CheckServer():Promise<settings.ServerCheck>;
 
 export function CheckServices():Promise<settings.ServiceStatus>;
 
@@ -90,11 +93,15 @@ export function DiscoverServers():Promise<Array<serverclient.DiscoveredServer>>;
 
 export function DownloadServerModel(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function DownloadServerModelStream(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
 export function EditImage(arg1:generation.EditImageParams):Promise<generation.GenerateImageResult>;
 
 export function EditObject(arg1:generation.ObjectEditParams):Promise<generation.GenerateImageResult>;
 
 export function EnqueueCompound(arg1:generation.GenerateCompoundImageParams):Promise<number>;
+
+export function EnqueueEdit(arg1:generation.EditImageParams):Promise<number>;
 
 export function EnqueueFromImage(arg1:generation.GenerateFromImageParams):Promise<number>;
 
@@ -126,6 +133,8 @@ export function GetCompoundPreset(arg1:number):Promise<preset.CompoundPreset>;
 
 export function GetDefaultAnalyzePrompts():Promise<generation.AnalyzePrompts>;
 
+export function GetDefaultDownloadPlan():Promise<settings.DownloadPlan>;
+
 export function GetDefaultEditGarmentPrompt():Promise<string>;
 
 export function GetDefaultPromptInstruction():Promise<string>;
@@ -144,11 +153,11 @@ export function GetLastImage():Promise<generation.GenerateImageResult>;
 
 export function GetModelCatalog():Promise<serverclient.Catalog>;
 
+export function GetModelPresets():Promise<Record<string, Array<string>>>;
+
 export function GetPreset(arg1:number):Promise<preset.Preset>;
 
 export function GetPresetType(arg1:number):Promise<preset.PresetType>;
-
-export function GetPresetsInstallStatus():Promise<Array<preset.PresetInstallStatus>>;
 
 export function GetQueue():Promise<Array<queue.Job>>;
 
@@ -228,7 +237,11 @@ export function PreparePresetsExport(arg1:Array<number>):Promise<string>;
 
 export function PreviewAdjust(arg1:string,arg2:adjust.Params,arg3:number):Promise<string>;
 
+export function PreviewPost(arg1:string,arg2:adjust.Params,arg3:finish.Params,arg4:number):Promise<string>;
+
 export function PullServerLLMModel(arg1:string):Promise<void>;
+
+export function PullServerLLMModelStream(arg1:string,arg2:string):Promise<void>;
 
 export function ReadClipboardImage():Promise<string>;
 
@@ -249,6 +262,8 @@ export function RestartServerProcess(arg1:string):Promise<void>;
 export function ResumePausedQueueJobs():Promise<number>;
 
 export function ResumeQueue():Promise<void>;
+
+export function RetryQueueJob(arg1:number):Promise<void>;
 
 export function SaveExportPreset(arg1:preset.ExportPreset):Promise<preset.ExportPreset>;
 
@@ -274,6 +289,8 @@ export function StopServerProcess(arg1:string):Promise<void>;
 
 export function SwitchSession(arg1:number):Promise<void>;
 
+export function SyncPresets():Promise<settings.PresetSync>;
+
 export function UpdateCompoundPreset(arg1:preset.CompoundPreset):Promise<preset.CompoundPreset>;
 
 export function UpdateDescription(arg1:preset.SavedDescription):Promise<void>;
@@ -289,8 +306,6 @@ export function UpdateResolution(arg1:preset.Resolution):Promise<preset.Resoluti
 export function UpdateSettings(arg1:Record<string, string>):Promise<void>;
 
 export function UpscaleImage(arg1:generation.UpscaleImageParams):Promise<generation.GenerateImageResult>;
-
-export function UpscalePreview(arg1:generation.UpscalePreviewParams):Promise<generation.GenerateImageResult>;
 
 export function ValidateImportModels(arg1:Array<importexport.PresetData>):Promise<Array<importexport.ValidationWarning>>;
 

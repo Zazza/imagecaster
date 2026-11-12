@@ -1,5 +1,5 @@
 <script setup>
-import { Check, ChevronRight, Sparkles, TriangleAlert } from 'lucide-vue-next'
+import { Check, Sparkles, TriangleAlert } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
@@ -80,7 +80,11 @@ const showSavedDescs = ref(false)
 const showViewer = ref(false)
 const shownItemId = ref(null)
 
-const moreOptionsOpen = ref(false)
+const openSection = ref('main')
+
+function setOpenSection(name) {
+  openSection.value = name
+}
 
 const presetOverrides = ref(null)
 const overridesPanel = ref(null)
@@ -942,10 +946,7 @@ function onKeydown(e) {
 </script>
 
 <template>
-  <div>
-    <div class="page-header">
-      <h1 class="page-title">{{ t('generate.title') }}</h1>
-    </div>
+  <div class="page-enter gen-page">
 
     <div v-if="kidsModeActive" class="service-status">
       <div class="status-badge status-ok">
@@ -958,130 +959,8 @@ function onKeydown(e) {
     <StatusMessage v-if="successMsg && !error" kind="success" :timeout="8000" :text="successMsg" @close="successMsg = ''" />
     <StatusMessage v-if="pipelineSavedMsg" kind="ok" :timeout="8000" @close="pipelineSavedMsg = ''"><Check :size="14" class="inline-icon" /> {{ pipelineSavedMsg }}</StatusMessage>
 
-    <div class="generate-layout">
-      <div class="generate-section">
-        <div class="card">
-          <!-- Zone 1: Main flow (always visible) -->
-
-          <!-- Mode switcher -->
-          <div class="form-group" style="display: flex; gap: 8px;">
-            <button class="btn btn-sm" :class="genMode === 'preset' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'preset'" @click="genMode = 'preset'">{{ t('generate.btn_style') }}</button>
-            <button class="btn btn-sm" :class="genMode === 'compound' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'compound'" @click="genMode = 'compound'">{{ t('generate.btn_workflow') }}</button>
-            <button class="btn btn-sm" :class="genMode === 'custom' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'custom'" @click="genMode = 'custom'">{{ t('generate.btn_custom') }}</button>
-          </div>
-
-          <!-- Type & Style selector -->
-          <div v-if="genMode === 'preset'" class="form-group">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-              <div class="form-group">
-                <label class="form-label">{{ t('generate.label_type') }}</label>
-                <select class="form-select" v-model="selectedTypeId">
-                  <option :value="null">{{ t('generate.all_types') }}</option>
-                  <option v-for="pt in genTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">{{ t('generate.label_style') }}</label>
-                <select class="form-select" v-model="selectedPresetId">
-                  <option :value="null" disabled>{{ t('generate.select_style') }}</option>
-                  <option v-for="p in filteredPresets" :key="p.id" :value="p.id">{{ p.name }}</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="genMode === 'compound'" class="form-group">
-            <label class="form-label">{{ t('generate.label_workflow') }}</label>
-            <select class="form-select" v-model="selectedCompoundPresetId">
-              <option :value="null" disabled>{{ t('generate.select_workflow') }}</option>
-              <option v-for="c in compoundPresets" :key="c.id" :value="c.id">{{ c.name }} ({{ t('common.steps_n', { count: c.steps.length }) }})</option>
-            </select>
-          </div>
-
-          <div v-if="genMode === 'custom'" class="form-group">
-            <CustomPipelineEditor v-model="customSteps" :presets="presets" :disable-loras="kidsModeActive" />
-            <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
-              <button class="btn btn-sm btn-secondary" :disabled="!customValid" @click="openSavePipelineModal">{{ t('generate.save_pipeline') }}</button>
-            </div>
-          </div>
-
-          <!-- Description -->
-          <div class="form-group">
-            <label class="form-label">{{ t('generate.label_description') }}</label>
-            <textarea class="form-textarea" v-model="description" rows="4" :placeholder="t('generate.placeholder_description')"></textarea>
-            <div style="display: flex; gap: 8px; margin-top: 6px;">
-              <button class="btn btn-sm btn-secondary" @click="saveDescription" :disabled="!description.trim()">{{ t('generate.btn_save') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="showSavedDescs = !showSavedDescs">
-                {{ t('generate.saved_ideas') }} {{ savedDescs.length ? '(' + savedDescs.length + ')' : '' }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Generate button -->
-          <div style="display: flex; gap: 8px; width: 100%;">
-            <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center;" @click="generateImage" :disabled="generateDisabled">
-              <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
-                <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
-                {{ generationStage === 'prompt' ? t('generate.generating_prompt') : t('generate.generating_image') }}
-              </span>
-              <span v-else>{{ genCount <= 1 ? t('generate.btn_generate') : t('generate.btn_generate_n', { count: genCount }) }}</span>
-            </button>
-            <label class="gen-count" :title="t('generate.count_title')">
-              <input class="form-input" type="number" v-model.number="genCount" min="1" max="100" :aria-label="t('generate.count_title')" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
-              <span class="gen-count-unit">{{ t('generate.count_unit') }}</span>
-            </label>
-          </div>
-          <div v-if="isDesktop" class="shortcut-hint">{{ t('generate.shortcut_hint') }}</div>
-
-          <!-- Zone 2: More Options (collapsible) -->
-          <div style="margin-top: 12px;">
-            <button class="more-options-toggle" @click="moreOptionsOpen = !moreOptionsOpen">
-              <span class="more-options-arrow" :class="{ open: moreOptionsOpen }"><ChevronRight :size="14" /></span>
-              {{ t('generate.more_options') }}
-            </button>
-            <div class="more-options-content" :class="{ open: moreOptionsOpen }">
-              <div class="more-options-inner">
-                <div style="padding-top: 12px;">
-                  <div class="form-group">
-                    <label class="form-label">{{ t('generate.label_exclude') }}</label>
-                    <textarea class="form-textarea" v-model="negative" rows="2" :placeholder="t('generate.placeholder_exclude')"></textarea>
-                  </div>
-                  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
-                    <ResolutionSelector v-model="selectedResolutionId" />
-                  </div>
-                  <HiresProfileSelector v-model="selectedHiresProfileId" />
-                  <div v-if="genMode === 'preset' || genMode === 'custom'" class="form-group">
-                    <label class="form-label">{{ t('generate.seed_label') }}</label>
-                    <input class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
-                    <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ genMode === 'custom' ? t('generate.seed_hint_custom') : t('generate.seed_hint') }}</div>
-                  </div>
-                  <PresetOverridesPanel v-if="genMode === 'preset' && !kidsModeActive" ref="overridesPanel" v-model="presetOverrides" :preset-loras="selectedPresetLoras" />
-                  <div v-if="!kidsModeActive" class="direct-prompt">
-                    <div class="direct-prompt-title">{{ t('generate.advanced_options') }}</div>
-                    <div class="form-group">
-                      <label class="form-label">{{ t('generate.label_positive_prompt') }}</label>
-                      <textarea class="form-textarea" v-model="extraPrompt" rows="4" :placeholder="t('generate.placeholder_positive_prompt')"></textarea>
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">{{ t('generate.label_negative_prompt') }}</label>
-                      <textarea class="form-textarea" v-model="extraNegativePrompt" rows="2" :placeholder="t('generate.placeholder_negative_prompt')"></textarea>
-                    </div>
-                    <button class="btn btn-secondary" style="width: 100%; justify-content: center;" @click="sendToSD" :disabled="generateDisabled || !extraPrompt">
-                      {{ t('generate.btn_generate_directly') }}
-                    </button>
-                  </div>
-                  <div v-else class="direct-prompt" style="text-align: center; font-size: 12px; color: var(--text-dim);">
-                    {{ t('generate.safe_prompt_disabled') }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <div class="generate-section">
+    <div class="gen-workspace">
+      <div class="gen-preview-col">
         <div class="generate-image-area" :class="{ 'loading': generatingImage && !generatedImage, 'empty': !generatedImage && !generatingImage }">
           <div v-if="generatingImage && !generatedImage" style="text-align: center; padding: 24px;">
             <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" style="max-width: 100%; border-radius: var(--radius-sm); opacity: 0.6; image-rendering: pixelated;" />
@@ -1156,6 +1035,134 @@ function onKeydown(e) {
           </div>
         </details>
       </div>
+
+      <div class="gen-controls">
+        <div class="card" :class="{ collapsed: openSection !== 'main' }">
+          <div class="card-header card-toggle" @click="setOpenSection('main')">
+            <span class="card-heading"><span class="card-num mono">01</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_main') }}</span><span class="card-subtitle">{{ t('gen.sub_main') }}</span></span></span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'main' }">
+            <div class="card-body">
+              <div class="form-group" style="display: flex; gap: 8px;">
+                <button class="btn btn-sm" :class="genMode === 'preset' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'preset'" @click="genMode = 'preset'">{{ t('generate.btn_style') }}</button>
+                <button class="btn btn-sm" :class="genMode === 'compound' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'compound'" @click="genMode = 'compound'">{{ t('generate.btn_workflow') }}</button>
+                <button class="btn btn-sm" :class="genMode === 'custom' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'custom'" @click="genMode = 'custom'">{{ t('generate.btn_custom') }}</button>
+              </div>
+
+              <div v-if="genMode === 'preset'" class="form-group">
+                <div class="form-group">
+                  <label class="form-label">{{ t('generate.label_type') }}</label>
+                  <select class="form-select" v-model="selectedTypeId">
+                    <option :value="null">{{ t('generate.all_types') }}</option>
+                    <option v-for="pt in genTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">{{ t('generate.label_style') }}</label>
+                  <select class="form-select" v-model="selectedPresetId">
+                    <option :value="null" disabled>{{ t('generate.select_style') }}</option>
+                    <option v-for="p in filteredPresets" :key="p.id" :value="p.id">{{ p.name }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div v-if="genMode === 'compound'" class="form-group">
+                <label class="form-label">{{ t('generate.label_workflow') }}</label>
+                <select class="form-select" v-model="selectedCompoundPresetId">
+                  <option :value="null" disabled>{{ t('generate.select_workflow') }}</option>
+                  <option v-for="c in compoundPresets" :key="c.id" :value="c.id">{{ c.name }} ({{ t('common.steps_n', { count: c.steps.length }) }})</option>
+                </select>
+              </div>
+
+              <div v-if="genMode === 'custom'" class="form-group">
+                <CustomPipelineEditor v-model="customSteps" :presets="presets" :disable-loras="kidsModeActive" />
+                <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                  <button class="btn btn-sm btn-secondary" :disabled="!customValid" @click="openSavePipelineModal">{{ t('generate.save_pipeline') }}</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">{{ t('generate.label_description') }}</label>
+                <textarea class="form-textarea" v-model="description" rows="4" :placeholder="t('generate.placeholder_description')"></textarea>
+                <div style="display: flex; gap: 8px; margin-top: 6px;">
+                  <button class="btn btn-sm btn-secondary" @click="saveDescription" :disabled="!description.trim()">{{ t('generate.btn_save') }}</button>
+                  <button class="btn btn-sm btn-secondary" @click="showSavedDescs = !showSavedDescs">
+                    {{ t('generate.saved_ideas') }} {{ savedDescs.length ? '(' + savedDescs.length + ')' : '' }}
+                  </button>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 8px; width: 100%;">
+                <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center;" @click="generateImage" :disabled="generateDisabled">
+                  <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+                    {{ generationStage === 'prompt' ? t('generate.generating_prompt') : t('generate.generating_image') }}
+                  </span>
+                  <span v-else>{{ genCount <= 1 ? t('generate.btn_generate') : t('generate.btn_generate_n', { count: genCount }) }}</span>
+                </button>
+                <label class="gen-count" :title="t('generate.count_title')">
+                  <input class="form-input" type="number" v-model.number="genCount" min="1" max="100" :aria-label="t('generate.count_title')" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
+                  <span class="gen-count-unit">{{ t('generate.count_unit') }}</span>
+                </label>
+              </div>
+              <div v-if="isDesktop" class="shortcut-hint">{{ t('generate.shortcut_hint') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" :class="{ collapsed: openSection !== 'params' }">
+          <div class="card-header card-toggle" @click="setOpenSection('params')">
+            <span class="card-heading"><span class="card-num mono">02</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_params') }}</span><span class="card-subtitle">{{ t('gen.sub_params') }}</span></span></span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'params' }">
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">{{ t('generate.label_exclude') }}</label>
+                <textarea class="form-textarea" v-model="negative" rows="2" :placeholder="t('generate.placeholder_exclude')"></textarea>
+              </div>
+              <ResolutionSelector v-model="selectedResolutionId" />
+              <HiresProfileSelector v-model="selectedHiresProfileId" />
+              <div v-if="genMode === 'preset' || genMode === 'custom'" class="form-group">
+                <label class="form-label">{{ t('generate.seed_label') }}</label>
+                <input class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
+                <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ genMode === 'custom' ? t('generate.seed_hint_custom') : t('generate.seed_hint') }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="genMode === 'preset' && !kidsModeActive" class="card" :class="{ collapsed: openSection !== 'overrides' }">
+          <div class="card-header card-toggle" @click="setOpenSection('overrides')">
+            <span class="card-heading"><span class="card-num mono">03</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_overrides') }}</span><span class="card-subtitle">{{ t('gen.sub_overrides') }}</span></span></span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'overrides' }">
+            <div class="card-body">
+              <PresetOverridesPanel ref="overridesPanel" v-model="presetOverrides" :preset-loras="selectedPresetLoras" />
+            </div>
+          </div>
+        </div>
+
+        <div v-if="!kidsModeActive" class="card" :class="{ collapsed: openSection !== 'prompts' }">
+          <div class="card-header card-toggle" @click="setOpenSection('prompts')">
+            <span class="card-heading"><span class="card-num mono">04</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_prompts') }}</span><span class="card-subtitle">{{ t('gen.sub_prompts') }}</span></span></span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'prompts' }">
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">{{ t('generate.label_positive_prompt') }}</label>
+                <textarea class="form-textarea" v-model="extraPrompt" rows="4" :placeholder="t('generate.placeholder_positive_prompt')"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">{{ t('generate.label_negative_prompt') }}</label>
+                <textarea class="form-textarea" v-model="extraNegativePrompt" rows="2" :placeholder="t('generate.placeholder_negative_prompt')"></textarea>
+              </div>
+              <button class="btn btn-secondary" style="width: 100%; justify-content: center;" @click="sendToSD" :disabled="generateDisabled || !extraPrompt">
+                {{ t('generate.btn_generate_directly') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <SavedDescriptionsModal
@@ -1222,3 +1229,144 @@ function onKeydown(e) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.gen-page {
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.gen-workspace {
+  display: flex;
+  gap: 10px;
+  height: calc(100vh - 124px - var(--titlebar-h, 32px) - var(--frame-pad, 6px));
+  min-height: 480px;
+}
+
+.gen-preview-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.gen-controls {
+  width: 360px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.gen-controls > .card {
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.gen-controls > .card + .card {
+  border-top: 1px solid var(--border);
+}
+
+.gen-controls .card-header {
+  padding: 9px 12px;
+  border-bottom: none;
+}
+
+.gen-controls > .card.collapsed .card-header:hover {
+  background: var(--surface-2);
+}
+
+.gen-controls > .card:not(.collapsed) {
+  border-color: var(--accent);
+}
+
+.gen-controls > .card:not(.collapsed) .card-num {
+  color: var(--accent);
+}
+
+.gen-controls .card-collapse > .card-body {
+  padding: 10px 12px 12px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.card-num {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.card-heading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--text-dim);
+}
+
+.card-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-toggle .card-title {
+  font-weight: 600;
+}
+
+.card-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.card-collapse.collapsed {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.15s ease;
+}
+
+.card-collapse > .card-body {
+  overflow: hidden;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .gen-workspace {
+    flex-direction: column;
+    height: auto;
+  }
+  .gen-controls {
+    width: auto;
+  }
+}
+</style>

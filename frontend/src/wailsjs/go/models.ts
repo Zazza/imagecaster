@@ -80,6 +80,35 @@ export namespace filebrowser {
 
 }
 
+export namespace finish {
+	
+	export class Params {
+	    ratio?: string;
+	    fit?: string;
+	    offset?: number;
+	    frame?: string;
+	    caption?: string;
+	    caption_pos?: string;
+	    caption_size?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Params(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ratio = source["ratio"];
+	        this.fit = source["fit"];
+	        this.offset = source["offset"];
+	        this.frame = source["frame"];
+	        this.caption = source["caption"];
+	        this.caption_pos = source["caption_pos"];
+	        this.caption_size = source["caption_size"];
+	    }
+	}
+
+}
+
 export namespace generation {
 	
 	export class AnalyzePrompts {
@@ -194,6 +223,7 @@ export namespace generation {
 	    output_mode?: string;
 	    resolution_id?: number;
 	    seed?: number;
+	    model?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new EditImageParams(source);
@@ -210,6 +240,7 @@ export namespace generation {
 	        this.output_mode = source["output_mode"];
 	        this.resolution_id = source["resolution_id"];
 	        this.seed = source["seed"];
+	        this.model = source["model"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -315,6 +346,8 @@ export namespace generation {
 	    hires_profile_id?: number;
 	    seed?: number;
 	    overrides?: PresetOverrides;
+	    mask_base64?: string;
+	    keep_color?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateFromImageParams(source);
@@ -336,6 +369,8 @@ export namespace generation {
 	        this.hires_profile_id = source["hires_profile_id"];
 	        this.seed = source["seed"];
 	        this.overrides = this.convertValues(source["overrides"], PresetOverrides);
+	        this.mask_base64 = source["mask_base64"];
+	        this.keep_color = source["keep_color"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -363,7 +398,6 @@ export namespace generation {
 	    resolution_id?: number;
 	    hires_profile_id?: number;
 	    seed?: number;
-	    full_size?: boolean;
 	    overrides?: PresetOverrides;
 	    idea?: string;
 	    idea_negative?: string;
@@ -380,7 +414,6 @@ export namespace generation {
 	        this.resolution_id = source["resolution_id"];
 	        this.hires_profile_id = source["hires_profile_id"];
 	        this.seed = source["seed"];
-	        this.full_size = source["full_size"];
 	        this.overrides = this.convertValues(source["overrides"], PresetOverrides);
 	        this.idea = source["idea"];
 	        this.idea_negative = source["idea_negative"];
@@ -408,7 +441,6 @@ export namespace generation {
 	    image: string;
 	    parameters: number[];
 	    info: number[];
-	    is_preview: boolean;
 	    hires_fix_skipped: boolean;
 	    hires_fix_manual: boolean;
 	    quality_upscale_skipped?: boolean;
@@ -418,6 +450,7 @@ export namespace generation {
 	    edit_reference_reset_failed?: boolean;
 	    preserve_identity_reset_failed?: boolean;
 	    detected_object?: string;
+	    session_item_id?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateImageResult(source);
@@ -428,7 +461,6 @@ export namespace generation {
 	        this.image = source["image"];
 	        this.parameters = source["parameters"];
 	        this.info = source["info"];
-	        this.is_preview = source["is_preview"];
 	        this.hires_fix_skipped = source["hires_fix_skipped"];
 	        this.hires_fix_manual = source["hires_fix_manual"];
 	        this.quality_upscale_skipped = source["quality_upscale_skipped"];
@@ -438,6 +470,7 @@ export namespace generation {
 	        this.edit_reference_reset_failed = source["edit_reference_reset_failed"];
 	        this.preserve_identity_reset_failed = source["preserve_identity_reset_failed"];
 	        this.detected_object = source["detected_object"];
+	        this.session_item_id = source["session_item_id"];
 	    }
 	}
 	export class GenerateSDPromptParams {
@@ -546,28 +579,6 @@ export namespace generation {
 	        this.image_base64 = source["image_base64"];
 	        this.gen_info = source["gen_info"];
 	        this.preset_id = source["preset_id"];
-	    }
-	}
-	export class UpscalePreviewParams {
-	    preview_image_base64: string;
-	    preset_id: number;
-	    seed: number;
-	    denoising_strength?: number;
-	    resolution_id?: number;
-	    hires_profile_id?: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new UpscalePreviewParams(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.preview_image_base64 = source["preview_image_base64"];
-	        this.preset_id = source["preset_id"];
-	        this.seed = source["seed"];
-	        this.denoising_strength = source["denoising_strength"];
-	        this.resolution_id = source["resolution_id"];
-	        this.hires_profile_id = source["hires_profile_id"];
 	    }
 	}
 
@@ -735,6 +746,7 @@ export namespace importexport {
 	    quality: number;
 	    interpolation: string;
 	    adjust?: adjust.Params;
+	    finish?: finish.Params;
 	    filename: string;
 	    output_dir?: string;
 	
@@ -752,6 +764,7 @@ export namespace importexport {
 	        this.quality = source["quality"];
 	        this.interpolation = source["interpolation"];
 	        this.adjust = this.convertValues(source["adjust"], adjust.Params);
+	        this.finish = this.convertValues(source["finish"], finish.Params);
 	        this.filename = source["filename"];
 	        this.output_dir = source["output_dir"];
 	    }
@@ -1494,7 +1507,9 @@ export namespace serverclient {
 	    base: string;
 	    category: string;
 	    default_weight: number;
+	    category_ru?: string;
 	    description: string;
+	    description_ru?: string;
 	    url?: string;
 	    size_mb: number;
 	
@@ -1508,19 +1523,44 @@ export namespace serverclient {
 	        this.base = source["base"];
 	        this.category = source["category"];
 	        this.default_weight = source["default_weight"];
+	        this.category_ru = source["category_ru"];
 	        this.description = source["description"];
+	        this.description_ru = source["description_ru"];
 	        this.url = source["url"];
 	        this.size_mb = source["size_mb"];
+	    }
+	}
+	export class CatalogModule {
+	    type: string;
+	    filename: string;
+	    url: string;
+	    size_gb: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CatalogModule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.filename = source["filename"];
+	        this.url = source["url"];
+	        this.size_gb = source["size_gb"];
 	    }
 	}
 	export class CatalogSDModel {
 	    name: string;
 	    base: string;
 	    category: string;
+	    category_ru?: string;
 	    description: string;
+	    description_ru?: string;
 	    url?: string;
 	    size_gb: number;
 	    recommended?: boolean;
+	    filename?: string;
+	    modules?: CatalogModule[];
+	    presets?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CatalogSDModel(source);
@@ -1531,15 +1571,39 @@ export namespace serverclient {
 	        this.name = source["name"];
 	        this.base = source["base"];
 	        this.category = source["category"];
+	        this.category_ru = source["category_ru"];
 	        this.description = source["description"];
+	        this.description_ru = source["description_ru"];
 	        this.url = source["url"];
 	        this.size_gb = source["size_gb"];
 	        this.recommended = source["recommended"];
+	        this.filename = source["filename"];
+	        this.modules = this.convertValues(source["modules"], CatalogModule);
+	        this.presets = source["presets"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class CatalogModel {
 	    name: string;
 	    description: string;
+	    description_ru?: string;
 	    size_gb: number;
 	    recommended?: boolean;
 	
@@ -1551,6 +1615,7 @@ export namespace serverclient {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.description = source["description"];
+	        this.description_ru = source["description_ru"];
 	        this.size_gb = source["size_gb"];
 	        this.recommended = source["recommended"];
 	    }
@@ -1591,6 +1656,7 @@ export namespace serverclient {
 		    return a;
 		}
 	}
+	
 	
 	
 	
@@ -1781,6 +1847,112 @@ export namespace serverclient {
 
 export namespace settings {
 	
+	export class DownloadItem {
+	    type: string;
+	    filename: string;
+	    url: string;
+	    size_gb: number;
+	    model: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.filename = source["filename"];
+	        this.url = source["url"];
+	        this.size_gb = source["size_gb"];
+	        this.model = source["model"];
+	    }
+	}
+	export class DownloadPlan {
+	    items: DownloadItem[];
+	    total_gb: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadPlan(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], DownloadItem);
+	        this.total_gb = source["total_gb"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PresetSync {
+	    statuses: preset.PresetInstallStatus[];
+	    added: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PresetSync(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.statuses = this.convertValues(source["statuses"], preset.PresetInstallStatus);
+	        this.added = source["added"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ServerCheck {
+	    state: string;
+	    url: string;
+	    version?: string;
+	    missing?: string[];
+	    reason?: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.url = source["url"];
+	        this.version = source["version"];
+	        this.missing = source["missing"];
+	        this.reason = source["reason"];
+	        this.error = source["error"];
+	    }
+	}
 	export class ServiceInfo {
 	    available: boolean;
 	    model: string;
