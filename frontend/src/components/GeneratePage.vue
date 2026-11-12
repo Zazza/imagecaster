@@ -83,6 +83,7 @@ const shownItemId = ref(null)
 const openSection = ref('main')
 
 function setOpenSection(name) {
+  if (openSection.value === name) return
   openSection.value = name
 }
 
@@ -1093,7 +1094,7 @@ function onKeydown(e) {
               </div>
 
               <div style="display: flex; gap: 8px; width: 100%;">
-                <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center;" @click="generateImage" :disabled="generateDisabled">
+                <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" style="justify-content: center;" @click="generateImage" :disabled="generateDisabled">
                   <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
                     <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
                     {{ generationStage === 'prompt' ? t('generate.generating_prompt') : t('generate.generating_image') }}
@@ -1368,5 +1369,27 @@ function onKeydown(e) {
   .gen-controls {
     width: auto;
   }
+}
+</style>
+<style scoped>
+/* Картинка результата — по центру и в размер колонки, как превью Постобработки */
+.gen-preview-col .generate-image-area > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.gen-preview-col .generate-image-area img {
+  max-width: 100%;
+  max-height: calc(100vh - 220px);
+  object-fit: contain;
+  object-position: center;
+}
+</style>
+<style scoped>
+/* Кнопка генерации — обычный размер, не на всю ширину */
+.gen-controls .btn-generate {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
 }
 </style>
