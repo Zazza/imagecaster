@@ -13,7 +13,7 @@
 | Облачные сервисы | ничего | подписка или оплата генераций | кому не на чем запускать модель у себя |
 | **Imagecaster** | **ничего: стиль и описание обычными словами** | **бесплатно, на своём железе** | **кто хочет картинку, а не настройки** |
 
-> **Примечание:** Imagecaster подключается к локальному Stable Diffusion WebUI ([Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) — см. [гайд по настройке](docs/setup-ru.md)) и к [OpenAI-совместимому LLM](https://ollama.com). Оба работают на вашем железе — без облака, подписок и утечки данных.
+> **Примечание:** Imagecaster работает через [Imagecaster Server](https://github.com/Zazza/imagecaster-server), который запускает модели картинок и текста на вашей видеокарте — см. [настройку](docs/setup-ru.md). Всё работает на вашем железе — без облака, подписок и утечки данных.
 
 ---
 
@@ -111,14 +111,9 @@
 
 ## Требования
 
-### Внешние сервисы
+### Imagecaster Server
 
-Imagecaster подключается к двум сервисам в вашей сети:
-
-- **Stable Diffusion WebUI** — нужен [Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) с флагом `--api` (на A1111 и оригинальном Forge — только базовая генерация). Из коробки работают современные модели (Z-Image Turbo, FLUX.1 fp8, Moss-Image — каталог умеет их скачивать). По умолчанию: `http://localhost:7860`. См. [гайд по настройке](docs/setup-ru.md).
-- **LLM API** — любой OpenAI-совместимый сервер: [Ollama](https://ollama.com/), [llama.cpp](https://github.com/ggerganov/llama.cpp) или [LM Studio](https://lmstudio.ai/). По умолчанию: `http://localhost:11434/v1`
-
-Проще всего — [Imagecaster Server](https://github.com/Zazza/imagecaster-server): сам ставит Forge Neo и Ollama на компьютер с видеокартой, запускает их и скачивает модели из каталога.
+Imagecaster работает только через [Imagecaster Server](https://github.com/Zazza/imagecaster-server) на компьютере с видеокартой NVIDIA — этом или другом в локальной сети. Сервер сам ставит движки картинок и текста, запускает их и скачивает модели из каталога. Приложение находит его в сети само; без сервера оно открывается в ограниченном режиме. См. [настройку](docs/setup-ru.md).
 
 ### Разработка
 
@@ -169,8 +164,8 @@ make build   # продакшн-бинарник → build/bin/imagecaster
 | Десктоп | [Wails](https://wails.io/) v2 |
 | Фронтенд | Vue 3 + Vite |
 | База данных | SQLite (чистый Go, без CGo) |
-| LLM | OpenAI-совместимый API |
-| Генерация | Stable Diffusion WebUI API (Forge Neo) |
+| LLM | Imagecaster Server (llama.cpp) |
+| Генерация | Imagecaster Server (sd.cpp) |
 
 ## Как это работает
 

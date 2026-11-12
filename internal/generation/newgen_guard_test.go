@@ -46,7 +46,7 @@ func dbWithLegacyModelLists(t *testing.T, value string) *preset.DB {
 func heavyOnlyDeficit(t *testing.T, db *preset.DB, model string) (bool, int32) {
 	t.Helper()
 	vram := llm.LoadedModel{Name: "llama3:latest", Size: gibI(12), SizeVRAM: gibI(10)}
-	llmSvc := &guardLLM{backend: llm.BackendOllama, listLoadedFn: loadedOnce([]llm.LoadedModel{vram})}
+	llmSvc := &guardLLM{listLoadedFn: loadedOnce([]llm.LoadedModel{vram})}
 	sdSvc := &guardSD{stats: cudaStats(gib(10), gib(16))}
 	g := NewMemoryGuard(llmSvc, sdSvc, db, logger.New(nil))
 	got := g.EnsureHeadroom(model, "[test]")

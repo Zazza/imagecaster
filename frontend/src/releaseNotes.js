@@ -11,6 +11,9 @@ export const RELEASE_NOTES = [
       'На macOS у окна родные кнопки слева в цветном заголовке приложения. Заголовок неактивного окна приглушается.',
       'Кнопки и значки приведены к одному виду: плоская главная кнопка, понятный вид недоступных кнопок, видимый фокус с клавиатуры. Каталог моделей — ровные строки с плашками «Установлено», «Рекомендуется» и базой модели.',
       'В узком окне меню сворачивается в значки с подсказками, и страница больше не пропадает.',
+      'Приложение работает только через Imagecaster Server. Прямое подключение к Forge, Ollama, LM Studio и llama.cpp убрано, в настройках остался один адрес сервера.',
+      'При запуске приложение проверяет сервер. Не нашло или сервер устарел — окно с поиском в сети, вводом адреса и ссылкой на установку или обновление. Окно можно закрыть: библиотека и история работают, генерация ждёт сервер, сверху видна полоса с кнопкой проверки.',
+      'Кто раньше подключался напрямую, ничего настраивать не нужно: приложение само ищет сервер на компьютере, где работали Forge или Ollama.',
     ],
     en: [
       'Moss was removed from Edit, Effect and Preserve face: the new fast generation engine cannot edit photos with it.',
@@ -22,6 +25,9 @@ export const RELEASE_NOTES = [
       'On macOS the window uses the native buttons on the left of the app title bar. The title bar dims when the window is inactive.',
       'Buttons and icons share one look: a flat primary button, clear disabled state and a visible keyboard focus. The model catalog has even rows with Installed, Recommended and base-model badges.',
       'In a narrow window the menu collapses to icons with tooltips, and the page no longer disappears.',
+      'The app works only through Imagecaster Server. Direct connection to Forge, Ollama, LM Studio and llama.cpp is gone; settings keep one server address.',
+      'On start the app checks the server. If it is missing or outdated, a window searches the network, takes an address and links to the install or update guide. The window can be closed: library and history work, generation waits for the server, and a banner on top offers a re-check.',
+      'If you connected directly before, there is nothing to set up: the app looks for the server on the computer where Forge or Ollama ran.',
     ],
   },
   {

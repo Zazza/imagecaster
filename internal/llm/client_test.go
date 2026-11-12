@@ -218,7 +218,7 @@ func TestChat_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(server.URL, BackendLMStudio)
+	client := New(server.URL)
 	result, err := client.Chat("test-model", "system prompt", "user message", 0.7, 100)
 	if err != nil {
 		t.Fatalf("Chat() error: %v", err)
@@ -267,7 +267,7 @@ func TestGenerateSDPrompt_Temperature(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := New(server.URL, BackendLMStudio)
+			client := New(server.URL)
 			result, err := client.GenerateSDPrompt("system prompt", "a warrior in a forest", tt.presetType, "test-model", 100)
 			require.NoError(t, err)
 			require.Equal(t, "generated prompt output", result)
@@ -285,7 +285,7 @@ func TestChat_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(server.URL, BackendLMStudio)
+	client := New(server.URL)
 	_, err := client.Chat("model", "sys", "user", 0.5, 50)
 	if err == nil {
 		t.Fatal("expected error for 500 response")
@@ -303,50 +303,13 @@ func TestChat_EmptyChoices(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(server.URL, BackendLMStudio)
+	client := New(server.URL)
 	_, err := client.Chat("model", "sys", "user", 0.5, 50)
 	if err == nil {
 		t.Fatal("expected error for empty choices")
 	}
 	if !strings.Contains(err.Error(), "empty response") {
 		t.Errorf("error = %q, want to contain 'empty response'", err.Error())
-	}
-}
-
-func TestGetModels_OpenAI(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/models" {
-			t.Errorf("expected /v1/models, got %s", r.URL.Path)
-		}
-
-		result := struct {
-			Data []LLMModel `json:"data"`
-		}{
-			Data: []LLMModel{
-				{ID: "model-a", Object: "model"},
-				{ID: "model-b", Object: "model"},
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
-	}))
-	defer server.Close()
-
-	client := New(server.URL, BackendLMStudio)
-	models, err := client.GetModels()
-	if err != nil {
-		t.Fatalf("GetModels() error: %v", err)
-	}
-	if len(models) != 2 {
-		t.Fatalf("expected 2 models, got %d", len(models))
-	}
-	if models[0].ID != "model-a" {
-		t.Errorf("models[0].ID = %q, want %q", models[0].ID, "model-a")
-	}
-	if models[1].ID != "model-b" {
-		t.Errorf("models[1].ID = %q, want %q", models[1].ID, "model-b")
 	}
 }
 
@@ -375,7 +338,7 @@ func TestGetModels_Ollama(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(server.URL, BackendOllama)
+	client := New(server.URL)
 	models, err := client.GetModels()
 	if err != nil {
 		t.Fatalf("GetModels() error: %v", err)
@@ -397,7 +360,7 @@ func TestGetModels_HTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(server.URL, BackendLMStudio)
+	client := New(server.URL)
 	_, err := client.GetModels()
 	if err == nil {
 		t.Fatal("expected error for unavailable server")
@@ -413,7 +376,7 @@ func TestHealthCheck_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(server.URL, BackendLMStudio)
+	client := New(server.URL)
 	if err := client.HealthCheck(); err != nil {
 		t.Fatalf("HealthCheck() error: %v", err)
 	}
@@ -425,7 +388,7 @@ func TestHealthCheck_Failure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(server.URL, BackendLMStudio)
+	client := New(server.URL)
 	err := client.HealthCheck()
 	if err == nil {
 		t.Fatal("expected error for unhealthy server")
@@ -436,7 +399,7 @@ func TestHealthCheck_Failure(t *testing.T) {
 }
 
 func TestHealthCheck_ConnectionRefused(t *testing.T) {
-	client := New("http://127.0.0.1:0", BackendLMStudio)
+	client := New("http://127.0.0.1:0")
 	err := client.HealthCheck()
 	if err == nil {
 		t.Fatal("expected error for connection refused")
@@ -463,7 +426,7 @@ func TestListLoaded(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := New(server.URL, BackendOllama)
+		client := New(server.URL)
 		loaded, err := client.ListLoaded()
 		require.NoError(t, err)
 		require.Len(t, loaded, 2)
@@ -483,26 +446,10 @@ func TestListLoaded(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := New(server.URL, BackendOllama)
+		client := New(server.URL)
 		loaded, err := client.ListLoaded()
 		require.NoError(t, err)
 		assert.Empty(t, loaded)
-	})
-
-	t.Run("non ollama backend returns nil without request", func(t *testing.T) {
-		t.Parallel()
-		var requests atomic.Int32
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requests.Add(1)
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		client := New(server.URL, BackendLMStudio)
-		loaded, err := client.ListLoaded()
-		require.NoError(t, err)
-		assert.Nil(t, loaded)
-		assert.Zero(t, requests.Load())
 	})
 }
 
@@ -543,7 +490,7 @@ func TestUnloadAll(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := New(server.URL, BackendOllama)
+		client := New(server.URL)
 		require.NoError(t, client.UnloadAll(context.Background()))
 
 		mu.Lock()
@@ -572,22 +519,8 @@ func TestUnloadAll(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := New(server.URL, BackendOllama)
+		client := New(server.URL)
 		require.NoError(t, client.UnloadAll(context.Background()))
 		assert.Zero(t, generateCalls.Load())
-	})
-
-	t.Run("non ollama backend no-op", func(t *testing.T) {
-		t.Parallel()
-		var requests atomic.Int32
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requests.Add(1)
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		client := New(server.URL, BackendLMStudio)
-		require.NoError(t, client.UnloadAll(context.Background()))
-		assert.Zero(t, requests.Load())
 	})
 }

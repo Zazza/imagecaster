@@ -13,7 +13,7 @@
 | Cloud services | nothing | subscription or pay per generation | people with no hardware to run a model |
 | **Imagecaster** | **nothing: a style and a plain-language description** | **free, on your hardware** | **people who want the image, not the settings** |
 
-> **Note:** Imagecaster connects to your local Stable Diffusion WebUI ([Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) — see [Setup Guide](docs/setup-en.md)) and an [OpenAI-compatible LLM](https://ollama.com). Both run on your hardware — no cloud, no subscriptions, no data leaving your machine.
+> **Note:** Imagecaster works through [Imagecaster Server](https://github.com/Zazza/imagecaster-server), which runs the image and text models on your graphics card — see [Setup](docs/setup-en.md). Everything runs on your hardware — no cloud, no subscriptions, no data leaving your machine.
 
 ---
 
@@ -111,14 +111,9 @@ Details and the full preset list: [Models and Presets](docs/models-en.md).
 
 ## Requirements
 
-### External Services
+### Imagecaster Server
 
-Imagecaster connects to two services on your local network:
-
-- **Stable Diffusion WebUI** — [Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) required, run with `--api` (A1111 and the original Forge cover basic generation only). Works with modern models out of the box (Z-Image Turbo, FLUX.1 fp8, Moss-Image — the catalog can download them). Default: `http://localhost:7860`. See [Setup guide](docs/setup-en.md).
-- **LLM API** — any OpenAI-compatible server: [Ollama](https://ollama.com/), [llama.cpp](https://github.com/ggerganov/llama.cpp), or [LM Studio](https://lmstudio.ai/). Default: `http://localhost:11434/v1`
-
-Easiest: [Imagecaster Server](https://github.com/Zazza/imagecaster-server) installs Forge Neo and Ollama on the computer with the graphics card, runs them and downloads models from the catalog.
+Imagecaster works only through [Imagecaster Server](https://github.com/Zazza/imagecaster-server) on a computer with an NVIDIA graphics card — this one or another on your local network. The server installs the image and text engines, runs them and downloads models from the catalog. The app finds it on the network by itself; without it the app opens in limited mode. See [Setup](docs/setup-en.md).
 
 ### Development
 
@@ -169,8 +164,8 @@ The server component has been extracted to a separate repository: [imagecaster-s
 | Desktop | [Wails](https://wails.io/) v2 |
 | Frontend | Vue 3 + Vite |
 | Database | SQLite (pure Go, no CGo) |
-| LLM | OpenAI-compatible API |
-| Image Gen | Stable Diffusion WebUI API (Forge Neo) |
+| LLM | Imagecaster Server (llama.cpp) |
+| Image Gen | Imagecaster Server (sd.cpp) |
 
 ## How It Works
 

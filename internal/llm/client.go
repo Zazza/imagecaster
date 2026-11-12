@@ -19,20 +19,15 @@ const maxLLMResponseBodySize = 10 * 1024 * 1024
 
 type Client struct {
 	baseURL    string
-	backend    string
 	backendCfg BackendConfig
 	httpClient *http.Client
 }
 
 var _ Service = (*Client)(nil)
 
-func New(baseURL, backend string) *Client {
-	if backend == "" {
-		backend = BackendLMStudio
-	}
+func New(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
-		backend: backend,
 		httpClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
@@ -91,13 +86,10 @@ func (c *Client) Chat(model, systemPrompt, userMessage string, temperature float
 		Stream:      false,
 	}
 
-	if c.backend == BackendOllama {
-		reqBody.KeepAlive = c.backendCfg.KeepAlive
-		opts := ChatOptions{
-			NumCtx: c.backendCfg.NumCtx,
-			NumGPU: c.backendCfg.NumGPU,
-		}
-		reqBody.Options = &opts
+	reqBody.KeepAlive = c.backendCfg.KeepAlive
+	reqBody.Options = &ChatOptions{
+		NumCtx: c.backendCfg.NumCtx,
+		NumGPU: c.backendCfg.NumGPU,
 	}
 
 	url := c.baseURL + "/v1/chat/completions"
@@ -106,27 +98,7 @@ func (c *Client) Chat(model, systemPrompt, userMessage string, temperature float
 }
 
 func (c *Client) ChatVision(model, systemPrompt, userText, imageBase64 string, temperature float64, maxTokens int) (string, error) {
-	if c.backend == BackendOllama {
-		return c.chatVisionOllama(model, systemPrompt, userText, imageBase64, temperature, maxTokens)
-	}
-	reqBody := ChatRequest{
-		Model: model,
-		Messages: []Message{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: []ContentPart{
-				{Type: "text", Text: userText},
-				{Type: "image_url", ImageURL: &ImageURLPart{URL: "data:image/png;base64," + imageBase64}},
-			}},
-		},
-		Temperature:      temperature,
-		MaxTokens:        maxTokens,
-		FrequencyPenalty: 0.3,
-		PresencePenalty:  0.2,
-		Stream:           false,
-	}
-	url := c.baseURL + "/v1/chat/completions"
-	logPrefix := fmt.Sprintf("[LLM Vision] POST %s model=%s", url, model)
-	return c.doChatRequest(reqBody, logPrefix)
+	return c.chatVisionOllama(model, systemPrompt, userText, imageBase64, temperature, maxTokens)
 }
 
 type ollamaVisionMessage struct {
@@ -299,13 +271,10 @@ func (c *Client) ChatWithMessages(model string, messages []Message, temperature 
 		Stream:      false,
 	}
 
-	if c.backend == BackendOllama {
-		reqBody.KeepAlive = c.backendCfg.KeepAlive
-		opts := ChatOptions{
-			NumCtx: c.backendCfg.NumCtx,
-			NumGPU: c.backendCfg.NumGPU,
-		}
-		reqBody.Options = &opts
+	reqBody.KeepAlive = c.backendCfg.KeepAlive
+	reqBody.Options = &ChatOptions{
+		NumCtx: c.backendCfg.NumCtx,
+		NumGPU: c.backendCfg.NumGPU,
 	}
 
 	url := c.baseURL + "/v1/chat/completions"
@@ -390,29 +359,15 @@ func (c *Client) SetURL(baseURL string) {
 	c.baseURL = baseURL
 }
 
-func (c *Client) SetBackend(backend string) {
-	c.backend = backend
-}
-
 func (c *Client) SetBackendConfig(cfg BackendConfig) {
 	c.backendCfg = cfg
 }
 
-func (c *Client) Backend() string {
-	return c.backend
-}
-
 func (c *Client) ListLoaded() ([]LoadedModel, error) {
-	if c.backend != BackendOllama {
-		return nil, nil
-	}
 	return c.listOllamaLoaded()
 }
 
 func (c *Client) UnloadAll(ctx context.Context) error {
-	if c.backend != BackendOllama {
-		return nil
-	}
 	return c.unloadOllamaAll(ctx)
 }
 
@@ -422,28 +377,5 @@ type LLMModel struct {
 }
 
 func (c *Client) GetModels() ([]LLMModel, error) {
-	if c.backend == BackendOllama {
-		return c.getOllamaModels()
-	}
-	return c.getOpenAIModels()
-}
-
-func (c *Client) getOpenAIModels() ([]LLMModel, error) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, c.baseURL+"/v1/models", nil)
-	if err != nil {
-		return nil, fmt.Errorf("get models: %w", err)
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("get models: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Data []LLMModel `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode models: %w", err)
-	}
-	return result.Data, nil
+	return c.getOllamaModels()
 }

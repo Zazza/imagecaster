@@ -12,6 +12,8 @@ import SettingsPage from './components/SettingsPage.vue'
 import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
 import WelcomeModal from './components/WelcomeModal.vue'
+import ServerCheckModal from './components/ServerCheckModal.vue'
+import { serverState, checkServer } from './serverState.js'
 import { WELCOME_KEY, welcomeClosed, isFreshInstall, startupTab } from './welcome.js'
 import { RELEASE_NOTES } from './releaseNotes.js'
 import { loadDefaultPlan } from './modelDownloads.js'
@@ -19,6 +21,26 @@ import { loadDefaultPlan } from './modelDownloads.js'
 const page = ref('generate')
 const APP_VERSION = RELEASE_NOTES[0]?.version || ''
 const welcome = ref(null)
+const showServerCheck = ref(false)
+
+async function startup() {
+  if (await checkServer() === 'ok') {
+    initWelcome()
+    return
+  }
+  showServerCheck.value = true
+}
+
+function onServerReady() {
+  showServerCheck.value = false
+  initWelcome()
+}
+
+function onServerCheckClose() {
+  showServerCheck.value = false
+  serverState.dismissed = true
+  initWelcome()
+}
 
 function readWelcome() {
   try { return JSON.parse(localStorage.getItem(WELCOME_KEY) || 'null') } catch { return null }
@@ -179,7 +201,7 @@ onMounted(async () => {
       document.documentElement.setAttribute('data-theme', s.theme)
     }
   } catch {}
-  initWelcome()
+  startup()
   window.addEventListener('beforeunload', () => {
     api.saveWindowLayout(0).catch(() => {})
   })
@@ -244,6 +266,10 @@ onUnmounted(() => {
       </div>
     </aside>
     <div class="app-col">
+    <div v-if="serverState.state && serverState.state !== 'ok' && !showServerCheck" class="server-banner">
+      <span>{{ serverState.state === 'outdated' ? t('server.banner_outdated') : t('server.banner_offline') }}</span>
+      <button class="btn btn-secondary btn-sm" @click="showServerCheck = true">{{ t('server.banner_fix') }}</button>
+    </div>
     <main class="main">
       <SettingsPage v-show="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
       <template v-if="page !== 'settings'">
@@ -256,6 +282,7 @@ onUnmounted(() => {
     <AppFooter @navigate="onNavigate" />
     </div>
     </div>
-    <WelcomeModal v-if="welcome" :tab="welcome" @close="closeWelcome" @settings="welcomeToSettings" />
+    <ServerCheckModal v-if="showServerCheck" @ready="onServerReady" @close="onServerCheckClose" />
+    <WelcomeModal v-if="welcome && !showServerCheck" :tab="welcome" @close="closeWelcome" @settings="welcomeToSettings" />
   </div>
 </template>

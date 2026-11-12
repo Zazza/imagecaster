@@ -302,3 +302,52 @@ func (c *Client) RestartProcess(name string) error {
 	}
 	return nil
 }
+
+type ServerInfo struct {
+	Name     string   `json:"name"`
+	Version  string   `json:"version"`
+	Status   string   `json:"status"`
+	Features []string `json:"features"`
+}
+
+const ServerName = "Imagecaster Server"
+
+var RequiredFeatures = []string{"sdcpp", "download_stream"}
+
+var probeHTTPClient = &http.Client{Timeout: 3 * time.Second}
+
+func Probe(baseURL string) (*ServerInfo, error) {
+	resp, err := probeHTTPClient.Get(strings.TrimRight(baseURL, "/") + "/")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	var info ServerInfo
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64*1024)).Decode(&info); err != nil {
+		return nil, err
+	}
+	if info.Name != ServerName {
+		return nil, fmt.Errorf("not an Imagecaster server: %q", info.Name)
+	}
+	return &info, nil
+}
+
+func (i *ServerInfo) MissingFeatures() []string {
+	have := map[string]bool{}
+	for _, f := range i.Features {
+		have[f] = true
+	}
+	var missing []string
+	for _, f := range RequiredFeatures {
+		if !have[f] {
+			missing = append(missing, f)
+		}
+	}
+	if !have["llamacpp"] && !have["ollama"] {
+		missing = append(missing, "llamacpp")
+	}
+	return missing
+}

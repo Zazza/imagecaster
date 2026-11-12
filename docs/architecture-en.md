@@ -10,7 +10,7 @@
 | Desktop | Wails v2 |
 | Frontend | Vue 3 + Vite |
 | Database | SQLite (modernc.org/sqlite, no ORM) |
-| AI — text | LLM (Ollama / LM Studio / OpenAI-compatible API) |
+| AI — text | LLM via Imagecaster Server (llama.cpp) |
 | AI — images | Stable Diffusion WebUI API |
 | Containerization | Docker |
 
@@ -100,7 +100,7 @@ Backend → Frontend communication via `runtime.EventsEmit(ctx, eventName, data)
 │ llm  │   sd   │ preset   │ queue    │ generation │
 │Client│ Client │   DB     │ Service  │  Service   │
 ├──────┴────────┴──────────┴──────────┴────────────┤
-│  Ollama/LM Studio  │  SD WebUI  │  SQLite        │
+│ Imagecaster Server │  (HTTP)    │  SQLite        │
 └────────────────────┴────────────┴────────────────┘
 ```
 
@@ -158,7 +158,6 @@ All configuration is done via environment variables (env):
 | `LLM_URL` | LLM API URL | `http://localhost:1234` |
 | `SD_URL` | SD WebUI API URL | `http://localhost:7860` |
 | `LLM_MODEL` | Model for prompt generation | — |
-| `LLM_BACKEND` | `ollama` or `lmstudio` | `lmstudio` |
 | `PORT` | Application port | `8080` |
 | `DB_PATH` | SQLite database path | `data/presets.db` |
 

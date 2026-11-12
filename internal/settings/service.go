@@ -105,12 +105,9 @@ func (s *Service) GetSettings() (map[string]string, error) {
 	}
 
 	defaults := map[string]string{
-		"llm_url":                     s.cfg.LLMUrl,
-		"sd_url":                      s.cfg.SDUrl,
 		"llm_model":                   s.cfg.LLMModel,
 		"sd_prompt_model":             s.cfg.SDPromptModel,
 		"vision_model":                s.cfg.VisionModel,
-		"llm_backend":                 s.cfg.LLMBackend,
 		"llm_keep_alive":              "5m",
 		"llm_num_ctx":                 "4096",
 		"llm_num_gpu":                 "-1",
@@ -135,7 +132,6 @@ func (s *Service) GetSettings() (map[string]string, error) {
 		"kids_cat_weapons":            "true",
 		"kids_cat_substances":         "true",
 		"kids_cat_mature":             "true",
-		"connection_mode":             "direct",
 		"server_url":                  "",
 	}
 	for k, v := range defaults {
@@ -146,8 +142,19 @@ func (s *Service) GetSettings() (map[string]string, error) {
 	return settings, nil
 }
 
+func NormalizeServerURL(raw string) string {
+	v := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if v != "" && !strings.Contains(v, "://") {
+		v = "http://" + v
+	}
+	return v
+}
+
 func (s *Service) UpdateSettings(data map[string]string) error {
-	urlFields := map[string]bool{"llm_url": true, "sd_url": true, "server_url": true}
+	if v, ok := data["server_url"]; ok {
+		data["server_url"] = NormalizeServerURL(v)
+	}
+	urlFields := map[string]bool{"server_url": true}
 	for k, v := range data {
 		if urlFields[k] && v != "" {
 			if _, err := url.Parse(v); err != nil {
@@ -178,55 +185,9 @@ func (s *Service) UpdateSettings(data map[string]string) error {
 		}
 	}
 
-	// Handle server mode switching
-	if mode, ok := data["connection_mode"]; ok {
-		if mode == "server" {
-			serverURL := data["server_url"]
-			if savedURL, err := s.db.GetSetting("server_url"); err == nil && savedURL != "" {
-				serverURL = savedURL
-			}
-			if serverURL != "" && s.serverClient != nil {
-				s.serverClient.SetBaseURL(serverURL)
-				sdURL, llmURL := s.serverClient.ProxyURLs()
-				s.llm.SetURL(llmURL)
-				s.sd.SetURL(sdURL)
-				s.llm.SetBackend("ollama")
-				s.cfg.LLMUrl = llmURL
-				s.cfg.SDUrl = sdURL
-				s.cfg.LLMBackend = "ollama"
-				s.log.Info("Switched to server mode: %s", serverURL)
-			}
-		} else {
-			// Direct mode — restore saved direct URLs
-			if v, err := s.db.GetSetting("llm_url"); err == nil && v != "" {
-				s.llm.SetURL(v)
-				s.cfg.LLMUrl = v
-			}
-			if v, err := s.db.GetSetting("sd_url"); err == nil && v != "" {
-				s.sd.SetURL(v)
-				s.cfg.SDUrl = v
-			}
-			if v, err := s.db.GetSetting("llm_backend"); err == nil && v != "" {
-				s.llm.SetBackend(v)
-				s.cfg.LLMBackend = v
-			}
-			s.log.Info("Switched to direct mode")
-		}
-	}
-
-	if v, ok := data["llm_url"]; ok {
-		mode, _ := s.db.GetSetting("connection_mode")
-		if mode != "server" {
-			s.llm.SetURL(v)
-			s.cfg.LLMUrl = v
-		}
-	}
-	if v, ok := data["sd_url"]; ok {
-		mode, _ := s.db.GetSetting("connection_mode")
-		if mode != "server" {
-			s.sd.SetURL(v)
-			s.cfg.SDUrl = v
-		}
+	if v, ok := data["server_url"]; ok && v != "" && s.serverClient != nil {
+		ApplyServerURL(v, s.cfg, s.llm, s.sd, s.serverClient)
+		s.log.Info("Server: %s", v)
 	}
 	if v, ok := data["llm_model"]; ok {
 		s.cfg.LLMModel = v
@@ -236,13 +197,6 @@ func (s *Service) UpdateSettings(data map[string]string) error {
 	}
 	if v, ok := data["vision_model"]; ok {
 		s.cfg.VisionModel = v
-	}
-	if v, ok := data["llm_backend"]; ok {
-		mode, _ := s.db.GetSetting("connection_mode")
-		if mode != "server" {
-			s.llm.SetBackend(v)
-			s.cfg.LLMBackend = v
-		}
 	}
 	if v, ok := data["llm_generate_model"]; ok && v != "" {
 		s.cfg.SDPromptModel = v

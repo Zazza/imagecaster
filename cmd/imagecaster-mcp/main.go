@@ -45,7 +45,7 @@ func main() {
 	}
 	defer db.Close()
 
-	llmClient := llm.New(cfg.LLMUrl, cfg.LLMBackend)
+	llmClient := llm.New(cfg.LLMUrl)
 	sdClient := sd.New(cfg.SDUrl)
 	srvClient := serverclient.NewClient()
 

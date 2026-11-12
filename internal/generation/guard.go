@@ -71,9 +71,6 @@ func (g *MemoryGuard) decide(modelName, logPrefix string) bool {
 	if g.setting("llm_auto_unload", "true") == "false" {
 		return false
 	}
-	if g.llm.Backend() != llm.BackendOllama {
-		return false
-	}
 	loaded, err := g.llm.ListLoaded()
 	if err != nil {
 		g.log.Warn("%s: memory guard: list loaded models: %s", logPrefix, err)

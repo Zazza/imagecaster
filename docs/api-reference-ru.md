@@ -243,17 +243,18 @@ api.setLastImage(base64: string): Promise<void>
 ```typescript
 api.getSettings(): Promise<Record<string, string>>
 api.updateSettings(data: Record<string, string>): Promise<void>
+api.checkServer(): Promise<ServerCheck>
 ```
+
+`ServerCheck`: `{ state, url, version, missing, error }`. `state` — `ok`, `not_configured` (нет `server_url`), `not_found` (сервер не отвечает), `outdated` (в `GET /` нет нужных `features`: `sdcpp`, `download_stream`, `llamacpp` или `ollama`; `missing` — каких именно). Вызовы генерации фронт отклоняет, пока состояние не `ok`.
 
 **Ключи настроек:**
 | Ключ | Описание |
 |------|----------|
-| `llm_url` | URL LLM API |
-| `sd_url` | URL SD WebUI |
+| `server_url` | Адрес Imagecaster Server |
 | `llm_generate_model` | Модель для генерации промптов |
 | `llm_analyze_model` | Модель для vision анализа |
 | `sd_prompt_instruction` | System prompt для генерации SD промптов |
-| `llm_backend` | `ollama` / `lmstudio` |
 | `kids_mode` | `true` / `false` |
 
 ---

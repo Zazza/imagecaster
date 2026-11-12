@@ -100,9 +100,7 @@ func (m *mockLLM) AnalyzeImageDescribe(model, prompt, imageBase64 string, maxTok
 func (m *mockLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
 func (m *mockLLM) HealthCheck() error                     { return nil }
 func (m *mockLLM) SetURL(baseURL string)                  {}
-func (m *mockLLM) SetBackend(backend string)              {}
 func (m *mockLLM) SetBackendConfig(cfg llm.BackendConfig) {}
-func (m *mockLLM) Backend() string                        { return "" }
 func (m *mockLLM) ListLoaded() ([]llm.LoadedModel, error) { return nil, nil }
 func (m *mockLLM) UnloadAll(ctx context.Context) error    { return nil }
 

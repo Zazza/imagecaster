@@ -46,7 +46,7 @@ func RegisterTools(s *Server) {
 			if err := s.deps.LLM.HealthCheck(); err != nil {
 				res["llm"] = map[string]any{"available": false, "error": err.Error()}
 			} else {
-				res["llm"] = map[string]any{"available": true, "url": s.deps.Cfg.LLMUrl, "backend": s.deps.LLM.Backend()}
+				res["llm"] = map[string]any{"available": true, "url": s.deps.Cfg.LLMUrl}
 			}
 			return toJSON(res), nil
 		},

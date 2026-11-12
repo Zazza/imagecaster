@@ -9,7 +9,7 @@ All core components are created in `main.go` and injected via constructors:
 ```go
 cfg := config.Load()
 presets, _ := preset.Open(cfg.DBPath)
-llmClient := llm.New(cfg.LLMUrl, cfg.LLMBackend)
+llmClient := llm.New(cfg.LLMUrl)
 sdClient := sd.New(cfg.SDUrl)
 app := NewApp(presets, llmClient, sdClient, cfg)
 ```
@@ -24,7 +24,6 @@ type Config struct {
     LLMModel       string  // env: LLM_MODEL
     SDPromptModel  string  // env: SD_PROMPT_MODEL (alias for LLMModel)
     VisionModel    string  // env: VISION_MODEL
-    LLMBackend     string  // env: LLM_BACKEND (ollama/lmstudio)
     Port           string  // env: PORT
     DBPath         string  // env: DB_PATH
     SystemPrompt   string  // env: SYSTEM_PROMPT

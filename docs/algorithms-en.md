@@ -135,12 +135,9 @@ A preset contains all generation parameters. The resolution logic (the same for 
 
 ## 6. LLM Integration
 
-### Backends
+### Server API
 
-| Backend | KeepAlive | Options | Features |
-|---------|-----------|---------|----------|
-| Ollama | Yes (configurable) | num_ctx, num_gpu | Automatic model unloading |
-| LM Studio | No | — | — |
+The app always talks to the server in Ollama format: `/v1/chat/completions` (text), `/api/chat` (vision), `/api/tags` (models), `/api/ps` and `keep_alive: 0` (unloading). `keep_alive`, `num_ctx` and `num_gpu` come from settings.
 
 ### LLM Modes
 

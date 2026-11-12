@@ -12,9 +12,7 @@ type Service interface {
 	GetModels() ([]LLMModel, error)
 	HealthCheck() error
 	SetURL(baseURL string)
-	SetBackend(backend string)
 	SetBackendConfig(cfg BackendConfig)
-	Backend() string
 	ListLoaded() ([]LoadedModel, error)
 	UnloadAll(ctx context.Context) error
 }

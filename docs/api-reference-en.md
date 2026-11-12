@@ -243,17 +243,18 @@ api.setLastImage(base64: string): Promise<void>
 ```typescript
 api.getSettings(): Promise<Record<string, string>>
 api.updateSettings(data: Record<string, string>): Promise<void>
+api.checkServer(): Promise<ServerCheck>
 ```
+
+`ServerCheck`: `{ state, url, version, missing, error }`. `state` — `ok`, `not_configured` (no `server_url`), `not_found` (server does not answer), `outdated` (`GET /` lacks required `features`: `sdcpp`, `download_stream`, `llamacpp` or `ollama`; `missing` lists them). Generation calls are rejected on the frontend until the state is `ok`.
 
 **Settings keys:**
 | Key | Description |
 |-----|-------------|
-| `llm_url` | LLM API URL |
-| `sd_url` | SD WebUI URL |
+| `server_url` | Imagecaster Server address |
 | `llm_generate_model` | Model for prompt generation |
 | `llm_analyze_model` | Model for vision analysis |
 | `sd_prompt_instruction` | System prompt for SD prompt generation |
-| `llm_backend` | `ollama` / `lmstudio` |
 | `kids_mode` | `true` / `false` |
 
 ---

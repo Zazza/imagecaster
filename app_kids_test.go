@@ -22,7 +22,7 @@ func newTestApp(t *testing.T) (*App, *preset.DB) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	cfg := &config.Config{LLMModel: "test-llm-model", SDPromptModel: "test-sd-model"}
-	app := NewApp(db, llm.New("http://localhost:1234", "lmstudio"), sd.New("http://localhost:7860"), serverclient.NewClient(), cfg)
+	app := NewApp(db, llm.New("http://localhost:1234"), sd.New("http://localhost:7860"), serverclient.NewClient(), cfg)
 	return app, db
 }
 
@@ -46,7 +46,7 @@ func TestCheckServices_LLMModelField(t *testing.T) {
 	defer db.Close()
 
 	cfg := &config.Config{LLMModel: "my-llm-model", SDPromptModel: "my-sd-model"}
-	app := NewApp(db, llm.New(llmSrv.URL, "lmstudio"), sd.New(sdSrv.URL), serverclient.NewClient(), cfg)
+	app := NewApp(db, llm.New(llmSrv.URL), sd.New(sdSrv.URL), serverclient.NewClient(), cfg)
 
 	status := app.CheckServices()
 	assert.True(t, status.LLM.Available)
@@ -57,9 +57,9 @@ func TestCheckServices_LLMModelField(t *testing.T) {
 
 func TestUpdateSettings_InvalidURL(t *testing.T) {
 	app, _ := newTestApp(t)
-	err := app.UpdateSettings(map[string]string{"llm_url": "::not-a-url"})
+	err := app.UpdateSettings(map[string]string{"server_url": "::not-a-url"})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid llm_url")
+	assert.Contains(t, err.Error(), "invalid server_url")
 }
 
 func TestUpdateSettings_ValidURL(t *testing.T) {
@@ -91,7 +91,7 @@ func TestUpdateSettings_ValidNumeric(t *testing.T) {
 }
 
 func TestLLMInterface(t *testing.T) {
-	var _ llm.Service = llm.New("http://localhost:1234", "lmstudio")
+	var _ llm.Service = llm.New("http://localhost:1234")
 }
 
 func TestSDInterface(t *testing.T) {

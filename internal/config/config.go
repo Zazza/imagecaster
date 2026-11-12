@@ -12,7 +12,6 @@ type Config struct {
 	LLMModel        string
 	SDPromptModel   string
 	VisionModel     string
-	LLMBackend      string
 	Port            string
 	DBPath          string
 	SystemPrompt    string
@@ -200,7 +199,6 @@ func Load() *Config {
 	return &Config{
 		LLMUrl:        env("LLM_URL", "http://localhost:1234"),
 		SDUrl:         env("SD_URL", "http://localhost:7860"),
-		LLMBackend:    env("LLM_BACKEND", "lmstudio"),
 		LLMModel:      env("LLM_MODEL", "openai/gpt-oss-20b"),
 		SDPromptModel: env("SD_PROMPT_MODEL", "default"),
 		Port:          env("PORT", "8080"),

@@ -88,11 +88,9 @@ Key-value хранилище настроек.
 
 | Ключ | Описание | Default |
 |------|----------|---------|
-| `llm_url` | URL LLM API | `http://localhost:1234` |
-| `sd_url` | URL SD WebUI | `http://localhost:7860` |
+| `server_url` | Адрес Imagecaster Server | — |
 | `llm_generate_model` | Модель для промптов | из env |
 | `llm_analyze_model` | Модель для vision | из env |
-| `llm_backend` | ollama/lmstudio | из env |
 | `llm_max_tokens` | Max tokens | `256` |
 | `llm_keep_alive` | Ollama keep_alive | `5m` |
 | `llm_num_ctx` | Ollama context | `4096` |

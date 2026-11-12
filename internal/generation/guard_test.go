@@ -21,15 +21,12 @@ var (
 )
 
 type guardLLM struct {
-	backend      string
 	listLoadedFn func(call int) ([]llm.LoadedModel, error)
 	unloadAllFn  func(ctx context.Context) error
 
 	listLoadedCalls atomic.Int32
 	unloadAllCalls  atomic.Int32
 }
-
-func (m *guardLLM) Backend() string { return m.backend }
 
 func (m *guardLLM) ListLoaded() ([]llm.LoadedModel, error) {
 	call := int(m.listLoadedCalls.Add(1))
@@ -74,7 +71,6 @@ func (m *guardLLM) AnalyzeImageDescribe(model, prompt, imageBase64 string, maxTo
 func (m *guardLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
 func (m *guardLLM) HealthCheck() error                     { return nil }
 func (m *guardLLM) SetURL(baseURL string)                  {}
-func (m *guardLLM) SetBackend(backend string)              {}
 func (m *guardLLM) SetBackendConfig(cfg llm.BackendConfig) {}
 
 type guardSD struct {
@@ -162,7 +158,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		name            string
 		model           string
 		autoUnload      string
-		backend         string
 		listLoadedFn    func(call int) ([]llm.LoadedModel, error)
 		stats           *sd.MemoryStats
 		memoryErr       error
@@ -175,7 +170,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "empty model name skips guard",
 			model:           "",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			stats:           cudaStats(gib(3), gib(8)),
 			want:            false,
@@ -186,7 +180,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 			name:            "auto unload disabled by setting",
 			model:           "flux1-dev-fp8",
 			autoUnload:      "false",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			stats:           cudaStats(gib(3), gib(8)),
 			want:            false,
@@ -196,7 +189,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "non heavy sdxl model deficit with relief unloads llm",
 			model:           "riMix_v10",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    loadedOnce([]llm.LoadedModel{vramHeavy}),
 			stats:           cudaStats(gib(3), gib(8)),
 			want:            true,
@@ -205,7 +197,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "non heavy model cuda free above 8g keeps llm warm",
 			model:           "riMix_v10",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			stats:           cudaStats(gib(10), gib(16)),
 			want:            false,
@@ -214,36 +205,14 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "non heavy model at exact 8g threshold no deficit",
 			model:           "riMix_v10",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			stats:           cudaStats(gib(8), gib(16)),
 			want:            false,
 			wantUnloadCalls: 0,
 		},
 		{
-			name:            "heavy model on non ollama backend skipped",
-			model:           "flux1-dev-fp8",
-			backend:         llm.BackendLMStudio,
-			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
-			stats:           cudaStats(gib(3), gib(8)),
-			want:            false,
-			wantUnloadCalls: 0,
-			wantZeroAPI:     true,
-		},
-		{
-			name:            "non heavy model on non ollama backend skipped",
-			model:           "riMix_v10",
-			backend:         llm.BackendLMStudio,
-			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
-			stats:           cudaStats(gib(3), gib(8)),
-			want:            false,
-			wantUnloadCalls: 0,
-			wantZeroAPI:     true,
-		},
-		{
 			name:            "list loaded error fails open",
 			model:           "flux1-dev-fp8",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded(nil, fmt.Errorf("ollama unreachable")),
 			stats:           cudaStats(gib(3), gib(8)),
 			want:            false,
@@ -253,7 +222,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "non heavy model no loaded models nothing to unload",
 			model:           "riMix_v10",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded(nil, nil),
 			stats:           cudaStats(gib(3), gib(8)),
 			want:            false,
@@ -263,7 +231,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "memory info error fails open",
 			model:           "flux1-dev-fp8",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			memoryErr:       fmt.Errorf("sd memory endpoint unavailable"),
 			want:            false,
@@ -272,7 +239,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "enough headroom keeps llm warm",
 			model:           "flux1-dev-fp8",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			stats:           cudaStats(gib(14), gib(16)),
 			want:            false,
@@ -281,7 +247,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "headroom at exact thresholds no deficit",
 			model:           "flux1-dev-fp8",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			stats:           cudaStats(gib(12), gib(10)),
 			want:            false,
@@ -290,7 +255,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "heavy model cuda below 12g with relief unloads llm",
 			model:           "flux1-dev-fp8",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    loadedOnce([]llm.LoadedModel{vramHeavy}),
 			stats:           cudaStats(gib(10), gib(16)),
 			want:            true,
@@ -299,7 +263,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "deficit with relief unloads llm",
 			model:           "flux1-dev-fp8",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    loadedOnce([]llm.LoadedModel{vramHeavy}),
 			stats:           cudaStats(gib(3), gib(8)),
 			want:            true,
@@ -308,7 +271,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:         "deficit without cuda relief skips unload",
 			model:        "flux1-dev-fp8",
-			backend:      llm.BackendOllama,
 			listLoadedFn: staticLoaded([]llm.LoadedModel{{Name: "tiny", Size: gibI(2), SizeVRAM: gibI(2)}}, nil),
 			stats:        cudaStats(gib(3), gib(16)),
 			want:         false,
@@ -316,7 +278,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:         "deficit without ram relief skips unload",
 			model:        "flux1-dev-fp8",
-			backend:      llm.BackendOllama,
 			listLoadedFn: staticLoaded([]llm.LoadedModel{{Name: "vram-only", Size: gibI(10), SizeVRAM: gibI(10)}}, nil),
 			stats:        cudaStats(gib(3), gib(8)),
 			want:         false,
@@ -324,7 +285,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "cpu only zero cuda free with relief unloads llm",
 			model:           "qwen-image-turbo",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    loadedOnce([]llm.LoadedModel{{Name: "cpu-llm", Size: gibI(14), SizeVRAM: gibI(12)}}),
 			stats:           cpuStats(gib(16)),
 			want:            true,
@@ -333,7 +293,6 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 		{
 			name:            "unload wait timeout still returns true",
 			model:           "flux1-dev-fp8",
-			backend:         llm.BackendOllama,
 			listLoadedFn:    staticLoaded([]llm.LoadedModel{vramHeavy}, nil),
 			stats:           cudaStats(gib(3), gib(8)),
 			shortTimeout:    true,
@@ -349,7 +308,7 @@ func TestMemoryGuard_EnsureHeadroom(t *testing.T) {
 			if tt.autoUnload != "" {
 				require.NoError(t, db.SetSetting("llm_auto_unload", tt.autoUnload))
 			}
-			llmSvc := &guardLLM{backend: tt.backend, listLoadedFn: tt.listLoadedFn}
+			llmSvc := &guardLLM{listLoadedFn: tt.listLoadedFn}
 			sdSvc := &guardSD{stats: tt.stats, err: tt.memoryErr}
 			g := NewMemoryGuard(llmSvc, sdSvc, db, logger.New(nil))
 			if tt.shortTimeout {

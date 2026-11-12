@@ -217,42 +217,16 @@ function goToService(key) {
 async function checkServices() {
   try {
     const settings = await api.getSettings()
-    if (settings.connection_mode === 'server') {
-      await checkServicesViaServer(settings)
-    } else {
-      await checkServicesDirect()
-    }
-  } catch {
-    await checkServicesDirect()
-  }
-}
-
-async function checkServicesViaServer(settings) {
-  try {
     const status = await api.getServerStatus()
     const health = status.health || {}
     const models = status.models || {}
-    services.llm.available = health.ollama?.healthy || false
+    services.llm.available = Boolean(health.llm?.healthy || health.ollama?.healthy)
     const genModel = settings.llm_generate_model || settings.sd_prompt_model || settings.llm_model || ''
     services.llm.model = genModel && genModel !== 'default' ? genModel : ''
     const visModel = settings.llm_analyze_model || settings.vision_model || ''
     services.llm.visionModel = visModel && visModel !== 'default' ? visModel : ''
     services.sd.available = health.sd?.healthy || false
     services.sd.model = models.sd_checkpoint || ''
-  } catch {
-    services.llm.available = false
-    services.sd.available = false
-  }
-}
-
-async function checkServicesDirect() {
-  try {
-    const status = await api.checkServices()
-    services.llm.available = status.llm?.available || false
-    services.llm.model = status.llm?.model || ''
-    services.llm.visionModel = status.llm?.vision_model || ''
-    services.sd.available = status.sd?.available || false
-    services.sd.model = status.sd?.model || ''
   } catch {
     services.llm.available = false
     services.sd.available = false

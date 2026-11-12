@@ -1118,6 +1118,10 @@ func (a *App) DownloadServerModel(modelType, url, filename string) error {
 	return a.settingsSvc.DownloadServerModel(modelType, url, filename)
 }
 
+func (a *App) CheckServer() settings.ServerCheck {
+	return a.settingsSvc.CheckServer()
+}
+
 func (a *App) DownloadServerModelStream(jobID, modelType, url, filename string) error {
 	return a.settingsSvc.DownloadServerModelStream(modelType, url, filename, func(data string) {
 		runtime.EventsEmit(a.ctx, "server:download:progress:"+jobID, data)

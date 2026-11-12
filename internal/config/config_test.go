@@ -19,9 +19,6 @@ func TestLoad_DefaultValues(t *testing.T) {
 	if cfg.SDUrl != "http://localhost:7860" {
 		t.Errorf("SDUrl = %q, want %q", cfg.SDUrl, "http://localhost:7860")
 	}
-	if cfg.LLMBackend != "lmstudio" {
-		t.Errorf("LLMBackend = %q, want %q", cfg.LLMBackend, "lmstudio")
-	}
 	if cfg.LLMModel != "openai/gpt-oss-20b" {
 		t.Errorf("LLMModel = %q, want %q", cfg.LLMModel, "openai/gpt-oss-20b")
 	}
@@ -109,13 +106,6 @@ func TestLoad_EnvOverrides(t *testing.T) {
 			envValue: "prompt-model-v1",
 			check:    func(cfg *Config) string { return cfg.SDPromptModel },
 			want:     "prompt-model-v1",
-		},
-		{
-			name:     "LLM_BACKEND override",
-			envKey:   "LLM_BACKEND",
-			envValue: "ollama",
-			check:    func(cfg *Config) string { return cfg.LLMBackend },
-			want:     "ollama",
 		},
 		{
 			name:     "PORT override",

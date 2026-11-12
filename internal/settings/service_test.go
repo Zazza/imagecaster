@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"github.com/Zazza/imagecaster/internal/serverclient"
 	"testing"
 
 	"github.com/Zazza/imagecaster/internal/config"
@@ -19,7 +20,6 @@ type mockLLMService struct {
 	healthErr      error
 	setURLCalled   bool
 	setURLVal      string
-	setBackendVal  string
 	setBackendCfg  llm.BackendConfig
 	setBackendCfgV bool
 }
@@ -52,14 +52,10 @@ func (m *mockLLMService) SetURL(baseURL string) {
 	m.setURLCalled = true
 	m.setURLVal = baseURL
 }
-func (m *mockLLMService) SetBackend(backend string) {
-	m.setBackendVal = backend
-}
 func (m *mockLLMService) SetBackendConfig(cfg llm.BackendConfig) {
 	m.setBackendCfg = cfg
 	m.setBackendCfgV = true
 }
-func (m *mockLLMService) Backend() string { return "" }
 func (m *mockLLMService) ListLoaded() ([]llm.LoadedModel, error) {
 	return nil, nil
 }
@@ -145,12 +141,11 @@ func testService(t *testing.T, llmSvc *mockLLMService, sdSvc *mockSDService) (*S
 		LLMModel:      "test-model",
 		SDPromptModel: "default",
 		VisionModel:   "vision-model",
-		LLMBackend:    "lmstudio",
 	}
 
 	log := logger.New(nil)
 
-	svc := New(db, llmSvc, sdSvc, cfg, log, nil)
+	svc := New(db, llmSvc, sdSvc, cfg, log, serverclient.NewClient())
 	return svc, db
 }
 
@@ -268,12 +263,10 @@ func TestGetSettings_ReturnsDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, settings)
 
-	assert.Equal(t, "http://localhost:1234", settings["llm_url"])
-	assert.Equal(t, "http://localhost:7860", settings["sd_url"])
+	assert.Equal(t, "", settings["server_url"])
 	assert.Equal(t, "test-model", settings["llm_model"])
 	assert.Equal(t, "default", settings["sd_prompt_model"])
 	assert.Equal(t, "vision-model", settings["vision_model"])
-	assert.Equal(t, "lmstudio", settings["llm_backend"])
 	assert.Equal(t, "5m", settings["llm_keep_alive"])
 	assert.Equal(t, "false", settings["kids_mode"])
 }
@@ -302,8 +295,8 @@ func TestGetSettings_AllDefaultKeysPresent(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedKeys := []string{
-		"llm_url", "sd_url", "llm_model", "sd_prompt_model", "vision_model",
-		"llm_backend", "llm_keep_alive", "llm_num_ctx", "llm_num_gpu",
+		"server_url", "llm_model", "sd_prompt_model", "vision_model",
+		"llm_keep_alive", "llm_num_ctx", "llm_num_gpu",
 		"llm_max_tokens", "llm_generate_model", "llm_analyze_model",
 		"llm_generate_temperature", "llm_generate_num_ctx",
 		"llm_generate_num_predict", "llm_generate_top_p",
@@ -326,69 +319,48 @@ func TestUpdateSettings_AllowedSettings(t *testing.T) {
 	svc, _ := testService(t, llmSvc, sdSvc)
 
 	data := map[string]string{
+		"server_url":      "http://srv:8080/",
 		"llm_url":         "http://new-llm:4000",
 		"sd_url":          "http://new-sd:9000",
+		"llm_backend":     "lmstudio",
+		"connection_mode": "direct",
 		"llm_model":       "new-model",
 		"sd_prompt_model": "new-prompt-model",
 		"vision_model":    "new-vision",
-		"llm_backend":     "ollama",
 		"kids_mode":       "true",
 	}
 
 	err := svc.UpdateSettings(data)
 	require.NoError(t, err)
 
-	assert.True(t, llmSvc.setURLCalled)
-	assert.Equal(t, "http://new-llm:4000", llmSvc.setURLVal)
-	assert.True(t, sdSvc.setURLCalled)
-	assert.Equal(t, "http://new-sd:9000", sdSvc.setURLVal)
-	assert.Equal(t, "ollama", llmSvc.setBackendVal)
+	assert.Equal(t, "http://srv:8080/api/llm", llmSvc.setURLVal)
+	assert.Equal(t, "http://srv:8080/api/sd", sdSvc.setURLVal)
 
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
-	assert.Equal(t, "http://new-llm:4000", settings["llm_url"])
-	assert.Equal(t, "http://new-sd:9000", settings["sd_url"])
+	assert.Equal(t, "http://srv:8080", settings["server_url"])
 	assert.Equal(t, "new-model", settings["llm_model"])
 	assert.Equal(t, "true", settings["kids_mode"])
+	for _, k := range []string{"llm_url", "sd_url", "llm_backend", "connection_mode"} {
+		_, ok := settings[k]
+		assert.False(t, ok, "%s must not be stored any more", k)
+	}
 }
 
-func TestUpdateSettings_InvalidLLMUrl(t *testing.T) {
+func TestUpdateSettings_InvalidServerUrl(t *testing.T) {
 	t.Parallel()
 	svc, _ := testService(t, nil, nil)
-
-	data := map[string]string{
-		"llm_url": ":::not-a-url",
-	}
-
-	err := svc.UpdateSettings(data)
+	err := svc.UpdateSettings(map[string]string{"server_url": ":::not-a-url"})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid llm_url")
+	assert.Contains(t, err.Error(), "invalid server_url")
 }
 
-func TestUpdateSettings_InvalidSDUrl(t *testing.T) {
+func TestUpdateSettings_EmptyServerUrlAllowed(t *testing.T) {
 	t.Parallel()
-	svc, _ := testService(t, nil, nil)
-
-	data := map[string]string{
-		"sd_url": "://bad",
-	}
-
-	err := svc.UpdateSettings(data)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid sd_url")
-}
-
-func TestUpdateSettings_EmptyUrlAllowed(t *testing.T) {
-	t.Parallel()
-	svc, _ := testService(t, nil, nil)
-
-	data := map[string]string{
-		"llm_url": "",
-		"sd_url":  "",
-	}
-
-	err := svc.UpdateSettings(data)
-	assert.NoError(t, err)
+	llmSvc := &mockLLMService{}
+	svc, _ := testService(t, llmSvc, nil)
+	assert.NoError(t, svc.UpdateSettings(map[string]string{"server_url": ""}))
+	assert.False(t, llmSvc.setURLCalled)
 }
 
 func TestUpdateSettings_NumericFieldsValid(t *testing.T) {

@@ -39,6 +39,8 @@ import {
 import * as AppBindings from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
+import { serverGate } from './serverGate.js'
+import { t } from './i18n/index.js'
 
 function appBinding(name) {
   return AppBindings[name] || window['go']['main']['App'][name]
@@ -162,6 +164,7 @@ export const api = {
   version: () => Version(),
   discoverServers: () => DiscoverServers(),
   getServerStatus: () => GetServerStatus(),
+  checkServer: () => appBinding('CheckServer')(),
   getServerModels: (type) => GetServerModels(type),
   getServerLLMModels: () => GetServerLLMModels(),
   downloadServerModel: (type, url, filename) => DownloadServerModel(type, url, filename),
@@ -209,3 +212,13 @@ export const api = {
   getFooterHeight: () => GetFooterHeight(),
 }
 
+const SERVER_CALLS = [
+  'generateSdPrompt', 'generateImage', 'upscaleImage', 'analyzeImage', 'generateCompoundImage',
+  'editImage', 'editObject', 'repairImage', 'describeForStyle', 'applyLookDirect',
+  'enqueueTxt2Img', 'enqueueFromImage', 'enqueueLook', 'enqueueEdit', 'enqueueCompound', 'retryQueueJob',
+]
+
+for (const name of SERVER_CALLS) {
+  const call = api[name]
+  api[name] = (...args) => (serverGate() ? call(...args) : Promise.reject(new Error(t('server.need_server'))))
+}

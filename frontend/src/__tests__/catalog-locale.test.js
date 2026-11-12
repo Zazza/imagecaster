@@ -86,13 +86,7 @@ function rowOf(w, name) {
 }
 
 describe('catalog tab language', () => {
-  it('catalog tab hidden when connection_mode is not server', async () => {
-    GetSettings.mockImplementation(() => Promise.resolve({ connection_mode: 'direct' }))
-    const w = mount(SettingsPage, { attachTo: document.body })
-    await settle()
-    const names = w.findAll('.tabs button').map(b => b.text().trim())
-    expect(names).not.toContain(ru['settings.tab_catalog'])
-  })
+
 
   it('ru: shows description_ru and category_ru, not English texts', async () => {
     const w = await openCatalog('ru')

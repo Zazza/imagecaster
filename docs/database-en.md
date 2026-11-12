@@ -88,11 +88,9 @@ Key-value settings store.
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `llm_url` | LLM API URL | `http://localhost:1234` |
-| `sd_url` | SD WebUI URL | `http://localhost:7860` |
+| `server_url` | Imagecaster Server address | — |
 | `llm_generate_model` | Model for prompts | from env |
 | `llm_analyze_model` | Model for vision | from env |
-| `llm_backend` | ollama/lmstudio | from env |
 | `llm_max_tokens` | Max tokens | `256` |
 | `llm_keep_alive` | Ollama keep_alive | `5m` |
 | `llm_num_ctx` | Ollama context | `4096` |

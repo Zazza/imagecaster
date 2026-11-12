@@ -3,6 +3,7 @@ import { Check, ChevronRight, X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { api } from '../api.js'
+import { checkServer } from '../serverState.js'
 import { defaultDownloads, loadDefaultPlan, runDefaultPlan } from '../modelDownloads.js'
 import { t, locale } from '../i18n/index.js'
 import ToggleSwitch from './ToggleSwitch.vue'
@@ -17,20 +18,6 @@ const props = defineProps({
 const activeTab = ref(props.initialTab || 'connection')
 watch(() => props.initialTab, (tab) => { if (tab) activeTab.value = tab })
 
-const defaultURLs = {
-  lmstudio: 'http://localhost:1234',
-  ollama: 'http://localhost:11434',
-  llamacpp: 'http://localhost:8081',
-}
-
-const backendLabel = {
-  lmstudio: 'LM Studio',
-  ollama: 'Ollama',
-  llamacpp: 'llama.cpp',
-}
-
-// --- Connection mode ---
-const connectionMode = ref('direct')
 const serverURL = ref('')
 
 // --- Server discovery & status ---
@@ -103,27 +90,12 @@ const modelCatalog = ref(null)
 
 // --- Direct mode forms ---
 const connectionForm = reactive({
-  llm_url: '',
-  sd_url: '',
-  llm_backend: 'lmstudio',
   llm_keep_alive: '5m',
   llm_num_gpu: '-1',
   llm_max_tokens: '256',
 })
 const connectionSaved = ref(false)
 const connectionError = ref('')
-
-const sdModels = ref([])
-const sdLoRAs = ref([])
-const sdLoading = ref(false)
-const sdError = ref('')
-
-const llmModels = ref([])
-const llmLoading = ref(false)
-const llmError = ref('')
-
-const connectionLLMModels = ref([])
-const connectionLLMLoading = ref(false)
 
 const generateModel = ref('')
 const analyzeModel = ref('')
@@ -194,19 +166,9 @@ const analyzeError = ref('')
 const defaultAnalyzePrompts = ref(null)
 const defaultGarmentPrompt = ref('')
 
-watch(() => connectionForm.llm_backend, (newVal, oldVal) => {
-  if (oldVal && defaultURLs[oldVal] && connectionForm.llm_url === defaultURLs[oldVal]) {
-    connectionForm.llm_url = defaultURLs[newVal] || defaultURLs.lmstudio
-  }
-  loadConnectionLLMModels()
-})
-
 async function loadSettings() {
   try {
     const settings = await api.getSettings()
-    connectionForm.llm_url = settings.llm_url || ''
-    connectionForm.sd_url = settings.sd_url || ''
-    connectionForm.llm_backend = settings.llm_backend || 'lmstudio'
     connectionForm.llm_keep_alive = settings.llm_keep_alive || '5m'
     connectionForm.llm_num_gpu = settings.llm_num_gpu || '-1'
     connectionForm.llm_max_tokens = settings.llm_max_tokens || '256'
@@ -222,15 +184,13 @@ async function loadSettings() {
     analyzeParams.num_predict = parseInt(settings.llm_analyze_num_predict) || 256
     analyzeParams.top_p = parseFloat(settings.llm_analyze_top_p) || 0.9
     analyzeParams.num_thread = parseInt(settings.llm_analyze_num_thread) || 0
-    loadConnectionLLMModels()
     kidsMode.value = await api.isKidsModeActive()
     loadKidsCategories()
     memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
     promptInstruction.value = settings.sd_prompt_instruction || ''
     promptInstructionProse.value = settings.sd_prompt_instruction_prose || ''
-    connectionMode.value = settings.connection_mode || 'direct'
     serverURL.value = settings.server_url || ''
-    if (connectionMode.value === 'server' && serverURL.value) {
+    if (serverURL.value) {
       loadServerStatus()
     }
   } catch (e) {
@@ -301,39 +261,6 @@ async function loadSettings() {
   }
 }
 
-async function loadConnectionLLMModels() {
-  if (connectionForm.llm_backend === 'llamacpp') return
-  connectionLLMLoading.value = true
-  try {
-    connectionLLMModels.value = await api.getLLMModels() || []
-  } catch {
-    connectionLLMModels.value = []
-  } finally {
-    connectionLLMLoading.value = false
-  }
-}
-
-async function saveConnection() {
-  connectionSaved.value = false
-  connectionError.value = ''
-  try {
-    await api.updateSettings({
-      connection_mode: connectionMode.value,
-      llm_url: connectionForm.llm_url,
-      sd_url: connectionForm.sd_url,
-      llm_backend: connectionForm.llm_backend,
-      llm_keep_alive: String(connectionForm.llm_keep_alive),
-      llm_num_gpu: String(parseInt(connectionForm.llm_num_gpu) || 0),
-      llm_max_tokens: String(parseInt(connectionForm.llm_max_tokens) || 256),
-      llm_generate_model: generateModel.value,
-      llm_analyze_model: analyzeModel.value,
-    })
-    connectionSaved.value = true
-  } catch (e) {
-    connectionError.value = String(e)
-  }
-}
-
 // --- Server mode functions ---
 
 async function discoverServers() {
@@ -357,7 +284,8 @@ async function selectServer(server) {
 async function loadServerStatus() {
   if (!serverURL.value) return
   try {
-    await api.updateSettings({ connection_mode: 'server', server_url: serverURL.value })
+    await api.updateSettings({ server_url: serverURL.value })
+    checkServer()
     serverStatus.value = await api.getServerStatus()
     loadServerModels()
   } catch (e) {
@@ -433,7 +361,6 @@ async function saveServerConnection() {
   connectionError.value = ''
   try {
     await api.updateSettings({
-      connection_mode: 'server',
       server_url: serverURL.value,
       llm_generate_model: generateModel.value,
       llm_analyze_model: analyzeModel.value,
@@ -643,36 +570,8 @@ async function saveLLMParams() {
   }
 }
 
-async function loadSD() {
-  sdLoading.value = true
-  sdError.value = ''
-  try {
-    const [m, l] = await Promise.allSettled([api.getModels(), api.getLoRAs()])
-    if (m.status === 'fulfilled') sdModels.value = m.value
-    else sdError.value = t('settings.cannot_load_models')
-    if (l.status === 'fulfilled') sdLoRAs.value = l.value
-  } finally {
-    sdLoading.value = false
-  }
-}
-
-async function loadLLM() {
-  llmLoading.value = true
-  llmError.value = ''
-  try {
-    llmModels.value = await api.getLLMModels() || []
-  } catch (e) {
-    const label = backendLabel[connectionForm.llm_backend] || 'LLM backend'
-    llmError.value = t('settings.cannot_load_llm', { label })
-  } finally {
-    llmLoading.value = false
-  }
-}
-
 function switchTab(tab) {
   activeTab.value = tab
-  if (tab === 'advanced' && sdModels.value.length === 0 && !sdError.value) loadSD()
-  if (tab === 'connection' && llmModels.value.length === 0 && !llmError.value) loadLLM()
 }
 
 function onKidsToggle(val) {
@@ -806,7 +705,7 @@ onMounted(loadSettings)
       <button class="tab" :class="{ active: activeTab === 'prompts' }" @click="switchTab('prompts')">{{ t('settings.tab_prompts') }}</button>
       <button class="tab" :class="{ active: activeTab === 'safety' }" @click="switchTab('safety')">{{ t('settings.tab_safety') }}</button>
       <button class="tab" :class="{ active: activeTab === 'advanced' }" @click="switchTab('advanced')">{{ t('settings.tab_advanced') }}</button>
-      <button v-if="connectionMode === 'server'" class="tab" :class="{ active: activeTab === 'catalog' }" @click="activeTab = 'catalog'">{{ t('settings.tab_catalog') }}</button>
+      <button class="tab" :class="{ active: activeTab === 'catalog' }" @click="activeTab = 'catalog'">{{ t('settings.tab_catalog') }}</button>
     </div>
 
     <!-- Connection Tab -->
@@ -814,95 +713,6 @@ onMounted(loadSettings)
       <StatusMessage v-if="connectionSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="connectionSaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
       <StatusMessage v-if="connectionError" style="margin-bottom: 16px;" @close="connectionError = ''">{{ connectionError }}</StatusMessage>
 
-      <!-- Mode Selector -->
-      <div class="form-group">
-        <label class="form-label">{{ t('settings.label_connection_mode') }}</label>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn" :class="connectionMode === 'direct' ? 'btn-primary' : 'btn-secondary'" @click="connectionMode = 'direct'">{{ t('settings.mode_direct') }}</button>
-          <button class="btn" :class="connectionMode === 'server' ? 'btn-primary' : 'btn-secondary'" @click="connectionMode = 'server'">{{ t('settings.mode_server') }}</button>
-        </div>
-      </div>
-
-      <!-- Direct Mode -->
-      <template v-if="connectionMode === 'direct'">
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.label_llm_backend') }}</label>
-          <select class="form-select" v-model="connectionForm.llm_backend">
-            <option value="lmstudio">LM Studio</option>
-            <option value="ollama">Ollama</option>
-            <option value="llamacpp">llama.cpp</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.label_llm_url') }}</label>
-          <input class="form-input" v-model="connectionForm.llm_url" :placeholder="defaultURLs[connectionForm.llm_backend]" />
-        </div>
-
-        <div class="form-group" v-if="connectionForm.llm_backend !== 'llamacpp'">
-          <label class="form-label">{{ t('settings.label_model_generate') }}</label>
-          <div style="display: flex; gap: 8px;">
-            <select class="form-select" v-model="generateModel" style="flex: 1;">
-              <option value="">{{ t('settings.option_default') }}</option>
-              <option v-for="m in connectionLLMModels" :key="m.id" :value="m.id">{{ m.id }}</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" @click="loadConnectionLLMModels" :disabled="connectionLLMLoading">
-              {{ connectionLLMLoading ? '...' : t('settings.btn_refresh') }}
-            </button>
-          </div>
-        </div>
-
-        <div class="form-group" v-if="connectionForm.llm_backend !== 'llamacpp'">
-          <label class="form-label">{{ t('settings.label_model_analyze') }}</label>
-          <div style="display: flex; gap: 8px;">
-            <select class="form-select" v-model="analyzeModel" style="flex: 1;">
-              <option value="">{{ t('settings.same_as_generate') }}</option>
-              <option v-for="m in connectionLLMModels" :key="m.id" :value="m.id">{{ m.id }}</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group" v-if="connectionForm.llm_backend === 'llamacpp'">
-          <div style="color: var(--text-dim); font-size: 13px; padding: 8px; background: var(--surface-2); border-radius: 6px;">
-            {{ t('settings.llamacpp_single_model') }}
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.label_max_tokens') }}</label>
-          <input class="form-input" type="number" v-model="connectionForm.llm_max_tokens" placeholder="256" min="64" max="8192" />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.label_sd_url') }}</label>
-          <input class="form-input" v-model="connectionForm.sd_url" placeholder="http://localhost:7860" />
-        </div>
-
-        <!-- Ollama-specific -->
-        <template v-if="connectionForm.llm_backend === 'ollama'">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_keep_alive') }}</label>
-            <input class="form-input" v-model="connectionForm.llm_keep_alive" placeholder="5m" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_gpu_layers') }}</label>
-            <input class="form-input" type="number" v-model="connectionForm.llm_num_gpu" placeholder="0" />
-          </div>
-        </template>
-
-        <!-- llama.cpp-specific -->
-        <template v-if="connectionForm.llm_backend === 'llamacpp'">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_gpu_layers') }}</label>
-            <input class="form-input" type="number" v-model="connectionForm.llm_num_gpu" placeholder="0" />
-          </div>
-        </template>
-
-        <button class="btn btn-primary" @click="saveConnection">{{ t('settings.btn_save_connection') }}</button>
-      </template>
-
-      <!-- Server Mode -->
-      <template v-if="connectionMode === 'server'">
         <div class="form-group">
           <label class="form-label">{{ t('settings.label_server_url') }}</label>
           <div style="display: flex; gap: 8px;">
@@ -1010,22 +820,6 @@ onMounted(loadSettings)
         </div>
 
         <button class="btn btn-primary" @click="saveServerConnection">{{ t('settings.btn_save_server') }}</button>
-      </template>
-
-      <!-- LLM Models (direct mode only) -->
-      <div v-if="connectionMode === 'direct'" class="card" style="margin-top: 24px;">
-        <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_llm_models') }}</h3>
-        <StatusMessage v-if="llmError" style="margin-bottom: 8px;" @close="llmError = ''">{{ llmError }}</StatusMessage>
-        <div v-if="llmLoading" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-        <div v-else-if="llmModels.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
-        <div v-for="m in llmModels" :key="m.id" style="padding: 8px 0; border-bottom: 1px solid var(--border);">
-          <div style="color: var(--text-bright); font-size: 13px;">{{ m.id }}</div>
-          <div style="color: var(--text-dim); font-size: 11px;">{{ m.object }}</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" style="margin-top: 12px;" @click="loadLLM" :disabled="llmLoading">
-          {{ llmLoading ? t('settings.btn_loading') : t('settings.btn_refresh_models') }}
-        </button>
-      </div>
 
       <!-- LLM Parameters (shared) -->
       <details class="settings-advanced">
@@ -1197,39 +991,6 @@ onMounted(loadSettings)
         <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px;">{{ t('settings.llm_auto_unload_hint') }}</div>
         <button class="btn btn-primary btn-sm" @click="saveMemoryGuard">{{ t('settings.btn_save_params') }}</button>
       </div>
-      <!-- Direct mode: read-only SD models/LoRAs -->
-      <template v-if="connectionMode === 'direct'">
-        <StatusMessage v-if="sdError" @close="sdError = ''">{{ sdError }}</StatusMessage>
-        <div class="form-row-2">
-          <div class="card">
-            <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_sd_models') }}</h3>
-            <div v-if="sdLoading" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="sdModels.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models_loaded') }}</div>
-            <div v-for="m in sdModels" :key="m.model_name" style="padding: 8px 0; border-bottom: 1px solid var(--border);">
-              <div style="color: var(--text-bright); font-size: 13px;">{{ m.title }}</div>
-              <div style="color: var(--text-dim); font-size: 11px;">{{ m.model_name }}</div>
-            </div>
-          </div>
-          <div class="card">
-            <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_sd_lora') }}</h3>
-            <div v-if="sdLoading" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="sdLoRAs.length === 0" style="color: var(--text-dim);">{{ t('settings.no_lora') }}</div>
-            <div v-else style="display: flex; flex-wrap: wrap; gap: 6px;">
-              <span v-for="l in sdLoRAs" :key="l.name"
-                style="padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; color: var(--text);"
-                :title="l.path">
-                {{ l.name }}
-              </span>
-            </div>
-          </div>
-        </div>
-        <button class="btn btn-secondary" style="margin-top: 16px;" @click="loadSD" :disabled="sdLoading">
-          {{ sdLoading ? t('settings.btn_loading') : t('settings.btn_refresh') }}
-        </button>
-      </template>
-
-      <!-- Server mode: model management -->
-      <template v-if="connectionMode === 'server'">
         <div v-if="!serverURL" style="color: var(--text-dim); padding: 20px; text-align: center;">{{ t('settings.server_not_configured') }}</div>
         <template v-else>
           <!-- SD Models -->
@@ -1298,11 +1059,10 @@ onMounted(loadSettings)
             <DownloadProgress v-if="activeDownload.type === 'llm' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
           </div>
         </template>
-      </template>
     </div>
 
     <!-- Catalog Tab (server mode only) -->
-    <div v-if="activeTab === 'catalog' && connectionMode === 'server'">
+    <div v-if="activeTab === 'catalog'">
       <div v-if="!modelCatalog" style="color: var(--text-dim); text-align: center; padding: 20px;">
         <template v-if="modelCatalogError">{{ t('settings.catalog_error', { error: modelCatalogError }) }}</template>
         <template v-else>{{ t('settings.catalog_loading') }}</template>

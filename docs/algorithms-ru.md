@@ -135,12 +135,9 @@ doPost(url, body)
 
 ## 6. LLM Integration
 
-### Бэкенды
+### API сервера
 
-| Бэкенд | KeepAlive | Options | Особенности |
-|--------|-----------|---------|-------------|
-| Ollama | Да (настройка) | num_ctx, num_gpu | Автовыгрузка моделей |
-| LM Studio | Нет | — | — |
+Приложение всегда говорит с сервером в формате Ollama: `/v1/chat/completions` (текст), `/api/chat` (vision), `/api/tags` (модели), `/api/ps` и `keep_alive: 0` (выгрузка). `keep_alive`, `num_ctx` и `num_gpu` берутся из настроек.
 
 ### Режимы LLM
 

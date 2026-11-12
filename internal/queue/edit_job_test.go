@@ -155,9 +155,7 @@ func (editFakeLLM) AnalyzeImageDescribe(string, string, string, int) (string, er
 func (editFakeLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
 func (editFakeLLM) HealthCheck() error                     { return nil }
 func (editFakeLLM) SetURL(string)                          {}
-func (editFakeLLM) SetBackend(string)                      {}
 func (editFakeLLM) SetBackendConfig(llm.BackendConfig)     {}
-func (editFakeLLM) Backend() string                        { return "" }
 func (editFakeLLM) ListLoaded() ([]llm.LoadedModel, error) { return nil, nil }
 func (editFakeLLM) UnloadAll(ctx context.Context) error    { return nil }
 

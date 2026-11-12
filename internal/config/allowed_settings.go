@@ -1,9 +1,9 @@
 package config
 
 var AllowedSettings = map[string]bool{
-	"llm_url": true, "sd_url": true, "llm_model": true, "sd_prompt_model": true,
-	"vision_model": true,
-	"llm_backend":  true, "llm_keep_alive": true, "llm_num_ctx": true, "llm_num_gpu": true, "llm_max_tokens": true,
+	"llm_model": true, "sd_prompt_model": true,
+	"vision_model":   true,
+	"llm_keep_alive": true, "llm_num_ctx": true, "llm_num_gpu": true, "llm_max_tokens": true,
 	"llm_generate_model": true, "llm_analyze_model": true,
 	"llm_generate_temperature": true, "llm_generate_num_ctx": true, "llm_generate_num_predict": true,
 	"llm_generate_top_p": true, "llm_generate_num_thread": true,
@@ -16,7 +16,7 @@ var AllowedSettings = map[string]bool{
 	"kids_mode":         true,
 	"kids_cat_violence": true, "kids_cat_horror": true, "kids_cat_weapons": true,
 	"kids_cat_substances": true, "kids_cat_mature": true,
-	"connection_mode": true, "server_url": true, "ui_locale": true,
+	"server_url": true, "ui_locale": true,
 	"gen_preset_id": true, "gen_action_pose": true, "gen_characters": true,
 	"gen_clothing_details": true,
 	"gen_environment":      true, "gen_lighting": true, "gen_negative": true,
