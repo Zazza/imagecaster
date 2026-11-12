@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/llm"
@@ -79,7 +81,7 @@ func main() {
 		Title:            "Imagecaster",
 		Width:            1280,
 		Height:           800,
-		Frameless:        true,
+		Frameless:        runtime.GOOS != "darwin",
 		MinWidth:         900,
 		MinHeight:        600,
 		MaxWidth:         7680,
@@ -92,6 +94,9 @@ func main() {
 		OnStartup: app.startup,
 		Bind: []interface{}{
 			app,
+		},
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHidden(),
 		},
 		Linux: &linux.Options{
 			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,

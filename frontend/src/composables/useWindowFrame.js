@@ -1,8 +1,9 @@
 import { ref, watch } from 'vue'
-import { WindowIsMaximised, Environment } from '../wailsjs/runtime/runtime.js'
+import { WindowIsMaximised, WindowIsFullscreen, Environment } from '../wailsjs/runtime/runtime.js'
 import { frameEdge } from '../windowEdge.js'
 
 export const maximised = ref(false)
+export const platform = ref('')
 
 async function syncMaximised() {
   try {
@@ -12,10 +13,29 @@ async function syncMaximised() {
   }
 }
 
+async function syncFullscreen() {
+  try {
+    document.documentElement.classList.toggle('win-fullscreen', !!(await WindowIsFullscreen()))
+  } catch {
+    // outside Wails there is no window to ask
+  }
+}
+
+function onWindowResize() {
+  syncMaximised()
+  syncFullscreen()
+}
+
+function setInactive(v) {
+  document.documentElement.classList.toggle('win-inactive', v)
+}
+
 async function syncPlatform() {
   try {
     const env = await Environment()
+    platform.value = env.platform || ''
     document.documentElement.classList.toggle('win-rounded', env.platform === 'linux')
+    document.documentElement.classList.toggle('win-mac', env.platform === 'darwin')
   } catch {
     // outside Wails there is no window to ask
   }
@@ -27,9 +47,11 @@ export function installWindowFrame() {
   if (installed) return
   installed = true
   watch(maximised, (v) => document.documentElement.classList.toggle('win-maximised', v))
-  syncMaximised()
+  onWindowResize()
   syncPlatform()
-  window.addEventListener('resize', syncMaximised)
+  window.addEventListener('resize', onWindowResize)
+  window.addEventListener('blur', () => setInactive(true))
+  window.addEventListener('focus', () => setInactive(false))
   window.addEventListener('mousemove', () => {
     const flags = window.wails?.flags
     if (!flags?.enableResize) return
