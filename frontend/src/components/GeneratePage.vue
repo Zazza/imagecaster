@@ -82,6 +82,26 @@ const shownItemId = ref(null)
 
 const openSection = ref('main')
 
+// Масштаб результата: вписать (по умолчанию) или проценты, как превью Постобработки
+const genZoomFit = ref(true)
+const genZoomPct = ref(100)
+const genZoomLabel = computed(() => genZoomFit.value ? t('viewer.zoom_fit') : genZoomPct.value + '%')
+function toggleZoomFit() {
+  genZoomFit.value = !genZoomFit.value
+  if (!genZoomFit.value) genZoomPct.value = 100
+}
+function zoomResultBy(delta) {
+  if (genZoomFit.value) {
+    genZoomFit.value = false
+    genZoomPct.value = 100
+  }
+  genZoomPct.value = Math.max(20, Math.min(400, genZoomPct.value + delta))
+}
+function onStageWheel(e) {
+  if (!e.deltaY) return
+  zoomResultBy(e.deltaY < 0 ? 10 : -10)
+}
+
 function setOpenSection(name) {
   if (openSection.value === name) return
   openSection.value = name
@@ -1000,10 +1020,18 @@ function onKeydown(e) {
               </div>
             </div>
           </div>
-          <div v-else-if="generatedImage" style="width: 100%; padding: 12px;">
+          <div v-else-if="generatedImage" class="gen-result">
             <StatusMessage v-if="hiresSkipped" kind="warning" style="margin-bottom: 8px; text-align: center;" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
-            <img :src="imageSrc" alt="Generated" class="img-fade-in" style="border-radius: var(--radius-sm); cursor: zoom-in;" @click="openGeneratedViewer" />
-            <div class="action-row" style="margin-top: 12px;">
+            <div class="gen-stage" :class="{ fit: genZoomFit }" @wheel="onStageWheel">
+              <div class="viewfinder" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+              <img :src="imageSrc" alt="Generated" class="img-fade-in gen-stage-img" :style="genZoomFit ? '' : { width: genZoomPct + '%' }" @click="openGeneratedViewer" />
+              <div class="split-zoom" @pointerdown.stop @click.stop @dblclick.stop @wheel.stop>
+                <button class="split-zoom-btn" :title="t('viewer.zoom_fit')" @click="toggleZoomFit">{{ genZoomLabel }}</button>
+                <button class="split-zoom-btn" :title="t('viewer.zoom_out')" :disabled="!genZoomFit && genZoomPct <= 20" @click="zoomResultBy(-10)">−</button>
+                <button class="split-zoom-btn" :title="t('viewer.zoom_in')" :disabled="!genZoomFit && genZoomPct >= 400" @click="zoomResultBy(10)">+</button>
+              </div>
+            </div>
+            <div class="action-row" style="margin-top: 10px;">
               <button v-if="generatedImage" class="btn btn-primary btn-sm" @click="openFastSaveModal">{{ t('generate.btn_quick_save') }}</button>
               <button v-if="generatedImage" class="btn btn-sm btn-secondary" @click="upscaleImageX2" :disabled="upscalingX2">{{ t('generate.btn_upscale_x2') }}</button>
               <button class="btn btn-sm btn-secondary" @click="downloadImage">{{ t('generate.btn_download') }}</button>
@@ -1391,5 +1419,97 @@ function onKeydown(e) {
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
+}
+</style>
+<style scoped>
+/* Свёрнутая секция не торчит: паддинги тела обнуляются, как в Постобработке */
+.card-collapse.collapsed > .card-body {
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: clip;
+}
+
+/* Область результата занимает всю высоту колонки */
+.gen-preview-col .generate-image-area {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Результат — тёмная сцена с визиром и зумом, как превью Постобработки */
+.gen-result {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+}
+.gen-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: #000;
+  touch-action: none;
+  user-select: none;
+}
+.gen-stage-img {
+  display: block;
+  cursor: zoom-in;
+}
+.gen-stage.fit .gen-stage-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+.viewfinder {
+  position: absolute;
+  inset: 6px;
+  pointer-events: none;
+}
+.viewfinder span {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 0 solid var(--accent);
+}
+.viewfinder span:nth-child(1) { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
+.viewfinder span:nth-child(2) { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
+.viewfinder span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
+.viewfinder span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
+.split-zoom {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+.split-zoom-btn {
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  color: #fff;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.split-zoom-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+.split-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 </style>
