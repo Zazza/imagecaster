@@ -362,6 +362,20 @@ func (s *Service) DownloadServerModel(modelType, url, filename string) error {
 	return s.serverClient.DownloadModel(modelType, url, filename)
 }
 
+func (s *Service) DownloadServerModelStream(modelType, url, filename string, onProgress func(string)) error {
+	if err := s.ensureServerClient(); err != nil {
+		return err
+	}
+	return s.serverClient.DownloadModelStream(modelType, url, filename, onProgress)
+}
+
+func (s *Service) PullServerLLMModelStream(name string, onProgress func(string)) error {
+	if err := s.ensureServerClient(); err != nil {
+		return err
+	}
+	return s.serverClient.PullLLMModelStream(name, onProgress)
+}
+
 func (s *Service) DeleteServerModel(modelType, filename string) error {
 	if err := s.ensureServerClient(); err != nil {
 		return err

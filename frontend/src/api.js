@@ -38,6 +38,26 @@ import {
 } from './wailsjs/go/main/App.js'
 import * as AppBindings from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
+import { EventsOn } from './wailsjs/runtime/runtime'
+
+function appBinding(name) {
+  return AppBindings[name] || window['go']['main']['App'][name]
+}
+
+let serverJobSeq = 0
+
+async function streamServerJob(run, onProgress) {
+  const jobID = `${Date.now()}-${++serverJobSeq}`
+  const off = EventsOn(`server:download:progress:${jobID}`, (data) => {
+    const p = parseProgress(data)
+    onProgress(p.text, p.percent)
+  })
+  try {
+    await run(jobID)
+  } finally {
+    off()
+  }
+}
 
 export const api = {
   listPresets: () => ListPresets(),
@@ -145,52 +165,12 @@ export const api = {
   getServerModels: (type) => GetServerModels(type),
   getServerLLMModels: () => GetServerLLMModels(),
   downloadServerModel: (type, url, filename) => DownloadServerModel(type, url, filename),
-  downloadServerModelStream: (serverURL, type, downloadURL, filename, onProgress) => {
-    return new Promise((resolve, reject) => {
-      const url = `${serverURL}/api/server/models/download/stream?type=${encodeURIComponent(type)}&url=${encodeURIComponent(downloadURL)}&filename=${encodeURIComponent(filename)}`
-      const es = new EventSource(url)
-      es.onmessage = (e) => {
-        if (e.data === '[DONE]') {
-          es.close()
-          resolve()
-        } else if (e.data.startsWith('[ERROR]')) {
-          es.close()
-          reject(new Error(e.data.slice(7).trim()))
-        } else {
-          const p = parseProgress(e.data)
-          onProgress(p.text, p.percent)
-        }
-      }
-      es.onerror = () => {
-        es.close()
-        reject(new Error('Connection lost'))
-      }
-    })
-  },
+  downloadServerModelStream: (serverURL, type, downloadURL, filename, onProgress) =>
+    streamServerJob((jobID) => appBinding('DownloadServerModelStream')(jobID, type, downloadURL, filename), onProgress),
   deleteServerModel: (type, filename) => DeleteServerModel(type, filename),
   pullServerLLMModel: (name) => PullServerLLMModel(name),
-  pullServerLLMModelStream: (serverURL, name, onProgress) => {
-    return new Promise((resolve, reject) => {
-      const url = `${serverURL}/api/server/models/llm/pull?name=${encodeURIComponent(name)}`
-      const es = new EventSource(url)
-      es.onmessage = (e) => {
-        if (e.data === '[DONE]') {
-          es.close()
-          resolve()
-        } else if (e.data.startsWith('[ERROR]')) {
-          es.close()
-          reject(new Error(e.data.slice(7).trim()))
-        } else {
-          const p = parseProgress(e.data)
-          onProgress(p.text, p.percent)
-        }
-      }
-      es.onerror = (e) => {
-        es.close()
-        reject(new Error('Connection lost'))
-      }
-    })
-  },
+  pullServerLLMModelStream: (serverURL, name, onProgress) =>
+    streamServerJob((jobID) => appBinding('PullServerLLMModelStream')(jobID, name), onProgress),
   deleteServerLLMModel: (name) => DeleteServerLLMModel(name),
   getModelCatalog: () => GetModelCatalog(),
   syncPresets: () => (AppBindings.SyncPresets ? AppBindings.SyncPresets() : window['go']['main']['App']['SyncPresets']()),

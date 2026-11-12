@@ -1118,6 +1118,18 @@ func (a *App) DownloadServerModel(modelType, url, filename string) error {
 	return a.settingsSvc.DownloadServerModel(modelType, url, filename)
 }
 
+func (a *App) DownloadServerModelStream(jobID, modelType, url, filename string) error {
+	return a.settingsSvc.DownloadServerModelStream(modelType, url, filename, func(data string) {
+		runtime.EventsEmit(a.ctx, "server:download:progress:"+jobID, data)
+	})
+}
+
+func (a *App) PullServerLLMModelStream(jobID, name string) error {
+	return a.settingsSvc.PullServerLLMModelStream(name, func(data string) {
+		runtime.EventsEmit(a.ctx, "server:download:progress:"+jobID, data)
+	})
+}
+
 func (a *App) DeleteServerModel(modelType, filename string) error {
 	return a.settingsSvc.DeleteServerModel(modelType, filename)
 }
