@@ -24,6 +24,9 @@ const props = defineProps({
 const emit = defineEmits(['result', 'source', 'busy', 'apply-batch'])
 
 const { presets, presetTypes, compoundPresets, loadPresets } = usePresets()
+watch(presets, list => {
+  if (selectedPresetId.value && !list.some(p => p.id === selectedPresetId.value)) selectedPresetId.value = null
+})
 const selectedTypeId = ref(null)
 const selectedPresetId = ref(null)
 const selectedCompoundPresetId = ref(null)

@@ -21,6 +21,9 @@ import PresetOverridesPanel from './PresetOverridesPanel.vue'
 import CustomPipelineEditor from './CustomPipelineEditor.vue'
 
 const { presets, presetTypes, compoundPresets, loadPresets } = usePresets()
+watch(presets, list => {
+  if (selectedPresetId.value && !list.some(p => p.id === selectedPresetId.value)) selectedPresetId.value = null
+})
 
 const props = defineProps({
   resetting: { type: Boolean, default: false },

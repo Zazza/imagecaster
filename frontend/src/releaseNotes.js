@@ -5,11 +5,13 @@ export const RELEASE_NOTES = [
       'Из «Правки», «Эффекта» и «Сохранять лицо» убрана модель Moss: новый быстрый движок генерации не умеет менять фото с её помощью.',
       'В этих местах работает Klein. Выбирать модель больше не нужно, сохранённый раньше выбор Moss не мешает.',
       'Генерация картинок по описанию на Moss осталась как была.',
+      'Пресеты приходят вместе с моделью: скачали модель — появились её пресеты. Пресеты без модели или LoRA на сервере скрыты, флажок «Показать пресеты без моделей» в «Стилях» показывает их. В каталоге у каждой модели виден список её пресетов.',
     ],
     en: [
       'Moss was removed from Edit, Effect and Preserve face: the new fast generation engine cannot edit photos with it.',
       'Klein does this work now. There is no model to choose, and a previously saved Moss choice does no harm.',
       'Generating images from text with Moss works as before.',
+      'Presets come with their model: download a model and its presets appear. Presets whose model or LoRA is missing on the server are hidden; "Show presets without models" in Styles shows them. The catalog lists the presets of each model.',
     ],
   },
   {

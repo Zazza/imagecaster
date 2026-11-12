@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"math"
 	"net/url"
 	"strconv"
@@ -35,6 +36,7 @@ type Service struct {
 	cfg          *config.Config
 	log          *logger.Logger
 	serverClient *serverclient.Client
+	bundledFS    fs.FS
 }
 
 func New(db *preset.DB, llmSvc llm.Service, sdSvc sd.Service, cfg *config.Config, log *logger.Logger, srvClient *serverclient.Client) *Service {
@@ -403,7 +405,11 @@ func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	models, loras, err := s.db.BundledDependencies()
+	bundled, err := s.bundledSources()
+	if err != nil {
+		return nil, err
+	}
+	models, loras, err := preset.SourceDependencies(bundled)
 	if err != nil {
 		return nil, err
 	}
@@ -458,48 +464,6 @@ func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 	}
 	plan.TotalGB = math.Round(plan.TotalGB*100) / 100
 	return plan, nil
-}
-
-func (s *Service) CatalogPresetsMissing() (map[string]int, error) {
-	catalog, err := serverclient.LoadCatalog()
-	if err != nil {
-		return nil, err
-	}
-	result := map[string]int{}
-	for _, m := range catalog.SDModels {
-		if m.Presets == "" {
-			continue
-		}
-		raw, err := serverclient.LoadCatalogPresets(m.Presets)
-		if err != nil {
-			return nil, err
-		}
-		n, err := s.db.MissingPresets(raw)
-		if err != nil {
-			return nil, err
-		}
-		result[m.Name] = n
-	}
-	return result, nil
-}
-
-func (s *Service) InstallCatalogPresets(modelName string) (int, error) {
-	catalog, err := serverclient.LoadCatalog()
-	if err != nil {
-		return 0, err
-	}
-	m := catalog.FindSDModel(modelName)
-	if m == nil {
-		return 0, fmt.Errorf("model %q is not in the catalog", modelName)
-	}
-	if m.Presets == "" {
-		return 0, nil
-	}
-	raw, err := serverclient.LoadCatalogPresets(m.Presets)
-	if err != nil {
-		return 0, err
-	}
-	return s.db.InstallPresets(raw)
 }
 
 func (s *Service) DownloadCatalogSDModel(modelName string) error {

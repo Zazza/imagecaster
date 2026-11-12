@@ -4,6 +4,7 @@ import FoldBlock from './FoldBlock.vue'
 import { modelLoraText } from '../modelLora.js'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
+import { listAvailablePresets } from '../composables/usePresets.js'
 import { parseSeedInput } from '../seed.js'
 import { t } from '../i18n/index.js'
 import { MAX_IMAGE_SIZE } from '../constants.js'
@@ -59,6 +60,9 @@ const stylePresets = computed(() => {
 })
 
 const selectedStyle = computed(() => stylePresets.value.find((p) => p.id === stylePresetId.value) || null)
+watch(stylePresets, list => {
+  if (stylePresetId.value && !list.some(p => p.id === stylePresetId.value)) stylePresetId.value = 0
+})
 
 const selectedStyleLoras = computed(() => parseLoras(selectedStyle.value?.loras || ''))
 
@@ -263,7 +267,7 @@ function copyEffectivePrompt() {
 let settingsRestored = false
 
 onMounted(() => {
-  const presetsReq = api.listPresets().then(list => {
+  const presetsReq = listAvailablePresets(list => {
     allPresets.value = list || []
   }).catch(() => {
     stylesLoadError.value = true

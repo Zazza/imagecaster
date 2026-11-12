@@ -750,6 +750,9 @@ function effectLabel(name) {
 }
 
 const selectedEffectId = ref(null)
+watch(presets, list => {
+  if (selectedEffectId.value && !list.some(p => p.id === selectedEffectId.value)) selectedEffectId.value = null
+})
 const EFFECT_GROUP_KEY = 'pp.effectGroup'
 const effectGroupKey = ref((() => { try { return localStorage.getItem(EFFECT_GROUP_KEY) || '' } catch { return '' } })())
 const shownEffectGroup = computed(() => effectGroups.value.find(g => g.labelKey === effectGroupKey.value) || effectGroups.value[0] || null)

@@ -1,6 +1,7 @@
 package preset
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,25 +14,21 @@ type depsPreset struct {
 	bundled bool
 }
 
-func depsDB(t *testing.T, presets ...depsPreset) *DB {
+func depsSources(t *testing.T, presets ...depsPreset) []PresetSource {
 	t.Helper()
-	db := testDB(t)
-	_, err := db.DB().Exec(`DELETE FROM presets`)
-	require.NoError(t, err)
+	items := []map[string]any{}
 	for i, p := range presets {
-		bundled := 0
-		if p.bundled {
-			bundled = 1
+		if !p.bundled {
+			continue
 		}
-		_, err := db.DB().Exec(
-			`INSERT INTO presets (name, preset_type, model_name, loras, is_bundled) VALUES (?, 'post', ?, ?, ?)`,
-			"deps-"+string(rune('a'+i)), p.model, p.loras, bundled)
-		require.NoError(t, err)
+		items = append(items, map[string]any{"name": "deps-" + string(rune('a'+i)), "preset_type": "post", "model_name": p.model, "loras": p.loras})
 	}
-	return db
+	raw, err := json.Marshal(map[string]any{"version": 2, "presets": items})
+	require.NoError(t, err)
+	return []PresetSource{{File: "deps.json", Raw: raw}}
 }
 
-func TestBundledDependencies(t *testing.T) {
+func TestSourceDependencies(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
@@ -135,8 +132,7 @@ func TestBundledDependencies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			db := depsDB(t, tt.presets...)
-			models, loras, err := db.BundledDependencies()
+			models, loras, err := SourceDependencies(depsSources(t, tt.presets...))
 			require.NoError(t, err)
 			if len(tt.wantModels) == 0 {
 				assert.Empty(t, models)

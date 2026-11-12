@@ -1138,28 +1138,12 @@ func (a *App) GetDefaultDownloadPlan() (*settings.DownloadPlan, error) {
 	return a.settingsSvc.GetDefaultDownloadPlan()
 }
 
-func (a *App) CatalogPresetsMissing() (map[string]int, error) {
-	return a.settingsSvc.CatalogPresetsMissing()
+func (a *App) SyncPresets() (*settings.PresetSync, error) {
+	return a.settingsSvc.SyncPresets()
 }
 
-func (a *App) InstallCatalogPresets(modelName string) (int, error) {
-	return a.settingsSvc.InstallCatalogPresets(modelName)
-}
-
-func (a *App) GetPresetsInstallStatus() ([]preset.PresetInstallStatus, error) {
-	sdModels, _ := a.settingsSvc.GetServerModels("sd")
-	loraModels, _ := a.settingsSvc.GetServerModels("lora")
-
-	sdNames := make([]string, len(sdModels))
-	for i, m := range sdModels {
-		sdNames[i] = m.Name
-	}
-	loraNames := make([]string, len(loraModels))
-	for i, m := range loraModels {
-		loraNames[i] = m.Name
-	}
-
-	return a.presets.GetBundledInstallStatus(sdNames, loraNames)
+func (a *App) GetModelPresets() (map[string][]string, error) {
+	return a.settingsSvc.ModelPresets()
 }
 
 func (a *App) InstallPresetDeps(presetID int64) error {

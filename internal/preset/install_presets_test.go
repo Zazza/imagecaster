@@ -38,7 +38,7 @@ func TestInstallPresets_InsertsAll(t *testing.T) {
 		installPreset("Install C", "install_type_a", "anima-aesthetic-v1.1"),
 	)
 
-	n, err := db.InstallPresets(raw)
+	n, err := installRawForTest(db, raw)
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
 
@@ -61,14 +61,14 @@ func TestInstallPresets_SecondCallInsertsNothing(t *testing.T) {
 		installPreset("Repeat B", "repeat_type", "m1"),
 	)
 
-	n, err := db.InstallPresets(raw)
+	n, err := installRawForTest(db, raw)
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
 
 	before, err := db.List()
 	require.NoError(t, err)
 
-	n, err = db.InstallPresets(raw)
+	n, err = installRawForTest(db, raw)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 
@@ -89,7 +89,7 @@ func TestInstallPresets_DoesNotOverwriteUserPreset(t *testing.T) {
 		installPreset("Clash", "clash_type", "catalog_model"),
 		installPreset("Fresh", "clash_type", "catalog_model"),
 	)
-	n, err := db.InstallPresets(raw)
+	n, err := installRawForTest(db, raw)
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 
@@ -110,7 +110,7 @@ func TestInstallPresets_CreatesMissingType(t *testing.T) {
 		require.NotEqual(t, typ, pt.Name)
 	}
 
-	n, err := db.InstallPresets(installFile(t, installPreset("Typed", typ, "m1")))
+	n, err := installRawForTest(db, installFile(t, installPreset("Typed", typ, "m1")))
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 
@@ -135,7 +135,7 @@ func TestInstallPresets_ExistingTypeNotDuplicated(t *testing.T) {
 	typ := "existing_install_type_xyz"
 	require.NoError(t, db.CreatePresetType(&PresetType{Name: typ}))
 
-	_, err := db.InstallPresets(installFile(t, installPreset("Typed Existing", typ, "m1")))
+	_, err := installRawForTest(db, installFile(t, installPreset("Typed Existing", typ, "m1")))
 	require.NoError(t, err)
 
 	types, err := db.ListPresetTypes()
@@ -167,7 +167,7 @@ func TestInstallPresets_Errors(t *testing.T) {
 			before, err := db.List()
 			require.NoError(t, err)
 
-			n, err := db.InstallPresets(tt.raw)
+			n, err := installRawForTest(db, tt.raw)
 			assert.Error(t, err)
 			assert.Equal(t, 0, n)
 
@@ -180,14 +180,14 @@ func TestInstallPresets_Errors(t *testing.T) {
 
 func TestInstallPresets_EmptyPresetList(t *testing.T) {
 	db := testDB(t)
-	n, err := db.InstallPresets(installFile(t))
+	n, err := installRawForTest(db, installFile(t))
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 }
 
 func bundledStatusByName(t *testing.T, db *DB, sd []string, name string) PresetInstallStatus {
 	t.Helper()
-	st, err := db.GetBundledInstallStatus(sd, nil)
+	st, err := db.PresetAvailability(sd, nil)
 	require.NoError(t, err)
 	for _, s := range st {
 		if s.Name == name {
@@ -198,10 +198,10 @@ func bundledStatusByName(t *testing.T, db *DB, sd []string, name string) PresetI
 	return PresetInstallStatus{}
 }
 
-func TestGetBundledInstallStatus_GGUFCountsAsInstalled(t *testing.T) {
+func TestPresetAvailability_GGUFCountsAsInstalled(t *testing.T) {
 	db := testDB(t)
 	p := installPreset("GGUF Bundled", "post", "gguf_model_xyz")
-	require.NoError(t, db.SeedBundled(fstest.MapFS{"data/presets/gguf.json": seedFile(t, p)}))
+	require.NoError(t, seedAllForTest(db, fstest.MapFS{"data/presets/gguf.json": seedFile(t, p)}))
 
 	tests := []struct {
 		name      string
@@ -211,7 +211,8 @@ func TestGetBundledInstallStatus_GGUFCountsAsInstalled(t *testing.T) {
 		{"gguf file", []string{"gguf_model_xyz.gguf"}, true},
 		{"safetensors file", []string{"gguf_model_xyz.safetensors"}, true},
 		{"other gguf", []string{"another_model.gguf"}, false},
-		{"no models", nil, false},
+		{"no models", []string{}, false},
+		{"list not received", nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

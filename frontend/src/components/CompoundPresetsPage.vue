@@ -2,12 +2,15 @@
 import StatusMessage from './StatusMessage.vue'
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
+import { withPresetStatuses } from '../composables/usePresets.js'
+import { hiddenPresetIds } from '../presetAvailability.js'
 import { t } from '../i18n/index.js'
 import PipelineImportModal from './PipelineImportModal.vue'
 import SearchableSelect from './SearchableSelect.vue'
 
 const compounds = ref([])
 const presets = ref([])
+const hiddenIds = ref(new Set())
 const presetTypes = ref([])
 const editing = ref(null)
 const showForm = ref(false)
@@ -23,7 +26,7 @@ const importPipelines = ref([])
 
 const selectedCount = computed(() => selectedIds.value.size)
 
-const presetItems = computed(() => presets.value.map(p => {
+const presetItems = computed(() => presets.value.filter(p => !hiddenIds.value.has(p.id)).map(p => {
   const pt = presetTypes.value.find(pt => pt.id === p.type_id)
   const item = { value: p.id, label: p.name }
   if (pt) item.hint = pt.name
@@ -46,10 +49,13 @@ function toggleSelectAll() {
 
 async function loadData() {
   try {
-    const [c, p, pt] = await Promise.all([api.listCompoundPresets(), api.listPresets(), api.listPresetTypes()])
-    compounds.value = c || []
-    presets.value = p || []
-    presetTypes.value = pt || []
+    await withPresetStatuses(async statuses => {
+      const [c, p, pt] = await Promise.all([api.listCompoundPresets(), api.listPresets(), api.listPresetTypes()])
+      compounds.value = c || []
+      presets.value = p || []
+      presetTypes.value = pt || []
+      hiddenIds.value = hiddenPresetIds(statuses)
+    })
   } catch (e) {
     error.value = String(e)
   }

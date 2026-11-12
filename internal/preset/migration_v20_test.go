@@ -98,7 +98,7 @@ func TestMigrationV20_ReopenThenSeedKeepsBundledIDs(t *testing.T) {
 	}
 
 	db := openFileDB(t, path)
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 	before := bundledIDs(t, db)
 	require.Len(t, before, 2)
 	require.NoError(t, db.Close())
@@ -107,7 +107,7 @@ func TestMigrationV20_ReopenThenSeedKeepsBundledIDs(t *testing.T) {
 	t.Cleanup(func() { reopened.Close() })
 	assert.Equal(t, before, bundledIDs(t, reopened), "reopen must not delete bundled presets")
 
-	require.NoError(t, reopened.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(reopened, fsys))
 	assert.Equal(t, before, bundledIDs(t, reopened), "seed after reopen must not recreate bundled presets")
 }
 

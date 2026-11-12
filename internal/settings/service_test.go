@@ -71,6 +71,9 @@ type mockSDService struct {
 	optionsErr   error
 	setURLCalled bool
 	setURLVal    string
+	models       []sd.SDModel
+	modelsErr    error
+	loras        []sd.LoRA
 }
 
 func (m *mockSDService) Txt2Img(sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
@@ -80,7 +83,7 @@ func (m *mockSDService) Img2Img(sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) 
 	return nil, nil
 }
 func (m *mockSDService) GetModels() ([]sd.SDModel, error) {
-	return nil, nil
+	return m.models, m.modelsErr
 }
 func (m *mockSDService) GetSamplers() ([]sd.Sampler, error) {
 	return nil, nil
@@ -95,7 +98,7 @@ func (m *mockSDService) GetVAEs() ([]sd.VAE, error) {
 	return nil, nil
 }
 func (m *mockSDService) GetLoRAs() ([]sd.LoRA, error) {
-	return nil, nil
+	return m.loras, nil
 }
 func (m *mockSDService) GetOptions() (map[string]interface{}, error) {
 	if m.optionsErr != nil {

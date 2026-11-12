@@ -17,7 +17,7 @@ var newMaterialNames = []string{
 
 func TestSeedBundled_RealPresetsFreshDBHasNewMaterials(t *testing.T) {
 	db := testDB(t)
-	require.NoError(t, db.SeedBundled(os.DirFS("../..")))
+	require.NoError(t, seedAllForTest(db, os.DirFS("../..")))
 
 	got := presetsByName(t, db)
 	for _, name := range newMaterialNames {
@@ -38,7 +38,7 @@ func TestSeedBundled_RealPresetsExistingEffectsDBGetsNewMaterials(t *testing.T) 
 	db := testDB(t)
 	raw, err := os.ReadFile("../../data/presets/effects.json")
 	require.NoError(t, err)
-	require.NoError(t, db.SeedBundled(fstest.MapFS{
+	require.NoError(t, seedAllForTest(db, fstest.MapFS{
 		"data/presets/effects.json": &fstest.MapFile{Data: raw},
 	}))
 
@@ -55,7 +55,7 @@ func TestSeedBundled_RealPresetsExistingEffectsDBGetsNewMaterials(t *testing.T) 
 		require.Empty(t, before[name], name)
 	}
 
-	require.NoError(t, db.SeedBundled(os.DirFS("../..")))
+	require.NoError(t, seedAllForTest(db, os.DirFS("../..")))
 
 	got := presetsByName(t, db)
 	for _, name := range newMaterialNames {

@@ -68,7 +68,7 @@ func TestSeedBundled_FreshDBSeedsAllFiles(t *testing.T) {
 		),
 	}
 
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	for _, name := range []string{"Alpha One", "Alpha Two", "Beta Cartoon", "Beta Enhance"} {
@@ -88,7 +88,7 @@ func TestSeedBundled_StoresDenoisingStrength(t *testing.T) {
 		),
 	}
 
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	require.Len(t, got["Cartoon"], 1)
@@ -111,7 +111,7 @@ func TestSeedBundled_NewFileSeededOnExistingDB(t *testing.T) {
 		seedPreset("Alpha One", "post", nil),
 		seedPreset("Alpha Two", "post", nil),
 	)
-	require.NoError(t, db.SeedBundled(fstest.MapFS{"data/presets/a.json": fileA}))
+	require.NoError(t, seedAllForTest(db, fstest.MapFS{"data/presets/a.json": fileA}))
 
 	fsys := fstest.MapFS{
 		"data/presets/a.json": fileA,
@@ -120,7 +120,7 @@ func TestSeedBundled_NewFileSeededOnExistingDB(t *testing.T) {
 			seedPreset("Beta Two", "post_transform", floatPtr(0.85)),
 		),
 	}
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	assert.Len(t, got["Alpha One"], 1)
@@ -138,9 +138,9 @@ func TestSeedBundled_RepeatedRunDoesNotDuplicate(t *testing.T) {
 		"data/presets/a.json": seedFile(t, seedPreset("Alpha One", "post", nil)),
 		"data/presets/b.json": seedFile(t, seedPreset("Beta One", "post_transform", nil)),
 	}
-	require.NoError(t, db.SeedBundled(fsys))
-	require.NoError(t, db.SeedBundled(fsys))
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	assert.Len(t, got["Alpha One"], 1)
@@ -153,7 +153,7 @@ func TestSeedBundled_DeletedPresetFromSeededFileNotResurrected(t *testing.T) {
 		seedPreset("Alpha Keep", "post", nil),
 		seedPreset("Alpha Removed", "post", nil),
 	)
-	require.NoError(t, db.SeedBundled(fstest.MapFS{"data/presets/a.json": fileA}))
+	require.NoError(t, seedAllForTest(db, fstest.MapFS{"data/presets/a.json": fileA}))
 
 	before := presetsByName(t, db)
 	require.Len(t, before["Alpha Removed"], 1)
@@ -163,7 +163,7 @@ func TestSeedBundled_DeletedPresetFromSeededFileNotResurrected(t *testing.T) {
 		"data/presets/a.json": fileA,
 		"data/presets/b.json": seedFile(t, seedPreset("Beta One", "post_transform", nil)),
 	}
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	assert.Empty(t, got["Alpha Removed"])
@@ -174,7 +174,7 @@ func TestSeedBundled_DeletedPresetFromSeededFileNotResurrected(t *testing.T) {
 func TestSeedBundled_SkipsNameOfExistingUserPreset(t *testing.T) {
 	db := testDB(t)
 	fileA := seedFile(t, seedPreset("Alpha One", "post", nil))
-	require.NoError(t, db.SeedBundled(fstest.MapFS{"data/presets/a.json": fileA}))
+	require.NoError(t, seedAllForTest(db, fstest.MapFS{"data/presets/a.json": fileA}))
 
 	user := &Preset{Name: "Cartoon", PresetType: "mine", Prompt: "my own cartoon", Steps: 20, CfgScale: 7}
 	require.NoError(t, db.Create(user))
@@ -186,7 +186,7 @@ func TestSeedBundled_SkipsNameOfExistingUserPreset(t *testing.T) {
 			seedPreset("Anime", "post_transform", floatPtr(0.85)),
 		),
 	}
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	require.Len(t, got["Cartoon"], 1)
@@ -208,7 +208,7 @@ func TestSeedBundled_FreshDBSkipsNameOfExistingUserPreset(t *testing.T) {
 			seedPreset("Anime", "post_transform", floatPtr(0.85)),
 		),
 	}
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	require.Len(t, got["Cartoon"], 1)
@@ -227,7 +227,7 @@ func TestSeedBundled_AllPresetsOfSeededFileDeletedNotResurrected(t *testing.T) {
 			seedPreset("Beta One", "post_transform", floatPtr(0.85)),
 		),
 	}
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	before := presetsByName(t, db)
 	require.Len(t, before["Beta One"], 1)
@@ -237,7 +237,7 @@ func TestSeedBundled_AllPresetsOfSeededFileDeletedNotResurrected(t *testing.T) {
 		require.NoError(t, db.Delete(before[name][0].ID))
 	}
 
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	assert.Empty(t, got["Alpha One"])
@@ -263,7 +263,7 @@ func TestSeedBundled_LegacyDBNewFileSeededThenDeletedNotResurrected(t *testing.T
 			seedPreset("Beta Two", "post_transform", floatPtr(0.85)),
 		),
 	}
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	got := presetsByName(t, db)
 	assert.Len(t, got["Alpha One"], 1)
@@ -275,7 +275,7 @@ func TestSeedBundled_LegacyDBNewFileSeededThenDeletedNotResurrected(t *testing.T
 	require.NoError(t, db.Delete(got["Beta One"][0].ID))
 	require.NoError(t, db.Delete(got["Beta Two"][0].ID))
 
-	require.NoError(t, db.SeedBundled(fsys))
+	require.NoError(t, seedAllForTest(db, fsys))
 
 	after := presetsByName(t, db)
 	assert.Empty(t, after["Beta One"])

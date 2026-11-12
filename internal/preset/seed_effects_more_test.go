@@ -77,7 +77,7 @@ func TestSeedBundled_EM1_FreshDBHasAllEffectsMoreWithTypes(t *testing.T) {
 	require.NotEmpty(t, file)
 
 	db := testDB(t)
-	require.NoError(t, db.SeedBundled(os.DirFS("../..")))
+	require.NoError(t, seedAllForTest(db, os.DirFS("../..")))
 
 	got := presetsByName(t, db)
 	for _, fp := range file {
@@ -121,7 +121,7 @@ func TestSeedBundled_EM2_SeededEffectsAndMaterialsGetNewNoDuplicates(t *testing.
 	}
 
 	db := testDB(t)
-	require.NoError(t, db.SeedBundled(fstest.MapFS{
+	require.NoError(t, seedAllForTest(db, fstest.MapFS{
 		"data/presets/effects.json":   &fstest.MapFile{Data: effRaw},
 		"data/presets/materials.json": &fstest.MapFile{Data: matRaw},
 	}))
@@ -130,7 +130,7 @@ func TestSeedBundled_EM2_SeededEffectsAndMaterialsGetNewNoDuplicates(t *testing.
 		require.Empty(t, before[p.Name], p.Name)
 	}
 
-	require.NoError(t, db.SeedBundled(os.DirFS("../..")))
+	require.NoError(t, seedAllForTest(db, os.DirFS("../..")))
 	got := presetsByName(t, db)
 	for _, p := range more {
 		require.Len(t, got[p.Name], 1, p.Name)
@@ -142,7 +142,7 @@ func TestSeedBundled_EM2_SeededEffectsAndMaterialsGetNewNoDuplicates(t *testing.
 		assert.Equal(t, before[name][0].ID, got[name][0].ID, name)
 	}
 
-	require.NoError(t, db.SeedBundled(os.DirFS("../..")))
+	require.NoError(t, seedAllForTest(db, os.DirFS("../..")))
 	again := presetsByName(t, db)
 	for _, p := range more {
 		assert.Len(t, again[p.Name], 1, "third seed duplicated %s", p.Name)

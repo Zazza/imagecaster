@@ -62,10 +62,6 @@ func main() {
 	}
 	defer presets.Close()
 
-	if err := presets.SeedBundled(bundledPresets); err != nil {
-		log.Printf("Warning: bundled presets seed failed: %v", err)
-	}
-
 	llmClient := llm.New(cfg.LLMUrl, cfg.LLMBackend)
 	sdClient := sd.New(cfg.SDUrl)
 	srvClient := serverclient.NewClient()
@@ -73,6 +69,10 @@ func main() {
 	settings.Restore(presets, cfg, llmClient, sdClient, srvClient)
 
 	app := NewApp(presets, llmClient, sdClient, srvClient, cfg)
+	app.settingsSvc.SetBundledPresets(bundledPresets)
+	if err := app.settingsSvc.MigratePresetInstallLog(); err != nil {
+		log.Printf("Warning: preset install log migration failed: %v", err)
+	}
 	imgHandler := &imageFileHandler{db: presets, dataDir: filepath.Dir(cfg.DBPath)}
 
 	if err := wails.Run(&options.App{

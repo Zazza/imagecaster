@@ -2,13 +2,10 @@ package preset
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 
@@ -409,39 +406,6 @@ func (d *DB) FindExactPreset(p *Preset) (*Preset, error) {
 	return &found, nil
 }
 
-func (d *DB) BundledDependencies() ([]string, []string, error) {
-	rows, err := d.db.Query(`SELECT model_name, loras FROM presets WHERE is_bundled = 1`)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-	modelCount := map[string]int{}
-	loraCount := map[string]int{}
-	for rows.Next() {
-		var modelName, lorasJSON string
-		if err := rows.Scan(&modelName, &lorasJSON); err != nil {
-			return nil, nil, err
-		}
-		if modelName != "" {
-			modelCount[modelName]++
-		}
-		if lorasJSON != "" && lorasJSON != "[]" {
-			var loras []LoRAEntry
-			if json.Unmarshal([]byte(lorasJSON), &loras) == nil {
-				for _, l := range loras {
-					if l.Name != "" {
-						loraCount[l.Name]++
-					}
-				}
-			}
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
-	}
-	return sortedByCount(modelCount), sortedByCount(loraCount), nil
-}
-
 func sortedByCount(counts map[string]int) []string {
 	names := make([]string, 0, len(counts))
 	for n := range counts {
@@ -463,53 +427,6 @@ func trimModelExt(name string) string {
 		}
 	}
 	return name
-}
-
-func (d *DB) GetBundledInstallStatus(sdModels []string, loraModels []string) ([]PresetInstallStatus, error) {
-	sdSet := make(map[string]bool, len(sdModels))
-	for _, m := range sdModels {
-		sdSet[trimModelExt(m)] = true
-	}
-	loraSet := make(map[string]bool, len(loraModels))
-	for _, m := range loraModels {
-		loraSet[strings.TrimSuffix(m, ".safetensors")] = true
-	}
-
-	rows, err := d.db.Query(`SELECT id, name, model_name, loras FROM presets WHERE is_bundled = 1`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []PresetInstallStatus
-	for rows.Next() {
-		var id int64
-		var name, modelName, lorasJSON string
-		if err := rows.Scan(&id, &name, &modelName, &lorasJSON); err != nil {
-			return nil, err
-		}
-
-		status := PresetInstallStatus{ID: id, Name: name}
-
-		if modelName != "" && !sdSet[modelName] {
-			status.MissingSD = append(status.MissingSD, modelName)
-		}
-
-		if lorasJSON != "" && lorasJSON != "[]" {
-			var loras []LoRAEntry
-			if json.Unmarshal([]byte(lorasJSON), &loras) == nil {
-				for _, l := range loras {
-					if !loraSet[l.Name] {
-						status.MissingLoRA = append(status.MissingLoRA, l.Name)
-					}
-				}
-			}
-		}
-
-		status.Installed = len(status.MissingSD) == 0 && len(status.MissingLoRA) == 0
-		result = append(result, status)
-	}
-	return result, rows.Err()
 }
 
 func (d *DB) Create(p *Preset) error {
@@ -1408,104 +1325,6 @@ func migrateV21(db *sql.DB) error {
 	return nil
 }
 
-func (d *DB) SeedBundled(fsys fs.FS) error {
-	entries, err := fs.ReadDir(fsys, "data/presets")
-	if err != nil {
-		return fmt.Errorf("read bundled presets: %w", err)
-	}
-
-	var files []bundledPresetsFile
-	var fileNames []string
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		raw, err := fs.ReadFile(fsys, "data/presets/"+entry.Name())
-		if err != nil {
-			continue
-		}
-		var file bundledPresetsFile
-		if err := json.Unmarshal(raw, &file); err != nil || file.Version != 2 {
-			continue
-		}
-		files = append(files, file)
-		fileNames = append(fileNames, entry.Name())
-	}
-
-	seededFiles := make(map[string]bool)
-	if raw, err := d.GetSetting(bundledSeededFilesKey); err != nil {
-		return err
-	} else if raw != "" {
-		var list []string
-		if err := json.Unmarshal([]byte(raw), &list); err == nil {
-			for _, n := range list {
-				seededFiles[n] = true
-			}
-		}
-	}
-
-	bundledNames := make(map[string]bool)
-	allNames := make(map[string]bool)
-	rows, err := d.db.Query(`SELECT name, is_bundled FROM presets`)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var name string
-		var bundled bool
-		if err := rows.Scan(&name, &bundled); err != nil {
-			rows.Close()
-			return err
-		}
-		allNames[name] = true
-		if bundled {
-			bundledNames[name] = true
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	var pending []bundledPreset
-	newlySeeded := false
-	for i, f := range files {
-		seeded := seededFiles[fileNames[i]]
-		for _, p := range f.Presets {
-			if seeded {
-				break
-			}
-			if bundledNames[p.Name] {
-				seeded = true
-				break
-			}
-		}
-		if !seededFiles[fileNames[i]] {
-			seededFiles[fileNames[i]] = true
-			newlySeeded = true
-		}
-		if seeded {
-			continue
-		}
-		for _, p := range f.Presets {
-			if p.Name == "" || allNames[p.Name] {
-				continue
-			}
-			allNames[p.Name] = true
-			pending = append(pending, p)
-		}
-	}
-	if len(pending) == 0 {
-		return d.saveSeededFiles(seededFiles, newlySeeded)
-	}
-
-	if err := d.insertBundledPresets(pending); err != nil {
-		return err
-	}
-
-	return d.saveSeededFiles(seededFiles, newlySeeded)
-}
-
 func (d *DB) insertBundledPresets(pending []bundledPreset) error {
 	typeCache := make(map[string]int64)
 	existing, _ := d.ListPresetTypes()
@@ -1560,75 +1379,7 @@ func (d *DB) insertBundledPresets(pending []bundledPreset) error {
 	return nil
 }
 
-func (d *DB) pendingPresets(raw []byte) ([]bundledPreset, error) {
-	var file bundledPresetsFile
-	if err := json.Unmarshal(raw, &file); err != nil {
-		return nil, fmt.Errorf("parse presets: %w", err)
-	}
-	if file.Version != 2 {
-		return nil, fmt.Errorf("unsupported presets version %d", file.Version)
-	}
-	allNames := make(map[string]bool)
-	rows, err := d.db.Query(`SELECT name FROM presets`)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		allNames[name] = true
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	var pending []bundledPreset
-	for _, p := range file.Presets {
-		if p.Name == "" || allNames[p.Name] {
-			continue
-		}
-		allNames[p.Name] = true
-		pending = append(pending, p)
-	}
-	return pending, nil
-}
-
-func (d *DB) MissingPresets(raw []byte) (int, error) {
-	pending, err := d.pendingPresets(raw)
-	return len(pending), err
-}
-
-func (d *DB) InstallPresets(raw []byte) (int, error) {
-	pending, err := d.pendingPresets(raw)
-	if err != nil || len(pending) == 0 {
-		return 0, err
-	}
-	if err := d.insertBundledPresets(pending); err != nil {
-		return 0, err
-	}
-	return len(pending), nil
-}
-
 const bundledSeededFilesKey = "bundled_seeded_files"
-
-func (d *DB) saveSeededFiles(seeded map[string]bool, changed bool) error {
-	if !changed {
-		return nil
-	}
-	list := make([]string, 0, len(seeded))
-	for n := range seeded {
-		list = append(list, n)
-	}
-	slices.Sort(list)
-	raw, err := json.Marshal(list)
-	if err != nil {
-		return err
-	}
-	return d.SetSetting(bundledSeededFilesKey, string(raw))
-}
 
 func migrateV22(db *sql.DB) error {
 	_, err := db.Exec("UPDATE hires_profiles SET upscaler = 'R-ESRGAN 4x+' WHERE upscaler = 'Latent'")

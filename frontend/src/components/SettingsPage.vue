@@ -50,15 +50,24 @@ const utilitiesExpanded = ref(false)
 const activeDownload = reactive({ type: '', name: '', progress: '', model: '' })
 const catalogNotice = ref('')
 const defaultPlan = computed(() => defaultDownloads.plan)
-const presetNotice = reactive({})
-const presetsMissing = ref({})
+const modelPresets = ref({})
 
-async function loadPresetsMissing() {
+async function loadModelPresets() {
   try {
-    presetsMissing.value = (await api.catalogPresetsMissing()) || {}
+    modelPresets.value = (await api.getModelPresets()) || {}
   } catch (e) {
-    console.warn('catalog presets status', e)
-    presetsMissing.value = {}
+    console.warn('catalog model presets', e)
+    modelPresets.value = {}
+  }
+}
+
+async function syncPresets() {
+  try {
+    const r = await api.syncPresets()
+    return r?.added || 0
+  } catch (e) {
+    console.warn('presets sync', e)
+    return 0
   }
 }
 
@@ -423,7 +432,7 @@ async function loadServerModels() {
     finally { serverModelsLoading[type] = false }
   }
   await loadDefaultPlan()
-  await loadPresetsMissing()
+  await loadModelPresets()
   serverModelsLoading.llm = true
   try {
     serverModels.llm = await api.getServerLLMModels() || []
@@ -464,24 +473,13 @@ function isSDModelUnverified(m) {
   return hasServerFile('sd', sdMainFilename(m)) && missingModules(m).length === 0 && unverifiedModules(m).length > 0
 }
 
-async function addCatalogPresets(m) {
-  try {
-    const added = await api.installCatalogPresets(m.name)
-    presetNotice[m.name] = added
-      ? t('settings.catalog_presets_added_short', { count: added })
-      : t('settings.catalog_presets_exist_short')
-  } catch (e) {
-    presetNotice[m.name] = String(e)
-  }
-  await loadPresetsMissing()
-}
-
 async function downloadDefaultPlan() {
   const plan = defaultPlan.value
   if (!plan || !plan.items.length) return
   if (!confirm(t('settings.confirm_download_all', { count: plan.items.length, size: plan.total_gb }))) return
   catalogNotice.value = ''
   const failed = await runDefaultPlan(serverURL.value)
+  await syncPresets()
   await loadServerModels()
   if (failed.length) alert(t('settings.err_download', { error: failed.join('\n') }))
   else catalogNotice.value = t('settings.download_all_done')
@@ -507,10 +505,8 @@ async function downloadSDModel(m) {
         await api.downloadServerModel(f.type, f.url, f.filename)
       }
     }
-    if (m.presets) {
-      const added = await api.installCatalogPresets(m.name)
-      catalogNotice.value = t('settings.catalog_presets_added', { model: m.name, count: added || 0 })
-    }
+    const added = await syncPresets()
+    if (added) catalogNotice.value = t('settings.catalog_presets_added', { model: m.name, count: added })
   } catch (e) {
     alert(t('settings.err_download', { error: String(e) }))
   } finally {
@@ -1363,11 +1359,13 @@ onMounted(loadSettings)
                 {{ t('settings.catalog_modules') }}
                 <span v-for="mod in m.modules" :key="mod.filename" style="margin-right: 8px;" :style="{ color: hasServerFile(mod.type, mod.filename) ? 'var(--success)' : 'var(--text-dim)' }">{{ mod.filename }} ({{ mod.size_gb }} {{ t('settings.unit_gb') }})</span>
               </div>
+              <details v-if="modelPresets[m.name] && modelPresets[m.name].length" class="catalog-model-presets" style="color: var(--text-dim); font-size: 11px;">
+                <summary style="cursor: pointer;">{{ t('settings.catalog_model_presets', { count: modelPresets[m.name].length }) }}</summary>
+                <div>{{ modelPresets[m.name].join(', ') }}</div>
+              </details>
             </div>
             <span v-if="activeDownload.model === m.name" style="font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ activeDownload.progress }}</span>
             <span v-else-if="isSDModelInstalled(m) || isSDModelUnverified(m)" style="display: flex; gap: 8px; align-items: center; white-space: nowrap;">
-              <span v-if="presetNotice[m.name]" style="color: var(--success); font-size: 11px;">{{ presetNotice[m.name] }}</span>
-              <button v-if="m.presets && presetsMissing[m.name] > 0" class="btn btn-secondary btn-sm" @click="addCatalogPresets(m)">{{ t('settings.btn_add_presets') }}</button>
               <button style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', sdMainFilename(m))">{{ t('settings.btn_delete_model') }}</button>
             </span>
             <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>

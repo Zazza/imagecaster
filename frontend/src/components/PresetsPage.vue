@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
+import { withPresetStatuses } from '../composables/usePresets.js'
+import { filterAvailable } from '../presetAvailability.js'
 import { t } from '../i18n/index.js'
 import { effectTypeLabel, isEffectType } from '../effectTypes.js'
 import PresetForm from './PresetForm.vue'
@@ -24,7 +26,8 @@ const filterSearch = ref('')
 const filterType = ref('')
 const importPresets = ref([])
 
-const installStatuses = ref([])
+const installStatuses = ref(null)
+const showUnavailable = ref(false)
 const installingId = ref(null)
 
 const pendingDeleteId = ref(null)
@@ -34,22 +37,15 @@ const showDeleteConfirm = ref(false)
 
 const selectedCount = computed(() => selectedIds.value.size)
 
-async function loadInstallStatuses() {
-  try {
-    const statuses = await api.getPresetsInstallStatus()
-    installStatuses.value = statuses || []
-  } catch { installStatuses.value = [] }
-}
-
 function getStatus(presetId) {
-  return installStatuses.value.find(s => s.id === presetId)
+  return (installStatuses.value || []).find(s => s.id === presetId)
 }
 
 async function installDeps(presetId) {
   installingId.value = presetId
   try {
     await api.installPresetDeps(presetId)
-    await loadInstallStatuses()
+    await load()
   } catch (e) {
     alert('Install failed: ' + e)
   } finally {
@@ -60,24 +56,30 @@ async function installDeps(presetId) {
 async function load() {
   loading.value = true
   try {
-    const [p, t] = await Promise.all([api.listPresets(), api.listPresetTypes()])
-    allPresets.value = p || []
-    presetTypes.value = t || []
+    await withPresetStatuses(async statuses => {
+      const [p, t] = await Promise.all([api.listPresets(), api.listPresetTypes()])
+      installStatuses.value = statuses
+      allPresets.value = p || []
+      presetTypes.value = t || []
+    })
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
   }
-  loadInstallStatuses()
 }
 
 const effectTypeIds = computed(() => new Set(
   presetTypes.value.filter(pt => isEffectType((pt.name || '').trim().toLowerCase())).map(pt => pt.id)
 ))
 
-const presets = computed(() => {
+const modePresets = computed(() => {
   const wantEffects = props.mode === 'effects'
   return allPresets.value.filter(p => effectTypeIds.value.has(p.type_id) === wantEffects)
+})
+
+const presets = computed(() => {
+  return filterAvailable(modePresets.value, installStatuses.value, showUnavailable.value)
 })
 
 const formDefaults = computed(() => {
@@ -260,7 +262,7 @@ onMounted(load)
       <span class="spinner"></span>
     </div>
 
-    <div v-else-if="presets.length === 0" class="empty-state">
+    <div v-else-if="modePresets.length === 0" class="empty-state">
       <div class="empty-state-icon">&#9776;</div>
       <p>{{ mode === 'effects' ? t('presets.no_effects') : t('presets.no_presets') }}</p>
     </div>
@@ -272,6 +274,10 @@ onMounted(load)
           <option value="">{{ t('presets.all_types') }}</option>
           <option v-for="at in availableTypes" :key="at" :value="at">{{ effectTypeLabel(at, t) }}</option>
         </select>
+        <label class="show-unavailable" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); cursor: pointer;">
+          <input type="checkbox" v-model="showUnavailable" />
+          {{ t('presets.show_unavailable') }}
+        </label>
       </div>
 
       <div v-if="filteredPresets.length === 0" style="color: var(--text-dim); text-align: center; padding: 24px;">

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/serverclient"
@@ -44,26 +45,24 @@ func planService(t *testing.T, onServer map[string][]string, presets ...planPres
 	t.Cleanup(srv.Close)
 
 	_, db := testService(t, nil, nil)
-	_, err := db.DB().Exec(`DELETE FROM presets`)
-	require.NoError(t, err)
+	items := []map[string]any{}
 	for i, p := range presets {
-		bundled := 0
-		if p.bundled {
-			bundled = 1
+		if !p.bundled {
+			continue
 		}
 		loras := p.loras
 		if loras == "" {
 			loras = "[]"
 		}
-		_, err := db.DB().Exec(
-			`INSERT INTO presets (name, preset_type, model_name, loras, is_bundled) VALUES (?, 'post', ?, ?, ?)`,
-			"plan-"+string(rune('a'+i)), p.model, loras, bundled)
-		require.NoError(t, err)
+		items = append(items, map[string]any{"name": "plan-" + string(rune('a'+i)), "preset_type": "post", "model_name": p.model, "loras": loras})
 	}
+	raw, err := json.Marshal(map[string]any{"version": 2, "presets": items})
+	require.NoError(t, err)
 
 	client := serverclient.NewClient()
 	client.SetBaseURL(srv.URL)
 	svc, _ := testServiceWithDB(t, db, client)
+	svc.SetBundledPresets(fstest.MapFS{"data/presets/plan.json": {Data: raw}})
 	return svc
 }
 
