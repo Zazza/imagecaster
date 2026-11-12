@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { t } from '../i18n/index.js'
 import { parseLoras } from '../loraOverride.js'
 
@@ -11,10 +11,12 @@ const props = defineProps({
   showActions: { type: Boolean, default: false },
   confirmDelete: { type: Boolean, default: false },
   canDelete: { type: Boolean, default: true },
+  position: { type: Number, default: 0 },
+  total: { type: Number, default: 0 },
+  title: { type: String, default: '' },
 })
 const emit = defineEmits(['close', 'prev', 'next', 'export', 'delete'])
 
-const promptExpanded = ref(false)
 const infoExpanded = ref(false)
 
 const ZOOM_MIN = 10
@@ -105,10 +107,23 @@ const chainRows = computed(() => chain.value.map((s, i) => {
 const isFit = computed(() => zoomMode.value === 'fit')
 const zoomLabel = computed(() => isFit.value ? t('viewer.zoom_fit') : zoomPct.value + '%')
 
-const viewportW = ref(window.innerWidth)
-const viewportH = ref(window.innerHeight)
-const availW = computed(() => viewportW.value * 0.95)
-const availH = computed(() => viewportH.value * (infoExpanded.value ? 0.8 : 0.95))
+const stageRef = ref(null)
+const stageW = ref(window.innerWidth)
+const stageH = ref(window.innerHeight)
+const availW = computed(() => stageW.value)
+const availH = computed(() => stageH.value)
+const showCounter = computed(() => props.total > 1 && props.position > 0)
+let stageObserver = null
+
+function measureStage() {
+  const el = stageRef.value
+  if (el && el.clientWidth && el.clientHeight) {
+    const cs = window.getComputedStyle(el)
+    stageW.value = el.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0)
+    stageH.value = el.clientHeight - parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0)
+  }
+  if (!isFit.value) clampPan()
+}
 
 const renderedW = computed(() => naturalW.value ? (naturalW.value * zoomPct.value) / 100 : 0)
 const renderedH = computed(() => naturalH.value ? (naturalH.value * zoomPct.value) / 100 : 0)
@@ -215,9 +230,7 @@ function onWheel(e) {
 }
 
 function onResize() {
-  viewportW.value = window.innerWidth
-  viewportH.value = window.innerHeight
-  if (!isFit.value) clampPan()
+  measureStage()
 }
 
 watch(() => props.imageBase64, () => {
@@ -226,12 +239,14 @@ watch(() => props.imageBase64, () => {
   setFit()
 })
 
-watch(infoExpanded, () => {
-  if (!isFit.value) clampPan()
-})
+watch(infoExpanded, () => nextTick(measureStage))
 
 function onKeydown(e) {
-  if (e.key === 'Escape') emit('close')
+  if (e.key === 'Escape') {
+    if (zoomMenuOpen.value) zoomMenuOpen.value = false
+    else emit('close')
+    return
+  }
   if (e.key === 'ArrowLeft' && props.hasPrev) emit('prev')
   if (e.key === 'ArrowRight' && props.hasNext) emit('next')
   if (e.key === 'Delete' && props.showActions && props.canDelete) emit('delete')
@@ -240,85 +255,95 @@ function onKeydown(e) {
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', onResize)
+  if (typeof ResizeObserver !== 'undefined' && stageRef.value) {
+    stageObserver = new ResizeObserver(measureStage)
+    stageObserver.observe(stageRef.value)
+  }
+  measureStage()
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
+  if (stageObserver) stageObserver.disconnect()
   clearTimeout(suppressDblTimer)
 })
 </script>
 
 <template>
-  <div class="image-viewer-overlay" @click="$emit('close')">
-    <div class="image-viewer-stage" @wheel="onWheel" @pointerdown="zoomMenuOpen = false">
-      <img
-        :src="imgSrc"
-        :alt="t('viewer.full_size')"
-        :class="{ 'with-bar': item && infoExpanded, zoomed: !isFit && naturalW > 0, pannable: panEnabled, panning: dragging }"
-        :style="imgStyle"
-        @click.stop
-        @dblclick.stop="toggleFit100"
-        @dragstart.prevent
-        @load="onImgLoad"
-        @pointerdown="onPointerDown"
-        @pointermove="onPointerMove"
-        @pointerup="onPointerUp"
-        @pointercancel="onPointerUp"
-      />
-    </div>
-    <button class="image-viewer-close" @click="$emit('close')">&times;</button>
-    <div v-if="item || showActions" class="image-viewer-tools" @click.stop>
-      <button
-        v-if="item"
-        class="image-viewer-tool-btn"
-        :class="{ active: infoExpanded }"
-        :title="t('viewer.info_toggle')"
-        :aria-label="t('viewer.info_toggle')"
-        :aria-expanded="infoExpanded"
-        @click="infoExpanded = !infoExpanded"
-      >&#9432;</button>
-      <template v-if="showActions && !infoExpanded">
-        <button class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
+  <div class="image-viewer-overlay" role="dialog" aria-modal="true">
+    <div class="iv-toolbar">
+      <div class="iv-toolbar-side">
+        <span v-if="showCounter" class="iv-counter">{{ t('viewer.counter', { n: position, total }) }}</span>
+        <span v-if="title" class="iv-title" :title="title">{{ title }}</span>
+      </div>
+      <div class="image-viewer-zoom">
         <button
-          v-if="canDelete"
-          class="image-viewer-tool-btn tool-danger"
-          :class="{ confirm: confirmDelete }"
-          @click="$emit('delete')"
-        >{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</button>
-      </template>
-    </div>
-    <div class="image-viewer-zoom" @click.stop>
-      <button
-        class="image-viewer-zoom-btn"
-        :title="t('viewer.zoom_out')"
-        :aria-label="t('viewer.zoom_out')"
-        :disabled="isFit && fitPercent() <= ZOOM_MIN"
-        @click="zoomBy(-10)"
-      >&minus;</button>
-      <button class="image-viewer-zoom-btn image-viewer-zoom-label" :title="t('viewer.zoom_presets')" :aria-expanded="zoomMenuOpen" aria-haspopup="menu" @click="onZoomIndicatorClick">{{ zoomLabel }}</button>
-      <button
-        class="image-viewer-zoom-btn"
-        :title="t('viewer.zoom_in')"
-        :aria-label="t('viewer.zoom_in')"
-        @click="zoomBy(10)"
-      >&plus;</button>
-      <div v-if="zoomMenuOpen" class="image-viewer-zoom-menu" role="menu">
-        <button :class="{ active: isFit }" @click="setFit">{{ t('viewer.zoom_fit') }}</button>
+          class="image-viewer-zoom-btn"
+          :title="t('viewer.zoom_out')"
+          :aria-label="t('viewer.zoom_out')"
+          :disabled="isFit && fitPercent() <= ZOOM_MIN"
+          @click="zoomBy(-10)"
+        >&minus;</button>
+        <button class="image-viewer-zoom-btn image-viewer-zoom-label" :title="t('viewer.zoom_presets')" :aria-expanded="zoomMenuOpen" aria-haspopup="menu" @click="onZoomIndicatorClick">{{ zoomLabel }}</button>
         <button
-          v-for="p in ZOOM_PRESETS"
-          :key="p"
-          :class="{ active: !isFit && zoomPct === p }"
-          @click="enterZoom(p)"
-        >{{ p }}%</button>
+          class="image-viewer-zoom-btn"
+          :title="t('viewer.zoom_in')"
+          :aria-label="t('viewer.zoom_in')"
+          @click="zoomBy(10)"
+        >&plus;</button>
+        <div v-if="zoomMenuOpen" class="image-viewer-zoom-menu" role="menu">
+          <button :class="{ active: isFit }" @click="setFit">{{ t('viewer.zoom_fit') }}</button>
+          <button
+            v-for="p in ZOOM_PRESETS"
+            :key="p"
+            :class="{ active: !isFit && zoomPct === p }"
+            @click="enterZoom(p)"
+          >{{ p }}%</button>
+        </div>
+      </div>
+      <div class="iv-toolbar-side iv-toolbar-right">
+        <button
+          v-if="item"
+          class="image-viewer-tool-btn iv-info-toggle"
+          :class="{ active: infoExpanded }"
+          :aria-expanded="infoExpanded"
+          @click="infoExpanded = !infoExpanded"
+        >&#9432; {{ t('viewer.info_toggle') }}</button>
+        <button v-if="showActions" class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
+        <template v-if="showActions && canDelete">
+          <span class="iv-sep" aria-hidden="true"></span>
+          <button
+            class="image-viewer-tool-btn tool-danger iv-delete"
+            :class="{ confirm: confirmDelete }"
+            :data-alt="confirmDelete ? t('viewer.delete') : t('viewer.confirm_delete')"
+            @click="$emit('delete')"
+          ><span>{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</span></button>
+        </template>
+        <button class="image-viewer-close" :title="t('viewer.close')" :aria-label="t('viewer.close')" @click="$emit('close')">&times;</button>
       </div>
     </div>
-    <button v-if="hasPrev" class="image-viewer-nav image-viewer-prev" @click.stop="$emit('prev')">&lsaquo;</button>
-    <button v-if="hasNext" class="image-viewer-nav image-viewer-next" @click.stop="$emit('next')">&rsaquo;</button>
-    <div v-if="item && infoExpanded" class="image-viewer-bar" @click.stop>
-      <div class="viewer-bar-content">
-        <div v-if="item.prompt" class="viewer-prompt" :class="{ expanded: promptExpanded }" @click="promptExpanded = !promptExpanded">
-          {{ item.prompt }}
+    <div class="iv-body">
+      <div class="iv-main">
+        <div ref="stageRef" class="image-viewer-stage" @wheel="onWheel" @pointerdown="zoomMenuOpen = false">
+          <img
+            :src="imgSrc"
+            :alt="t('viewer.full_size')"
+            :class="{ zoomed: !isFit && naturalW > 0, pannable: panEnabled, panning: dragging }"
+            :style="imgStyle"
+            @dblclick="toggleFit100"
+            @dragstart.prevent
+            @load="onImgLoad"
+            @pointerdown="onPointerDown"
+            @pointermove="onPointerMove"
+            @pointerup="onPointerUp"
+            @pointercancel="onPointerUp"
+          />
         </div>
+        <button v-if="hasPrev" class="image-viewer-nav image-viewer-prev" :aria-label="t('viewer.prev')" @click="$emit('prev')"><span>&lsaquo;</span></button>
+        <button v-if="hasNext" class="image-viewer-nav image-viewer-next" :aria-label="t('viewer.next')" @click="$emit('next')"><span>&rsaquo;</span></button>
+      </div>
+      <aside v-if="item && infoExpanded" class="iv-info">
+        <div v-if="item.prompt" class="viewer-prompt">{{ item.prompt }}</div>
         <div class="viewer-params">
           <span v-if="item.sampler">{{ item.sampler }}</span>
           <span v-if="item.steps">{{ t('viewer.info_steps') }} {{ item.steps }}</span>
@@ -340,11 +365,7 @@ onUnmounted(() => {
         <div v-else-if="metaOnlyLine" class="viewer-params">
           <span>{{ metaOnlyLine }}</span>
         </div>
-        <div v-if="showActions" class="viewer-actions">
-          <button class="btn btn-primary btn-sm" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
-          <button v-if="canDelete" class="btn btn-danger btn-sm" @click="$emit('delete')">{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</button>
-        </div>
-      </div>
+      </aside>
     </div>
   </div>
 </template>

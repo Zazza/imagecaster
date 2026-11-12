@@ -148,6 +148,11 @@ describe('VA1: history viewer actions', () => {
     expect(DeleteSessionItem).toHaveBeenCalledWith(id)
   })
 
+  it('shows position in the session', async () => {
+    const { wrapper } = await openViewer(1)
+    expect(viewer(wrapper).find('.iv-counter').text()).toBe(t('viewer.counter', { n: 2, total: ITEMS.length }))
+  })
+
   it('Delete key deletes with confirmation as before', async () => {
     const { wrapper, id } = await openViewer()
     pressKey('Delete')
@@ -248,6 +253,14 @@ describe('VA2/VA3: My Images', () => {
     expect(labels).not.toContain(t('viewer.confirm_delete'))
     expect(labels).not.toContain(OLD_REMIX)
     expect(labels).not.toContain(OLD_EDIT)
+  })
+
+  it('shows position and file name of the opened image', async () => {
+    const wrapper = await mountPage()
+    const name = imageCards(wrapper)[1].find('.fb-card-name').text().trim()
+    await openAt(wrapper, 1)
+    expect(viewer(wrapper).find('.iv-counter').text()).toBe(t('viewer.counter', { n: 2, total: ENTRIES.length }))
+    expect(viewer(wrapper).find('.iv-title').text()).toBe(name)
   })
 
   it('VA2: Delete key does nothing', async () => {

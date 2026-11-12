@@ -904,10 +904,14 @@ export const en = {
   'pin.error_mismatch': 'PINs do not match',
 
   // ImageViewer.vue
+  'viewer.counter': '{n} of {total}',
+  'viewer.close': 'Close (Esc)',
+  'viewer.prev': 'Previous',
+  'viewer.next': 'Next',
   'viewer.full_size': 'Full size',
   'viewer.postprocess': 'Post-Process',
   'viewer.delete': 'Delete',
-  'viewer.confirm_delete': 'Confirm Delete',
+  'viewer.confirm_delete': 'Really delete?',
   'viewer.chain_title': 'Generation chain',
   'viewer.chain_custom': 'Custom ({count})',
   'viewer.chain_step': 'Step {num}',

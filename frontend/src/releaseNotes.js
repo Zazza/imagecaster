@@ -7,6 +7,7 @@ export const RELEASE_NOTES = [
       'Генерация картинок по описанию на Moss осталась как была.',
       'Пресеты приходят вместе с моделью: скачали модель — появились её пресеты. Пресеты без модели или LoRA на сервере скрыты, флажок «Показать пресеты без моделей» в «Стилях» показывает их. В каталоге у каждой модели виден список её пресетов.',
       'При скачивании модели, LoRA или LLM в её строке видна полоска с процентом и размером; у моделей из нескольких файлов — какой файл качается.',
+      'Просмотр картинки больше не закрывает кнопки окна. Все кнопки — в одной полосе сверху, видно «5 из 12», сведения открываются панелью справа, а случайный клик по фону не закрывает просмотр.',
     ],
     en: [
       'Moss was removed from Edit, Effect and Preserve face: the new fast generation engine cannot edit photos with it.',
@@ -14,6 +15,7 @@ export const RELEASE_NOTES = [
       'Generating images from text with Moss works as before.',
       'Presets come with their model: download a model and its presets appear. Presets whose model or LoRA is missing on the server are hidden; "Show presets without models" in Styles shows them. The catalog lists the presets of each model.',
       'While a model, LoRA or LLM downloads, its row shows a progress bar with percent and size; multi-file models show which file is downloading.',
+      'The image viewer no longer covers the window buttons. All controls sit in one top bar with a "5 of 12" counter, details open in a side panel, and a stray click on the background no longer closes the viewer.',
     ],
   },
   {
