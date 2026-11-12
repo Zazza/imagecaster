@@ -2,6 +2,11 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [Unreleased]
+
+### Changed
+- Post-Processing page is tighter: the redundant page title is gone, side and inner paddings and the gaps between blocks are smaller, so the image and the controls take more of the window
+
 ## [1.5.0] — 2026-11-11
 
 ### Added

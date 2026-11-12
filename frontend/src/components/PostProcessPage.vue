@@ -1844,10 +1844,6 @@ onUnmounted(() => {
 
 <template>
   <div class="page-enter post-page">
-    <div class="page-header">
-      <h1 class="page-title">{{ t('post.title') }}</h1>
-    </div>
-
     <StatusMessage v-if="error" :text="error" @close="error = ''" />
     <StatusMessage v-if="successMsg" kind="success" :timeout="8000" :text="successMsg" @close="successMsg = ''" />
     <StatusMessage v-if="lookResetFailed" kind="warning" @close="lookResetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
@@ -2511,15 +2507,15 @@ onUnmounted(() => {
 
 <style scoped>
 .post-page {
-  padding: 16px;
+  padding: 12px;
   height: 100%;
   overflow-y: auto;
 }
 
 .post-workspace {
   display: flex;
-  gap: 16px;
-  height: calc(100vh - 180px - var(--titlebar-h, 32px) - var(--frame-pad, 6px));
+  gap: 10px;
+  height: calc(100vh - 124px - var(--titlebar-h, 32px) - var(--frame-pad, 6px));
   min-height: 480px;
 }
 
@@ -2631,7 +2627,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 9px 12px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2718,7 +2714,7 @@ onUnmounted(() => {
 }
 
 .card-body {
-  padding: 16px;
+  padding: 12px;
 }
 
 .drop-zone {
@@ -2747,7 +2743,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   display: flex;
-  padding: 16px;
+  padding: 10px;
 }
 
 .viewfinder {

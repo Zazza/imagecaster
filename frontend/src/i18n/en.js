@@ -503,7 +503,6 @@ export const en = {
   'export.error_no_image': 'No image loaded',
 
   // PostProcessPage.vue
-  'post.title': 'Post-Processing',
   'post.btn_send': 'To Post-Process',
   'post.source': 'Source',
   'post.before': 'Before',

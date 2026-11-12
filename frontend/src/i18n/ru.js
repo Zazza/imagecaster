@@ -487,7 +487,6 @@ export const ru = {
   'export.btn_cancel': 'Отмена',
   'export.error_no_image': 'Изображение не загружено',
 
-  'post.title': 'Постобработка',
   'post.btn_send': 'В постобработку',
   'post.source': 'Источник',
   'post.before': 'До',
