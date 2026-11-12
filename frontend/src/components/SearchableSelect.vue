@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import { ref, computed, nextTick } from 'vue'
 
 const props = defineProps({
@@ -112,7 +113,7 @@ function scrollActiveIntoView() {
       @blur="onBlur"
       @keydown="onKeydown"
     />
-    <button v-if="hasValue" type="button" class="ss-clear" @mousedown.prevent @click="clear">&times;</button>
+    <button v-if="hasValue" type="button" class="ss-clear" @mousedown.prevent @click="clear"><X :size="14" /></button>
     <ul v-if="open" ref="listEl" class="ss-list">
       <li v-if="filtered.length === 0" class="ss-empty">{{ emptyText }}</li>
       <li
@@ -147,8 +148,8 @@ function scrollActiveIntoView() {
   transform: translateY(-50%);
   background: none;
   border: none;
+  display: inline-flex;
   color: var(--text-dim);
-  font-size: 16px;
   line-height: 1;
   padding: 4px 6px;
   cursor: pointer;

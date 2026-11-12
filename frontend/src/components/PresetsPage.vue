@@ -1,4 +1,5 @@
 <script setup>
+import { LayoutGrid, X } from 'lucide-vue-next'
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
 import { withPresetStatuses } from '../composables/usePresets.js'
@@ -245,7 +246,7 @@ onMounted(load)
           <button class="btn btn-primary btn-sm" @click="handleExport" :disabled="selectedCount === 0">
             {{ t('presets.btn_export', { count: selectedCount }) }}
           </button>
-          <button class="btn btn-danger btn-sm" @click="requestBatchDelete" :disabled="selectedCount === 0">
+          <button class="btn btn-danger-quiet btn-sm" @click="requestBatchDelete" :disabled="selectedCount === 0">
             {{ t('presets.btn_delete_selected', { count: selectedCount }) }}
           </button>
           <button class="btn btn-secondary btn-sm" @click="toggleSelectMode">{{ t('presets.btn_cancel') }}</button>
@@ -263,7 +264,7 @@ onMounted(load)
     </div>
 
     <div v-else-if="modePresets.length === 0" class="empty-state">
-      <div class="empty-state-icon">&#9776;</div>
+      <div class="empty-state-icon"><LayoutGrid :size="40" :stroke-width="1.5" /></div>
       <p>{{ mode === 'effects' ? t('presets.no_effects') : t('presets.no_presets') }}</p>
     </div>
 
@@ -338,7 +339,7 @@ onMounted(load)
       <div class="modal">
         <div class="modal-header">
           <h2 class="modal-title">{{ t('presets.delete_title') }}</h2>
-          <button class="modal-close" @click="showDeleteConfirm = false">&times;</button>
+          <button class="modal-close" @click="showDeleteConfirm = false"><X :size="16" /></button>
         </div>
         <p>{{ t('presets.delete_confirm_n', { count: selectedCount }) }}</p>
         <p style="color: var(--text-dim); font-size: 0.9em;">{{ t('presets.delete_cannot_undo') }}</p>

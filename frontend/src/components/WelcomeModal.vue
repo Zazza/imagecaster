@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t, locale } from '../i18n/index.js'
@@ -62,7 +63,7 @@ const openSettings = () => emit('settings', dontShow.value)
           <button class="btn btn-secondary btn-sm" :class="{ on: cur === 'about' }" @click="cur = 'about'">{{ t('welcome.tab_about') }}</button>
           <button v-if="notes" class="btn btn-secondary btn-sm" :class="{ on: cur === 'news' }" @click="cur = 'news'">{{ t('welcome.tab_news') }} · {{ notes.version }}</button>
         </div>
-        <button class="modal-close" :title="t('welcome.close')" @click="close">&times;</button>
+        <button class="modal-close" :title="t('welcome.close')" @click="close"><X :size="16" /></button>
       </div>
 
       <div v-if="cur === 'about'" class="welcome-body">

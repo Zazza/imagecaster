@@ -3,7 +3,7 @@ import StatusMessage from './StatusMessage.vue'
 import FoldBlock from './FoldBlock.vue'
 import { modelLoraText } from '../modelLora.js'
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { Eye, EyeOff, Undo2, Redo2, Sparkles, RotateCcw, X } from 'lucide-vue-next'
+import { ArrowLeftRight, Eye, EyeOff, Image as ImageIcon, Pencil, Redo2, RotateCcw, Sparkles, Undo2, X } from 'lucide-vue-next'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { parseSeedInput } from '../seed.js'
@@ -1908,7 +1908,7 @@ onUnmounted(() => {
                   @pointermove="onSplitMove"
                   @pointerup="onSplitUp"
                   @pointercancel="onSplitUp"
-                >&#8596;</div>
+                ><ArrowLeftRight :size="14" /></div>
               </div>
               <span v-if="!maskMode && !finishActive" class="split-label split-label-before">{{ t('post.before') }}</span>
               <span v-if="!maskMode && !finishActive" class="split-label split-label-after">{{ t('post.after') }}</span>
@@ -1990,7 +1990,7 @@ onUnmounted(() => {
               @drop.prevent="onDrop"
               @click="uploadImage()"
             >
-              <div style="font-size: 32px; color: var(--text-dim);">&#128444;</div>
+              <div style="color: var(--text-dim); display: flex;"><ImageIcon :size="32" :stroke-width="1.5" /></div>
               <p style="color: var(--text-dim); margin-top: 8px;">{{ t('fi.drop_image') }}</p>
             </div>
           </div>
@@ -2174,7 +2174,7 @@ onUnmounted(() => {
                     <option v-for="n in effectLoraChoices" :key="n" :value="n">{{ n }}</option>
                   </select>
                   <input class="form-input fx-lora-weight" type="number" v-model.number="l.weight" min="-2" max="2" step="0.05" @change="saveEffectLoras" />
-                  <button type="button" class="btn btn-sm btn-danger-quiet fx-lora-remove" @click="removeEffectLora(i)">&times;</button>
+                  <button type="button" class="btn btn-sm btn-danger-quiet fx-lora-remove" @click="removeEffectLora(i)"><X :size="14" /></button>
                 </div>
                 <button type="button" class="btn btn-sm btn-secondary fx-lora-add" @click="addEffectLora">{{ t('post.effect_add_lora') }}</button>
               </div>
@@ -2211,7 +2211,7 @@ onUnmounted(() => {
                 :title="t('post.recipe_log_clear')"
                 :aria-label="t('post.recipe_log_clear')"
                 @click="appliedEffects = []"
-              >&times;</button>
+              ><X :size="14" /></button>
             </div>
             <div class="form-hint">{{ t('post.effect_hint') }}</div>
             </div>
@@ -2426,8 +2426,8 @@ onUnmounted(() => {
                   <span class="preset-meta">{{ p.format.toUpperCase() }} {{ p.width || 'orig' }}x{{ p.height || 'orig' }} Q{{ p.quality }}</span>
                 </div>
                 <div class="preset-actions">
-                  <button class="btn-icon" @click.stop="startEditPreset(p)" :title="t('presets.btn_edit')">&#9998;</button>
-                  <button class="btn-icon btn-icon-danger" @click.stop="deletePreset(p.id)" :title="t('presets.btn_delete')">&times;</button>
+                  <button class="btn-icon" @click.stop="startEditPreset(p)" :title="t('presets.btn_edit')"><Pencil :size="14" /></button>
+                  <button class="btn-icon btn-icon-danger" @click.stop="deletePreset(p.id)" :title="t('presets.btn_delete')"><X :size="14" /></button>
                 </div>
               </div>
             </div>
@@ -2476,7 +2476,7 @@ onUnmounted(() => {
                     :class="{ 'btn-confirm': pendingDeleteRecipeId === r.id }"
                     :title="pendingDeleteRecipeId === r.id ? t('post.recipe_delete_confirm') : t('post.recipe_delete')"
                     @click.stop="deleteRecipe(r.id)"
-                  >&times;</button>
+                  ><X :size="14" /></button>
                 </div>
               </div>
             </div>

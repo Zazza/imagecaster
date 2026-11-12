@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import { ref, computed } from 'vue'
 import { t } from '../i18n/index.js'
 
@@ -41,7 +42,7 @@ function handleCancel() {
     <div class="modal" style="max-width: 360px;">
       <div class="modal-header">
         <h2 class="modal-title">{{ title }}</h2>
-        <button class="modal-close" @click="handleCancel">&times;</button>
+        <button class="modal-close" @click="handleCancel"><X :size="16" /></button>
       </div>
 
       <div style="padding: 16px 0;">

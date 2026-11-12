@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { api } from '../api.js'
 import { t, locale } from '../i18n/index.js'
 import { splitHighlight } from '../highlight.js'
-import { Pencil, Trash2, CornerDownLeft } from 'lucide-vue-next'
+import { CornerDownLeft, FileText, Pencil, Trash2, X } from 'lucide-vue-next'
 import { clampPerIdea, IDEAS_BATCH_MAX_PER_IDEA } from '../ideasBatch.js'
 
 const props = defineProps({
@@ -181,7 +181,7 @@ function handleDelete(id) {
     <div class="modal" style="max-width: 860px;">
       <div class="modal-header">
         <h2 class="modal-title">{{ t('descriptions.title') }}</h2>
-        <button class="modal-close" @click="$emit('close')">&times;</button>
+        <button class="modal-close" @click="$emit('close')"><X :size="16" /></button>
       </div>
 
       <div class="sdm-toolbar">
@@ -246,7 +246,7 @@ function handleDelete(id) {
                   :title="t('descriptions.btn_edit')" @click.stop="startEdit(desc)">
                   <Pencil :size="12" />
                 </button>
-                <button class="btn btn-danger btn-sm" :aria-label="t('descriptions.btn_del')"
+                <button class="btn btn-danger-quiet btn-sm" :aria-label="t('descriptions.btn_del')"
                   :title="t('descriptions.btn_del')" @click.stop="handleDelete(desc.id)">
                   <Trash2 :size="12" />
                 </button>
@@ -274,7 +274,7 @@ function handleDelete(id) {
           </div>
         </div>
         <div v-if="filtered.length === 0" class="empty-state">
-          <div class="empty-state-icon">&#128196;</div>
+          <div class="empty-state-icon"><FileText :size="40" :stroke-width="1.5" /></div>
           <div>{{ t('descriptions.no_saved') }}</div>
         </div>
       </div>

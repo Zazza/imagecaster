@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import { ref, watch, computed } from 'vue'
 import FoldBlock from './FoldBlock.vue'
 import { modelLoraText } from '../modelLora.js'
@@ -187,7 +188,7 @@ defineExpose({ reset })
         <div v-for="(row, idx) in loraRows" :key="idx" class="lora-row">
           <input class="form-input" type="text" v-model="row.name" list="overrides-lora-names" :placeholder="t('overrides.loras_name')" :disabled="ovIgnoreLoras" />
           <input class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :disabled="ovIgnoreLoras" />
-          <button type="button" class="btn btn-sm btn-secondary lora-remove" :disabled="ovIgnoreLoras" @click="removeLora(idx)" :aria-label="t('overrides.loras_remove')">&times;</button>
+          <button type="button" class="btn btn-sm btn-secondary lora-remove" :disabled="ovIgnoreLoras" @click="removeLora(idx)" :aria-label="t('overrides.loras_remove')"><X :size="14" /></button>
         </div>
         <div class="lora-empty">{{ t('overrides.loras_hint') }}</div>
       </div>

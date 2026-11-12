@@ -9,6 +9,8 @@ export const RELEASE_NOTES = [
       'При скачивании модели, LoRA или LLM в её строке видна полоска с процентом и размером; у моделей из нескольких файлов — какой файл качается.',
       'Просмотр картинки больше не закрывает кнопки окна. Все кнопки — в одной полосе сверху, видно «5 из 12», сведения открываются панелью справа, а случайный клик по фону не закрывает просмотр.',
       'На macOS у окна родные кнопки слева в цветном заголовке приложения. Заголовок неактивного окна приглушается.',
+      'Кнопки и значки приведены к одному виду: плоская главная кнопка, понятный вид недоступных кнопок, видимый фокус с клавиатуры. Каталог моделей — ровные строки с плашками «Установлено», «Рекомендуется» и базой модели.',
+      'В узком окне меню сворачивается в значки с подсказками, и страница больше не пропадает.',
     ],
     en: [
       'Moss was removed from Edit, Effect and Preserve face: the new fast generation engine cannot edit photos with it.',
@@ -18,6 +20,8 @@ export const RELEASE_NOTES = [
       'While a model, LoRA or LLM downloads, its row shows a progress bar with percent and size; multi-file models show which file is downloading.',
       'The image viewer no longer covers the window buttons. All controls sit in one top bar with a "5 of 12" counter, details open in a side panel, and a stray click on the background no longer closes the viewer.',
       'On macOS the window uses the native buttons on the left of the app title bar. The title bar dims when the window is inactive.',
+      'Buttons and icons share one look: a flat primary button, clear disabled state and a visible keyboard focus. The model catalog has even rows with Installed, Recommended and base-model badges.',
+      'In a narrow window the menu collapses to icons with tooltips, and the page no longer disappears.',
     ],
   },
   {

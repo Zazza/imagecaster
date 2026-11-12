@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import FoldBlock from './FoldBlock.vue'
 import { modelLoraText } from '../modelLora.js'
@@ -421,7 +422,7 @@ onUnmounted(() => {
       <div v-for="(row, idx) in loraRows" :key="idx" class="lora-row">
         <input data-testid="edit-lora-name" class="form-input" type="text" v-model="row.name" list="edit-lora-names" :placeholder="t('edit.loras_name')" :aria-label="t('edit.loras_name')" />
         <input data-testid="edit-lora-weight" class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :aria-label="t('edit.loras_weight')" />
-        <button data-testid="edit-lora-remove" type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLora(idx)" :aria-label="t('edit.loras_remove')">&times;</button>
+        <button data-testid="edit-lora-remove" type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLora(idx)" :aria-label="t('edit.loras_remove')"><X :size="14" /></button>
       </div>
       <div class="lora-hint">{{ t('edit.loras_hint_klein') }}</div>
     </FoldBlock>

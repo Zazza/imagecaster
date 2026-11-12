@@ -132,7 +132,7 @@ onMounted(load)
     </div>
     <div v-if="selectedResolution && !selectedResolution.is_builtin && !showAdd" class="selector-manage">
       <button @click="startEdit" class="btn btn-sm">{{ t('res.edit') }}</button>
-      <button @click="removeResolution" class="btn btn-sm btn-danger">{{ t('res.delete') }}</button>
+      <button @click="removeResolution" class="btn btn-sm btn-danger-quiet">{{ t('res.delete') }}</button>
     </div>
   </div>
 </template>
@@ -181,8 +181,7 @@ onMounted(load)
   min-width: 80px;
 }
 
-.btn.sm,
-.btn-sm {
+.btn.sm {
   padding: 4px 12px;
   font-size: 12px;
 }

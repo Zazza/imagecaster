@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { t } from '../i18n/index.js'
 import { parseLoras } from '../loraOverride.js'
+import { ChevronLeft, ChevronRight, Info, X } from 'lucide-vue-next'
 
 const props = defineProps({
   imageBase64: { type: String, required: true },
@@ -308,7 +309,7 @@ onUnmounted(() => {
           :class="{ active: infoExpanded }"
           :aria-expanded="infoExpanded"
           @click="infoExpanded = !infoExpanded"
-        >&#9432; {{ t('viewer.info_toggle') }}</button>
+        ><Info :size="14" /> {{ t('viewer.info_toggle') }}</button>
         <button v-if="showActions" class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
         <template v-if="showActions && canDelete">
           <span class="iv-sep" aria-hidden="true"></span>
@@ -319,7 +320,7 @@ onUnmounted(() => {
             @click="$emit('delete')"
           ><span>{{ confirmDelete ? t('viewer.confirm_delete') : t('viewer.delete') }}</span></button>
         </template>
-        <button class="image-viewer-close" :title="t('viewer.close')" :aria-label="t('viewer.close')" @click="$emit('close')">&times;</button>
+        <button class="image-viewer-close" :title="t('viewer.close')" :aria-label="t('viewer.close')" @click="$emit('close')"><X :size="18" /></button>
       </div>
     </div>
     <div class="iv-body">
@@ -339,8 +340,8 @@ onUnmounted(() => {
             @pointercancel="onPointerUp"
           />
         </div>
-        <button v-if="hasPrev" class="image-viewer-nav image-viewer-prev" :aria-label="t('viewer.prev')" @click="$emit('prev')"><span>&lsaquo;</span></button>
-        <button v-if="hasNext" class="image-viewer-nav image-viewer-next" :aria-label="t('viewer.next')" @click="$emit('next')"><span>&rsaquo;</span></button>
+        <button v-if="hasPrev" class="image-viewer-nav image-viewer-prev" :aria-label="t('viewer.prev')" @click="$emit('prev')"><ChevronLeft :size="32" :stroke-width="1.5" /></button>
+        <button v-if="hasNext" class="image-viewer-nav image-viewer-next" :aria-label="t('viewer.next')" @click="$emit('next')"><ChevronRight :size="32" :stroke-width="1.5" /></button>
       </div>
       <aside v-if="item && infoExpanded" class="iv-info">
         <div v-if="item.prompt" class="viewer-prompt">{{ item.prompt }}</div>

@@ -1,4 +1,5 @@
 <script setup>
+import { Check, ChevronRight, X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { api } from '../api.js'
@@ -72,6 +73,10 @@ function resetActiveDownload() {
 }
 const catalogNotice = ref('')
 const defaultPlan = computed(() => defaultDownloads.plan)
+const llmSections = [
+  { key: 'llm_generate', title: 'settings.catalog_llm_prompt' },
+  { key: 'llm_vision', title: 'settings.catalog_llm_vision' },
+]
 const modelPresets = ref({})
 
 async function loadModelPresets() {
@@ -960,7 +965,7 @@ onMounted(loadSettings)
           <!-- Utilities (collapsed) -->
           <div v-if="Object.values(serverStatus.processes || {}).some(p => p.category === 'utility' && p.name)" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
             <div @click="utilitiesExpanded = !utilitiesExpanded" style="cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
-              <span :style="{ transform: utilitiesExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', fontSize: '10px' }">&#9654;</span>
+              <span :style="{ transform: utilitiesExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-flex' }"><ChevronRight :size="12" /></span>
               {{ t('settings.section_utilities') }}
             </div>
             <div v-if="utilitiesExpanded">
@@ -1240,7 +1245,7 @@ onMounted(loadSettings)
                 <div style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</div>
                 <div style="color: var(--text-dim); font-size: 11px;">{{ formatBytes(m.size) }}</div>
               </div>
-              <button class="btn btn-secondary btn-sm" @click="deleteModel('sd', m.name)" :disabled="modelActionLoading[`del_sd_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
+              <button class="btn btn-sm btn-danger-quiet" @click="deleteModel('sd', m.name)" :disabled="modelActionLoading[`del_sd_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
             </div>
             <!-- Download form -->
             <div style="display: flex; gap: 8px; margin-top: 12px; align-items: flex-end;">
@@ -1267,7 +1272,7 @@ onMounted(loadSettings)
             <div v-else style="display: flex; flex-wrap: wrap; gap: 6px;">
               <span v-for="m in serverModels.lora" :key="m.name" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;">
                 <span style="font-size: 12px; color: var(--text);">{{ m.name }}</span>
-                <button style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px; padding: 0 2px;" @click="deleteModel('lora', m.name)">&times;</button>
+                <button class="chip-remove" :title="t('settings.btn_delete_model')" :aria-label="t('settings.btn_delete_model')" @click="deleteModel('lora', m.name)"><X :size="12" /></button>
               </span>
             </div>
           </div>
@@ -1281,7 +1286,7 @@ onMounted(loadSettings)
             <div v-else-if="serverModels.llm.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
             <div v-for="m in serverModels.llm" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
               <span style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</span>
-              <button class="btn btn-secondary btn-sm" @click="deleteLLMModel(m.name)" :disabled="modelActionLoading[`del_llm_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
+              <button class="btn btn-sm btn-danger-quiet" @click="deleteLLMModel(m.name)" :disabled="modelActionLoading[`del_llm_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
             </div>
             <!-- Pull form -->
             <div style="display: flex; gap: 8px; margin-top: 12px;">
@@ -1303,97 +1308,84 @@ onMounted(loadSettings)
         <template v-else>{{ t('settings.catalog_loading') }}</template>
       </div>
       <template v-else>
-        <!-- LLM Generate -->
-        <div class="card" style="margin-bottom: 16px;">
-          <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.catalog_llm_prompt') }}</h3>
-          <div v-for="m in modelCatalog.llm_generate" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <div>
-              <div style="color: var(--text-bright); font-size: 13px;">
-                {{ m.name }}
-                <span v-if="isCatalogInstalled('llm', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
-                <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
+        <div v-for="sec in llmSections" :key="sec.key" class="card cat-card">
+          <h3 class="cat-title">{{ t(sec.title) }}</h3>
+          <div v-for="m in modelCatalog[sec.key]" :key="m.name" class="cat-row">
+            <div class="cat-info">
+              <div class="cat-head">
+                <span class="cat-name">{{ m.name }}</span>
+                <span v-if="isCatalogInstalled('llm', m.name)" class="badge badge-success">{{ t('settings.installed') }}</span>
+                <span v-if="m.recommended" class="badge badge-accent">{{ t('settings.recommended') }}</span>
               </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
+              <div class="cat-desc">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
             </div>
-            <DownloadProgress v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
-            <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
+            <div class="cat-action">
+              <DownloadProgress v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
+              <button v-else-if="isCatalogInstalled('llm', m.name)" class="btn btn-sm btn-danger-quiet" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
+              <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
+            </div>
           </div>
         </div>
 
-        <!-- LLM Vision -->
-        <div class="card" style="margin-bottom: 16px;">
-          <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.catalog_llm_vision') }}</h3>
-          <div v-for="m in modelCatalog.llm_vision" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <div>
-              <div style="color: var(--text-bright); font-size: 13px;">
-                {{ m.name }}
-                <span v-if="isCatalogInstalled('llm', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
-                <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
-              </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
-            </div>
-            <DownloadProgress v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-            <button v-else-if="isCatalogInstalled('llm', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
-            <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
-          </div>
-        </div>
-
-        <!-- SD Models -->
-        <div class="card" style="margin-bottom: 16px;">
-          <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.title_sd_models') }}</h3>
-          <div v-if="defaultPlan" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0 12px; border-bottom: 1px solid var(--border);">
-            <div style="font-size: 12px; color: var(--text-dim);">
+        <div class="card cat-card">
+          <h3 class="cat-title">{{ t('settings.title_sd_models') }}</h3>
+          <div v-if="defaultPlan" class="cat-plan">
+            <div class="cat-plan-text">
               <div v-if="defaultPlan.items.length">{{ t('settings.download_all_hint', { count: defaultPlan.items.length, size: defaultPlan.total_gb }) }}</div>
-              <div v-else style="color: var(--success);">{{ t('settings.download_all_complete') }}</div>
+              <div v-else class="cat-ok">{{ t('settings.download_all_complete') }}</div>
               <div>{{ t('settings.download_all_optional') }}</div>
             </div>
-            <DownloadProgress v-if="defaultDownloads.running" :percent="defaultDownloads.percent" :text="defaultDownloads.progress" :label="defaultLabel" />
-            <button v-else-if="defaultPlan.items.length" class="btn btn-primary btn-sm" style="white-space: nowrap;" @click="downloadDefaultPlan" :disabled="!!modelActionLoading['dl_sd']">{{ t('settings.btn_download_all') }}</button>
+            <div class="cat-action">
+              <DownloadProgress v-if="defaultDownloads.running" :percent="defaultDownloads.percent" :text="defaultDownloads.progress" :label="defaultLabel" />
+              <button v-else-if="defaultPlan.items.length" class="btn btn-primary btn-sm" @click="downloadDefaultPlan" :disabled="!!modelActionLoading['dl_sd']">{{ t('settings.btn_download_all') }}</button>
+            </div>
           </div>
-          <div v-if="catalogNotice" style="color: var(--success); font-size: 12px; margin: 8px 0;">{{ catalogNotice }}</div>
-          <div v-for="m in modelCatalog.sd_models" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <div>
-              <div style="color: var(--text-bright); font-size: 13px;">
-                {{ m.name }}
-                <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
-                <span v-if="isSDModelInstalled(m)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
-                <span v-else-if="isSDModelUnverified(m)" style="color: var(--warning); font-size: 11px; margin-left: 4px;">{{ t('settings.installed_unverified') }}</span>
-                <span v-if="m.recommended" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.recommended') }}</span>
+          <div v-if="catalogNotice" class="cat-notice">{{ catalogNotice }}</div>
+          <div v-for="m in modelCatalog.sd_models" :key="m.name" class="cat-row">
+            <div class="cat-info">
+              <div class="cat-head">
+                <span class="cat-name">{{ m.name }}</span>
+                <span class="badge badge-muted">{{ m.base }}</span>
+                <span v-if="isSDModelInstalled(m)" class="badge badge-success">{{ t('settings.installed') }}</span>
+                <span v-else-if="isSDModelUnverified(m)" class="badge badge-warning">{{ t('settings.installed_unverified') }}</span>
+                <span v-if="m.recommended" class="badge badge-accent">{{ t('settings.recommended') }}</span>
               </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
-              <div v-if="m.modules && m.modules.length" style="color: var(--text-dim); font-size: 11px;">
-                {{ t('settings.catalog_modules') }}
-                <span v-for="mod in m.modules" :key="mod.filename" style="margin-right: 8px;" :style="{ color: hasServerFile(mod.type, mod.filename) ? 'var(--success)' : 'var(--text-dim)' }">{{ mod.filename }} ({{ mod.size_gb }} {{ t('settings.unit_gb') }})</span>
+              <div class="cat-desc">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
+              <div v-if="m.modules && m.modules.length" class="cat-extra">
+                <span>{{ t('settings.catalog_modules') }}</span>
+                <span v-for="mod in m.modules" :key="mod.filename" class="cat-module" :class="{ have: hasServerFile(mod.type, mod.filename) }">
+                  <Check v-if="hasServerFile(mod.type, mod.filename)" :size="12" />{{ mod.filename }} ({{ mod.size_gb }} {{ t('settings.unit_gb') }})
+                </span>
               </div>
-              <details v-if="modelPresets[m.name] && modelPresets[m.name].length" class="catalog-model-presets" style="color: var(--text-dim); font-size: 11px;">
-                <summary style="cursor: pointer;">{{ t('settings.catalog_model_presets', { count: modelPresets[m.name].length }) }}</summary>
+              <details v-if="modelPresets[m.name] && modelPresets[m.name].length" class="catalog-model-presets cat-extra">
+                <summary>{{ t('settings.catalog_model_presets', { count: modelPresets[m.name].length }) }}</summary>
                 <div>{{ modelPresets[m.name].join(', ') }}</div>
               </details>
             </div>
-            <DownloadProgress v-if="activeDownload.model === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-            <span v-else-if="isSDModelInstalled(m) || isSDModelUnverified(m)" style="display: flex; gap: 8px; align-items: center; white-space: nowrap;">
-              <button style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('sd', sdMainFilename(m))">{{ t('settings.btn_delete_model') }}</button>
-            </span>
-            <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
+            <div class="cat-action">
+              <DownloadProgress v-if="activeDownload.model === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
+              <button v-else-if="isSDModelInstalled(m) || isSDModelUnverified(m)" class="btn btn-sm btn-danger-quiet" @click="deleteModel('sd', sdMainFilename(m))">{{ t('settings.btn_delete_model') }}</button>
+              <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
+            </div>
           </div>
         </div>
 
-        <!-- LoRA -->
-        <div class="card">
-          <h3 style="color: var(--text-bright); margin-bottom: 12px;">LoRA</h3>
-          <div v-for="m in modelCatalog.lora" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
-            <div>
-              <div style="color: var(--text-bright); font-size: 13px;">
-                {{ m.name }}
-                <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">[{{ m.base }}]</span>
-                <span v-if="isCatalogInstalled('lora', m.name)" style="color: var(--success); font-size: 11px; margin-left: 4px;">{{ t('settings.installed') }}</span>
+        <div class="card cat-card">
+          <h3 class="cat-title">LoRA</h3>
+          <div v-for="m in modelCatalog.lora" :key="m.name" class="cat-row">
+            <div class="cat-info">
+              <div class="cat-head">
+                <span class="cat-name">{{ m.name }}</span>
+                <span class="badge badge-muted">{{ m.base }}</span>
+                <span v-if="isCatalogInstalled('lora', m.name)" class="badge badge-success">{{ t('settings.installed') }}</span>
               </div>
-              <div style="color: var(--text-dim); font-size: 12px;">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_mb }} {{ t('settings.unit_mb') }}</div>
+              <div class="cat-desc">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_mb }} {{ t('settings.unit_mb') }}</div>
             </div>
-            <DownloadProgress v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-            <button v-else-if="isCatalogInstalled('lora', m.name)" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 12px;" @click="deleteModel('lora', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
-            <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('lora', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_lora']">{{ t('settings.btn_download_model') }}</button>
+            <div class="cat-action">
+              <DownloadProgress v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
+              <button v-else-if="isCatalogInstalled('lora', m.name)" class="btn btn-sm btn-danger-quiet" @click="deleteModel('lora', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
+              <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('lora', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_lora']">{{ t('settings.btn_download_model') }}</button>
+            </div>
           </div>
         </div>
       </template>

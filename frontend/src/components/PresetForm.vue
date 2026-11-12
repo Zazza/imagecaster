@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import { ref, onMounted, reactive } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
@@ -127,7 +128,7 @@ onMounted(() => {
     <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title">{{ preset ? t('preset.edit_title') : t('preset.new_title') }}</h2>
-        <button class="modal-close" @click="$emit('close')">&times;</button>
+        <button class="modal-close" @click="$emit('close')"><X :size="16" /></button>
       </div>
 
       <form @submit.prevent="save">
@@ -165,7 +166,7 @@ onMounted(() => {
               <option v-for="l in loras" :key="l.name" :value="l.name">{{ l.name }}</option>
             </select>
             <input class="form-input" type="number" v-model.number="lora.weight" step="0.1" min="0" max="2" style="flex: 0 0 80px;" />
-            <button type="button" class="btn btn-sm btn-secondary" style="padding: 4px 10px;" @click="removeLoRA(idx)">&times;</button>
+            <button type="button" class="btn btn-sm btn-secondary" style="padding: 4px 10px;" @click="removeLoRA(idx)"><X :size="14" /></button>
           </div>
           <div v-if="!presetLoras.length" style="color: var(--text-dim); font-size: 13px;">{{ t('preset.no_loras') }}</div>
         </div>
@@ -349,36 +350,5 @@ onMounted(() => {
   gap: 12px;
 }
 
-.btn {
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.btn-primary:hover {
-  background: var(--accent-hover);
-}
-
-.btn-primary:disabled {
-  background: var(--accent);
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--surface-3);
-  color: var(--text);
-}
-
-.btn-secondary:hover {
-  background: var(--border);
-}
 </style>
 

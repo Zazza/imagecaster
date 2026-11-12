@@ -196,37 +196,37 @@ onUnmounted(() => {
     <div class="app-body">
     <aside class="sidebar">
       <div class="sidebar-logo" :title="t('welcome.tab_about')" @click="welcome = 'about'">
-        <img src="./assets/logo.png" alt="logo" class="logo-img" /> {{ t('app.title') }}
+        <img src="./assets/logo.png" alt="logo" class="logo-img" /> <span class="sidebar-label">{{ t('app.title') }}</span>
       </div>
       <nav class="sidebar-nav">
         <div class="sidebar-group">
           <div class="sidebar-group-label">{{ t('app.group_create') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'generate' }" @click="page = 'generate'">
-            <Sparkles :size="16" class="icon" /> {{ t('app.nav_generate') }}
+          <a class="sidebar-link" :class="{ active: page === 'generate' }" @click="page = 'generate'" :title="t('app.nav_generate')">
+            <Sparkles :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_generate') }}</span>
           </a>
         </div>
         <div class="sidebar-group">
           <div class="sidebar-group-label">{{ t('app.group_refine') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'postprocess' }" @click="page = 'postprocess'">
-            <SlidersHorizontal :size="16" class="icon" /> {{ t('app.nav_postprocess') }}
+          <a class="sidebar-link" :class="{ active: page === 'postprocess' }" @click="page = 'postprocess'" :title="t('app.nav_postprocess')">
+            <SlidersHorizontal :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_postprocess') }}</span>
           </a>
         </div>
         <div class="sidebar-group">
           <div class="sidebar-group-label">{{ t('app.group_view') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'browser' }" @click="page = 'browser'">
-            <FolderOpen :size="16" class="icon" /> {{ t('app.nav_my_images') }}
+          <a class="sidebar-link" :class="{ active: page === 'browser' }" @click="page = 'browser'" :title="t('app.nav_my_images')">
+            <FolderOpen :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_my_images') }}</span>
           </a>
         </div>
         <div class="sidebar-group">
           <div class="sidebar-group-label">{{ t('app.group_library') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'presets' }" @click="page = 'presets'">
-            <Sliders :size="16" class="icon" /> {{ t('app.nav_styles') }}
+          <a class="sidebar-link" :class="{ active: page === 'presets' }" @click="page = 'presets'" :title="t('app.nav_styles')">
+            <Sliders :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_styles') }}</span>
           </a>
         </div>
         <div class="sidebar-group">
           <div class="sidebar-group-label">{{ t('app.group_setup') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'settings' }" @click="page = 'settings'">
-            <Settings :size="16" class="icon" /> {{ t('app.nav_settings') }}
+          <a class="sidebar-link" :class="{ active: page === 'settings' }" @click="page = 'settings'" :title="t('app.nav_settings')">
+            <Settings :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_settings') }}</span>
           </a>
         </div>
       </nav>
@@ -238,8 +238,8 @@ onUnmounted(() => {
         <button class="sidebar-theme-btn" @click="setLocale(locale === 'ru' ? 'en' : 'ru')" :title="locale === 'ru' ? 'English' : 'Русский'">
           {{ locale === 'ru' ? 'EN' : 'RU' }}
         </button>
-        <button class="sidebar-reset-btn" :class="{ confirm: confirmReset }" @click="resetAll">
-          <RotateCcw :size="14" class="icon" /> {{ confirmReset ? t('app.confirm') : t('app.reset_all') }}
+        <button class="sidebar-reset-btn" :class="{ confirm: confirmReset }" :title="confirmReset ? t('app.confirm') : t('app.reset_all')" @click="resetAll">
+          <RotateCcw :size="14" class="icon" /> <span class="sidebar-label">{{ confirmReset ? t('app.confirm') : t('app.reset_all') }}</span>
         </button>
       </div>
     </aside>

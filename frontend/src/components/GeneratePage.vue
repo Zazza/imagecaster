@@ -1,4 +1,5 @@
 <script setup>
+import { Check, ChevronRight, Sparkles, TriangleAlert } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
@@ -952,10 +953,10 @@ function onKeydown(e) {
       </div>
     </div>
 
-    <StatusMessage v-if="error && error !== 'interrupted'" @close="error = ''">&#9888; {{ error }}</StatusMessage>
+    <StatusMessage v-if="error && error !== 'interrupted'" @close="error = ''"><TriangleAlert :size="14" class="inline-icon" /> {{ error }}</StatusMessage>
     <StatusMessage v-if="error === 'interrupted'" kind="warning" @close="error = ''">{{ error }}</StatusMessage>
     <StatusMessage v-if="successMsg && !error" kind="success" :timeout="8000" :text="successMsg" @close="successMsg = ''" />
-    <StatusMessage v-if="pipelineSavedMsg" kind="ok" :timeout="8000" @close="pipelineSavedMsg = ''">&#10003; {{ pipelineSavedMsg }}</StatusMessage>
+    <StatusMessage v-if="pipelineSavedMsg" kind="ok" :timeout="8000" @close="pipelineSavedMsg = ''"><Check :size="14" class="inline-icon" /> {{ pipelineSavedMsg }}</StatusMessage>
 
     <div class="generate-layout">
       <div class="generate-section">
@@ -1035,7 +1036,7 @@ function onKeydown(e) {
           <!-- Zone 2: More Options (collapsible) -->
           <div style="margin-top: 12px;">
             <button class="more-options-toggle" @click="moreOptionsOpen = !moreOptionsOpen">
-              <span class="more-options-arrow" :class="{ open: moreOptionsOpen }">&#9654;</span>
+              <span class="more-options-arrow" :class="{ open: moreOptionsOpen }"><ChevronRight :size="14" /></span>
               {{ t('generate.more_options') }}
             </button>
             <div class="more-options-content" :class="{ open: moreOptionsOpen }">
@@ -1132,7 +1133,7 @@ function onKeydown(e) {
             </div>
           </div>
           <div v-else class="generate-placeholder">
-            <div class="generate-placeholder-icon">&#10024;</div>
+            <div class="generate-placeholder-icon"><Sparkles :size="56" :stroke-width="1.25" /></div>
             <div class="generate-placeholder-title">{{ t('generate.placeholder_image') }}</div>
             <div class="generate-placeholder-hint">{{ t('generate.placeholder_image_hint') }}</div>
           </div>

@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import { ref, computed } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
@@ -41,7 +42,7 @@ async function doImport() {
     <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title">{{ t('pipeline_import.title', { count: pipelines.length }) }}</h2>
-        <button class="modal-close" @click="$emit('close')">&times;</button>
+        <button class="modal-close" @click="$emit('close')"><X :size="16" /></button>
       </div>
 
       <div v-if="error" class="import-error">{{ error }}</div>

@@ -1,4 +1,5 @@
 <script setup>
+import { X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import FoldBlock from './FoldBlock.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
@@ -416,7 +417,7 @@ function onKeydown(e) {
           </template>
           <span v-else>{{ t('fi.btn_analyze') }}</span>
         </button>
-        <button v-if="!kidsModeActive" class="btn btn-sm btn-secondary" @click="tags = ''" :disabled="!tags" title="Clear tags">&#10005;</button>
+        <button v-if="!kidsModeActive" class="btn btn-sm btn-secondary" @click="tags = ''" :disabled="!tags" title="Clear tags"><X :size="14" /></button>
       </div>
       <div v-if="!kidsModeActive" class="remix-hint">{{ t('remix.analyze_hint') }}</div>
       <textarea class="form-textarea" v-model="tags" rows="4" :placeholder="t('fi.placeholder_tags')" :disabled="kidsModeActive"></textarea>

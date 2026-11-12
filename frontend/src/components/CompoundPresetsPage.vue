@@ -1,4 +1,5 @@
 <script setup>
+import { ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
@@ -251,9 +252,9 @@ onMounted(loadData)
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span style="font-weight: 600; font-size: 13px;">{{ t('compound.step_label', { num: idx + 1, type: idx === 0 ? t('compound.step_txt2img') : t('compound.step_img2img') }) }}</span>
             <div style="display: flex; gap: 4px;">
-              <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepUp(idx)" :disabled="idx === 0">&#9650;</button>
-              <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepDown(idx)" :disabled="idx === formSteps.length - 1">&#9660;</button>
-              <button class="btn btn-sm btn-secondary" style="padding: 2px 8px; color: var(--danger);" @click="removeStep(idx)" :disabled="formSteps.length <= 1">&times;</button>
+              <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepUp(idx)" :disabled="idx === 0"><ChevronUp :size="14" /></button>
+              <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepDown(idx)" :disabled="idx === formSteps.length - 1"><ChevronDown :size="14" /></button>
+              <button class="btn btn-sm btn-danger-quiet" style="padding: 2px 8px;" @click="removeStep(idx)" :disabled="formSteps.length <= 1"><X :size="14" /></button>
             </div>
           </div>
 
@@ -307,13 +308,13 @@ onMounted(loadData)
           <div style="display: flex; gap: 6px;">
             <button class="btn btn-sm btn-secondary" @click="openEdit(cp)">{{ t('compound.btn_edit') }}</button>
             <button class="btn btn-sm btn-secondary" @click="handleDuplicate(cp)">{{ t('presets.btn_duplicate') }}</button>
-            <button class="btn btn-sm btn-secondary" style="color: var(--danger);" @click="deleteCompound(cp.id)">{{ t('compound.btn_delete') }}</button>
+            <button class="btn btn-sm btn-danger-quiet" @click="deleteCompound(cp.id)">{{ t('compound.btn_delete') }}</button>
           </div>
         </div>
 
         <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
           <template v-for="(step, idx) in cp.steps" :key="step.id">
-            <div v-if="idx > 0" style="color: var(--text-dim);">&#8594;</div>
+            <div v-if="idx > 0" style="color: var(--text-dim); display: flex;"><ArrowRight :size="14" /></div>
             <div style="background: var(--surface-2); border-radius: 4px; padding: 4px 10px; font-size: 12px;">
               <span style="font-weight: 600;">{{ getPresetName(step.preset_id) }}</span>
             </div>

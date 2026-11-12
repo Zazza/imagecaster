@@ -136,7 +136,7 @@ onMounted(load)
     </div>
     <div v-if="selectedProfile && !selectedProfile.is_builtin && !showAdd" class="selector-manage">
       <button @click="startEdit" class="btn btn-sm">{{ t('hires.btn_edit') }}</button>
-      <button @click="removeProfile" class="btn btn-sm btn-danger">{{ t('hires.btn_delete') }}</button>
+      <button @click="removeProfile" class="btn btn-sm btn-danger-quiet">{{ t('hires.btn_delete') }}</button>
     </div>
   </div>
 </template>
@@ -185,8 +185,7 @@ onMounted(load)
   min-width: 80px;
 }
 
-.btn.sm,
-.btn-sm {
+.btn.sm {
   padding: 4px 12px;
   font-size: 12px;
 }

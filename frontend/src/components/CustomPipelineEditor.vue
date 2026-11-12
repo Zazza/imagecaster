@@ -1,4 +1,5 @@
 <script setup>
+import { ChevronDown, ChevronUp, X } from 'lucide-vue-next'
 import { ref, computed } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
@@ -112,9 +113,9 @@ function onLorasToggle(e) {
         </span>
         <span v-if="!disableLoras" class="custom-lora-badge" :class="{ touched: loraBadgeTouched(step) }">{{ loraBadge(step) }}</span>
         <div class="custom-step-actions">
-          <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px;" :disabled="idx === 0" :aria-label="t('custom.step_move_up')" @click="moveStep(idx, -1)">&#9650;</button>
-          <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px;" :disabled="idx === steps.length - 1" :aria-label="t('custom.step_move_down')" @click="moveStep(idx, 1)">&#9660;</button>
-          <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px; color: var(--danger);" :disabled="steps.length <= 1" :aria-label="t('custom.step_remove')" @click="removeStep(idx)">&times;</button>
+          <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px;" :disabled="idx === 0" :aria-label="t('custom.step_move_up')" @click="moveStep(idx, -1)"><ChevronUp :size="14" /></button>
+          <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px;" :disabled="idx === steps.length - 1" :aria-label="t('custom.step_move_down')" @click="moveStep(idx, 1)"><ChevronDown :size="14" /></button>
+          <button type="button" class="btn btn-sm btn-danger-quiet" style="padding: 2px 8px;" :disabled="steps.length <= 1" :aria-label="t('custom.step_remove')" @click="removeStep(idx)"><X :size="14" /></button>
         </div>
       </div>
 
@@ -152,7 +153,7 @@ function onLorasToggle(e) {
             <div v-for="(row, ri) in step.loraRows" :key="ri" class="custom-lora-row">
               <input class="form-input" type="text" v-model="row.name" list="custom-lora-names" :placeholder="t('overrides.loras_name')" :disabled="step.loraIgnoreAll" @input="onLoraRowEdit(step)" />
               <input class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :disabled="step.loraIgnoreAll" @change="row.weight = sanitizeWeight(row.weight)" />
-              <button type="button" class="btn btn-sm btn-secondary custom-lora-remove" :disabled="step.loraIgnoreAll" @click="removeLora(step, ri)" :aria-label="t('overrides.loras_remove')">&times;</button>
+              <button type="button" class="btn btn-sm btn-secondary custom-lora-remove" :disabled="step.loraIgnoreAll" @click="removeLora(step, ri)" :aria-label="t('overrides.loras_remove')"><X :size="14" /></button>
             </div>
             <div class="custom-lora-empty">{{ t('overrides.loras_hint') }}</div>
           </div>
