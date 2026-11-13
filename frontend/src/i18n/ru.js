@@ -945,6 +945,7 @@ export const ru = {
   'presets.btn_installing': 'Установка…',
   'presets.btn_install': 'Установить',
   'presets.delete_confirm_n': 'Удалить выбранные стили ({count})?',
+  'presets.delete_more': '…и ещё {count}',
   'presets.model_any': 'Любая модель',
   'presets.filter_source': 'Источник:',
   'presets.filter_all': 'Все',

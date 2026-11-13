@@ -973,6 +973,7 @@ export const en = {
   'presets.btn_installing': 'Installing...',
   'presets.btn_install': 'Install',
   'presets.delete_confirm_n': 'Delete selected styles ({count})?',
+  'presets.delete_more': '…and {count} more',
   'presets.model_any': 'Any model',
   'presets.filter_source': 'Source:',
   'presets.filter_all': 'All',

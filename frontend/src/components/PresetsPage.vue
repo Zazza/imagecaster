@@ -1,6 +1,6 @@
 <script setup>
 import { LayoutGrid, X, Pencil, Copy, Trash2 } from 'lucide-vue-next'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { api } from '../api.js'
 import { withPresetStatuses } from '../composables/usePresets.js'
 import { filterAvailable } from '../presetAvailability.js'
@@ -100,6 +100,16 @@ const filters = computed(() => ({
 }))
 
 const filteredPresets = computed(() => filterPresets(presets.value, filters.value))
+const allVisibleSelected = computed(() =>
+  filteredPresets.value.length > 0 && filteredPresets.value.every(p => selectedIds.value.has(p.id)))
+const selectedStyles = computed(() =>
+  filteredPresets.value.filter(p => selectedIds.value.has(p.id)))
+
+watch(filteredPresets, list => {
+  const visible = new Set(list.map(p => p.id))
+  const kept = [...selectedIds.value].filter(id => visible.has(id))
+  if (kept.length !== selectedIds.value.size) selectedIds.value = new Set(kept)
+})
 const facets = computed(() => facetCounts(presets.value, filters.value))
 const filtersActive = computed(() => hasActiveFilters(filters.value))
 
@@ -193,10 +203,10 @@ function togglePreset(id) {
 }
 
 function selectAll() {
-  if (selectedIds.value.size === presets.value.length) {
+  if (allVisibleSelected.value) {
     selectedIds.value = new Set()
   } else {
-    selectedIds.value = new Set(presets.value.map(p => p.id))
+    selectedIds.value = new Set(filteredPresets.value.map(p => p.id))
   }
 }
 
@@ -262,13 +272,13 @@ onMounted(load)
       <h1 class="page-title">{{ mode === 'effects' ? t('presets.title_effects') : t('presets.title') }}</h1>
       <div class="header-actions">
         <template v-if="selectMode">
-          <button class="btn btn-secondary btn-sm" @click="selectAll">
-            {{ selectedCount === presets.length ? t('presets.btn_deselect_all') : t('presets.btn_select_all') }}
+          <button class="btn btn-secondary btn-sm" data-testid="select-all" @click="selectAll" :disabled="filteredPresets.length === 0">
+            {{ allVisibleSelected ? t('presets.btn_deselect_all') : t('presets.btn_select_all') }}
           </button>
           <button class="btn btn-primary btn-sm" @click="handleExport" :disabled="selectedCount === 0">
             {{ t('presets.btn_export', { count: selectedCount }) }}
           </button>
-          <button class="btn btn-danger-quiet btn-sm" @click="requestBatchDelete" :disabled="selectedCount === 0">
+          <button class="btn btn-danger-quiet btn-sm" data-testid="delete-selected" @click="requestBatchDelete" :disabled="selectedCount === 0">
             {{ t('presets.btn_delete_selected', { count: selectedCount }) }}
           </button>
           <button class="btn btn-secondary btn-sm" @click="toggleSelectMode">{{ t('presets.btn_cancel') }}</button>
@@ -333,7 +343,9 @@ onMounted(load)
         <table class="styles-table">
           <thead>
             <tr>
-              <th v-if="selectMode" class="col-check"></th>
+              <th v-if="selectMode" class="col-check">
+                <input type="checkbox" data-testid="select-all-check" :checked="allVisibleSelected" :disabled="filteredPresets.length === 0" :aria-label="t('presets.btn_select_all')" @change="selectAll" />
+              </th>
               <th>{{ t('presets.col_name') }}</th>
               <th>{{ t('presets.col_source') }}</th>
               <th>{{ t('presets.col_model') }}</th>
@@ -417,10 +429,14 @@ onMounted(load)
           <button class="modal-close" @click="showDeleteConfirm = false"><X :size="16" /></button>
         </div>
         <p>{{ t('presets.delete_confirm_n', { count: selectedCount }) }}</p>
+        <ul class="styles-delete-names" data-testid="delete-names">
+          <li v-for="p in selectedStyles.slice(0, 10)" :key="p.id">{{ p.name }}</li>
+          <li v-if="selectedStyles.length > 10">{{ t('presets.delete_more', { count: selectedStyles.length - 10 }) }}</li>
+        </ul>
         <p style="color: var(--text-dim); font-size: 0.9em;">{{ t('presets.delete_cannot_undo') }}</p>
         <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
           <button class="btn btn-secondary" @click="showDeleteConfirm = false">{{ t('presets.btn_cancel') }}</button>
-          <button class="btn btn-danger" @click="confirmBatchDelete">{{ t('presets.btn_delete') }}</button>
+          <button class="btn btn-danger" data-testid="confirm-delete" @click="confirmBatchDelete">{{ t('presets.btn_delete') }}</button>
         </div>
       </div>
     </div>
@@ -455,6 +471,7 @@ onMounted(load)
 .styles-table tbody tr:last-child td { border-bottom: none; }
 .styles-table tbody tr:hover { background: var(--accent-bg); }
 .col-check { width: 28px; }
+.styles-delete-names { margin: 8px 0; padding-left: 20px; max-height: 220px; overflow-y: auto; font-size: 0.9em; }
 .col-num { text-align: right; white-space: nowrap; width: 48px; }
 .col-actions { width: 96px; white-space: nowrap; text-align: right; }
 .col-name { min-width: 180px; max-width: 420px; }
