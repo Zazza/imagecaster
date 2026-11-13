@@ -2,7 +2,7 @@
 
 # Models and Presets
 
-Imagecaster uses a dedicated model for each job. Every model except Flux 2 Klein downloads from the app's catalog (Settings → Catalog).
+Imagecaster uses a dedicated model for each job. Every model except Flux 2 Klein downloads from the app's catalog (the Catalog page).
 
 ## Models
 
@@ -50,7 +50,7 @@ Klein is not in the catalog: put the checkpoint into `models/Stable-diffusion/`,
 
 A style is a preset: prompt, settings and model. Most styles come in several variants for different models — pick by your graphics card and task.
 
-Presets come with their model: when the app sees a model on the server (downloaded from the catalog or put there by hand), it adds that model's presets. Presets whose model or LoRA is missing on the server are hidden; the "Show presets without models" box on the Styles page shows them. A preset you delete is not added back. Settings → Catalog lists the presets of each model.
+Presets come with their model: when the app sees a model on the server (downloaded from the catalog or put there by hand), it adds that model's presets. Presets whose model or LoRA is missing on the server are hidden; the "Show presets without models" box on the Styles page shows them. A preset you delete is not added back. The Catalog page lists the presets of each model.
 
 | Style | SD | Pony | Flux | Z-Image | Moss |
 |---|---|---|---|---|---|

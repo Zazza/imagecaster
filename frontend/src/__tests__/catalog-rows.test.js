@@ -15,7 +15,8 @@ vi.mock('../wailsjs/go/main/App.js', async () => {
   }
 })
 
-import SettingsPage from '../components/SettingsPage.vue'
+import CatalogPage from '../components/CatalogPage.vue'
+import { serverURL, serverModels, serverModelsKnown, modelActionLoading, resetActiveDownload } from '../serverModels.js'
 import {
   GetSettings, UpdateSettings, GetModelCatalog, GetServerStatus, GetServerModels, GetServerLLMModels,
 } from '../wailsjs/go/main/App.js'
@@ -23,6 +24,14 @@ import { setLocale, ru, en } from '../i18n/index.js'
 import { api } from '../api.js'
 
 enableAutoUnmount(afterEach)
+
+function resetShared() {
+  serverURL.value = ''
+  for (const k of Object.keys(serverModels)) serverModels[k] = []
+  for (const k of Object.keys(serverModelsKnown)) delete serverModelsKnown[k]
+  for (const k of Object.keys(modelActionLoading)) delete modelActionLoading[k]
+  resetActiveDownload()
+}
 
 async function settle() {
   for (let i = 0; i < 6; i++) {
@@ -50,6 +59,7 @@ const CATALOG = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetShared()
   clearEventMocks()
   localStorage.clear()
   setLocale('ru')
@@ -71,11 +81,11 @@ afterEach(() => {
 async function openCatalog(locale) {
   setLocale(locale)
   const dict = locale === 'ru' ? ru : en
-  const w = mount(SettingsPage, { attachTo: document.body })
+  serverURL.value = 'http://srv:1'
+  const w = mount(CatalogPage, { props: { active: false }, attachTo: document.body })
   await settle()
-  const tab = w.findAll('.tabs button').find(b => b.text().trim() === dict['settings.tab_catalog'])
-  expect(tab, 'catalog tab').toBeTruthy()
-  await tab.trigger('click')
+  expect(w.find('.page-title').text()).toBe(dict['app.nav_catalog'])
+  await w.setProps({ active: true })
   await settle()
   return w
 }

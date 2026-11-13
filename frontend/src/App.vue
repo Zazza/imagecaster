@@ -2,13 +2,14 @@
 import TitleBar from './components/TitleBar.vue'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
-import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+import { Sparkles, Sliders, SlidersHorizontal, Settings, Package, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
 import { api } from './api.js'
 import { t, setLocale, locale } from './i18n/index.js'
 import UnifiedPresetsPage from './components/UnifiedPresetsPage.vue'
 import UnifiedGeneratePage from './components/UnifiedGeneratePage.vue'
 import PostProcessPage from './components/PostProcessPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
+import CatalogPage from './components/CatalogPage.vue'
 import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
 import WelcomeModal from './components/WelcomeModal.vue'
@@ -240,36 +241,26 @@ onUnmounted(() => {
         <img src="./assets/logo.png" alt="logo" class="logo-img" /> <span class="sidebar-label">{{ t('app.title') }}</span>
       </div>
       <nav class="sidebar-nav">
-        <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.group_create') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'generate' }" @click="page = 'generate'" :title="t('app.nav_generate')">
-            <Sparkles :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_generate') }}</span>
-          </a>
-        </div>
-        <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.group_refine') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'postprocess' }" @click="page = 'postprocess'" :title="t('app.nav_postprocess')">
-            <SlidersHorizontal :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_postprocess') }}</span>
-          </a>
-        </div>
-        <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.group_view') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'browser' }" @click="page = 'browser'" :title="t('app.nav_my_images')">
-            <FolderOpen :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_my_images') }}</span>
-          </a>
-        </div>
-        <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.group_library') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'presets' }" @click="page = 'presets'" :title="t('app.nav_styles')">
-            <Sliders :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_styles') }}</span>
-          </a>
-        </div>
-        <div class="sidebar-group">
-          <div class="sidebar-group-label">{{ t('app.group_setup') }}</div>
-          <a class="sidebar-link" :class="{ active: page === 'settings' }" @click="page = 'settings'" :title="t('app.nav_settings')">
-            <Settings :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_settings') }}</span>
-          </a>
-        </div>
+        <a class="sidebar-link" :class="{ active: page === 'generate' }" @click="page = 'generate'" :title="t('app.nav_generate')">
+          <Sparkles :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_generate') }}</span>
+        </a>
+        <a class="sidebar-link" :class="{ active: page === 'postprocess' }" @click="page = 'postprocess'" :title="t('app.nav_postprocess')">
+          <SlidersHorizontal :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_postprocess') }}</span>
+        </a>
+        <a class="sidebar-link" :class="{ active: page === 'browser' }" @click="page = 'browser'" :title="t('app.nav_my_images')">
+          <FolderOpen :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_my_images') }}</span>
+        </a>
+        <div class="sidebar-divider"></div>
+        <a class="sidebar-link" :class="{ active: page === 'presets' }" @click="page = 'presets'" :title="t('app.nav_styles')">
+          <Sliders :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_styles') }}</span>
+        </a>
+        <a class="sidebar-link" :class="{ active: page === 'catalog' }" @click="page = 'catalog'" :title="t('app.nav_catalog')">
+          <Package :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_catalog') }}</span>
+        </a>
+        <div class="sidebar-divider"></div>
+        <a class="sidebar-link" :class="{ active: page === 'settings' }" @click="page = 'settings'" :title="t('app.nav_settings')">
+          <Settings :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_settings') }}</span>
+        </a>
       </nav>
       <div class="sidebar-footer">
         <button class="sidebar-theme-btn sidebar-collapse-btn" :title="sidebarCollapsed ? t('app.sidebar_expand') : t('app.sidebar_collapse')" :aria-label="sidebarCollapsed ? t('app.sidebar_expand') : t('app.sidebar_collapse')" @click="toggleSidebar">
@@ -295,7 +286,8 @@ onUnmounted(() => {
     </div>
     <main class="main">
       <SettingsPage :key="settingsKey" v-show="page === 'settings'" :active="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
-      <template v-if="page !== 'settings'">
+      <CatalogPage v-show="page === 'catalog'" :active="page === 'catalog'" />
+      <template v-if="page !== 'settings' && page !== 'catalog'">
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />

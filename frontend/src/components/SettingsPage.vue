@@ -1,11 +1,14 @@
 <script setup>
-import { Check, ChevronRight, X } from 'lucide-vue-next'
+import { ChevronRight, X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { checkServer } from '../serverState.js'
-import { defaultDownloads, loadDefaultPlan, runDefaultPlan } from '../modelDownloads.js'
-import { t, locale } from '../i18n/index.js'
+import {
+  serverURL, serverModels, serverModelsLoading, modelActionLoading, activeDownload, activeLabel,
+  loadServerModels, downloadModel, deleteModel, pullLLM, deleteLLMModel,
+} from '../serverModels.js'
+import { t } from '../i18n/index.js'
 import ToggleSwitch from './ToggleSwitch.vue'
 import PinModal from './PinModal.vue'
 import FoldBlock from './FoldBlock.vue'
@@ -19,75 +22,20 @@ const props = defineProps({
 const activeTab = ref(props.initialTab || 'connection')
 watch(() => props.initialTab, (tab) => { if (tab) activeTab.value = tab })
 
-const serverURL = ref('')
-
 // --- Server discovery & status ---
 const discoveredServers = ref([])
 const discovering = ref(false)
 const serverStatus = ref(null)
 
 // --- Server models ---
-const serverModels = reactive({ sd: [], lora: [], vae: [], text_encoder: [], llm: [] })
-const serverModelsLoading = reactive({ sd: false, lora: false, vae: false, text_encoder: false, llm: false })
-const serverModelsKnown = reactive({})
 const serverModelDownload = reactive({ type: 'sd', url: '', filename: '' })
 const llmPullName = ref('')
-const modelActionLoading = reactive({})
 const processActionLoading = reactive({})
 const visibleLogs = reactive({})
 const processLogs = reactive({})
 const utilitiesExpanded = ref(false)
-const activeDownload = reactive({ type: '', name: '', progress: '', percent: null, model: '', step: 0, steps: 0 })
-const activeLabel = computed(() => (activeDownload.steps > 1
-  ? t('settings.download_file_of', { n: activeDownload.step, total: activeDownload.steps, name: activeDownload.name })
-  : ''))
-const defaultLabel = computed(() => (defaultDownloads.steps
-  ? t('settings.download_file_of', { n: defaultDownloads.step, total: defaultDownloads.steps, name: defaultDownloads.file })
-  : ''))
 
-function onDownloadProgress(text, percent) {
-  activeDownload.progress = text
-  activeDownload.percent = percent
-}
 
-function resetActiveDownload() {
-  activeDownload.type = ''
-  activeDownload.name = ''
-  activeDownload.progress = ''
-  activeDownload.percent = null
-  activeDownload.model = ''
-  activeDownload.step = 0
-  activeDownload.steps = 0
-}
-const catalogNotice = ref('')
-const defaultPlan = computed(() => defaultDownloads.plan)
-const llmSections = [
-  { key: 'llm_generate', title: 'settings.catalog_llm_prompt' },
-  { key: 'llm_vision', title: 'settings.catalog_llm_vision' },
-]
-const modelPresets = ref({})
-
-async function loadModelPresets() {
-  try {
-    modelPresets.value = (await api.getModelPresets()) || {}
-  } catch (e) {
-    console.warn('catalog model presets', e)
-    modelPresets.value = {}
-  }
-}
-
-async function syncPresets() {
-  try {
-    const r = await api.syncPresets()
-    return r?.added || 0
-  } catch (e) {
-    console.warn('presets sync', e)
-    return 0
-  }
-}
-
-// --- Model catalog ---
-const modelCatalog = ref(null)
 
 // --- Direct mode forms ---
 const connectionForm = reactive({
@@ -250,14 +198,6 @@ async function loadSettings() {
   if (!editGarmentPrompt.value && defaultGarmentPrompt.value) {
     editGarmentPrompt.value = defaultGarmentPrompt.value
   }
-
-  // Load model catalog
-  try {
-    modelCatalog.value = await api.getModelCatalog()
-  } catch (e) {
-    console.error('getModelCatalog:', e)
-    modelCatalogError.value = String(e)
-  }
 }
 
 // --- Server mode functions ---
@@ -392,173 +332,6 @@ async function saveServerConnection() {
   }
 }
 
-async function loadServerModels() {
-  for (const type of ['sd', 'lora', 'vae', 'text_encoder']) {
-    serverModelsLoading[type] = true
-    try {
-      serverModels[type] = await api.getServerModels(type) || []
-      serverModelsKnown[type] = true
-    } catch {
-      serverModels[type] = []
-      serverModelsKnown[type] = false
-    }
-    finally { serverModelsLoading[type] = false }
-  }
-  await loadDefaultPlan()
-  await loadModelPresets()
-  serverModelsLoading.llm = true
-  try {
-    serverModels.llm = await api.getServerLLMModels() || []
-  } catch { serverModels.llm = [] }
-  finally { serverModelsLoading.llm = false }
-}
-
-function catalogText(m, field) {
-  return (locale.value === 'ru' && m[field + '_ru']) || m[field]
-}
-
-function isCatalogInstalled(type, name) {
-  if (type === 'llm') return serverModels.llm.some(i => i.name === name)
-  return serverModels[type].some(i => i.name === name + '.safetensors')
-}
-
-function sdMainFilename(m) {
-  return m.filename || m.name + '.safetensors'
-}
-
-function hasServerFile(type, filename) {
-  return (serverModels[type] || []).some(i => i.name === filename)
-}
-
-function missingModules(m) {
-  return (m.modules || []).filter(mod => serverModelsKnown[mod.type] !== false && !hasServerFile(mod.type, mod.filename))
-}
-
-function unverifiedModules(m) {
-  return (m.modules || []).filter(mod => serverModelsKnown[mod.type] === false)
-}
-
-function isSDModelInstalled(m) {
-  return hasServerFile('sd', sdMainFilename(m)) && missingModules(m).length === 0 && unverifiedModules(m).length === 0
-}
-
-function isSDModelUnverified(m) {
-  return hasServerFile('sd', sdMainFilename(m)) && missingModules(m).length === 0 && unverifiedModules(m).length > 0
-}
-
-async function downloadDefaultPlan() {
-  const plan = defaultPlan.value
-  if (!plan || !plan.items.length) return
-  if (!confirm(t('settings.confirm_download_all', { count: plan.items.length, size: plan.total_gb }))) return
-  catalogNotice.value = ''
-  const failed = await runDefaultPlan(serverURL.value)
-  await syncPresets()
-  await loadServerModels()
-  if (failed.length) alert(t('settings.err_download', { error: failed.join('\n') }))
-  else catalogNotice.value = t('settings.download_all_done')
-}
-
-async function downloadSDModel(m) {
-  modelActionLoading.dl_sd = true
-  activeDownload.model = m.name
-  catalogNotice.value = ''
-  try {
-    const files = (m.modules || []).filter(mod => !hasServerFile(mod.type, mod.filename))
-      .map(mod => ({ type: mod.type, url: mod.url, filename: mod.filename }))
-    if (!hasServerFile('sd', sdMainFilename(m))) files.push({ type: 'sd', url: m.url, filename: sdMainFilename(m) })
-    activeDownload.steps = files.length
-    for (const [i, f] of files.entries()) {
-      activeDownload.type = f.type
-      activeDownload.name = f.filename
-      activeDownload.step = i + 1
-      onDownloadProgress('', null)
-      if (serverURL.value) {
-        await api.downloadServerModelStream(serverURL.value, f.type, f.url, f.filename, onDownloadProgress)
-      } else {
-        await api.downloadServerModel(f.type, f.url, f.filename)
-      }
-    }
-    const added = await syncPresets()
-    if (added) catalogNotice.value = t('settings.catalog_presets_added', { model: m.name, count: added })
-  } catch (e) {
-    alert(t('settings.err_download', { error: String(e) }))
-  } finally {
-    await loadServerModels()
-    delete modelActionLoading.dl_sd
-    resetActiveDownload()
-  }
-}
-
-async function downloadModel(type, url, filename) {
-  const key = `dl_${type}`
-  modelActionLoading[key] = true
-  activeDownload.type = type
-  activeDownload.name = filename
-  onDownloadProgress('', null)
-  try {
-    if (serverURL.value) {
-      await api.downloadServerModelStream(serverURL.value, type, url, filename, onDownloadProgress)
-    } else {
-      await api.downloadServerModel(type, url, filename)
-    }
-    await loadServerModels()
-  } catch (e) {
-    alert(t('settings.err_download', { error: String(e) }))
-  } finally {
-    delete modelActionLoading[key]
-    resetActiveDownload()
-  }
-}
-
-async function deleteModel(type, filename) {
-  if (!confirm(t('settings.confirm_delete_model', { name: filename }))) return
-  const key = `del_${type}_${filename}`
-  modelActionLoading[key] = true
-  try {
-    await api.deleteServerModel(type, filename)
-    await loadServerModels()
-  } catch (e) {
-    alert(t('settings.err_delete', { error: String(e) }))
-  } finally {
-    delete modelActionLoading[key]
-  }
-}
-
-async function pullLLM(name) {
-  if (!name) return
-  modelActionLoading['pull_llm'] = true
-  activeDownload.type = 'llm'
-  activeDownload.name = name
-  onDownloadProgress('', null)
-  try {
-    if (serverURL.value) {
-      await api.pullServerLLMModelStream(serverURL.value, name, onDownloadProgress)
-    } else {
-      await api.pullServerLLMModel(name)
-    }
-    llmPullName.value = ''
-    await loadServerModels()
-  } catch (e) {
-    alert(t('settings.err_pull', { error: String(e) }))
-  } finally {
-    delete modelActionLoading['pull_llm']
-    resetActiveDownload()
-  }
-}
-
-async function deleteLLMModel(name) {
-  if (!confirm(t('settings.confirm_delete_model', { name }))) return
-  modelActionLoading[`del_llm_${name}`] = true
-  try {
-    await api.deleteServerLLMModel(name)
-    await loadServerModels()
-  } catch (e) {
-    alert(t('settings.err_delete', { error: String(e) }))
-  } finally {
-    delete modelActionLoading[`del_llm_${name}`]
-  }
-}
-
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -587,6 +360,10 @@ async function saveLLMParams() {
   } catch (e) {
     llmParamsError.value = String(e)
   }
+}
+
+async function pullFromForm() {
+  if (await pullLLM(llmPullName.value)) llmPullName.value = ''
 }
 
 function switchTab(tab) {
@@ -724,7 +501,6 @@ onMounted(loadSettings)
       <button class="tab" :class="{ active: activeTab === 'prompts' }" @click="switchTab('prompts')">{{ t('settings.tab_prompts') }}</button>
       <button class="tab" :class="{ active: activeTab === 'safety' }" @click="switchTab('safety')">{{ t('settings.tab_safety') }}</button>
       <button class="tab" :class="{ active: activeTab === 'advanced' }" @click="switchTab('advanced')">{{ t('settings.tab_advanced') }}</button>
-      <button class="tab" :class="{ active: activeTab === 'catalog' }" @click="activeTab = 'catalog'">{{ t('settings.tab_catalog') }}</button>
     </div>
 
     <!-- Connection Tab -->
@@ -1067,103 +843,13 @@ onMounted(loadSettings)
             <!-- Pull form -->
             <div style="display: flex; gap: 8px; margin-top: 12px;">
               <input class="form-input" v-model="llmPullName" placeholder="e.g. qwen3:8b" style="flex: 1; font-size: 12px;" :disabled="modelActionLoading['pull_llm']" />
-              <button class="btn btn-primary btn-sm" @click="pullLLM(llmPullName)" :disabled="!llmPullName || modelActionLoading['pull_llm']">
+              <button class="btn btn-primary btn-sm" @click="pullFromForm" :disabled="!llmPullName || modelActionLoading['pull_llm']">
                 {{ modelActionLoading['pull_llm'] ? t('settings.btn_pulling') : t('settings.btn_pull_llm') }}
               </button>
             </div>
             <DownloadProgress v-if="activeDownload.type === 'llm' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
           </div>
         </template>
-    </div>
-
-    <!-- Catalog Tab (server mode only) -->
-    <div v-if="activeTab === 'catalog'">
-      <div v-if="!modelCatalog" style="color: var(--text-dim); text-align: center; padding: 20px;">
-        <template v-if="modelCatalogError">{{ t('settings.catalog_error', { error: modelCatalogError }) }}</template>
-        <template v-else>{{ t('settings.catalog_loading') }}</template>
-      </div>
-      <template v-else>
-        <div v-for="sec in llmSections" :key="sec.key" class="card cat-card">
-          <h3 class="cat-title">{{ t(sec.title) }}</h3>
-          <div v-for="m in modelCatalog[sec.key]" :key="m.name" class="cat-row">
-            <div class="cat-info">
-              <div class="cat-head">
-                <span class="cat-name">{{ m.name }}</span>
-                <span v-if="isCatalogInstalled('llm', m.name)" class="badge badge-success">{{ t('settings.installed') }}</span>
-                <span v-if="m.recommended" class="badge badge-accent">{{ t('settings.recommended') }}</span>
-              </div>
-              <div class="cat-desc">{{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
-            </div>
-            <div class="cat-action">
-              <DownloadProgress v-if="activeDownload.type === 'llm' && activeDownload.name === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-              <button v-else-if="isCatalogInstalled('llm', m.name)" class="btn btn-sm btn-danger-quiet" @click="deleteLLMModel(m.name)">{{ t('settings.btn_delete_model') }}</button>
-              <button v-else class="btn btn-secondary btn-sm" @click="pullLLM(m.name)" :disabled="modelActionLoading['pull_llm']">{{ t('settings.btn_pull_llm') }}</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card cat-card">
-          <h3 class="cat-title">{{ t('settings.title_sd_models') }}</h3>
-          <div v-if="defaultPlan" class="cat-plan">
-            <div class="cat-plan-text">
-              <div v-if="defaultPlan.items.length">{{ t('settings.download_all_hint', { count: defaultPlan.items.length, size: defaultPlan.total_gb }) }}</div>
-              <div v-else class="cat-ok">{{ t('settings.download_all_complete') }}</div>
-              <div>{{ t('settings.download_all_optional') }}</div>
-            </div>
-            <div class="cat-action">
-              <DownloadProgress v-if="defaultDownloads.running" :percent="defaultDownloads.percent" :text="defaultDownloads.progress" :label="defaultLabel" />
-              <button v-else-if="defaultPlan.items.length" class="btn btn-primary btn-sm" @click="downloadDefaultPlan" :disabled="!!modelActionLoading['dl_sd']">{{ t('settings.btn_download_all') }}</button>
-            </div>
-          </div>
-          <div v-if="catalogNotice" class="cat-notice">{{ catalogNotice }}</div>
-          <div v-for="m in modelCatalog.sd_models" :key="m.name" class="cat-row">
-            <div class="cat-info">
-              <div class="cat-head">
-                <span class="cat-name">{{ m.name }}</span>
-                <span class="badge badge-muted">{{ m.base }}</span>
-                <span v-if="isSDModelInstalled(m)" class="badge badge-success">{{ t('settings.installed') }}</span>
-                <span v-else-if="isSDModelUnverified(m)" class="badge badge-warning">{{ t('settings.installed_unverified') }}</span>
-                <span v-if="m.recommended" class="badge badge-accent">{{ t('settings.recommended') }}</span>
-              </div>
-              <div class="cat-desc">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_gb }} {{ t('settings.unit_gb') }}</div>
-              <div v-if="m.modules && m.modules.length" class="cat-extra">
-                <span>{{ t('settings.catalog_modules') }}</span>
-                <span v-for="mod in m.modules" :key="mod.filename" class="cat-module" :class="{ have: hasServerFile(mod.type, mod.filename) }">
-                  <Check v-if="hasServerFile(mod.type, mod.filename)" :size="12" />{{ mod.filename }} ({{ mod.size_gb }} {{ t('settings.unit_gb') }})
-                </span>
-              </div>
-              <details v-if="modelPresets[m.name] && modelPresets[m.name].length" class="catalog-model-presets cat-extra">
-                <summary>{{ t('settings.catalog_model_presets', { count: modelPresets[m.name].length }) }}</summary>
-                <div>{{ modelPresets[m.name].join(', ') }}</div>
-              </details>
-            </div>
-            <div class="cat-action">
-              <DownloadProgress v-if="activeDownload.model === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-              <button v-else-if="isSDModelInstalled(m) || isSDModelUnverified(m)" class="btn btn-sm btn-danger-quiet" @click="deleteModel('sd', sdMainFilename(m))">{{ t('settings.btn_delete_model') }}</button>
-              <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card cat-card">
-          <h3 class="cat-title">LoRA</h3>
-          <div v-for="m in modelCatalog.lora" :key="m.name" class="cat-row">
-            <div class="cat-info">
-              <div class="cat-head">
-                <span class="cat-name">{{ m.name }}</span>
-                <span class="badge badge-muted">{{ m.base }}</span>
-                <span v-if="isCatalogInstalled('lora', m.name)" class="badge badge-success">{{ t('settings.installed') }}</span>
-              </div>
-              <div class="cat-desc">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ m.size_mb }} {{ t('settings.unit_mb') }}</div>
-            </div>
-            <div class="cat-action">
-              <DownloadProgress v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-              <button v-else-if="isCatalogInstalled('lora', m.name)" class="btn btn-sm btn-danger-quiet" @click="deleteModel('lora', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
-              <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('lora', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_lora']">{{ t('settings.btn_download_model') }}</button>
-            </div>
-          </div>
-        </div>
-      </template>
     </div>
 
     <PinModal v-if="showPinModal" :mode="pinMode" :error="pinError" @confirm="onPinConfirm" @cancel="onPinCancel" />
