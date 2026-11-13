@@ -9,6 +9,7 @@ import {serverclient} from '../models';
 import {importexport} from '../models';
 import {kids} from '../models';
 import {llm} from '../models';
+import {logger} from '../models';
 import {queue} from '../models';
 import {sd} from '../models';
 import {finish} from '../models';
@@ -149,7 +150,11 @@ export function GetKidsCategories():Promise<Array<kids.CategoryInfo>>;
 
 export function GetLLMModels():Promise<Array<llm.LLMModel>>;
 
+export function GetLLMSetup():Promise<settings.LLMSetup>;
+
 export function GetLastImage():Promise<generation.GenerateImageResult>;
+
+export function GetLogEntries():Promise<Array<logger.Entry>>;
 
 export function GetModelCatalog():Promise<serverclient.Catalog>;
 
@@ -178,6 +183,8 @@ export function GetSDVAEs():Promise<Array<sd.VAE>>;
 export function GetServerLLMModels():Promise<Array<serverclient.LLMModelInfo>>;
 
 export function GetServerModels(arg1:string):Promise<Array<serverclient.ModelInfo>>;
+
+export function GetServerProcessLogs(arg1:string,arg2:number):Promise<Array<string>>;
 
 export function GetServerStatus():Promise<serverclient.ServerStatus>;
 
@@ -268,6 +275,8 @@ export function RetryQueueJob(arg1:number):Promise<void>;
 export function SaveExportPreset(arg1:preset.ExportPreset):Promise<preset.ExportPreset>;
 
 export function SaveImage(arg1:string,arg2:string):Promise<string>;
+
+export function SaveLLMChoice(arg1:string,arg2:string):Promise<void>;
 
 export function SavePostRecipe(arg1:preset.PostRecipe):Promise<preset.PostRecipe>;
 

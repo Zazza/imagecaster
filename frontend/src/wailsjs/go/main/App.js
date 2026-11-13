@@ -274,8 +274,16 @@ export function GetLLMModels() {
   return window['go']['main']['App']['GetLLMModels']();
 }
 
+export function GetLLMSetup() {
+  return window['go']['main']['App']['GetLLMSetup']();
+}
+
 export function GetLastImage() {
   return window['go']['main']['App']['GetLastImage']();
+}
+
+export function GetLogEntries() {
+  return window['go']['main']['App']['GetLogEntries']();
 }
 
 export function GetModelCatalog() {
@@ -332,6 +340,10 @@ export function GetServerLLMModels() {
 
 export function GetServerModels(arg1) {
   return window['go']['main']['App']['GetServerModels'](arg1);
+}
+
+export function GetServerProcessLogs(arg1, arg2) {
+  return window['go']['main']['App']['GetServerProcessLogs'](arg1, arg2);
 }
 
 export function GetServerStatus() {
@@ -512,6 +524,10 @@ export function SaveExportPreset(arg1) {
 
 export function SaveImage(arg1, arg2) {
   return window['go']['main']['App']['SaveImage'](arg1, arg2);
+}
+
+export function SaveLLMChoice(arg1, arg2) {
+  return window['go']['main']['App']['SaveLLMChoice'](arg1, arg2);
 }
 
 export function SavePostRecipe(arg1) {
