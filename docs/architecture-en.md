@@ -63,7 +63,7 @@ sd-ai/
 |-------|-----------|--------|----------|
 | `internal/config` | Go testing | 6 | env, defaults |
 | `internal/llm` | Go testing + httptest | ~52 | Chat, GetModels, HealthCheck, CleanTags, StripThinkTags |
-| `internal/sd` | Go testing + httptest | ~30 | Retry, Txt2Img, Img2Img, HealthCheck, Get* |
+| `internal/sd` | Go testing + httptest | ~40 | Server jobs (submit/poll/result/cancel, lost-step resubmit, queue client_ref), lists, HealthCheck |
 | `internal/preset` | Go testing + :memory: SQLite + testify | ~50 | CRUD, sessions, compound presets, settings, tags |
 | `internal/kids` | Go testing + testify | ~11 | Filter false positives, blocked/safe content |
 | Frontend | Vitest + @vue/test-utils | — | infra ready (mocks, setup) |
@@ -75,7 +75,7 @@ sd-ai/
 `App` is the single entry point for the frontend. All Wails bindings are exported methods on `*App` (capitalized). The frontend never accesses internal packages directly.
 
 ### Client (HTTP wrappers)
-`llm.Client`, `sd.Client` — stateless HTTP clients for external services. Constructor injection via `New*`.
+`llm.Client`, `sd.Client` — HTTP clients for external services. Constructor injection via `New*`. `sd.Client` runs every generation as a job on the server (`/api/sd/jobs`); the job carries its model, so there is no shared model state on the server.
 
 ### Repository (preset.DB)
 `preset.DB` encapsulates SQLite. Raw SQL via `database/sql`. Migrations are defined in Go code (`CREATE TABLE IF NOT EXISTS`).
@@ -122,15 +122,15 @@ The `server/` package is a standalone Go service for managing AI infrastructure:
 ```
 
 ### Key Features
-- **Process Management** — lifecycle of SD WebUI, Ollama (start/stop/restart)
+- **Process Management** — lifecycle of sd.cpp and llama.cpp (start/stop/restart)
 - **GPU Monitoring** — nvidia-smi polling, VRAM tracking, auto-optimization
 - **GPU Proxy** — priority queue with VRAM cooldown (prevents OOM on low-VRAM GPUs)
 - **Health Monitoring** — periodic HTTP checks for all services
 - **TUI** — terminal dashboard via bubbletea with service status and controls
 - **mDNS** — automatic service discovery via `_imagecaster._tcp`
 - **Model Management** — download/delete SD checkpoints and LLM models
-- **Backend Switching** — switch between A1111 and Forge at runtime
-- **Installer** — automatic installation of Python, SD WebUI, Ollama
+- **SD Jobs** — `/api/sd/jobs`: generation jobs run on the server, survive app restarts, results kept on disk
+- **Installer** — automatic installation of sd.cpp and llama.cpp
 
 ## Database Diagram
 

@@ -81,11 +81,8 @@ func (s *Service) CheckServices() ServiceStatus {
 			s.log.Warn("SD unavailable: %s", err)
 		} else {
 			info.Available = true
-			opts, err := s.sd.GetOptions()
-			if err == nil {
-				if m, ok := opts["sd_model_checkpoint"].(string); ok {
-					info.Model = m
-				}
+			if st, err := s.sd.State(); err == nil {
+				info.Model = st.LoadedCheckpoint
 			}
 		}
 		mu.Lock()

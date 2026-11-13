@@ -163,34 +163,6 @@ func TestTruncateRepetitive_StopsRepetition(t *testing.T) {
 	}
 }
 
-func TestSplitCompositeSampler_SplitsWhenComposite(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name         string
-		sampler      string
-		scheduleType string
-		wantSampler  string
-		wantSchedule string
-	}{
-		{"sampler with Karras", "Euler a Karras", "", "Euler a", "Karras"},
-		{"sampler with Exponential", "DPM++ 2M Exponential", "", "DPM++ 2M", "Exponential"},
-		{"sampler with Polyexponential", "DPM++ SDE Polyexponential", "", "DPM++ SDE", "Polyexponential"},
-		{"plain sampler no schedule", "Euler a", "", "Euler a", ""},
-		{"schedule type already set", "Euler a", "Karras", "Euler a", "Karras"},
-		{"empty sampler", "", "", "", ""},
-		{"empty schedule type override", "Euler", "Automatic", "Euler", "Automatic"},
-		{"Karras in middle not split", "Karras Euler", "", "Karras Euler", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			sampler, schedule := SplitCompositeSampler(tt.sampler, tt.scheduleType)
-			assert.Equal(t, tt.wantSampler, sampler)
-			assert.Equal(t, tt.wantSchedule, schedule)
-		})
-	}
-}
-
 func TestTruncate_TruncatesWithEllipsis(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

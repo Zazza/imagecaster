@@ -28,7 +28,6 @@ const stage = ref('')
 const error = ref('')
 const detectedObject = ref('')
 const effectivePrompt = ref('')
-const resetFailed = ref(false)
 const moreOpen = ref(false)
 const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 let reqCounter = 0
@@ -72,7 +71,6 @@ async function run() {
   running.value = true
   stage.value = ''
   error.value = ''
-  resetFailed.value = false
   resetProgress()
   const reqId = ++reqCounter
   const runSource = props.source
@@ -90,7 +88,6 @@ async function run() {
       detectedObject.value = result.detected_object || ''
       objectText.value = ''
       effectivePrompt.value = result.effective_prompt || ''
-      resetFailed.value = !!result.preserve_identity_reset_failed
       lastEmitted = result.image
       emit('result', result.image)
     }
@@ -192,7 +189,6 @@ defineExpose({
     <div v-if="detectedObject && !running" style="font-size: 12px; color: var(--text-dim); margin-top: 10px;">
       {{ t('object.detected', { object: detectedObject }) }}
     </div>
-    <StatusMessage v-if="resetFailed" kind="warning" style="margin-top: 8px;" @close="resetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <details class="object-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
       <summary>{{ t('object.more') }}</summary>

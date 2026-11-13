@@ -2,6 +2,7 @@ package importexport
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -37,26 +38,25 @@ func (m *mockSDService) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, err
 func (m *mockSDService) GetModels() ([]sd.SDModel, error) {
 	return m.models, m.err
 }
-func (m *mockSDService) GetSamplers() ([]sd.Sampler, error)          { return nil, nil }
-func (m *mockSDService) GetSchedulers() ([]sd.Scheduler, error)      { return nil, nil }
-func (m *mockSDService) GetUpscalers() ([]sd.Upscaler, error)        { return nil, nil }
-func (m *mockSDService) GetVAEs() ([]sd.VAE, error)                  { return nil, nil }
-func (m *mockSDService) GetLoRAs() ([]sd.LoRA, error)                { return m.loras, m.err }
-func (m *mockSDService) GetOptions() (map[string]interface{}, error) { return nil, nil }
-func (m *mockSDService) GetProgress() (*sd.ProgressResponse, error)  { return nil, nil }
-func (m *mockSDService) Interrupt() error                            { return nil }
-func (m *mockSDService) HealthCheck() error                          { return nil }
-func (m *mockSDService) SetURL(baseURL string)                       {}
-func (m *mockSDService) SetModel(modelName string) error             { return nil }
-func (m *mockSDService) SetModelWithModules(modelName string, modules []string) error {
-	return nil
+func (m *mockSDService) GetSamplers() ([]sd.Sampler, error)     { return nil, nil }
+func (m *mockSDService) GetSchedulers() ([]sd.Scheduler, error) { return nil, nil }
+func (m *mockSDService) GetUpscalers() ([]sd.Upscaler, error)   { return nil, nil }
+func (m *mockSDService) GetVAEs() ([]sd.VAE, error)             { return nil, nil }
+func (m *mockSDService) GetLoRAs() ([]sd.LoRA, error)           { return m.loras, m.err }
+func (m *mockSDService) Interrupt() error                       { return nil }
+func (m *mockSDService) HealthCheck() error                     { return nil }
+
+func (m *mockSDService) State() (*sd.ServerState, error) { return &sd.ServerState{}, nil }
+func (m *mockSDService) ListJobs(ctx context.Context, client string) ([]sd.JobStatus, error) {
+	return nil, nil
 }
-func (m *mockSDService) SetVAE(vaeName string) error { return nil }
+func (m *mockSDService) SetProgressHandler(fn func(sd.JobStatus)) {}
+
+func (m *mockSDService) SetURL(baseURL string) {}
 func (m *mockSDService) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
 	return "", nil
 }
-func (m *mockSDService) SetOption(key string, value any) error { return nil }
-func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error)  { return nil, nil }
+func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
 
 func openTestDB(t *testing.T) *preset.DB {
 	t.Helper()
@@ -78,7 +78,7 @@ func makePreset(name, pType, model string, steps int) PresetData {
 		Name:       name,
 		PresetType: pType,
 		Prompt:     "test prompt",
-		Sampler:    "Euler a",
+		Sampler:    "euler_a",
 		Steps:      steps,
 		CfgScale:   7.0,
 		ModelName:  model,
@@ -91,7 +91,7 @@ func createPresetInDB(t *testing.T, db *preset.DB, name string) int64 {
 		Name:       name,
 		PresetType: "test",
 		Prompt:     "prompt",
-		Sampler:    "Euler a",
+		Sampler:    "euler_a",
 		Steps:      20,
 		CfgScale:   7.0,
 		ModelName:  "model.safetensors",
@@ -162,7 +162,7 @@ func TestPrepareExportData_WithPresetType(t *testing.T) {
 		PresetType: "test",
 		TypeID:     &pt.ID,
 		Prompt:     "prompt",
-		Sampler:    "Euler a",
+		Sampler:    "euler_a",
 		Steps:      20,
 		CfgScale:   7.0,
 	}
@@ -427,7 +427,7 @@ func TestImportItems_WithTypeName(t *testing.T) {
 			TypeName:   "Landscape",
 			PresetType: "test",
 			Prompt:     "prompt",
-			Sampler:    "Euler a",
+			Sampler:    "euler_a",
 			Steps:      20,
 			CfgScale:   7.0,
 		},
@@ -1065,7 +1065,7 @@ func TestRoundTrip_ExportParseImport(t *testing.T) {
 		Name:       "roundtrip",
 		PresetType: "test",
 		Prompt:     "rt prompt",
-		Sampler:    "Euler a",
+		Sampler:    "euler_a",
 		Steps:      25,
 		CfgScale:   8.0,
 		ModelName:  "model.safetensors",
@@ -1111,8 +1111,8 @@ func dedupPresetData(negativePrompt string) PresetData {
 		PresetType:     "portrait",
 		Prompt:         "a lighthouse in a storm",
 		NegativePrompt: negativePrompt,
-		Sampler:        "Euler a",
-		ScheduleType:   "Karras",
+		Sampler:        "euler_a",
+		ScheduleType:   "karras",
 		Steps:          25,
 		CfgScale:       7.0,
 		ModelName:      "model.safetensors",

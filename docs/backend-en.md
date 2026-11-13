@@ -77,78 +77,52 @@ type BackendConfig struct {
 ## internal/sd
 
 ### Client
-HTTP client for SD WebUI API with retry support.
+HTTP client for the image part of Imagecaster Server (`<server>/api/sd`). Every generation is a server job: submit, poll, fetch the result, delete. There is no global "current model": each job names its checkpoint, VAE, extra modules and reference flags.
 
 ```go
-type Client struct {
-    baseURL           string
-    httpClient        *http.Client
-    retryMaxAttempts  int
-    retryDelay        time.Duration
+type ModelSpec struct {
+    Checkpoint, VAE string
+    Modules         []string
+    KleinReference  bool
+    MossReference   bool
 }
+type JobRequest struct { Kind, ClientRef string; Model ModelSpec; Params any }
 
 func New(baseURL string) *Client
-func (c *Client) Txt2Img(req Txt2ImgRequest) (*Txt2ImgResponse, error)    // with retry
-func (c *Client) Img2Img(req Img2ImgRequest) (*Txt2ImgResponse, error)    // with retry
-func (c *Client) GetModels() ([]SDModel, error)
-func (c *Client) GetSamplers() ([]Sampler, error)
-func (c *Client) GetSchedulers() ([]Scheduler, error)
-func (c *Client) GetUpscalers() ([]Upscaler, error)
-func (c *Client) GetVAEs() ([]VAE, error)
-func (c *Client) GetLoRAs() ([]LoRA, error)
-func (c *Client) SetModel(modelName string) error
-func (c *Client) SetVAE(vaeName string) error
-func (c *Client) HealthCheck() error
-func (c *Client) GetOptions() (map[string]interface{}, error)
-func (c *Client) SetURL(baseURL string)
+func (c *Client) SetClientName(name string)            // "imagecaster" by default; MCP uses "imagecaster-mcp"
+func (c *Client) SubmitJob(ctx, JobRequest) (*JobStatus, error)    // POST /jobs
+func (c *Client) GetJob(ctx, id) (*JobStatus, error)               // GET /jobs/{id}
+func (c *Client) JobResult(ctx, id) (*JobResult, error)            // GET /jobs/{id}/result
+func (c *Client) CancelJob(ctx, id) error                          // POST /jobs/{id}/cancel
+func (c *Client) DeleteJob(ctx, id) error                          // DELETE /jobs/{id}
+func (c *Client) ListJobs(ctx, client string) ([]JobStatus, error) // GET /jobs?client=
+func (c *Client) RunJob(ctx, JobRequest, onProgress func(JobStatus)) (*JobResult, error)
+func (c *Client) ForQueueJob(ctx, queueJobID int64) Service
+func (c *Client) Txt2Img(req Txt2ImgRequest) (*Txt2ImgResponse, error)   // submit and wait
+func (c *Client) Img2Img(req Img2ImgRequest) (*Txt2ImgResponse, error)   // submit and wait
+func (c *Client) UpscaleImage(image, upscaler string, scale float64) (string, error)
+func (c *Client) Interrupt() error        // cancels unfinished jobs of this client name and this installation
+func (c *Client) SetProgressHandler(fn func(JobStatus))
+func (c *Client) GetModels/GetSamplers/GetSchedulers/GetUpscalers/GetVAEs/GetLoRAs()
+func (c *Client) State() (*ServerState, error)   // GET /state: loaded checkpoint, running job
+func (c *Client) MemoryInfo() (*MemoryStats, error)
+func (c *Client) HealthCheck() error             // GET /state
 ```
 
-### Retry
-- `Txt2Img` and `Img2Img` use `doPost()` with retry
-- Retry: 500/502/503/504 + network errors
-- Max 3 attempts, exponential backoff 2s -> 4s
-- When attempts are exhausted: error includes the SD response body
+### RunJob
+- Poll interval: `PollInterval` (1s by default). A network error while polling does not stop waiting.
+- Status `lost` (or `failed` with code `server_restarted`) or 404 while polling: the job is submitted again once with the same `client_ref`; the second loss returns `ErrJobLost`.
+- `failed`: error with the server message. Network error on submit: up to 3 more submits with the same `client_ref`; HTTP 4xx/5xx on submit are not retried.
+- Context cancelled with cause `sd.ErrUserCancel`: the server job is cancelled. Any other cancellation (app shutdown) leaves the server job running.
+- After the result is fetched the job is deleted on the server.
+
+### Queue jobs
+`ForQueueJob(ctx, id)` returns a `Service` whose generation calls use `ctx` and `client_ref = <inst>:q<id>:s<seq>:<hash8>` (seq = 1, 2, 3… in call order, hash8 = first 8 hex of sha256 over kind+model+params). Running the same chain again gives the same refs, so the server returns finished steps at once and re-attaches to the running one.
+
+`<inst>` is the installation id: 16 random hex chars, created once and stored in the `install_id` setting (`preset.DB.InstallID`), passed to `SetInstallID`. Direct calls use `<inst>:d:<random>`. `CleanupQueueJob` deletes only `<inst>:q<id>:*`, `Interrupt` only jobs prefixed `<inst>:`, so two PCs sharing one server do not touch each other's jobs. imagecaster-mcp reads the same DB and id but uses its own client name.
 
 ### Requests
-
-**Txt2ImgRequest:**
-```go
-type Txt2ImgRequest struct {
-    Prompt, NegativePrompt, SamplerName, Scheduler string
-    Steps                  int
-    CfgScale               float64
-    Width, Height          int
-    Seed                   *int64
-    DenoisingStrength      *float64
-    ClipSkip               *int
-    BatchSize, BatchCount  *int
-    HiresFix               *bool
-    // ... hires parameters
-}
-```
-
-**Img2ImgRequest (additional fields):**
-```go
-type Img2ImgRequest struct {
-    InitImages             []string  // base64
-    Mask                   string    // base64 PNG
-    MaskBlur               int
-    InpaintingFill         int       // 0=Fill, 1=Original, 2=Latent Noise
-    InpaintFullRes         bool
-    InpaintFullResPadding  int
-    // ... all Txt2ImgRequest fields
-}
-```
-
-**Txt2ImgResponse:**
-```go
-type Txt2ImgResponse struct {
-    Images     []string        // base64 PNG
-    Parameters json.RawMessage
-    Info       json.RawMessage
-    Error      string
-}
-```
+`Txt2ImgRequest` / `Img2ImgRequest` carry `Model ModelSpec` plus prompt, sampler and scheduler (sd.cpp names, e.g. `euler_a`, `karras`, `""` = default), steps, CFG, size, seed (nil = random), clip skip, batch size × batch count (sent as one `batch_size`), hires (txt2img), init image, mask and denoising strength (img2img).
 
 ## internal/preset
 
@@ -231,8 +205,9 @@ Methods:
 - `GenerateFromImage` — img2img generation with init image analysis and inpainting
 - `GenerateSDPrompt` — converts text description to SD prompt via LLM
 - `GenerateCompoundImage` — multi-step generation using compound presets
-- `UpscaleImage` — image upscaling via SD WebUI extras API
-- `StartSDPolling` / `StopSDPolling` — periodic SD WebUI health/status polling
+- `UpscaleImage` — upscale x2 via an img2img job
+- `StartSDPolling` / `StopSDPolling` — turn `sd:progress` events on/off; progress comes from the job status of `RunJob`
+- `WithSD(sd.Service)` — shallow copy that runs on another `sd.Service` (the queue passes `ForQueueJob`); progress state is shared
 
 ## internal/queue
 
@@ -259,6 +234,12 @@ Key features:
 - `IsRetryableError()` checks for transient errors (connection refused, timeout, EOF, etc.)
 - Worker polls every 5s for scheduled retries
 - DB migration v24 adds retry_count, max_retries, next_retry_at columns
+- Each job runs on `ForQueueJob(ctx, job.ID)`, so its steps keep the same `client_ref` across restarts
+- LLM answers of a job (prompt from an idea, image description, look rewrite) are kept in `data/queue-llm/<id>.json` (key: call number + sha256 of the request) until the job ends, so after a restart the steps get the same prompts and the same `client_ref`; an LLM failure is kept too, but only once SD work was sent after it (a failure that ends the job is asked again on retry)
+- A result is not saved to history once the job context is cancelled; the job then counts as stopped (requeued on shutdown) instead of completed with a half-done image
+- User cancel of a queue item cancels only that item; a direct generation running at the same time is not touched
+- User cancel cancels the job context with cause `sd.ErrUserCancel` (the server job is cancelled); app shutdown cancels without that cause and the job stays `running`
+- On start `running` jobs go back to `pending` without spending a retry and are picked first
 - Frontend events: `queue:updated`, `queue:job-progress`
 
 ### Store
@@ -326,11 +307,10 @@ func (l *Logger) Debug(format string, args ...interface{})
 ### Preset Resolution
 Common pattern for all generation modes:
 ```go
-// Load preset -> extract parameters -> set model/VAE
-p, _ := a.presets.Get(presetID)
-samplerName, steps, cfgScale, width, height = ...
-a.sd.SetModel(p.ModelName)
-a.sd.SetVAE(p.VAE)
+// Load preset -> extract parameters -> the model goes into the job
+p, _ := s.db.Get(presetID)
+spec := s.prepareSDContext(p, "generate") // sd.ModelSpec{Checkpoint, VAE, Modules}
+s.sd.Txt2Img(sd.Txt2ImgRequest{Model: spec, ...})
 ```
 
 ### Image Processing

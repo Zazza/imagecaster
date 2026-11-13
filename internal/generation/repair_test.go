@@ -513,8 +513,8 @@ func TestRepairImage_KleinRequest(t *testing.T) {
 			for i, req := range rec.reqs {
 				assert.Equal(t, 4, req.Steps, "tile %d", i)
 				assert.InDelta(t, 1.0, req.CfgScale, 1e-9, "tile %d", i)
-				assert.Equal(t, "Euler", req.SamplerName, "tile %d", i)
-				assert.Equal(t, "Simple", req.Scheduler, "tile %d", i)
+				assert.Equal(t, "euler", req.SamplerName, "tile %d", i)
+				assert.Equal(t, "simple", req.Scheduler, "tile %d", i)
 				require.NotNil(t, req.Seed, "tile %d", i)
 				assert.Equal(t, *first.Seed, *req.Seed, "tile %d seed", i)
 				assert.Equal(t, first.Prompt, req.Prompt, "tile %d prompt", i)
@@ -545,13 +545,13 @@ func TestRepairImage_ReferenceToggled(t *testing.T) {
 	}{
 		{
 			name:    "success on three tiles",
-			wantOps: []string{"option:" + kleinReferenceOption + "=true", "img2img", "img2img", "img2img", "option:" + kleinReferenceOption + "=false"},
+			wantOps: []string{"option:" + kleinReferenceOption + "=true", "img2img", "option:" + kleinReferenceOption + "=false", "option:" + kleinReferenceOption + "=true", "img2img", "option:" + kleinReferenceOption + "=false", "option:" + kleinReferenceOption + "=true", "img2img", "option:" + kleinReferenceOption + "=false"},
 		},
 		{
 			name:    "sd fails on second tile of three",
 			img2img: sdErrOnSecond,
 			wantErr: true,
-			wantOps: []string{"option:" + kleinReferenceOption + "=true", "img2img", "img2img", "option:" + kleinReferenceOption + "=false"},
+			wantOps: []string{"option:" + kleinReferenceOption + "=true", "img2img", "option:" + kleinReferenceOption + "=false", "option:" + kleinReferenceOption + "=true", "img2img", "option:" + kleinReferenceOption + "=false"},
 		},
 	}
 	for _, tt := range tests {
@@ -575,31 +575,10 @@ func TestRepairImage_ReferenceToggled(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.False(t, result.PreserveIdentityResetFailed)
 			}
 			assert.Equal(t, tt.wantOps, rec.referenceOps())
 		})
 	}
-}
-
-func TestRepairImage_ReferenceResetFailureReported(t *testing.T) {
-	t.Parallel()
-	svc, rec, _ := repSetup(t)
-	rec.option = func(key string, value any) error {
-		if key == kleinReferenceOption && value == false {
-			return fmt.Errorf("option reset failed")
-		}
-		return nil
-	}
-
-	result, err := svc.RepairImage(RepairParams{
-		ImageBase64: repSource(t, 256, 256),
-		MaskBase64:  repMask(t, 256, 256, image.Rect(100, 100, 140, 140)),
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.True(t, result.PreserveIdentityResetFailed)
 }
 
 func TestRepairImage_InterruptStopsBetweenTiles(t *testing.T) {

@@ -310,32 +310,6 @@ func TestEditImage_ReferenceSequence(t *testing.T) {
 	require.NotNil(t, capturedReq.DenoisingStrength)
 	assert.InDelta(t, 1.0, *capturedReq.DenoisingStrength, 1e-9)
 	assert.Equal(t, kleinEditSteps, capturedReq.Steps)
-	assert.False(t, result.EditReferenceResetFailed)
-}
-
-func TestEditImage_ReferenceResetFailureFlagged(t *testing.T) {
-	t.Parallel()
-
-	db := openTestDB(t)
-	sdSvc := &mockSD{}
-	sdSvc.setOption = func(key string, value any) error {
-		if value == false {
-			return fmt.Errorf("options boom")
-		}
-		return nil
-	}
-	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
-		return &sd.Txt2ImgResponse{Images: []string{"edited-b64"}}, nil
-	}
-	svc := newTestService(t, db, &mockLLM{}, sdSvc)
-
-	result, err := svc.EditImage(EditImageParams{
-		ImageBase64: tinyPNGBase64(t),
-		Instruction: "make hair red",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.True(t, result.EditReferenceResetFailed)
 }
 
 func TestEditImage_StylePreset(t *testing.T) {
@@ -440,7 +414,7 @@ func TestEditImage_QualityPipeline(t *testing.T) {
 		return nil
 	}
 	sdSvc.getUpscalers = func() ([]sd.Upscaler, error) {
-		return []sd.Upscaler{{Name: "ESRGAN"}}, nil
+		return []sd.Upscaler{{Name: "RealESRGAN_x4plus"}}, nil
 	}
 	sdSvc.upscale = func(base64Img, upscaler string, scale float64) (string, error) {
 		mu.Lock()
@@ -485,9 +459,8 @@ func TestEditImage_QualityPipeline(t *testing.T) {
 		"option:" + kleinReferenceOption + "=true",
 		"img2img#1:1024x1024:denoise=1.00",
 		"option:" + kleinReferenceOption + "=false",
-		"upscale:ESRGAN:2.00",
+		"upscale:RealESRGAN_x4plus:2.00",
 		"img2img#2:2048x2048:denoise=0.35",
-		"option:" + kleinReferenceOption + "=false",
 	}
 	assert.Equal(t, wantOps, ops)
 
@@ -516,7 +489,7 @@ func TestEditImage_QualityRedenoiseFailureSkips(t *testing.T) {
 
 	sdSvc := &mockSD{}
 	sdSvc.getUpscalers = func() ([]sd.Upscaler, error) {
-		return []sd.Upscaler{{Name: "ESRGAN"}}, nil
+		return []sd.Upscaler{{Name: "RealESRGAN_x4plus"}}, nil
 	}
 	sdSvc.upscale = func(base64Img, upscaler string, scale float64) (string, error) {
 		return "upscaled-b64", nil
@@ -577,8 +550,8 @@ func TestResolveQualityUpscaler(t *testing.T) {
 		listErr   error
 		want      string
 	}{
-		{name: "keeps legacy R-ESRGAN when both exist", upscalers: []sd.Upscaler{{Name: "R-ESRGAN 4x+"}, {Name: "ESRGAN"}}, want: "R-ESRGAN 4x+"},
-		{name: "falls back to ESRGAN on forge neo", upscalers: []sd.Upscaler{{Name: "None"}, {Name: "Lanczos"}, {Name: "ESRGAN"}}, want: "ESRGAN"},
+		{name: "picks RealESRGAN_x4plus", upscalers: []sd.Upscaler{{Name: "lanczos"}, {Name: "RealESRGAN_x4plus"}}, want: "RealESRGAN_x4plus"},
+		{name: "builtins only fall back to resize", upscalers: []sd.Upscaler{{Name: "lanczos"}, {Name: "nearest"}}, want: ""},
 		{name: "none available", upscalers: []sd.Upscaler{{Name: "None"}, {Name: "Lanczos"}}, want: ""},
 		{name: "list error", listErr: fmt.Errorf("boom"), want: ""},
 	}

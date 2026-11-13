@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sdnames"
 )
 
 const (
@@ -35,12 +36,20 @@ func ApplyPresetOverrides(p *preset.Preset, ov *PresetOverrides) {
 	}
 	if ov.Sampler != nil {
 		if v := strings.TrimSpace(*ov.Sampler); v != "" {
-			p.Sampler = v
+			s, embedded, ok := sdnames.SplitSampler(v)
+			if ok {
+				p.Sampler = s
+				if embedded != "" && (ov.ScheduleType == nil || strings.TrimSpace(*ov.ScheduleType) == "") {
+					p.ScheduleType = embedded
+				}
+			}
 		}
 	}
 	if ov.ScheduleType != nil {
 		if v := strings.TrimSpace(*ov.ScheduleType); v != "" {
-			p.ScheduleType = v
+			if sc, ok := sdnames.Scheduler(v); ok {
+				p.ScheduleType = sc
+			}
 		}
 	}
 	if ov.Steps != nil && *ov.Steps > 0 {

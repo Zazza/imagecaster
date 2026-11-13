@@ -1,14 +1,18 @@
 package preset
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/Zazza/imagecaster/internal/sdnames"
 	_ "modernc.org/sqlite"
 )
 
@@ -39,127 +43,59 @@ func Open(dbPath string) (*DB, error) {
 		}
 	}
 
-	if err := migrate(db); err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
-	}
-
-	if err := migrateV2(db); err != nil {
-		return nil, fmt.Errorf("migrate v2: %w", err)
-	}
-
-	if err := migrateV3(db); err != nil {
-		return nil, fmt.Errorf("migrate v3: %w", err)
-	}
-
-	if err := migrateV4(db); err != nil {
-		return nil, fmt.Errorf("migrate v4: %w", err)
-	}
-
-	if err := migrateV5(db); err != nil {
-		return nil, fmt.Errorf("migrate v5: %w", err)
-	}
-
-	if err := migrateV6(db); err != nil {
-		return nil, fmt.Errorf("migrate v6: %w", err)
-	}
-
-	if err := migrateV8(db); err != nil {
-		return nil, fmt.Errorf("migrate v8: %w", err)
-	}
-
-	if err := migrateV9(db); err != nil {
-		return nil, fmt.Errorf("migrate v9: %w", err)
-	}
-
-	if err := migrateV10(db); err != nil {
-		return nil, fmt.Errorf("migrate v10: %w", err)
-	}
-
-	if err := migrateV11(db); err != nil {
-		return nil, fmt.Errorf("migrate v11: %w", err)
-	}
-
-	if err := migrateV12(db); err != nil {
-		return nil, fmt.Errorf("migrate v12: %w", err)
-	}
-
-	if err := migrateV13(db); err != nil {
-		return nil, fmt.Errorf("migrate v13: %w", err)
-	}
-
-	if err := migrateV14(db); err != nil {
-		return nil, fmt.Errorf("migrate v14: %w", err)
-	}
-
-	if err := migrateV15(db); err != nil {
-		return nil, fmt.Errorf("migrate v15: %w", err)
-	}
-
-	if err := migrateV16(db); err != nil {
-		return nil, fmt.Errorf("migrate v16: %w", err)
-	}
-
-	if err := migrateV17(db); err != nil {
-		return nil, fmt.Errorf("migrate v17: %w", err)
-	}
-
-	if err := migrateV18(db); err != nil {
-		return nil, fmt.Errorf("migrate v18: %w", err)
-	}
-
-	if err := migrateV19(db); err != nil {
-		return nil, fmt.Errorf("migrate v19: %w", err)
-	}
-
-	if err := migrateV20(db); err != nil {
-		return nil, fmt.Errorf("migrate v20: %w", err)
-	}
-
-	if err := migrateV21(db); err != nil {
-		return nil, fmt.Errorf("migrate v21: %w", err)
-	}
-
-	if err := migrateV22(db); err != nil {
-		return nil, fmt.Errorf("migrate v22: %w", err)
-	}
-
-	if err := migrateV23(db); err != nil {
-		return nil, fmt.Errorf("migrate v23: %w", err)
-	}
-
-	if err := migrateV24(db); err != nil {
-		return nil, fmt.Errorf("migrate v24: %w", err)
-	}
-
-	if err := migrateV25(db); err != nil {
-		return nil, fmt.Errorf("migrate v25: %w", err)
-	}
-
-	if err := migrateV26(db); err != nil {
-		return nil, fmt.Errorf("migrate v26: %w", err)
-	}
-
-	if err := migrateV27(db); err != nil {
-		return nil, fmt.Errorf("migrate v27: %w", err)
-	}
-
-	if err := migrateV28(db); err != nil {
-		return nil, fmt.Errorf("migrate v28: %w", err)
-	}
-
-	if err := migrateV29(db); err != nil {
-		return nil, fmt.Errorf("migrate v29: %w", err)
-	}
-
-	if err := migrateV30(db); err != nil {
-		return nil, fmt.Errorf("migrate v30: %w", err)
-	}
-
-	if err := migrateV31(db); err != nil {
-		return nil, fmt.Errorf("migrate v31: %w", err)
+	if err := migrateSchema(db); err != nil {
+		db.Close()
+		return nil, err
 	}
 
 	return &DB{db: db}, nil
+}
+
+type legacyMigration struct {
+	name  string
+	apply func(*sql.DB) error
+}
+
+var legacyMigrations = []legacyMigration{
+	{"migrate", migrate},
+	{"migrate v2", migrateV2},
+	{"migrate v3", migrateV3},
+	{"migrate v5", migrateV5},
+	{"migrate v6", migrateV6},
+	{"migrate v8", migrateV8},
+	{"migrate v9", migrateV9},
+	{"migrate v10", migrateV10},
+	{"migrate v11", migrateV11},
+	{"migrate v12", migrateV12},
+	{"migrate v13", migrateV13},
+	{"migrate v14", migrateV14},
+	{"migrate v15", migrateV15},
+	{"migrate v16", migrateV16},
+	{"migrate v17", migrateV17},
+	{"migrate v18", migrateV18},
+	{"migrate v19", migrateV19},
+	{"migrate v20", migrateV20},
+	{"migrate v21", migrateV21},
+	{"migrate v22", migrateV22},
+	{"migrate v23", migrateV23},
+	{"migrate v24", migrateV24},
+	{"migrate v25", migrateV25},
+	{"migrate v26", migrateV26},
+	{"migrate v27", migrateV27},
+	{"migrate v28", migrateV28},
+	{"migrate v29", migrateV29},
+	{"migrate v30", migrateV30},
+	{"migrate v31", migrateV31},
+	{"migrate v32", migrateV32},
+}
+
+func runLegacyMigrations(db *sql.DB) error {
+	for _, m := range legacyMigrations {
+		if err := m.apply(db); err != nil {
+			return fmt.Errorf("%s: %w", m.name, err)
+		}
+	}
+	return nil
 }
 
 func migrate(db *sql.DB) error {
@@ -239,18 +175,6 @@ func migrateV3(db *sql.DB) error {
 		pattern := "% " + s
 		_, _ = db.Exec("UPDATE presets SET sampler = SUBSTR(sampler, 1, LENGTH(sampler) - ?), schedule_type = ? WHERE sampler LIKE ? AND schedule_type = ''",
 			len(s)+1, s, pattern)
-	}
-	return nil
-}
-
-func migrateV4(db *sql.DB) error {
-	fixes := map[string]string{
-		"karras":          "Karras",
-		"exponential":     "Exponential",
-		"polyexponential": "Polyexponential",
-	}
-	for lower, proper := range fixes {
-		_, _ = db.Exec("UPDATE presets SET schedule_type = ? WHERE schedule_type = ?", proper, lower)
 	}
 	return nil
 }
@@ -519,6 +443,21 @@ func (d *DB) GetSetting(key string) (string, error) {
 		return "", nil
 	}
 	return value, err
+}
+
+func (d *DB) InstallID() (string, error) {
+	id, err := d.GetSetting("install_id")
+	if err != nil || id != "" {
+		return id, err
+	}
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	if _, err := d.db.Exec(`INSERT OR IGNORE INTO settings (key, value) VALUES ('install_id', ?)`, hex.EncodeToString(b)); err != nil {
+		return "", err
+	}
+	return d.GetSetting("install_id")
 }
 
 func (d *DB) GetAllSettings() (map[string]string, error) {
@@ -1472,4 +1411,88 @@ func migrateV30(db *sql.DB) error {
 func migrateV31(db *sql.DB) error {
 	_, err := db.Exec(`DELETE FROM settings WHERE key IN ('heavy_models', 'prose_models')`)
 	return err
+}
+
+type migrationStmt struct {
+	query string
+	args  []any
+}
+
+func migrateV32(db *sql.DB) error {
+	var stmts []migrationStmt
+
+	rows, err := db.Query(`SELECT id, sampler, COALESCE(schedule_type, '') FROM presets`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id int64
+		var sampler, sched string
+		if err := rows.Scan(&id, &sampler, &sched); err != nil {
+			rows.Close()
+			return err
+		}
+		newSamp, newSched, unknown := sdnames.Pair(sampler, sched)
+		for _, u := range unknown {
+			log.Printf("[migrate v32] preset %d: unknown Forge %s, reset to default", id, u)
+		}
+		if newSamp != sampler || newSched != sched {
+			stmts = append(stmts, migrationStmt{`UPDATE presets SET sampler = ?, schedule_type = ? WHERE id = ?`, []any{newSamp, newSched, id}})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	hrows, err := db.Query(`SELECT id, upscaler FROM hires_profiles`)
+	if err != nil {
+		return err
+	}
+	for hrows.Next() {
+		var id int64
+		var upscaler string
+		if err := hrows.Scan(&id, &upscaler); err != nil {
+			hrows.Close()
+			return err
+		}
+		if u := sdnames.Upscaler(upscaler); u != upscaler {
+			stmts = append(stmts, migrationStmt{`UPDATE hires_profiles SET upscaler = ? WHERE id = ?`, []any{u, id}})
+		}
+	}
+	hrows.Close()
+	if err := hrows.Err(); err != nil {
+		return err
+	}
+
+	var testSampler, testSched string
+	_ = db.QueryRow(`SELECT value FROM settings WHERE key = 'test_sampler'`).Scan(&testSampler)
+	_ = db.QueryRow(`SELECT value FROM settings WHERE key = 'test_schedule_type'`).Scan(&testSched)
+	if testSampler != "" || testSched != "" {
+		ns, nsc, unknown := sdnames.Pair(testSampler, testSched)
+		for _, u := range unknown {
+			log.Printf("[migrate v32] settings: unknown Forge %s, reset to default", u)
+		}
+		if ns != testSampler {
+			stmts = append(stmts, migrationStmt{`UPDATE settings SET value = ? WHERE key = 'test_sampler'`, []any{ns}})
+		}
+		if nsc != testSched {
+			stmts = append(stmts, migrationStmt{`UPDATE settings SET value = ? WHERE key = 'test_schedule_type'`, []any{nsc}})
+		}
+	}
+
+	if len(stmts) == 0 {
+		return nil
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, st := range stmts {
+		if _, err := tx.Exec(st.query, st.args...); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

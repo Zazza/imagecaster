@@ -96,16 +96,17 @@ func TestServerInfo_MissingFeatures(t *testing.T) {
 		features []string
 		want     []string
 	}{
-		{name: "all with llamacpp", features: []string{"sdcpp", "download_stream", "llamacpp"}, want: nil},
-		{name: "ollama instead of llamacpp", features: []string{"sdcpp", "download_stream", "ollama"}, want: []string{"llamacpp"}},
-		{name: "ollama and llamacpp", features: []string{"sdcpp", "download_stream", "ollama", "llamacpp", "extra"}, want: nil},
-		{name: "old server no features", features: nil, want: []string{"sdcpp", "download_stream", "llamacpp"}},
-		{name: "empty features", features: []string{}, want: []string{"sdcpp", "download_stream", "llamacpp"}},
-		{name: "no llm backend", features: []string{"sdcpp", "download_stream"}, want: []string{"llamacpp"}},
-		{name: "no sdcpp", features: []string{"download_stream", "llamacpp"}, want: []string{"sdcpp"}},
-		{name: "no sdcpp with ollama only", features: []string{"download_stream", "ollama"}, want: []string{"sdcpp", "llamacpp"}},
-		{name: "no download_stream", features: []string{"sdcpp", "llamacpp"}, want: []string{"download_stream"}},
-		{name: "only unrelated", features: []string{"forge"}, want: []string{"sdcpp", "download_stream", "llamacpp"}},
+		{name: "all with llamacpp", features: []string{"sdcpp", "download_stream", "sd_jobs", "llamacpp"}, want: nil},
+		{name: "ollama instead of llamacpp", features: []string{"sdcpp", "download_stream", "sd_jobs", "ollama"}, want: []string{"llamacpp"}},
+		{name: "ollama and llamacpp", features: []string{"sdcpp", "download_stream", "sd_jobs", "ollama", "llamacpp", "extra"}, want: nil},
+		{name: "old server no features", features: nil, want: []string{"sdcpp", "download_stream", "sd_jobs", "llamacpp"}},
+		{name: "empty features", features: []string{}, want: []string{"sdcpp", "download_stream", "sd_jobs", "llamacpp"}},
+		{name: "no llm backend", features: []string{"sdcpp", "download_stream", "sd_jobs"}, want: []string{"llamacpp"}},
+		{name: "no sdcpp", features: []string{"download_stream", "sd_jobs", "llamacpp"}, want: []string{"sdcpp"}},
+		{name: "no sdcpp with ollama only", features: []string{"download_stream", "sd_jobs", "ollama"}, want: []string{"sdcpp", "llamacpp"}},
+		{name: "no download_stream", features: []string{"sdcpp", "sd_jobs", "llamacpp"}, want: []string{"download_stream"}},
+		{name: "no sd_jobs", features: []string{"sdcpp", "download_stream", "llamacpp"}, want: []string{"sd_jobs"}},
+		{name: "only unrelated", features: []string{"forge"}, want: []string{"sdcpp", "download_stream", "sd_jobs", "llamacpp"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -123,5 +124,5 @@ func TestServerInfo_MissingFeatures(t *testing.T) {
 
 func TestRequiredFeatures(t *testing.T) {
 	t.Parallel()
-	assert.ElementsMatch(t, []string{"sdcpp", "download_stream"}, RequiredFeatures)
+	assert.ElementsMatch(t, []string{"sdcpp", "download_stream", "sd_jobs"}, RequiredFeatures)
 }

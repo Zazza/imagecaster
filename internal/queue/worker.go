@@ -7,6 +7,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 type Worker struct {
@@ -18,7 +20,9 @@ type Worker struct {
 	mu       sync.Mutex
 	paused   bool
 	current  *Job
-	cancelFn context.CancelFunc
+	cancelFn context.CancelCauseFunc
+	cleanup  func(jobID int64)
+	done     chan struct{}
 }
 
 func NewWorker(store *Store, processor Processor, emit EventEmitter) *Worker {
@@ -27,11 +31,38 @@ func NewWorker(store *Store, processor Processor, emit EventEmitter) *Worker {
 		processor: processor,
 		emit:      emit,
 		notify:    make(chan struct{}, 1),
+		done:      make(chan struct{}),
+	}
+}
+
+func (w *Worker) SetCleanup(fn func(jobID int64)) {
+	w.mu.Lock()
+	w.cleanup = fn
+	w.mu.Unlock()
+}
+
+type forgetter interface {
+	Forget(jobID int64)
+}
+
+func (w *Worker) runCleanup(jobID int64) {
+	if f, ok := w.processor.(forgetter); ok {
+		f.Forget(jobID)
+	}
+	w.mu.Lock()
+	fn := w.cleanup
+	w.mu.Unlock()
+	if fn != nil {
+		fn(jobID)
 	}
 }
 
 func (w *Worker) Start(ctx context.Context) {
 	go w.loop(ctx)
+}
+
+func (w *Worker) Done() <-chan struct{} {
+	return w.done
 }
 
 func (w *Worker) Notify() {
@@ -64,7 +95,7 @@ func (w *Worker) CancelCurrent() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.cancelFn != nil {
-		w.cancelFn()
+		w.cancelFn(sd.ErrUserCancel)
 	}
 }
 
@@ -75,6 +106,7 @@ func (w *Worker) CurrentJob() *Job {
 }
 
 func (w *Worker) loop(ctx context.Context) {
+	defer close(w.done)
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -117,12 +149,15 @@ func (w *Worker) checkMoreJobs() {
 }
 
 func (w *Worker) processNext(parentCtx context.Context) {
+	if parentCtx.Err() != nil {
+		return
+	}
 	job, err := w.store.ClaimNext()
 	if err != nil || job == nil {
 		return
 	}
 
-	jobCtx, cancel := context.WithCancel(parentCtx)
+	jobCtx, cancel := context.WithCancelCause(parentCtx)
 	w.mu.Lock()
 	w.current = job
 	w.cancelFn = cancel
@@ -134,8 +169,9 @@ func (w *Worker) processNext(parentCtx context.Context) {
 			w.store.UpdateStatus(job.ID, StatusFailed, fmt.Sprintf("panic: %v", r))
 			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: fmt.Sprintf("panic: %v", r)})
 			w.emit.Emit(EventQueueChanged)
+			w.runCleanup(job.ID)
 		}
-		cancel()
+		cancel(nil)
 		w.mu.Lock()
 		w.current = nil
 		w.cancelFn = nil
@@ -152,11 +188,18 @@ func (w *Worker) processNext(parentCtx context.Context) {
 
 	close(progressCh)
 
-	if jobCtx.Err() != nil {
+	if procErr != nil && parentCtx.Err() != nil {
+		if err := w.store.RequeueInterrupted(job.ID); err != nil {
+			log.Printf("[queue] job %d: requeue on shutdown: %v", job.ID, err)
+		}
+		return
+	}
+	if jobCtx.Err() != nil && parentCtx.Err() == nil {
 		if current, _ := w.store.Get(job.ID); current != nil && current.Status == StatusRunning {
 			w.store.UpdateStatus(job.ID, StatusFailed, "cancelled")
 		}
 		w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: "cancelled"})
+		w.runCleanup(job.ID)
 	} else if procErr != nil {
 		errMsg := procErr.Error()
 		if IsRetryableError(procErr) && job.RetryCount < job.MaxRetries {
@@ -171,11 +214,13 @@ func (w *Worker) processNext(parentCtx context.Context) {
 		} else {
 			w.store.UpdateStatus(job.ID, StatusFailed, errMsg)
 			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: errMsg})
+			w.runCleanup(job.ID)
 		}
 	} else {
 		resultJSON, _ := json.Marshal(result)
 		w.store.UpdateCompleted(job.ID, string(resultJSON))
 		w.emit.Emit(EventQueueCompleted, EventPayload{JobID: job.ID, Result: result})
+		w.runCleanup(job.ID)
 	}
 	w.emit.Emit(EventQueueChanged)
 }

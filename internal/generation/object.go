@@ -204,7 +204,7 @@ func (s *Service) EditObject(params ObjectEditParams) (*GenerateImageResult, err
 
 	b := in.img.Bounds()
 	width, height := alignLookSize(b.Dx(), b.Dy())
-	resp, resetFailed, err := s.kleinReferenceImg2Img("object", func() { s.emitter.Emit("object:stage", "generating") }, sd.Img2ImgRequest{
+	resp, err := s.kleinReferenceImg2Img("object", func() { s.emitter.Emit("object:stage", "generating") }, sd.Img2ImgRequest{
 		InitImages:     []string{params.ImageBase64},
 		Prompt:         instruction,
 		NegativePrompt: s.kids.ApplyNegative(""),
@@ -230,11 +230,10 @@ func (s *Service) EditObject(params ObjectEditParams) (*GenerateImageResult, err
 	}
 	info := patchInfoSize(resp.Info, b.Dx(), b.Dy())
 	result := &GenerateImageResult{
-		Image:                       finalB64,
-		Info:                        info,
-		EffectivePrompt:             instruction,
-		DetectedObject:              object,
-		PreserveIdentityResetFailed: resetFailed,
+		Image:           finalB64,
+		Info:            info,
+		EffectivePrompt: instruction,
+		DetectedObject:  object,
 	}
 	s.sessions.AddToSession(finalB64, info, "object", false, &preset.GenerationMeta{
 		Label: label,

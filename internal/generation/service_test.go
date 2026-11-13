@@ -23,7 +23,6 @@ import (
 	"github.com/Zazza/imagecaster/internal/llm"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"
-	"github.com/Zazza/imagecaster/internal/promptutil"
 	"github.com/Zazza/imagecaster/internal/sd"
 )
 
@@ -109,15 +108,41 @@ type mockSD struct {
 	txt2img         func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error)
 	img2img         func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error)
 	upscale         func(base64Img string, upscaler string, scale float64) (string, error)
+	getUpscalers    func() ([]sd.Upscaler, error)
+	progressFn      func(sd.JobStatus)
 	setModel        func(modelName string) error
 	setModelModules func(modelName string, modules []string) error
 	setVAE          func(vaeName string) error
 	setOption       func(key string, value any) error
-	getUpscalers    func() ([]sd.Upscaler, error)
-	progress        func() (*sd.ProgressResponse, error)
+}
+
+func (m *mockSD) replaySpec(spec sd.ModelSpec) (after func()) {
+	m.mu.Lock()
+	setModel, setModelModules, setVAE, setOption := m.setModel, m.setModelModules, m.setVAE, m.setOption
+	m.mu.Unlock()
+	if spec.Checkpoint != "" {
+		if setModelModules != nil {
+			_ = setModelModules(spec.Checkpoint, spec.Modules)
+		} else if setModel != nil {
+			_ = setModel(spec.Checkpoint)
+		}
+	}
+	if setVAE != nil {
+		vae := spec.VAE
+		if vae == "" {
+			vae = "Automatic"
+		}
+		_ = setVAE(vae)
+	}
+	if spec.KleinReference && setOption != nil {
+		_ = setOption(kleinReferenceOption, true)
+		return func() { _ = setOption(kleinReferenceOption, false) }
+	}
+	return func() {}
 }
 
 func (m *mockSD) Txt2Img(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
+	defer m.replaySpec(req.Model)()
 	m.mu.Lock()
 	fn := m.txt2img
 	m.mu.Unlock()
@@ -128,6 +153,7 @@ func (m *mockSD) Txt2Img(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
 }
 
 func (m *mockSD) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+	defer m.replaySpec(req.Model)()
 	m.mu.Lock()
 	fn := m.img2img
 	m.mu.Unlock()
@@ -137,12 +163,11 @@ func (m *mockSD) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *mockSD) GetModels() ([]sd.SDModel, error)            { return nil, nil }
-func (m *mockSD) GetSamplers() ([]sd.Sampler, error)          { return nil, nil }
-func (m *mockSD) GetSchedulers() ([]sd.Scheduler, error)      { return nil, nil }
-func (m *mockSD) GetVAEs() ([]sd.VAE, error)                  { return nil, nil }
-func (m *mockSD) GetLoRAs() ([]sd.LoRA, error)                { return nil, nil }
-func (m *mockSD) GetOptions() (map[string]interface{}, error) { return nil, nil }
+func (m *mockSD) GetModels() ([]sd.SDModel, error)       { return nil, nil }
+func (m *mockSD) GetSamplers() ([]sd.Sampler, error)     { return nil, nil }
+func (m *mockSD) GetSchedulers() ([]sd.Scheduler, error) { return nil, nil }
+func (m *mockSD) GetVAEs() ([]sd.VAE, error)             { return nil, nil }
+func (m *mockSD) GetLoRAs() ([]sd.LoRA, error)           { return nil, nil }
 
 func (m *mockSD) GetUpscalers() ([]sd.Upscaler, error) {
 	m.mu.Lock()
@@ -154,49 +179,9 @@ func (m *mockSD) GetUpscalers() ([]sd.Upscaler, error) {
 	return nil, nil
 }
 
-func (m *mockSD) GetProgress() (*sd.ProgressResponse, error) {
-	m.mu.Lock()
-	fn := m.progress
-	m.mu.Unlock()
-	if fn != nil {
-		return fn()
-	}
-	return &sd.ProgressResponse{}, nil
-}
-
 func (m *mockSD) Interrupt() error      { return nil }
 func (m *mockSD) HealthCheck() error    { return nil }
 func (m *mockSD) SetURL(baseURL string) {}
-
-func (m *mockSD) SetModel(modelName string) error {
-	m.mu.Lock()
-	fn := m.setModel
-	m.mu.Unlock()
-	if fn != nil {
-		return fn(modelName)
-	}
-	return nil
-}
-
-func (m *mockSD) SetModelWithModules(modelName string, modules []string) error {
-	m.mu.Lock()
-	fn := m.setModelModules
-	m.mu.Unlock()
-	if fn != nil {
-		return fn(modelName, modules)
-	}
-	return nil
-}
-
-func (m *mockSD) SetVAE(vaeName string) error {
-	m.mu.Lock()
-	fn := m.setVAE
-	m.mu.Unlock()
-	if fn != nil {
-		return fn(vaeName)
-	}
-	return nil
-}
 
 func (m *mockSD) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
 	m.mu.Lock()
@@ -209,14 +194,14 @@ func (m *mockSD) UpscaleImage(base64Img string, upscaler string, scale float64) 
 }
 func (m *mockSD) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
 
-func (m *mockSD) SetOption(key string, value any) error {
+func (m *mockSD) State() (*sd.ServerState, error) { return &sd.ServerState{}, nil }
+func (m *mockSD) ListJobs(ctx context.Context, client string) ([]sd.JobStatus, error) {
+	return nil, nil
+}
+func (m *mockSD) SetProgressHandler(fn func(sd.JobStatus)) {
 	m.mu.Lock()
-	fn := m.setOption
+	m.progressFn = fn
 	m.mu.Unlock()
-	if fn != nil {
-		return fn(key, value)
-	}
-	return nil
 }
 
 type mockEmitter struct {
@@ -945,16 +930,16 @@ func TestGenerateImage_SetsModelAndVAE(t *testing.T) {
 	assert.True(t, setVAECalled)
 }
 
-func TestForgeModulesForModel(t *testing.T) {
+func TestModulesForModel(t *testing.T) {
 	t.Parallel()
 
 	mossModules := []string{
-		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors",
-		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors",
+		"qwen35_9b_int8_convrot.safetensors",
+		"flux2-vae_small.safetensors",
 	}
 	kleinModules := []string{
-		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen_3_4b.safetensors",
-		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-klein-vae.safetensors",
+		"qwen_3_4b.safetensors",
+		"flux2-klein-vae.safetensors",
 	}
 
 	tests := []struct {
@@ -974,47 +959,14 @@ func TestForgeModulesForModel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := forgeModulesForModel(tc.model)
+			got := modulesForModel(tc.model)
 			require.NotNil(t, got)
 			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-func TestGenerateImage_SetModelFailsClosed(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	makeTestPreset(t, db, &preset.Preset{
-		Name:           "set-model-fail",
-		Prompt:         "1girl",
-		NegativePrompt: "lowres",
-		Sampler:        "Euler a",
-		Steps:          20,
-		CfgScale:       7.0,
-		ModelName:      "sd-xl",
-	})
-
-	txt2imgCalled := false
-	sdSvc := &mockSD{
-		setModelModules: func(modelName string, modules []string) error {
-			return fmt.Errorf("forge unavailable")
-		},
-		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
-			txt2imgCalled = true
-			return &sd.Txt2ImgResponse{Images: []string{"img"}}, nil
-		},
-	}
-
-	svc := newTestService(t, db, &mockLLM{}, sdSvc)
-	svc.ctx = context.Background()
-
-	_, err := svc.GenerateImage(GenerateImageParams{PresetID: 1})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "set model")
-	assert.False(t, txt2imgCalled, "generation must not reach txt2img when set model fails")
-}
-
-func TestGenerateImage_MossModelGetsForgeModules(t *testing.T) {
+func TestGenerateImage_MossModelGetsModules(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
 	makeTestPreset(t, db, &preset.Preset{
@@ -1045,8 +997,8 @@ func TestGenerateImage_MossModelGetsForgeModules(t *testing.T) {
 	_, err := svc.GenerateImage(GenerateImageParams{PresetID: 1})
 	require.NoError(t, err)
 	assert.Equal(t, []string{
-		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors",
-		"/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors",
+		"qwen35_9b_int8_convrot.safetensors",
+		"flux2-vae_small.safetensors",
 	}, gotModules)
 }
 
@@ -1498,46 +1450,6 @@ func TestTestGenerate_Success(t *testing.T) {
 	assert.Equal(t, "model-v1", results[0].ModelName)
 }
 
-func TestTestGenerate_ModelsBranchSetModelError(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-
-	sdSvc := &mockSD{
-		setModelModules: func(modelName string, modules []string) error {
-			if modelName == "moss_image_sft_bf16" {
-				return fmt.Errorf("forge modules unavailable")
-			}
-			return nil
-		},
-		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
-			return &sd.Txt2ImgResponse{
-				Images: []string{"z-image-result"},
-				Info:   json.RawMessage(`{"seed": 7, "sd_model_name": "z-image-turbo"}`),
-			}, nil
-		},
-	}
-
-	svc := newTestService(t, db, &mockLLM{}, sdSvc)
-	svc.ctx = context.Background()
-
-	results, err := svc.TestGenerate(TestGenerateParams{
-		Mode:           "models",
-		SelectedModels: []string{"moss_image_sft_bf16", "z-image-turbo"},
-		Prompt:         "1girl",
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 2)
-
-	assert.Equal(t, "moss_image_sft_bf16", results[0].Name)
-	assert.Contains(t, results[0].Error, "set model")
-	assert.Empty(t, results[0].Image)
-
-	assert.Equal(t, "z-image-turbo", results[1].Name)
-	assert.Empty(t, results[1].Error)
-	assert.Equal(t, "z-image-result", results[1].Image)
-	assert.Equal(t, "z-image-turbo", results[1].ModelName)
-}
-
 func TestTestGenerate_PresetNotFound(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
@@ -1592,29 +1504,6 @@ func TestTestGenerate_WithInitImage_UsesImg2Img(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, "img2img-result", results[0].Image)
 	assert.True(t, calledImg2Img)
-}
-
-func TestBuildSamplerName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		sampler      string
-		scheduleType string
-		expected     string
-	}{
-		{"no schedule", "Euler a", "", "Euler a"},
-		{"with Karras", "Euler a", "Karras", "Euler a Karras"},
-		{"with Exponential", "DPM++ 2M", "Exponential", "DPM++ 2M Exponential"},
-		{"lowercase schedule", "Euler", "karras", "Euler Karras"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := promptutil.BuildSamplerName(tt.sampler, tt.scheduleType)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
 }
 
 func TestAppendLorasToPrompt(t *testing.T) {
@@ -2326,8 +2215,8 @@ func TestGenerateImage_AppliesOverrides(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "DPM++ 2M Exponential", capturedReq.SamplerName)
-	assert.Equal(t, "Exponential", capturedReq.Scheduler)
+	assert.Equal(t, "dpm++2m", capturedReq.SamplerName)
+	assert.Equal(t, "exponential", capturedReq.Scheduler)
 	assert.Equal(t, 33, capturedReq.Steps)
 	assert.Equal(t, 4.5, capturedReq.CfgScale)
 	require.NotNil(t, capturedReq.ClipSkip)
@@ -2413,8 +2302,8 @@ func TestGenerateFromImage_AppliesOverrides(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "DPM++ 2M Exponential", capturedReq.SamplerName)
-	assert.Equal(t, "Exponential", capturedReq.Scheduler)
+	assert.Equal(t, "dpm++2m", capturedReq.SamplerName)
+	assert.Equal(t, "exponential", capturedReq.Scheduler)
 	assert.Equal(t, 33, capturedReq.Steps)
 	assert.Equal(t, 4.5, capturedReq.CfgScale)
 	require.NotNil(t, capturedReq.ClipSkip)
@@ -2727,7 +2616,7 @@ func TestQualityPostProcess(t *testing.T) {
 			img2imgCalls := 0
 			sdSvc := &mockSD{
 				getUpscalers: func() ([]sd.Upscaler, error) {
-					return []sd.Upscaler{{Name: "R-ESRGAN 4x+"}}, nil
+					return []sd.Upscaler{{Name: "RealESRGAN_x4plus"}}, nil
 				},
 				upscale: func(base64Img string, upscaler string, scale float64) (string, error) {
 					upscaleCalls++
@@ -2799,7 +2688,7 @@ func TestQualityPostProcess_Params(t *testing.T) {
 
 			sdSvc := &mockSD{
 				getUpscalers: func() ([]sd.Upscaler, error) {
-					return []sd.Upscaler{{Name: "R-ESRGAN 4x+"}}, nil
+					return []sd.Upscaler{{Name: "RealESRGAN_x4plus"}}, nil
 				},
 				upscale: func(base64Img string, upscaler string, scale float64) (string, error) {
 					capturedUpscaleImg = base64Img
@@ -2824,7 +2713,7 @@ func TestQualityPostProcess_Params(t *testing.T) {
 			assert.Equal(t, "final-img", img)
 
 			assert.Equal(t, "step1-img", capturedUpscaleImg)
-			assert.Equal(t, "R-ESRGAN 4x+", capturedUpscaler)
+			assert.Equal(t, "RealESRGAN_x4plus", capturedUpscaler)
 			assert.InDelta(t, tt.wantScale, capturedScale, 0.0001)
 
 			assert.Equal(t, tt.wantW, capturedI2I.Width)
@@ -2836,3 +2725,5 @@ func TestQualityPostProcess_Params(t *testing.T) {
 		})
 	}
 }
+
+const kleinReferenceOption = "klein_reference"

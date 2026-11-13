@@ -447,8 +447,6 @@ export namespace generation {
 	    quality_redenoise_skipped?: boolean;
 	    effective_prompt: string;
 	    effective_negative_prompt: string;
-	    edit_reference_reset_failed?: boolean;
-	    preserve_identity_reset_failed?: boolean;
 	    detected_object?: string;
 	    session_item_id?: number;
 	
@@ -467,8 +465,6 @@ export namespace generation {
 	        this.quality_redenoise_skipped = source["quality_redenoise_skipped"];
 	        this.effective_prompt = source["effective_prompt"];
 	        this.effective_negative_prompt = source["effective_negative_prompt"];
-	        this.edit_reference_reset_failed = source["edit_reference_reset_failed"];
-	        this.preserve_identity_reset_failed = source["preserve_identity_reset_failed"];
 	        this.detected_object = source["detected_object"];
 	        this.session_item_id = source["session_item_id"];
 	    }
@@ -1495,6 +1491,7 @@ export namespace sd {
 	export class Upscaler {
 	    name: string;
 	    model_name: string;
+	    scale: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Upscaler(source);
@@ -1504,6 +1501,7 @@ export namespace sd {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.model_name = source["model_name"];
+	        this.scale = source["scale"];
 	    }
 	}
 	export class VAE {

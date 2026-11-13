@@ -38,6 +38,7 @@ func (s *Service) runCompoundFirstStep(step preset.CompoundPresetStep, p *preset
 		}
 	}
 	req := sd.Txt2ImgRequest{
+		Model:                  presetSpec(p),
 		Prompt:                 prompt,
 		NegativePrompt:         negPrompt,
 		SamplerName:            samplerName,
@@ -54,8 +55,6 @@ func (s *Service) runCompoundFirstStep(step preset.CompoundPresetStep, p *preset
 		HiresUpscale:           hiresUpscale,
 		HiresDenoisingStrength: hiresDenoising,
 		HiresUpscaler:          hiresUpscaler,
-		DoNotSaveImages:        true,
-		DoNotSaveGrid:          true,
 	}
 	result, err := s.sd.Txt2Img(req)
 	if err != nil {
@@ -86,6 +85,7 @@ func (s *Service) runCompoundStep(step preset.CompoundPresetStep, p *preset.Pres
 	batchSize := 1
 	batchCount := 1
 	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
+		Model:             presetSpec(p),
 		InitImages:        []string{lastImage},
 		Prompt:            prompt,
 		NegativePrompt:    negPrompt,
@@ -100,8 +100,6 @@ func (s *Service) runCompoundStep(step preset.CompoundPresetStep, p *preset.Pres
 		ClipSkip:          &clipSkip,
 		BatchSize:         &batchSize,
 		BatchCount:        &batchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
 	})
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
@@ -133,6 +131,7 @@ func (s *Service) applyHiresOnLastStep(p *preset.Preset, lastImage, prompt, negP
 	}
 	s.log.Info("compound last step: hires upscale %.1fx, denoise=%.2f, upscaler=%s", scale, ds, hiresUpscaler)
 	hrResult, hrErr := s.manualHiresUpscale(lastImage, sd.Txt2ImgRequest{
+		Model:          presetSpec(p),
 		Prompt:         prompt,
 		NegativePrompt: negPrompt,
 		SamplerName:    samplerName,
@@ -165,6 +164,7 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 			denoising = 0.5
 		}
 		req := sd.Img2ImgRequest{
+			Model:             presetSpec(p),
 			InitImages:        []string{initImage},
 			Prompt:            prompt,
 			NegativePrompt:    negPrompt,
@@ -179,8 +179,6 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 			ClipSkip:          &clipSkip,
 			BatchSize:         &batchSize,
 			BatchCount:        &batchCount,
-			DoNotSaveImages:   true,
-			DoNotSaveGrid:     true,
 		}
 		result, err := s.sd.Img2Img(req)
 		if err != nil {
@@ -198,20 +196,19 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 		return result.Images[0], result.Info, nil
 	}
 	result, err := s.sd.Txt2Img(sd.Txt2ImgRequest{
-		Prompt:          prompt,
-		NegativePrompt:  negPrompt,
-		SamplerName:     samplerName,
-		Scheduler:       p.ScheduleType,
-		Steps:           p.Steps,
-		CfgScale:        p.CfgScale,
-		Width:           width,
-		Height:          height,
-		Seed:            p.Seed,
-		ClipSkip:        &clipSkip,
-		BatchSize:       &batchSize,
-		BatchCount:      &batchCount,
-		DoNotSaveImages: true,
-		DoNotSaveGrid:   true,
+		Model:          presetSpec(p),
+		Prompt:         prompt,
+		NegativePrompt: negPrompt,
+		SamplerName:    samplerName,
+		Scheduler:      p.ScheduleType,
+		Steps:          p.Steps,
+		CfgScale:       p.CfgScale,
+		Width:          width,
+		Height:         height,
+		Seed:           p.Seed,
+		ClipSkip:       &clipSkip,
+		BatchSize:      &batchSize,
+		BatchCount:     &batchCount,
 	})
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
@@ -236,6 +233,7 @@ func (s *Service) runFromImageCompoundStep(step preset.CompoundPresetStep, p *pr
 	batchSize := 1
 	batchCount := 1
 	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
+		Model:             presetSpec(p),
 		InitImages:        []string{lastImage},
 		Prompt:            prompt,
 		NegativePrompt:    negPrompt,
@@ -250,8 +248,6 @@ func (s *Service) runFromImageCompoundStep(step preset.CompoundPresetStep, p *pr
 		ClipSkip:          &clipSkip,
 		BatchSize:         &batchSize,
 		BatchCount:        &batchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
 	})
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {

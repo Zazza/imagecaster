@@ -38,6 +38,7 @@ func New(db *preset.DB, dataDir string, emit EventEmitter) *Service {
 type SDInfo struct {
 	Prompt         string  `json:"prompt"`
 	NegativePrompt string  `json:"negative_prompt"`
+	Sampler        string  `json:"sampler"`
 	SamplerName    string  `json:"sampler_name"`
 	Steps          int     `json:"steps"`
 	CfgScale       float64 `json:"cfg_scale"`
@@ -216,7 +217,10 @@ func (s *Service) addItem(sessionID int64, imageBase64 string, info json.RawMess
 		if json.Unmarshal(raw, &sd) == nil {
 			item.Prompt = sd.Prompt
 			item.NegativePrompt = sd.NegativePrompt
-			item.Sampler = sd.SamplerName
+			item.Sampler = sd.Sampler
+			if item.Sampler == "" {
+				item.Sampler = sd.SamplerName
+			}
 			item.Steps = sd.Steps
 			item.CfgScale = sd.CfgScale
 			item.Seed = &sd.Seed

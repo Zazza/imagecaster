@@ -208,6 +208,7 @@ func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength f
 	}
 	batchSize, batchCount := 1, 1
 	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+		Model:             kleinRefSpec(),
 		InitImages:        []string{b64},
 		Prompt:            repairPrompt,
 		NegativePrompt:    s.kids.ApplyNegative(""),
@@ -221,8 +222,6 @@ func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength f
 		DenoisingStrength: &strength,
 		BatchSize:         &batchSize,
 		BatchCount:        &batchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
 	})
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
@@ -286,9 +285,6 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 		return nil, errors.New(repairEmptyMaskMsg)
 	}
 
-	s.referenceMu.Lock()
-	defer s.referenceMu.Unlock()
-
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
@@ -296,28 +292,6 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 	defer s.StopSDPolling()
 
 	s.guard.EnsureHeadroom(kleinLookModel, "repair")
-	if err := s.setModel(kleinLookModel, "repair"); err != nil {
-		return nil, fmt.Errorf("%s not available on SD backend: %w", kleinLookModel, err)
-	}
-	if err := s.sd.SetVAE("Automatic"); err != nil {
-		s.log.Warn("repair: reset vae: %s", err)
-	}
-	if err := s.sd.SetOption(kleinReferenceOption, true); err != nil {
-		if rerr := s.sd.SetOption(kleinReferenceOption, false); rerr != nil {
-			s.log.Warn("repair: disable klein reference after failed enable: %s", rerr)
-		}
-		return nil, fmt.Errorf("enable repair reference: %w", err)
-	}
-	var result *GenerateImageResult
-	defer func() {
-		derr := s.sd.SetOption(kleinReferenceOption, false)
-		if derr != nil {
-			s.log.Warn("repair: disable klein reference: %s", derr)
-		}
-		if result != nil {
-			result.PreserveIdentityResetFailed = derr != nil
-		}
-	}()
 
 	seed := params.Seed
 	if seed == nil || *seed < 0 {
@@ -347,7 +321,7 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 		return nil, fmt.Errorf("encode result: %w", err)
 	}
 	info := patchInfoSize(lastInfo, w, h)
-	result = &GenerateImageResult{
+	result := &GenerateImageResult{
 		Image:           finalB64,
 		Info:            info,
 		EffectivePrompt: repairPrompt,

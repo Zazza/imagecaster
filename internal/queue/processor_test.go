@@ -96,7 +96,7 @@ func TestEventPayload_QualityFlagsSerialization(t *testing.T) {
 }
 
 func TestProcessJob_LegacyCompareItemIsUnknownJobType(t *testing.T) {
-	p := NewProcessor(nil, nil, t.TempDir(), &mockEmitter{})
+	p := NewProcessor(nil, nil, nil, t.TempDir(), &mockEmitter{})
 	job := &Job{Type: JobType("compare_item"), Params: `{"mode":"compounds"}`}
 
 	var res *JobResult

@@ -239,7 +239,7 @@ CHARACTERS field — IMPORTANT:
 OUTPUT — valid JSON only, no markdown, no explanation:
 {"prompt": "tag1, tag2", "negative_prompt": "neg1, neg2"}`,
 		DefaultNegative: "blurry, low quality, watermark, text, signature",
-		DefaultSampler:  "Euler a",
+		DefaultSampler:  "euler_a",
 		DefaultSteps:    20,
 		DefaultCfgScale: 7.0,
 		DefaultWidth:    512,

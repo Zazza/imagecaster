@@ -55,7 +55,7 @@ func (s *Store) ClaimNext() (*Job, error) {
 	err = scanJob(tx.QueryRow(
 		fmt.Sprintf(`SELECT %s FROM job_queue
 			WHERE status = 'pending' AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
-			ORDER BY created_at ASC LIMIT 1`, jobColumns),
+			ORDER BY (started_at IS NULL), created_at ASC LIMIT 1`, jobColumns),
 	), &job)
 
 	if err == sql.ErrNoRows {
@@ -250,6 +250,14 @@ func (s *Store) ResetRunningToPending() error {
 		}
 	}
 	return tx.Commit()
+}
+
+func (s *Store) RequeueInterrupted(id int64) error {
+	_, err := s.db.Exec(
+		`UPDATE job_queue SET status = 'pending', next_retry_at = NULL, error = '' WHERE id = ? AND status = 'running'`,
+		id,
+	)
+	return err
 }
 
 func (s *Store) IncrementRetry(id int64, retryCount, maxRetries int) error {

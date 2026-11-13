@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/generation"
 	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 func RegisterTools(s *Server) {
@@ -28,17 +30,27 @@ func RegisterTools(s *Server) {
 				res["sd"] = map[string]any{"available": false, "error": err.Error()}
 			} else {
 				m := map[string]any{"available": true, "url": s.deps.Cfg.SDUrl}
-				if opts, err := s.deps.SD.GetOptions(); err == nil {
-					if v, ok := opts["sd_model_checkpoint"].(string); ok {
-						m["model"] = v
-					}
+				if st, err := s.deps.SD.State(); err == nil {
+					m["model"] = st.LoadedCheckpoint
 				}
-				if prog, err := s.deps.SD.GetProgress(); err == nil {
-					m["progress"] = map[string]any{
-						"progress": prog.Progress,
-						"eta":      prog.ETARelative,
-						"job":      prog.State.Job,
-						"steps":    prog.TotalSteps(),
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				jobs, err := s.deps.SD.ListJobs(ctx, "")
+				cancel()
+				if err == nil {
+					for _, j := range jobs {
+						if j.Status != sd.JobRunning {
+							continue
+						}
+						progress := 0.0
+						if j.Progress.Steps > 0 {
+							progress = float64(j.Progress.Step) / float64(j.Progress.Steps)
+						}
+						m["progress"] = map[string]any{
+							"progress": progress,
+							"job":      j.ID,
+							"steps":    j.Progress.Steps,
+						}
+						break
 					}
 				}
 				res["sd"] = m
@@ -185,13 +197,13 @@ func RegisterTools(s *Server) {
 
 	s.Register(Tool{
 		Name:        "preset_create",
-		Description: "Создать пресет, возвращает id. Пишущий инструмент: требует confirm=true — сначала покажи пользователю имя и промпт и получи согласие. Сначала убедись, что подходящего пресета нет (presets/compound_list). Дефолты: sampler=Euler a, steps=20, cfg_scale=7.0.",
+		Description: "Создать пресет, возвращает id. Пишущий инструмент: требует confirm=true — сначала покажи пользователю имя и промпт и получи согласие. Сначала убедись, что подходящего пресета нет (presets/compound_list). Дефолты: sampler=euler_a, steps=20, cfg_scale=7.0.",
 		InputSchema: props(map[string]any{
 			"name":            prop("имя пресета", "string"),
 			"prompt":          prop("положительный промпт (SD-теги или prose — по модели)", "string"),
 			"negative_prompt": prop("негативный промпт", "string"),
 			"model_name":      prop("модель SD (title из sd_meta)", "string"),
-			"sampler":         prop("сэмплер (по умолчанию Euler a)", "string"),
+			"sampler":         prop("сэмплер sd.cpp (по умолчанию euler_a)", "string"),
 			"steps":           prop("шаги (по умолчанию 20)", "integer"),
 			"cfg_scale":       prop("CFG (по умолчанию 7.0)", "number"),
 			"tags":            prop("теги для поиска", "array", map[string]any{"items": map[string]any{"type": "string"}}),
@@ -221,7 +233,7 @@ func RegisterTools(s *Server) {
 				CfgScale:       argFloat(args, "cfg_scale"),
 			}
 			if p.Sampler == "" {
-				p.Sampler = "Euler a"
+				p.Sampler = "euler_a"
 			}
 			if p.Steps <= 0 {
 				p.Steps = 20
@@ -915,7 +927,7 @@ func RegisterTools(s *Server) {
 
 	s.Register(Tool{
 		Name:        "interrupt",
-		Description: "Прервать текущую генерацию SD. Forge общий с десктоп-приложением — прервёт и его генерацию; спроси пользователя, если в GUI что-то запущено.",
+		Description: "Прервать генерации SD, запущенные этим MCP-сервером. Генерации десктоп-приложения не затрагиваются.",
 		InputSchema: props(nil),
 		Handler: func(s *Server, _ map[string]any) (string, error) {
 			if err := s.deps.Gen.InterruptGeneration(); err != nil {

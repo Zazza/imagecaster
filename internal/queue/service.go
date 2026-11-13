@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"time"
 )
 
 type Service struct {
@@ -11,6 +13,8 @@ type Service struct {
 	worker      *Worker
 	emit        EventEmitter
 	interruptFn func()
+	cancel      context.CancelFunc
+	cleanup     func(jobID int64)
 }
 
 func NewService(store *Store, processor Processor, emit EventEmitter) *Service {
@@ -23,9 +27,38 @@ func NewService(store *Store, processor Processor, emit EventEmitter) *Service {
 }
 
 func (s *Service) Start(ctx context.Context) {
-	s.store.ResetRunningToPending()
+	ctx, s.cancel = context.WithCancel(ctx)
+	if err := s.store.ResetRunningToPending(); err != nil {
+		log.Printf("[queue] reset running jobs: %v", err)
+	}
 	s.worker.Start(ctx)
 	s.worker.Notify()
+}
+
+func (s *Service) Stop(timeout time.Duration) {
+	if s.cancel == nil {
+		return
+	}
+	s.cancel()
+	select {
+	case <-s.worker.Done():
+	case <-time.After(timeout):
+		log.Printf("[queue] stop: worker did not finish in %s", timeout)
+	}
+}
+
+func (s *Service) SetJobCleanup(fn func(jobID int64)) {
+	s.cleanup = fn
+	s.worker.SetCleanup(fn)
+}
+
+func (s *Service) cleanupJob(id int64) {
+	if f, ok := s.worker.processor.(forgetter); ok {
+		f.Forget(id)
+	}
+	if s.cleanup != nil {
+		s.cleanup(id)
+	}
 }
 
 func (s *Service) Enqueue(jobType JobType, params any, source string) (int64, error) {
@@ -53,6 +86,7 @@ func (s *Service) RemoveJob(id int64) error {
 	if err != nil {
 		return err
 	}
+	s.cleanupJob(id)
 	s.emit.Emit(EventQueueChanged)
 	return nil
 }
@@ -94,6 +128,7 @@ func (s *Service) CancelJob(id int64) error {
 		if err := s.store.UpdateStatus(id, StatusCancelled, ""); err != nil {
 			return err
 		}
+		s.cleanupJob(id)
 		s.emit.Emit(EventQueueChanged)
 		return nil
 	}

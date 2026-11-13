@@ -19,8 +19,8 @@ func TestMemoryInfo(t *testing.T) {
 			if r.Method != http.MethodGet {
 				t.Errorf("expected GET, got %s", r.Method)
 			}
-			if r.URL.Path != "/sdapi/v1/memory" {
-				t.Errorf("expected /sdapi/v1/memory, got %s", r.URL.Path)
+			if r.URL.Path != "/memory" {
+				t.Errorf("expected /memory, got %s", r.URL.Path)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"ram":{"free":8589934592,"used":17179869184,"total":25769803776},"cuda":{"system":{"free":12884901888,"used":4294967296,"total":17179869184}}}`))
@@ -83,6 +83,6 @@ func TestMemoryInfo(t *testing.T) {
 		stats, err := client.MemoryInfo()
 		require.Error(t, err)
 		assert.Nil(t, stats)
-		assert.True(t, strings.Contains(err.Error(), "decode memory info"), err.Error())
+		assert.True(t, strings.Contains(err.Error(), "decode response"), err.Error())
 	})
 }

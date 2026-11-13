@@ -106,7 +106,7 @@ interface EditImageParams {
 }
 ```
 
-Промпт собирается как `[LoRA стиля][LoRA пользователя][теги стиля] Change only {инструкция}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` Опция `klein_do_reference` включается перед запросом и сбрасывается после; при сбое сброса результат несёт `edit_reference_reset_failed: true`.
+Промпт собирается как `[LoRA стиля][LoRA пользователя][теги стиля] Change only {инструкция}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` Задание уходит с `klein_reference: true` в модели; на другие задания это не влияет.
 
 **Прямой путь без очереди** (как TestGenerate); сериализация через мьютекс на сервисе.
 
@@ -246,7 +246,7 @@ api.updateSettings(data: Record<string, string>): Promise<void>
 api.checkServer(): Promise<ServerCheck>
 ```
 
-`ServerCheck`: `{ state, url, version, missing, error }`. `state` — `ok`, `not_configured` (нет `server_url`), `not_found` (сервер не отвечает), `outdated` (в `GET /` нет нужных `features`: `sdcpp`, `download_stream`, `llamacpp` или `ollama`; `missing` — каких именно). Вызовы генерации фронт отклоняет, пока состояние не `ok`.
+`ServerCheck`: `{ state, url, version, missing, error }`. `state` — `ok`, `not_configured` (нет `server_url`), `not_found` (сервер не отвечает), `outdated` (в `GET /` нет нужных `features`: `sdcpp`, `download_stream`, `sd_jobs`, `llamacpp`; `missing` — каких именно). Вызовы генерации фронт отклоняет, пока состояние не `ok`.
 
 **Ключи настроек:**
 | Ключ | Описание |

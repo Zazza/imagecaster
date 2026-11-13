@@ -77,78 +77,52 @@ type BackendConfig struct {
 ## internal/sd
 
 ### Client
-HTTP-клиент для SD WebUI API с retry.
+HTTP-клиент картиночной части Imagecaster Server (`<server>/api/sd`). Каждая генерация — задание на сервере: поставить, опрашивать, забрать результат, удалить. Общей «текущей модели» нет: каждое задание само называет checkpoint, VAE, доп. модули и флаги опорного кадра.
 
 ```go
-type Client struct {
-    baseURL           string
-    httpClient        *http.Client
-    retryMaxAttempts  int
-    retryDelay        time.Duration
+type ModelSpec struct {
+    Checkpoint, VAE string
+    Modules         []string
+    KleinReference  bool
+    MossReference   bool
 }
+type JobRequest struct { Kind, ClientRef string; Model ModelSpec; Params any }
 
 func New(baseURL string) *Client
-func (c *Client) Txt2Img(req Txt2ImgRequest) (*Txt2ImgResponse, error)    // с retry
-func (c *Client) Img2Img(req Img2ImgRequest) (*Txt2ImgResponse, error)    // с retry
-func (c *Client) GetModels() ([]SDModel, error)
-func (c *Client) GetSamplers() ([]Sampler, error)
-func (c *Client) GetSchedulers() ([]Scheduler, error)
-func (c *Client) GetUpscalers() ([]Upscaler, error)
-func (c *Client) GetVAEs() ([]VAE, error)
-func (c *Client) GetLoRAs() ([]LoRA, error)
-func (c *Client) SetModel(modelName string) error
-func (c *Client) SetVAE(vaeName string) error
-func (c *Client) HealthCheck() error
-func (c *Client) GetOptions() (map[string]interface{}, error)
-func (c *Client) SetURL(baseURL string)
+func (c *Client) SetClientName(name string)            // по умолчанию "imagecaster"; MCP — "imagecaster-mcp"
+func (c *Client) SubmitJob(ctx, JobRequest) (*JobStatus, error)    // POST /jobs
+func (c *Client) GetJob(ctx, id) (*JobStatus, error)               // GET /jobs/{id}
+func (c *Client) JobResult(ctx, id) (*JobResult, error)            // GET /jobs/{id}/result
+func (c *Client) CancelJob(ctx, id) error                          // POST /jobs/{id}/cancel
+func (c *Client) DeleteJob(ctx, id) error                          // DELETE /jobs/{id}
+func (c *Client) ListJobs(ctx, client string) ([]JobStatus, error) // GET /jobs?client=
+func (c *Client) RunJob(ctx, JobRequest, onProgress func(JobStatus)) (*JobResult, error)
+func (c *Client) ForQueueJob(ctx, queueJobID int64) Service
+func (c *Client) Txt2Img(req Txt2ImgRequest) (*Txt2ImgResponse, error)   // поставить и ждать
+func (c *Client) Img2Img(req Img2ImgRequest) (*Txt2ImgResponse, error)   // поставить и ждать
+func (c *Client) UpscaleImage(image, upscaler string, scale float64) (string, error)
+func (c *Client) Interrupt() error        // отменяет незавершённые задания своего имени клиента и своей установки
+func (c *Client) SetProgressHandler(fn func(JobStatus))
+func (c *Client) GetModels/GetSamplers/GetSchedulers/GetUpscalers/GetVAEs/GetLoRAs()
+func (c *Client) State() (*ServerState, error)   // GET /state: загруженная модель, идущее задание
+func (c *Client) MemoryInfo() (*MemoryStats, error)
+func (c *Client) HealthCheck() error             // GET /state
 ```
 
-### Retry
-- `Txt2Img` и `Img2Img` используют `doPost()` с retry
-- Retry: 500/502/503/504 + network errors
-- Max 3 attempts, exponential backoff 2s -> 4s
-- При исчерпании попыток: ошибка включает тело ответа SD
+### RunJob
+- Интервал опроса — `PollInterval` (по умолчанию 1 с). Сетевая ошибка опроса не прерывает ожидание.
+- Статус `lost` (или `failed` с кодом `server_restarted`) либо 404 при опросе — задание ставится заново один раз с тем же `client_ref`; повторная потеря — ошибка `ErrJobLost`.
+- `failed` — ошибка с текстом сервера. Сетевая ошибка при постановке — ещё до 3 постановок с тем же `client_ref`; HTTP 4xx/5xx при постановке не повторяются.
+- Отмена контекста с причиной `sd.ErrUserCancel` отменяет задание на сервере. Любая другая отмена (закрытие приложения) задание на сервере не трогает.
+- После получения результата задание удаляется на сервере.
+
+### Задания очереди
+`ForQueueJob(ctx, id)` возвращает `Service`, у которого вызовы генерации идут с `ctx` и `client_ref = <inst>:q<id>:s<seq>:<hash8>` (seq = 1, 2, 3… по порядку вызовов, hash8 — первые 8 hex sha256 от kind+model+params). Повтор той же цепочки даёт те же ref: сервер сразу отдаёт готовые шаги и подключает к идущему.
+
+`<inst>` — id установки: случайные 16 hex, создаются один раз и хранятся в настройке `install_id` (`preset.DB.InstallID`), передаются в `SetInstallID`. Прямые вызовы идут с `<inst>:d:<random>`. `CleanupQueueJob` удаляет только `<inst>:q<id>:*`, `Interrupt` — только задания с префиксом `<inst>:`, поэтому два компьютера с одним сервером не трогают задания друг друга. imagecaster-mcp читает ту же БД и тот же id, но работает под своим именем клиента.
 
 ### Запросы
-
-**Txt2ImgRequest:**
-```go
-type Txt2ImgRequest struct {
-    Prompt, NegativePrompt, SamplerName, Scheduler string
-    Steps                  int
-    CfgScale               float64
-    Width, Height          int
-    Seed                   *int64
-    DenoisingStrength      *float64
-    ClipSkip               *int
-    BatchSize, BatchCount  *int
-    HiresFix               *bool
-    // ... hires параметры
-}
-```
-
-**Img2ImgRequest (дополнительно):**
-```go
-type Img2ImgRequest struct {
-    InitImages             []string  // base64
-    Mask                   string    // base64 PNG
-    MaskBlur               int
-    InpaintingFill         int       // 0=Fill, 1=Original, 2=Latent Noise
-    InpaintFullRes         bool
-    InpaintFullResPadding  int
-    // ... все поля Txt2ImgRequest
-}
-```
-
-**Txt2ImgResponse:**
-```go
-type Txt2ImgResponse struct {
-    Images     []string        // base64 PNG
-    Parameters json.RawMessage
-    Info       json.RawMessage
-    Error      string
-}
-```
+`Txt2ImgRequest` / `Img2ImgRequest` несут `Model ModelSpec`, промпт, сэмплер и планировщик (имена sd.cpp, напр. `euler_a`, `karras`, `""` — по умолчанию), шаги, CFG, размер, seed (nil — случайный), clip skip, batch size × batch count (уходит одним `batch_size`), hires (txt2img), исходник, маску и силу denoise (img2img).
 
 ## internal/preset
 
@@ -231,8 +205,9 @@ func (s *Service) StopSDPolling()
 - `GenerateFromImage` — генерация img2img с анализом исходного изображения и инпейнтингом
 - `GenerateSDPrompt` — преобразование текстового описания в SD промпт через LLM
 - `GenerateCompoundImage` — многошаговая генерация с использованием составных пресетов
-- `UpscaleImage` — апскейлинг изображений через extras API SD WebUI
-- `StartSDPolling` / `StopSDPolling` — периодический опрос состояния SD WebUI
+- `UpscaleImage` — апскейл x2 заданием img2img
+- `StartSDPolling` / `StopSDPolling` — включают/выключают события `sd:progress`; прогресс берётся из статуса задания `RunJob`
+- `WithSD(sd.Service)` — поверхностная копия, работающая через другой `sd.Service` (очередь передаёт `ForQueueJob`); состояние прогресса общее
 
 ## internal/queue
 
@@ -259,6 +234,12 @@ func (s *Service) ResumePausedJobs() (int, error)
 - `IsRetryableError()` проверяет транзиентные ошибки (connection refused, timeout, EOF и т.д.)
 - Воркер опрашивает БД каждые 5с для запланированных повторных попыток
 - Миграция БД v24 добавляет колонки retry_count, max_retries, next_retry_at
+- Каждое задание идёт через `ForQueueJob(ctx, job.ID)`, поэтому его шаги сохраняют `client_ref` между перезапусками
+- Ответы ИИ задания (промпт из идеи, описание фото, переписанный образ) хранятся в `data/queue-llm/<id>.json` (ключ: номер вызова + sha256 запроса) до конца задания, поэтому после перезапуска шаги получают те же промпты и те же `client_ref`; отказ ИИ тоже запоминается, но только если после него ушла генерация (отказ, оборвавший задание, при повторе спрашивается заново)
+- После отмены контекста задания результат в историю не сохраняется; задание считается остановленным (при закрытии приложения возвращается в очередь), а не выполненным с недоделанной картинкой
+- Отмена пользователем одного задания очереди отменяет только его; прямая генерация, идущая в это же время, не прерывается
+- Отмена пользователем отменяет контекст с причиной `sd.ErrUserCancel` (задание на сервере отменяется); закрытие приложения отменяет без этой причины, задание остаётся `running`
+- При запуске `running` возвращаются в `pending` без траты попытки и берутся первыми
 - События фронтенда: `queue:updated`, `queue:job-progress`
 
 ### Store
@@ -329,8 +310,8 @@ func (l *Logger) Debug(format string, args ...interface{})
 // Загрузить пресет -> извлечь параметры -> установить модель/VAE
 p, _ := a.presets.Get(presetID)
 samplerName, steps, cfgScale, width, height = ...
-a.sd.SetModel(p.ModelName)
-a.sd.SetVAE(p.VAE)
+spec := s.prepareSDContext(p, "generate") // sd.ModelSpec{Checkpoint, VAE, Modules}
+s.sd.Txt2Img(sd.Txt2ImgRequest{Model: spec, ...})
 ```
 
 ### Image Processing

@@ -307,8 +307,8 @@ func (s *Service) DescribeForStyle(imageBase64 string) (string, error) {
 const (
 	kleinLookSteps          = 8
 	kleinLookCfgScale       = 1.0
-	kleinLookSampler        = "Euler"
-	kleinLookScheduler      = "Simple"
+	kleinLookSampler        = "euler"
+	kleinLookScheduler      = "simple"
 	kleinLookTemperature    = 0.3
 	kleinLookMaxPromptRunes = 500
 	kleinLookLabelMax       = 60
@@ -441,9 +441,6 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 		lookPrompt = truncateRunes(text, kleinLookMaxPromptRunes)
 	}
 
-	s.referenceMu.Lock()
-	defer s.referenceMu.Unlock()
-
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
@@ -451,27 +448,6 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	defer s.StopSDPolling()
 
 	s.guard.EnsureHeadroom(kleinLookModel, "look")
-
-	if err := s.setModel(kleinLookModel, "look"); err != nil {
-		return nil, fmt.Errorf("%s not available on SD backend: %w", kleinLookModel, err)
-	}
-	if err := s.sd.SetOption(kleinReferenceOption, true); err != nil {
-		if rerr := s.sd.SetOption(kleinReferenceOption, false); rerr != nil {
-			s.log.Warn("look: disable klein reference after failed enable: %s", rerr)
-		}
-		return nil, fmt.Errorf("enable look reference: %w", err)
-	}
-
-	var result *GenerateImageResult
-	defer func() {
-		derr := s.sd.SetOption(kleinReferenceOption, false)
-		if derr != nil {
-			s.log.Warn("look: disable klein reference: %s", derr)
-		}
-		if result != nil {
-			result.PreserveIdentityResetFailed = derr != nil
-		}
-	}()
 
 	srcW, srcH := filebrowser.DecodeImageSize(imageBase64)
 	if srcW <= 0 || srcH <= 0 {
@@ -483,6 +459,7 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	batchSize := 1
 	batchCount := 1
 	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+		Model:             kleinRefSpec(),
 		InitImages:        []string{imageBase64},
 		Prompt:            lookPrompt,
 		NegativePrompt:    s.kids.ApplyNegative(""),
@@ -496,8 +473,6 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 		DenoisingStrength: &strength,
 		BatchSize:         &batchSize,
 		BatchCount:        &batchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
 	})
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
@@ -513,7 +488,7 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	}
 
 	finalImage := s.kleinUpscaleTo(resp.Images[0], width, outW, outH, "look")
-	result = &GenerateImageResult{
+	result := &GenerateImageResult{
 		Image:           finalImage,
 		Info:            resp.Info,
 		EffectivePrompt: lookPrompt,

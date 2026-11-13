@@ -49,7 +49,6 @@ const selectedResolutionId = ref(null)
 const generatingImage = ref(false)
 watch(generatingImage, v => emit('busy', v))
 const effectivePrompt = ref('')
-const resetFailed = ref(false)
 const qualityUpscaleSkipped = ref(false)
 const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
@@ -238,7 +237,6 @@ async function generate() {
   }
   generatingImage.value = true
   effectivePrompt.value = ''
-  resetFailed.value = false
   qualityUpscaleSkipped.value = false
   qualityRedenoiseSkipped.value = false
   error.value = ''
@@ -249,7 +247,6 @@ async function generate() {
     if (reqId !== genReqId) return
     if (result?.image) {
       effectivePrompt.value = result.effective_prompt || ''
-      resetFailed.value = !!result.edit_reference_reset_failed
       qualityUpscaleSkipped.value = !!result.quality_upscale_skipped
       qualityRedenoiseSkipped.value = !!result.quality_redenoise_skipped
       emit('result', result.image)
@@ -466,7 +463,6 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <StatusMessage v-if="resetFailed" kind="warning" @close="resetFailed = false">{{ t('edit.reset_failed') }}</StatusMessage>
     <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
     <StatusMessage v-if="qualityRedenoiseSkipped" kind="warning" @close="qualityRedenoiseSkipped = false">{{ t('fi.quality_redenoise_skipped') }}</StatusMessage>
     <div v-if="effectivePrompt" data-testid="edit-effective-prompt" class="edit-effective-prompt" :title="effectivePrompt" @click="copyEffectivePrompt">{{ effectivePrompt }}</div>

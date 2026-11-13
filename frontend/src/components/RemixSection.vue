@@ -42,7 +42,6 @@ const hiresProfiles = ref([])
 const loadHiresFailed = ref(false)
 const qualityMode = ref(false)
 const preserveIdentity = ref(true)
-const preserveIdentityResetFailed = ref(false)
 
 const genInfo = ref(null)
 const qualityUpscaleSkipped = ref(false)
@@ -195,7 +194,6 @@ async function generate() {
   genInfo.value = null
   qualityUpscaleSkipped.value = false
   qualityRedenoiseSkipped.value = false
-  preserveIdentityResetFailed.value = false
   error.value = ''
   resetProgress()
   enqueuedJobIds.value = new Set()
@@ -241,7 +239,6 @@ async function onQueueCompleted(data) {
         genInfo.value = info
         qualityUpscaleSkipped.value = r.quality_upscale_skipped || false
         qualityRedenoiseSkipped.value = r.quality_redenoise_skipped || false
-        preserveIdentityResetFailed.value = r.preserve_identity_reset_failed || false
       }
     } catch {}
   }
@@ -539,7 +536,6 @@ function onKeydown(e) {
 
     <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" style="margin-top: 8px;" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
     <StatusMessage v-if="qualityRedenoiseSkipped" kind="warning" style="margin-top: 8px;" @close="qualityRedenoiseSkipped = false">{{ t('fi.quality_redenoise_skipped') }}</StatusMessage>
-    <StatusMessage v-if="preserveIdentityResetFailed" kind="warning" style="margin-top: 8px;" @close="preserveIdentityResetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <details v-if="genInfo" class="gen-info">
       <summary>{{ t('fi.technical_details') }}</summary>

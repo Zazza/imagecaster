@@ -47,6 +47,12 @@ func main() {
 
 	llmClient := llm.New(cfg.LLMUrl)
 	sdClient := sd.New(cfg.SDUrl)
+	if id, err := db.InstallID(); err != nil {
+		log.Printf("install id: %v", err)
+	} else {
+		sdClient.SetInstallID(id)
+	}
+	sdClient.SetClientName("imagecaster-mcp")
 	srvClient := serverclient.NewClient()
 
 	settings.Restore(db, cfg, llmClient, sdClient, srvClient)
@@ -61,7 +67,6 @@ func main() {
 		dataDir,
 		mcp.NoopEmitter{}, kidsMgr, mcp.AgentSessions{Svc: appSessions}, settingsSvc, nil, logSvc,
 	)
-	go gen.ResetReferences()
 
 	outDir := env("OUT")
 	if outDir == "" {

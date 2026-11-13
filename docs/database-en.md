@@ -6,7 +6,17 @@
 
 Path: `data/presets.db` (configurable via `DB_PATH`).
 
-Migrations run automatically on `preset.Open()` (versions 1-10).
+The schema version is kept in `PRAGMA user_version` (current: `schemaVersion` = 33, `internal/preset/schema.go`). `preset.Open()`:
+
+- empty database (no tables): the final schema and seed data are created at once in one transaction (`createLatestSchema`), version = 33;
+- database with tables and `user_version = 0` (anything created before 1.6): the old `legacyMigrations` chain (`migrate` … `migrateV32`, same order, markers like `migration_v20_done` still work) runs once, then version = 32 and the `schemaSteps`;
+- `user_version` ≥ 33: nothing runs, startup does not write to the database.
+
+`schemaSteps` (from 33) run in a `BEGIN IMMEDIATE` transaction. v33 rebuilds `presets` so the `sampler` default is `euler_a` (was the Forge name `Euler a`), keeping rows, indexes, triggers and `sqlite_sequence`.
+
+A new migration is a `schemaSteps` entry numbered 34, 35, …: it runs once when its number is above `user_version`, then the version is raised. A schema change goes into both the step and `latestSchemaDDL`; `TestSchema_FreshEqualsFullLegacyChain`/`TestSchema_OldDBUpgradesToLatest` check that fresh and upgraded databases match.
+
+v32 converts stored Forge names to sd.cpp names: `presets.sampler`/`schedule_type` (a combined name like "DPM++ 2M Karras" is split), `hires_profiles.upscaler` ("R-ESRGAN 4x+" → "RealESRGAN_x4plus", "Lanczos" → "lanczos", "Latent" → "latent", "None" → ""), settings `test_sampler`/`test_schedule_type`. An unknown Forge name becomes "" (default) and is logged. Preset import from a file converts the same way.
 
 ## Schema
 
@@ -21,8 +31,8 @@ Main table for generation presets.
 | preset_type | TEXT | Type name (denormalized) |
 | prompt | TEXT | Positive prompt |
 | negative_prompt | TEXT | Negative prompt |
-| sampler | TEXT | Sampler name |
-| schedule_type | TEXT | "auto", "karras", "exponential" |
+| sampler | TEXT | sd.cpp sampler name ("euler_a", "dpm++2m", …) |
+| schedule_type | TEXT | sd.cpp scheduler: "", "karras", "simple", "discrete", … ("" = default) |
 | steps | INTEGER | Number of steps |
 | cfg_scale | REAL | CFG Scale |
 | width | INTEGER | Width |
@@ -204,7 +214,7 @@ Hires fix profiles for generation.
 | id | INTEGER PK | Auto-increment |
 | name | TEXT | Profile name |
 | enable | BOOLEAN | Enable hires fix |
-| upscaler | TEXT | Upscaler name |
+| upscaler | TEXT | sd.cpp upscaler: model file name without extension or "lanczos"/"nearest" |
 | scale | REAL | Upscale factor |
 | denoising | REAL | Denoising strength |
 | resize_x | INTEGER | Target width |

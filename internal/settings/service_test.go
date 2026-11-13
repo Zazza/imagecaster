@@ -3,8 +3,9 @@ package settings
 import (
 	"context"
 	"fmt"
-	"github.com/Zazza/imagecaster/internal/serverclient"
 	"testing"
+
+	"github.com/Zazza/imagecaster/internal/serverclient"
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/llm"
@@ -96,30 +97,28 @@ func (m *mockSDService) GetVAEs() ([]sd.VAE, error) {
 func (m *mockSDService) GetLoRAs() ([]sd.LoRA, error) {
 	return m.loras, nil
 }
-func (m *mockSDService) GetOptions() (map[string]interface{}, error) {
-	if m.optionsErr != nil {
-		return nil, m.optionsErr
-	}
-	return m.options, nil
-}
-func (m *mockSDService) GetProgress() (*sd.ProgressResponse, error) {
-	return nil, nil
-}
 func (m *mockSDService) Interrupt() error {
 	return nil
 }
 func (m *mockSDService) HealthCheck() error {
 	return m.healthErr
 }
+func (m *mockSDService) State() (*sd.ServerState, error) {
+	if m.optionsErr != nil {
+		return nil, m.optionsErr
+	}
+	model, _ := m.options["sd_model_checkpoint"].(string)
+	return &sd.ServerState{LoadedCheckpoint: model}, nil
+}
+func (m *mockSDService) ListJobs(ctx context.Context, client string) ([]sd.JobStatus, error) {
+	return nil, nil
+}
+func (m *mockSDService) SetProgressHandler(fn func(sd.JobStatus)) {}
 func (m *mockSDService) SetURL(baseURL string) {
 	m.setURLCalled = true
 	m.setURLVal = baseURL
 }
-func (m *mockSDService) SetModel(string) error                                { return nil }
-func (m *mockSDService) SetModelWithModules(string, []string) error           { return nil }
-func (m *mockSDService) SetVAE(string) error                                  { return nil }
 func (m *mockSDService) UpscaleImage(string, string, float64) (string, error) { return "", nil }
-func (m *mockSDService) SetOption(key string, value any) error                { return nil }
 func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error)                 { return nil, nil }
 
 func testService(t *testing.T, llmSvc *mockLLMService, sdSvc *mockSDService) (*Service, *preset.DB) {

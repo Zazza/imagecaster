@@ -33,8 +33,8 @@ func TestCheckServices_LLMModelField(t *testing.T) {
 	defer llmSrv.Close()
 
 	sdSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/sdapi/v1/options" {
-			json.NewEncoder(w).Encode(map[string]interface{}{"sd_model_checkpoint": "sd-1.5"})
+		if r.URL.Path == "/state" {
+			json.NewEncoder(w).Encode(map[string]interface{}{"loaded_checkpoint": "sd-1.5", "running_job": ""})
 			return
 		}
 		w.WriteHeader(http.StatusOK)

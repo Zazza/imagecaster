@@ -22,8 +22,8 @@ import (
 	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"
-	"github.com/Zazza/imagecaster/internal/promptutil"
 	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/sdnames"
 )
 
 type ExportFile struct {
@@ -318,7 +318,7 @@ func (s *Service) ImportItems(items []PresetData) ([]preset.Preset, error) {
 
 	result := make([]preset.Preset, len(items))
 	for i, item := range items {
-		sampler, scheduleType := promptutil.SplitCompositeSampler(item.Sampler, item.ScheduleType)
+		sampler, scheduleType := s.sdcppNames(item.Name, item.Sampler, item.ScheduleType)
 		p := preset.Preset{
 			Name:              item.Name,
 			PresetType:        item.PresetType,
@@ -712,7 +712,7 @@ func (s *Service) ImportCompoundItems(items []CompoundExportData) ([]preset.Comp
 				}
 			}
 
-			sampler, scheduleType := promptutil.SplitCompositeSampler(pd.Sampler, pd.ScheduleType)
+			sampler, scheduleType := s.sdcppNames(pd.Name, pd.Sampler, pd.ScheduleType)
 			p := preset.Preset{
 				Name:              pd.Name,
 				PresetType:        pd.PresetType,
@@ -823,4 +823,14 @@ func writeExclusive(path string, data []byte) error {
 		return err
 	}
 	return f.Close()
+}
+
+func (s *Service) sdcppNames(name, sampler, scheduleType string) (string, string) {
+	outSampler, outScheduler, unknown := sdnames.Pair(sampler, scheduleType)
+	for _, u := range unknown {
+		if s.log != nil {
+			s.log.Warn("import preset %q: unknown Forge %s, using default", name, u)
+		}
+	}
+	return outSampler, outScheduler
 }

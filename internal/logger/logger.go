@@ -140,9 +140,6 @@ func (l *Logger) InstallBridge() {
 }
 
 func shortURL(url string) string {
-	if i := strings.Index(url, "/sdapi/"); i >= 0 {
-		return url[i:]
-	}
 	if i := strings.Index(url, "/v1/"); i >= 0 {
 		return url[i:]
 	}

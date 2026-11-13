@@ -106,7 +106,7 @@ interface EditImageParams {
 }
 ```
 
-The prompt is built as `[style LoRAs][user LoRAs][style tags] Change only {instruction}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` The `klein_do_reference` option is enabled right before the request and reset afterwards; a failed reset flags the result with `edit_reference_reset_failed: true`.
+The prompt is built as `[style LoRAs][user LoRAs][style tags] Change only {instruction}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` The job is sent with `klein_reference: true` in its model; other jobs are not affected.
 
 **Direct path, no queue** (like TestGenerate); serialized by a service-level mutex.
 
@@ -246,7 +246,7 @@ api.updateSettings(data: Record<string, string>): Promise<void>
 api.checkServer(): Promise<ServerCheck>
 ```
 
-`ServerCheck`: `{ state, url, version, missing, error }`. `state` — `ok`, `not_configured` (no `server_url`), `not_found` (server does not answer), `outdated` (`GET /` lacks required `features`: `sdcpp`, `download_stream`, `llamacpp` or `ollama`; `missing` lists them). Generation calls are rejected on the frontend until the state is `ok`.
+`ServerCheck`: `{ state, url, version, missing, error }`. `state` — `ok`, `not_configured` (no `server_url`), `not_found` (server does not answer), `outdated` (`GET /` lacks required `features`: `sdcpp`, `download_stream`, `sd_jobs`, `llamacpp`; `missing` lists them). Generation calls are rejected on the frontend until the state is `ok`.
 
 **Settings keys:**
 | Key | Description |

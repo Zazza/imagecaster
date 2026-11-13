@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Zazza/imagecaster/internal/config"
@@ -22,6 +23,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/promptutil"
 	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/sdnames"
 
 	xdraw "golang.org/x/image/draw"
 )
@@ -36,7 +38,7 @@ const (
 	maxCustomSteps   = 8
 )
 
-var qualityUpscalerPreferences = []string{"R-ESRGAN 4x+", "ESRGAN"}
+var qualityUpscalerPreferences = []string{"RealESRGAN_x4plus"}
 
 // --- Interfaces ---
 
@@ -117,19 +119,17 @@ type GenerateImageParams struct {
 }
 
 type GenerateImageResult struct {
-	Image                       string          `json:"image"`
-	Parameters                  json.RawMessage `json:"parameters"`
-	Info                        json.RawMessage `json:"info"`
-	HiresFixSkipped             bool            `json:"hires_fix_skipped"`
-	HiresFixManual              bool            `json:"hires_fix_manual"`
-	QualityUpscaleSkipped       bool            `json:"quality_upscale_skipped,omitempty"`
-	QualityRedenoiseSkipped     bool            `json:"quality_redenoise_skipped,omitempty"`
-	EffectivePrompt             string          `json:"effective_prompt"`
-	EffectiveNegativePrompt     string          `json:"effective_negative_prompt"`
-	EditReferenceResetFailed    bool            `json:"edit_reference_reset_failed,omitempty"`
-	PreserveIdentityResetFailed bool            `json:"preserve_identity_reset_failed,omitempty"`
-	DetectedObject              string          `json:"detected_object,omitempty"`
-	SessionItemID               int64           `json:"session_item_id,omitempty"`
+	Image                   string          `json:"image"`
+	Parameters              json.RawMessage `json:"parameters"`
+	Info                    json.RawMessage `json:"info"`
+	HiresFixSkipped         bool            `json:"hires_fix_skipped"`
+	HiresFixManual          bool            `json:"hires_fix_manual"`
+	QualityUpscaleSkipped   bool            `json:"quality_upscale_skipped,omitempty"`
+	QualityRedenoiseSkipped bool            `json:"quality_redenoise_skipped,omitempty"`
+	EffectivePrompt         string          `json:"effective_prompt"`
+	EffectiveNegativePrompt string          `json:"effective_negative_prompt"`
+	DetectedObject          string          `json:"detected_object,omitempty"`
+	SessionItemID           int64           `json:"session_item_id,omitempty"`
 }
 
 type UpscaleImageParams struct {
@@ -252,12 +252,8 @@ type Service struct {
 	log       *logger.Logger
 	guard     *MemoryGuard
 
-	ctx             context.Context
-	sdPollingMu     sync.Mutex
-	sdPollingCancel context.CancelFunc
-	sdPollingDone   chan struct{}
-	sdInterrupted   bool
-	referenceMu     sync.Mutex
+	ctx      context.Context
+	progress *sdProgressState
 }
 
 func New(
@@ -273,7 +269,7 @@ func New(
 	restarter BackendRestarter,
 	log *logger.Logger,
 ) *Service {
-	return &Service{
+	svc := &Service{
 		db:       db,
 		llm:      llmSvc,
 		sd:       sdSvc,
@@ -286,81 +282,116 @@ func New(
 		log:      log,
 		guard:    NewMemoryGuard(llmSvc, sdSvc, db, log),
 		ctx:      context.Background(),
+		progress: &sdProgressState{},
 	}
+	if sdSvc != nil {
+		sdSvc.SetProgressHandler(svc.onSDProgress)
+	}
+	return svc
+}
+
+func (s *Service) WithSD(sdSvc sd.Service) *Service {
+	c := *s
+	c.sd = sdSvc
+	return &c
+}
+
+type ctxSessions struct {
+	ctx     context.Context
+	inner   SessionAdder
+	log     *logger.Logger
+	dropped atomic.Bool
+}
+
+func (g *ctxSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+	if err := g.ctx.Err(); err != nil {
+		g.dropped.Store(true)
+		if g.log != nil {
+			g.log.Warn("queue job stopped (%s), %s result not saved to history", err, source)
+		}
+		return 0
+	}
+	return g.inner.AddToSession(imageBase64, info, source, isPreview, meta)
+}
+
+func (s *Service) LLM() llm.Service {
+	return s.llm
+}
+
+func (s *Service) ForQueue(ctx context.Context, sdSvc sd.Service, llmSvc llm.Service) (*Service, func() bool) {
+	c := s.WithSD(sdSvc)
+	if llmSvc != nil {
+		c.llm = llmSvc
+	}
+	if s.sessions == nil {
+		return c, func() bool { return false }
+	}
+	g := &ctxSessions{ctx: ctx, inner: s.sessions, log: s.log}
+	c.sessions = g
+	return c, g.dropped.Load
 }
 
 func (s *Service) SetContext(ctx context.Context) {
 	s.ctx = ctx
 }
 
-// --- SD Polling ---
+type sdProgressState struct {
+	mu          sync.Mutex
+	active      bool
+	interrupted bool
+}
 
 func (s *Service) StartSDPolling() {
-	s.sdPollingMu.Lock()
-	defer s.sdPollingMu.Unlock()
-	s.sdInterrupted = false
-	if s.sdPollingCancel != nil {
-		return
-	}
-	done := s.sdPollingDone
-	if done != nil {
-		s.sdPollingMu.Unlock()
-		<-done
-		s.sdPollingMu.Lock()
-	}
-	ctx, cancel := context.WithCancel(s.ctx)
-	doneCh := make(chan struct{})
-	s.sdPollingCancel = cancel
-	s.sdPollingDone = doneCh
-	go func() {
-		defer close(doneCh)
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				prog, err := s.sd.GetProgress()
-				if err != nil {
-					continue
-				}
-				s.emitter.Emit("sd:progress", SDProgressEvent{
-					Progress:    prog.Progress,
-					ETARelative: prog.ETARelative,
-					Job:         prog.State.Job,
-					JobCount:    prog.State.JobCount,
-					JobNo:       prog.State.JobNo,
-					Steps:       prog.TotalSteps(),
-					SamplerName: prog.State.Sampling.SamplerName,
-					Preview:     prog.CurrentImage,
-				})
-			}
-		}
-	}()
+	s.progress.mu.Lock()
+	s.progress.interrupted = false
+	s.progress.active = true
+	s.progress.mu.Unlock()
 }
 
 func (s *Service) StopSDPolling() {
-	s.sdPollingMu.Lock()
-	defer s.sdPollingMu.Unlock()
-	if s.sdPollingCancel != nil {
-		s.sdPollingCancel()
-		s.sdPollingCancel = nil
-		s.sdPollingDone = nil
+	s.progress.mu.Lock()
+	s.progress.active = false
+	s.progress.mu.Unlock()
+}
+
+func (s *Service) onSDProgress(st sd.JobStatus) {
+	s.progress.mu.Lock()
+	active := s.progress.active
+	s.progress.mu.Unlock()
+	if !active {
+		return
 	}
+	s.emitter.Emit("sd:progress", sdProgressEvent(st, time.Now()))
+}
+
+func sdProgressEvent(st sd.JobStatus, now time.Time) SDProgressEvent {
+	ev := SDProgressEvent{Job: st.ID, JobCount: 1, Steps: st.Progress.Steps}
+	if st.Progress.Steps > 0 {
+		ev.Progress = float64(st.Progress.Step) / float64(st.Progress.Steps)
+		if ev.Progress > 1 {
+			ev.Progress = 1
+		}
+	}
+	if st.StartedAt != nil && st.Progress.Step > 0 && st.Progress.Step < st.Progress.Steps {
+		elapsed := now.Sub(*st.StartedAt).Seconds()
+		if elapsed > 0 {
+			ev.ETARelative = elapsed / float64(st.Progress.Step) * float64(st.Progress.Steps-st.Progress.Step)
+		}
+	}
+	return ev
 }
 
 func (s *Service) InterruptGeneration() error {
-	s.sdPollingMu.Lock()
-	s.sdInterrupted = true
-	s.sdPollingMu.Unlock()
+	s.progress.mu.Lock()
+	s.progress.interrupted = true
+	s.progress.mu.Unlock()
 	return s.sd.Interrupt()
 }
 
 func (s *Service) checkSDInterrupted() error {
-	s.sdPollingMu.Lock()
-	interrupted := s.sdInterrupted
-	s.sdPollingMu.Unlock()
+	s.progress.mu.Lock()
+	interrupted := s.progress.interrupted
+	s.progress.mu.Unlock()
 	if interrupted {
 		return fmt.Errorf("interrupted")
 	}
@@ -369,7 +400,7 @@ func (s *Service) checkSDInterrupted() error {
 
 func (s *Service) upscaleWithFallback(base64Img string, scale float64, targetW, targetH int, upscaler string) (string, error) {
 	upscaledB64 := ""
-	if upscaler != "" && upscaler != "Latent" {
+	if upscaler != "" {
 		neural, err := s.sd.UpscaleImage(base64Img, upscaler, scale)
 		if err != nil {
 			s.log.Warn("Neural upscale failed (%s), falling back to CatmullRom: %s", upscaler, err)
@@ -402,6 +433,7 @@ func (s *Service) upscaleWithFallback(base64Img string, scale float64, targetW, 
 
 func (s *Service) img2imgRedenoise(base64Img string, req sd.Txt2ImgRequest, targetW, targetH int, denoise float64) (*sd.Txt2ImgResponse, error) {
 	i2iReq := sd.Img2ImgRequest{
+		Model:             req.Model,
 		InitImages:        []string{base64Img},
 		Prompt:            req.Prompt,
 		NegativePrompt:    req.NegativePrompt,
@@ -416,8 +448,6 @@ func (s *Service) img2imgRedenoise(base64Img string, req sd.Txt2ImgRequest, targ
 		ClipSkip:          req.ClipSkip,
 		BatchSize:         req.BatchSize,
 		BatchCount:        req.BatchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
 	}
 	return s.sd.Img2Img(i2iReq)
 }
@@ -743,35 +773,26 @@ func (s *Service) resolveHires(hiresProfileID *int64) (enabled bool, upscale *fl
 	}
 	upscaler = h.Upscaler
 	if upscaler == "" {
-		upscaler = "R-ESRGAN 4x+"
+		upscaler = "RealESRGAN_x4plus"
 	}
 	return true, &h.Upscale, &h.DenoisingStrength, upscaler
 }
 
-func (s *Service) setModel(modelName string, logPrefix string) error {
-	if err := s.sd.SetModelWithModules(modelName, forgeModulesForModel(modelName)); err != nil {
-		return fmt.Errorf("%s: set model %q: %w", logPrefix, modelName, err)
-	}
-	return nil
+func modelSpec(modelName string) sd.ModelSpec {
+	return sd.ModelSpec{Checkpoint: modelName, Modules: modulesForModel(modelName)}
 }
 
-func (s *Service) prepareSDContext(p *preset.Preset, logPrefix string) error {
+func presetSpec(p *preset.Preset) sd.ModelSpec {
+	spec := modelSpec(p.ModelName)
+	if p.VAE != "" && p.VAE != "Automatic" && p.VAE != "None" {
+		spec.VAE = p.VAE
+	}
+	return spec
+}
+
+func (s *Service) prepareSDContext(p *preset.Preset, logPrefix string) sd.ModelSpec {
 	s.guard.EnsureHeadroom(p.ModelName, logPrefix)
-	if p.ModelName != "" {
-		if err := s.setModel(p.ModelName, logPrefix); err != nil {
-			return err
-		}
-	}
-	if p.VAE != "" {
-		if err := s.sd.SetVAE(p.VAE); err != nil {
-			s.log.Warn("%s: set vae %q: %s", logPrefix, p.VAE, err)
-		}
-	} else {
-		if err := s.sd.SetVAE("Automatic"); err != nil {
-			s.log.Warn("%s: set vae automatic: %s", logPrefix, err)
-		}
-	}
-	return nil
+	return presetSpec(p)
 }
 
 type hiresFallbackResult struct {
@@ -980,11 +1001,9 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 	prompt := bp.Prompt
 	negativePrompt := bp.NegativePrompt
 
-	if err := s.prepareSDContext(p, "generate"); err != nil {
-		return nil, err
-	}
+	spec := s.prepareSDContext(p, "generate")
 
-	samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
+	samplerName := p.Sampler
 
 	batchSize := 1
 	if p.BatchSize != nil {
@@ -1021,6 +1040,7 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 	width, height := s.resolveResolution(p, params.ResolutionID)
 
 	req := sd.Txt2ImgRequest{
+		Model:                  spec,
 		Prompt:                 prompt,
 		NegativePrompt:         negativePrompt,
 		SamplerName:            samplerName,
@@ -1038,8 +1058,6 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 		HiresUpscale:           hiresUpscale,
 		HiresDenoisingStrength: hiresDenoising,
 		HiresUpscaler:          hiresUpscaler,
-		DoNotSaveImages:        true,
-		DoNotSaveGrid:          true,
 	}
 
 	result, err := s.sd.Txt2Img(req)
@@ -1064,9 +1082,7 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 			return nil, ierr
 		}
 		reason := "empty response"
-		if result.Error != "" {
-			reason = result.Error
-		} else if len(result.Info) > 0 {
+		if len(result.Info) > 0 {
 			var info struct {
 				Reason string `json:"reason"`
 			}
@@ -1130,7 +1146,7 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 	}
 
 	defaultPreset := &preset.Preset{
-		Sampler:  "Euler a",
+		Sampler:  "euler_a",
 		Steps:    20,
 		CfgScale: 7.0,
 	}
@@ -1145,6 +1161,7 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 		})
 
 		item := TestGenerateResultItem{}
+		var spec sd.ModelSpec
 		p := &preset.Preset{}
 		*p = *defaultPreset
 
@@ -1159,20 +1176,12 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 			}
 			p = loaded
 			item.Name = p.Name
-			if err := s.prepareSDContext(p, fmt.Sprintf("test preset #%d", idx+1)); err != nil {
-				item.Error = err.Error()
-				results = append(results, item)
-				continue
-			}
+			spec = s.prepareSDContext(p, fmt.Sprintf("test preset #%d", idx+1))
 		} else {
 			modelTitle := params.SelectedModels[idx]
 			s.guard.EnsureHeadroom(modelTitle, fmt.Sprintf("test model #%d", idx+1))
 			item.Name = modelTitle
-			if err := s.setModel(modelTitle, fmt.Sprintf("test model #%d", idx+1)); err != nil {
-				item.Error = err.Error()
-				results = append(results, item)
-				continue
-			}
+			spec = modelSpec(modelTitle)
 		}
 
 		if p.Sampler == "" {
@@ -1245,7 +1254,7 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 			seed = params.Seed
 		}
 
-		samplerName := promptutil.BuildSamplerName(sampler, scheduleType)
+		samplerName := sampler
 
 		clipSkip := 1
 		if p.ClipSkip != nil {
@@ -1260,6 +1269,7 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 		if params.InitImage != "" {
 			denoisingStrength := 0.5
 			img2imgReq := sd.Img2ImgRequest{
+				Model:             spec,
 				InitImages:        []string{"data:image/png;base64," + params.InitImage},
 				Prompt:            prompt,
 				NegativePrompt:    negPrompt,
@@ -1274,8 +1284,6 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 				ClipSkip:          &clipSkip,
 				BatchSize:         &batchSize,
 				BatchCount:        &batchCount,
-				DoNotSaveImages:   true,
-				DoNotSaveGrid:     true,
 			}
 			result, err = s.sd.Img2Img(img2imgReq)
 			if err != nil {
@@ -1290,6 +1298,7 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 			}
 
 			req := sd.Txt2ImgRequest{
+				Model:                  spec,
 				Prompt:                 prompt,
 				NegativePrompt:         negPrompt,
 				SamplerName:            samplerName,
@@ -1306,8 +1315,6 @@ func (s *Service) TestGenerate(params TestGenerateParams) ([]TestGenerateResultI
 				HiresUpscale:           hiresUpscale,
 				HiresDenoisingStrength: hiresDenoising,
 				HiresUpscaler:          hiresUpscaler,
-				DoNotSaveImages:        true,
-				DoNotSaveGrid:          true,
 			}
 			result, err = s.sd.Txt2Img(req)
 			if err != nil {
@@ -1411,6 +1418,9 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 		Steps          int     `json:"steps"`
 		CfgScale       float64 `json:"cfg_scale"`
 		ClipSkip       int     `json:"clip_skip"`
+		Sampler        string  `json:"sampler"`
+		Checkpoint     string  `json:"checkpoint"`
+		SDModelName    string  `json:"sd_model_name"`
 	}
 	if err := json.Unmarshal([]byte(params.GenInfo), &info); err != nil {
 		return nil, fmt.Errorf("parse gen_info: %w", err)
@@ -1430,7 +1440,16 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 
 	negativePrompt = s.kids.ApplyNegative(negativePrompt)
 
-	samplerName, scheduler := promptutil.SplitCompositeSampler(info.SamplerName, info.Scheduler)
+	infoSampler := info.Sampler
+	if infoSampler == "" {
+		infoSampler = info.SamplerName
+	}
+	samplerName, scheduler, _ := sdnames.Pair(infoSampler, info.Scheduler)
+	modelName := info.Checkpoint
+	if modelName == "" {
+		modelName = info.SDModelName
+	}
+	spec := modelSpec(modelName)
 	steps := 30
 	if info.Steps > 0 {
 		steps = info.Steps
@@ -1457,10 +1476,6 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 		}
 		if p.Sampler != "" {
 			samplerName = p.Sampler
-			if p.ScheduleType != "" {
-				st := strings.ToUpper(p.ScheduleType[:1]) + p.ScheduleType[1:]
-				samplerName = p.Sampler + " " + st
-			}
 		}
 		if p.ScheduleType != "" {
 			scheduler = p.ScheduleType
@@ -1474,9 +1489,7 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 		if p.ClipSkip != nil {
 			clipSkip = *p.ClipSkip
 		}
-		if err := s.prepareSDContext(p, "upscale"); err != nil {
-			return nil, err
-		}
+		spec = s.prepareSDContext(p, "upscale")
 	}
 
 	denoisingStrength := 0.4
@@ -1491,6 +1504,7 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 	seed := info.Seed
 
 	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
+		Model:             spec,
 		InitImages:        []string{params.ImageBase64},
 		Prompt:            prompt,
 		NegativePrompt:    negativePrompt,
@@ -1505,8 +1519,6 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 		ClipSkip:          &clipSkip,
 		BatchSize:         intPtr(1),
 		BatchCount:        intPtr(1),
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
 	})
 	if err != nil {
 		return nil, err

@@ -195,27 +195,6 @@ func ExtractExampleTags(instruction string) string {
 	return strings.Join(result, ", ")
 }
 
-func SplitCompositeSampler(sampler, scheduleType string) (string, string) {
-	if scheduleType != "" {
-		return sampler, scheduleType
-	}
-	knownSchedulers := []string{"Karras", "Exponential", "Polyexponential"}
-	for _, s := range knownSchedulers {
-		if strings.HasSuffix(sampler, " "+s) {
-			return sampler[:len(sampler)-len(s)-1], s
-		}
-	}
-	return sampler, ""
-}
-
-func BuildSamplerName(sampler, scheduleType string) string {
-	if scheduleType != "" {
-		st := strings.ToUpper(scheduleType[:1]) + scheduleType[1:]
-		return sampler + " " + st
-	}
-	return sampler
-}
-
 func Truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

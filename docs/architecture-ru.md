@@ -63,7 +63,7 @@ sd-ai/
 |-------|-----------|--------|----------|
 | `internal/config` | Go testing | 6 | env, defaults |
 | `internal/llm` | Go testing + httptest | ~52 | Chat, GetModels, HealthCheck, CleanTags, StripThinkTags |
-| `internal/sd` | Go testing + httptest | ~30 | Retry, Txt2Img, Img2Img, HealthCheck, Get* |
+| `internal/sd` | Go testing + httptest | ~40 | Задания сервера (постановка/опрос/результат/отмена, повтор потерянного шага, client_ref очереди), списки, HealthCheck |
 | `internal/preset` | Go testing + :memory: SQLite + testify | ~50 | CRUD, sessions, compound presets, settings, tags |
 | `internal/kids` | Go testing + testify | ~11 | Filter false positives, blocked/safe content |
 | Frontend | Vitest + @vue/test-utils | — | infra ready (mocks, setup) |
@@ -75,7 +75,7 @@ sd-ai/
 `App` — единая точка входа для frontend. Все Wails bindings — методы на `*App` с заглавной буквы. Frontend не обращается к internal напрямую.
 
 ### Client (HTTP-обёртки)
-`llm.Client`, `sd.Client` — Stateless HTTP-клиенты для внешних сервисов. Constructor injection через `New*`.
+`llm.Client`, `sd.Client` — HTTP-клиенты для внешних сервисов. Constructor injection через `New*`. `sd.Client` выполняет каждую генерацию заданием на сервере (`/api/sd/jobs`); задание несёт свою модель, общей модели на сервере нет.
 
 ### Repository (preset.DB)
 `preset.DB` инкапсулирует SQLite. Raw SQL через `database/sql`. Миграции в Go-коде (`CREATE TABLE IF NOT EXISTS`).
@@ -122,15 +122,15 @@ Backend → Frontend коммуникация через `runtime.EventsEmit(ctx
 ```
 
 ### Ключевые возможности
-- **Управление процессами** — жизненный цикл SD WebUI, Ollama (start/stop/restart)
+- **Управление процессами** — жизненный цикл sd.cpp и llama.cpp (start/stop/restart)
 - **Мониторинг GPU** — опрос nvidia-smi, отслеживание VRAM, автооптимизация
 - **GPU-прокси** — приоритетная очередь с VRAM cooldown (предотвращает OOM на GPU с малой VRAM)
 - **Мониторинг здоровья** — периодические HTTP-проверки всех сервисов
 - **TUI** — терминальный дашборд на bubbletea со статусом сервисов и управлением
 - **mDNS** — автоматическое обнаружение сервисов через `_imagecaster._tcp`
 - **Управление моделями** — загрузка/удаление SD-чекпоинтов и LLM-моделей
-- **Переключение бэкендов** — переключение между A1111 и Forge во время работы
-- **Установщик** — автоматическая установка Python, SD WebUI, Ollama
+- **Задания SD** — `/api/sd/jobs`: генерации идут на сервере, переживают перезапуск приложения, результаты хранятся на диске
+- **Установщик** — автоматическая установка sd.cpp и llama.cpp
 
 ## Диаграмма БД
 

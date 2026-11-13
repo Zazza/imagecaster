@@ -18,9 +18,8 @@ import (
 
 const (
 	kleinLookModel        = "flux-2-klein-4b.safetensors"
-	kleinReferenceOption  = "klein_do_reference"
-	editSampler           = "Euler"
-	editScheduler         = "Simple"
+	editSampler           = "euler"
+	editScheduler         = "simple"
 	editDenoise           = 1.0
 	editAlign             = 16
 	editMaxDim            = 2048
@@ -35,23 +34,23 @@ const (
 
 	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo."
 
-	mossTEModulePath   = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen35_9b_int8_convrot.safetensors"
-	mossVAEModulePath  = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-vae_small.safetensors"
-	kleinTEModulePath  = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/text_encoder/qwen_3_4b.safetensors"
-	kleinVAEModulePath = "/mnt/e/SDStudio/stable-diffusion-webui-forge/models/VAE/flux2-klein-vae.safetensors"
+	mossTEModule   = "qwen35_9b_int8_convrot.safetensors"
+	mossVAEModule  = "flux2-vae_small.safetensors"
+	kleinTEModule  = "qwen_3_4b.safetensors"
+	kleinVAEModule = "flux2-klein-vae.safetensors"
 )
 
 var loraTagPrefixRe = regexp.MustCompile(`(?i)<lora:`)
 
-var mossForgeModules = []string{mossTEModulePath, mossVAEModulePath}
-var kleinForgeModules = []string{kleinTEModulePath, kleinVAEModulePath}
+var mossModules = []string{mossTEModule, mossVAEModule}
+var kleinModules = []string{kleinTEModule, kleinVAEModule}
 
-func forgeModulesForModel(model string) []string {
+func modulesForModel(model string) []string {
 	if config.ModelMatchesCSV(model, "moss") {
-		return mossForgeModules
+		return mossModules
 	}
 	if config.IsFlux2Klein(model) {
-		return kleinForgeModules
+		return kleinModules
 	}
 	if catalog, err := serverclient.LoadCatalog(); err == nil {
 		if m := catalog.FindSDModel(model); m != nil && len(m.Modules) > 0 {
@@ -79,19 +78,16 @@ type EditImageParams struct {
 }
 
 type editModelProfile struct {
-	model     string
-	family    string
-	refOption string
-	refOn     any
-	refOff    any
-	steps     int
-	cfg       float64
+	model  string
+	family string
+	steps  int
+	cfg    float64
 }
 
 func resolveEditModel(model string) (editModelProfile, error) {
 	switch model {
 	case "", "klein":
-		return editModelProfile{model: kleinLookModel, family: "klein", refOption: kleinReferenceOption, refOn: true, refOff: false, steps: kleinEditSteps, cfg: kleinEditCfgScale}, nil
+		return editModelProfile{model: kleinLookModel, family: "klein", steps: kleinEditSteps, cfg: kleinEditCfgScale}, nil
 	}
 	return editModelProfile{}, fmt.Errorf("model must be klein, got %q", truncateRunes(model, 40))
 }
@@ -288,9 +284,6 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		return nil, err
 	}
 
-	s.referenceMu.Lock()
-	defer s.referenceMu.Unlock()
-
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
@@ -299,29 +292,9 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 
 	s.guard.EnsureHeadroom(prof.model, "edit")
 
-	if err := s.setModel(prof.model, "edit"); err != nil {
-		return nil, fmt.Errorf("%s not available on SD backend: %w", prof.model, err)
-	}
-	if err := s.sd.SetVAE("Automatic"); err != nil {
-		s.log.Warn("edit: reset vae: %s", err)
-	}
-	if err := s.sd.SetOption(prof.refOption, prof.refOn); err != nil {
-		if rerr := s.sd.SetOption(prof.refOption, prof.refOff); rerr != nil {
-			s.log.Warn("edit: disable %s reference after failed enable: %s", prof.family, rerr)
-		}
-		return nil, fmt.Errorf("enable edit reference: %w", err)
-	}
-
-	var result *GenerateImageResult
-	defer func() {
-		derr := s.sd.SetOption(prof.refOption, prof.refOff)
-		if derr != nil {
-			s.log.Warn("edit: disable %s reference: %s", prof.family, derr)
-		}
-		if result != nil {
-			result.EditReferenceResetFailed = derr != nil
-		}
-	}()
+	spec := modelSpec(prof.model)
+	refSpec := spec
+	refSpec.KleinReference = true
 
 	srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
 	if srcW <= 0 || srcH <= 0 {
@@ -340,6 +313,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	denoise := editDenoise
 
 	baseReq := sd.Img2ImgRequest{
+		Model:             refSpec,
 		InitImages:        []string{params.ImageBase64},
 		Prompt:            prompt,
 		NegativePrompt:    s.kids.ApplyNegative(""),
@@ -353,8 +327,6 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		DenoisingStrength: &denoise,
 		BatchSize:         &batchSize,
 		BatchCount:        &batchCount,
-		DoNotSaveImages:   true,
-		DoNotSaveGrid:     true,
 	}
 	resp, err := s.sd.Img2Img(baseReq)
 	if err != nil {
@@ -376,12 +348,9 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	upscaleSkipped := false
 	redenoiseSkipped := false
 	if params.OutputMode == "quality" {
-		if err := s.sd.SetOption(prof.refOption, prof.refOff); err != nil {
-			s.log.Warn("edit: disable %s reference before quality failed, skipping quality: %s", prof.family, err)
-			upscaleSkipped = true
-			redenoiseSkipped = true
-		} else {
+		{
 			qualityReq := sd.Txt2ImgRequest{
+				Model:          spec,
 				Prompt:         prompt,
 				NegativePrompt: s.kids.ApplyNegative(""),
 				SamplerName:    editSampler,
@@ -428,7 +397,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		}, upscaleSkipped, redenoiseSkipped)
 	}
 
-	result = &GenerateImageResult{
+	result := &GenerateImageResult{
 		Image:                   finalImage,
 		Parameters:              resp.Parameters,
 		Info:                    finalInfo,
@@ -444,15 +413,4 @@ func (s *Service) editQualityPostProcess(base64Img string, req sd.Txt2ImgRequest
 	fitW, fitH := s.fitImageToResolution(srcW, srcH, resolutionID)
 	targetW, targetH := alignEditSize(fitW, fitH)
 	return s.qualityUpscaleRedenoise(base64Img, req, srcW, srcH, targetW, targetH, "edit quality")
-}
-
-func (s *Service) ResetReferences() {
-	s.referenceMu.Lock()
-	defer s.referenceMu.Unlock()
-	if err := s.sd.HealthCheck(); err != nil {
-		return
-	}
-	if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
-		s.log.Warn("reset klein reference: %s", err)
-	}
 }

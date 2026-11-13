@@ -47,12 +47,12 @@ func TestApplyPresetOverrides(t *testing.T) {
 		{
 			name: "sampler applied",
 			ov:   &PresetOverrides{Sampler: strPtr("DPM++ 2M")},
-			want: func(p *preset.Preset) { p.Sampler = "DPM++ 2M" },
+			want: func(p *preset.Preset) { p.Sampler = "dpm++2m" },
 		},
 		{
 			name: "schedule type applied",
 			ov:   &PresetOverrides{ScheduleType: strPtr("Exponential")},
-			want: func(p *preset.Preset) { p.ScheduleType = "Exponential" },
+			want: func(p *preset.Preset) { p.ScheduleType = "exponential" },
 		},
 		{
 			name: "steps applied",
@@ -162,8 +162,8 @@ func TestApplyPresetOverrides(t *testing.T) {
 				Loras:        strPtr("[]"),
 			},
 			want: func(p *preset.Preset) {
-				p.Sampler = "DPM++ 2M"
-				p.ScheduleType = "SGM Uniform"
+				p.Sampler = "dpm++2m"
+				p.ScheduleType = "sgm_uniform"
 				p.Steps = 40
 				p.CfgScale = 3.5
 				p.ClipSkip = intPtr(2)
@@ -241,7 +241,7 @@ func TestApplyPresetOverrides_TrimsAndClamps(t *testing.T) {
 		CfgScale: floatPtr(1e6),
 		ClipSkip: intPtr(99),
 	})
-	assert.Equal(t, "Euler", base.Sampler)
+	assert.Equal(t, "euler", base.Sampler)
 	assert.Equal(t, maxOverrideCfg, base.CfgScale)
 	require.NotNil(t, base.ClipSkip)
 	assert.Equal(t, maxOverrideClipSkip, *base.ClipSkip)

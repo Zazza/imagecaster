@@ -124,10 +124,10 @@ A preset contains all generation parameters. The resolution logic (the same for 
 3. Prompt = preset.Prompt + ", " + generated tags
 4. NegativePrompt = preset.NegativePrompt + ", " + extra negatives
 5. LoRAs: JSON → <lora:name:weight> tags appended to prompt
-6. SamplerName = Sampler + " " + ScheduleType (if present)
-7. Set model/VAE via SD API (SetModel/SetVAE)
+6. Sampler and scheduler go separately, sd.cpp names ("euler_a", "karras")
+7. Model, VAE and modules go in the job's model block (POST /api/sd/jobs)
 8. Defaults when no preset:
-   - Sampler: "Euler a"
+   - Sampler: "euler_a"
    - Steps: 20
    - CfgScale: 7
    - Width/Height: from image or 512x512

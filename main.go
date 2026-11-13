@@ -66,6 +66,11 @@ func main() {
 
 	llmClient := llm.New(cfg.LLMUrl)
 	sdClient := sd.New(cfg.SDUrl)
+	if id, err := presets.InstallID(); err != nil {
+		log.Printf("Warning: install id: %v", err)
+	} else {
+		sdClient.SetInstallID(id)
+	}
 	srvClient := serverclient.NewClient()
 
 	settings.Restore(presets, cfg, llmClient, sdClient, srvClient)
@@ -91,7 +96,8 @@ func main() {
 			Assets:  assets,
 			Handler: imgHandler,
 		},
-		OnStartup: app.startup,
+		OnStartup:  app.startup,
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

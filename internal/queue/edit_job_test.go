@@ -112,21 +112,22 @@ func (f *editFakeSD) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error)
 	return &sd.Txt2ImgResponse{Images: []string{f.response}}, nil
 }
 
-func (f *editFakeSD) GetModels() ([]sd.SDModel, error)            { return nil, nil }
-func (f *editFakeSD) GetSamplers() ([]sd.Sampler, error)          { return nil, nil }
-func (f *editFakeSD) GetSchedulers() ([]sd.Scheduler, error)      { return nil, nil }
-func (f *editFakeSD) GetUpscalers() ([]sd.Upscaler, error)        { return nil, nil }
-func (f *editFakeSD) GetVAEs() ([]sd.VAE, error)                  { return nil, nil }
-func (f *editFakeSD) GetLoRAs() ([]sd.LoRA, error)                { return nil, nil }
-func (f *editFakeSD) GetOptions() (map[string]interface{}, error) { return nil, nil }
-func (f *editFakeSD) GetProgress() (*sd.ProgressResponse, error)  { return &sd.ProgressResponse{}, nil }
-func (f *editFakeSD) Interrupt() error                            { return nil }
-func (f *editFakeSD) HealthCheck() error                          { return nil }
-func (f *editFakeSD) SetURL(baseURL string)                       {}
-func (f *editFakeSD) SetModel(modelName string) error             { return nil }
-func (f *editFakeSD) SetModelWithModules(string, []string) error  { return nil }
-func (f *editFakeSD) SetVAE(vaeName string) error                 { return nil }
-func (f *editFakeSD) SetOption(key string, value any) error       { return nil }
+func (f *editFakeSD) GetModels() ([]sd.SDModel, error)       { return nil, nil }
+func (f *editFakeSD) GetSamplers() ([]sd.Sampler, error)     { return nil, nil }
+func (f *editFakeSD) GetSchedulers() ([]sd.Scheduler, error) { return nil, nil }
+func (f *editFakeSD) GetUpscalers() ([]sd.Upscaler, error)   { return nil, nil }
+func (f *editFakeSD) GetVAEs() ([]sd.VAE, error)             { return nil, nil }
+func (f *editFakeSD) GetLoRAs() ([]sd.LoRA, error)           { return nil, nil }
+func (f *editFakeSD) Interrupt() error                       { return nil }
+func (f *editFakeSD) HealthCheck() error                     { return nil }
+
+func (m *editFakeSD) State() (*sd.ServerState, error) { return &sd.ServerState{}, nil }
+func (m *editFakeSD) ListJobs(ctx context.Context, client string) ([]sd.JobStatus, error) {
+	return nil, nil
+}
+func (m *editFakeSD) SetProgressHandler(fn func(sd.JobStatus)) {}
+
+func (f *editFakeSD) SetURL(baseURL string) {}
 func (f *editFakeSD) UpscaleImage(string, string, float64) (string, error) {
 	return "", fmt.Errorf("not expected")
 }
@@ -194,7 +195,7 @@ func TestProcessJob_EditCallsEditImageWithJobParams(t *testing.T) {
 
 	qdb := openTestDB(t)
 	t.Cleanup(func() { qdb.Close() })
-	p := NewProcessor(gen, NewStore(qdb), t.TempDir(), emitter)
+	p := NewProcessor(gen, nil, NewStore(qdb), t.TempDir(), emitter)
 
 	src := editPNGBase64(t)
 	seed := int64(123)
@@ -232,7 +233,7 @@ func TestProcessJob_EditCallsEditImageWithJobParams(t *testing.T) {
 }
 
 func TestProcessJob_EditInvalidParamsIsDispatched(t *testing.T) {
-	p := NewProcessor(nil, nil, t.TempDir(), &mockEmitter{})
+	p := NewProcessor(nil, nil, nil, t.TempDir(), &mockEmitter{})
 
 	var err error
 	func() {

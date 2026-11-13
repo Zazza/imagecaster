@@ -28,7 +28,17 @@ func (r *editModelRec) mock(t *testing.T) *mockSD {
 	return &mockSD{
 		img2img: func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 			r.mu.Lock()
+			if req.Model.Checkpoint != "" {
+				r.ops = append(r.ops, "model:"+req.Model.Checkpoint)
+				r.models = append(r.models, req.Model.Checkpoint)
+			}
+			if req.Model.KleinReference {
+				r.ops = append(r.ops, kleinRefOn)
+			}
 			r.ops = append(r.ops, "img2img")
+			if req.Model.KleinReference {
+				r.ops = append(r.ops, kleinRefOff)
+			}
 			r.reqs = append(r.reqs, req)
 			err := r.img2err
 			r.mu.Unlock()
@@ -36,26 +46,6 @@ func (r *editModelRec) mock(t *testing.T) *mockSD {
 				return nil, err
 			}
 			return &sd.Txt2ImgResponse{Images: []string{solidPNGBase64(t, req.Width, req.Height, workGray)}}, nil
-		},
-		setOption: func(key string, value any) error {
-			r.mu.Lock()
-			r.ops = append(r.ops, fmt.Sprintf("option:%s=%v", key, value))
-			r.mu.Unlock()
-			return nil
-		},
-		setModel: func(modelName string) error {
-			r.mu.Lock()
-			r.ops = append(r.ops, "model:"+modelName)
-			r.models = append(r.models, modelName)
-			r.mu.Unlock()
-			return nil
-		},
-		setModelModules: func(modelName string, modules []string) error {
-			r.mu.Lock()
-			r.ops = append(r.ops, "model:"+modelName)
-			r.models = append(r.models, modelName)
-			r.mu.Unlock()
-			return nil
 		},
 		getUpscalers: func() ([]sd.Upscaler, error) {
 			r.mu.Lock()
@@ -216,8 +206,8 @@ func TestEditModel_T2_KleinRequest(t *testing.T) {
 	assert.Contains(t, req.Prompt, "make hair red")
 	assert.Equal(t, 8, req.Steps)
 	assert.InDelta(t, 1.0, req.CfgScale, 1e-9)
-	assert.Contains(t, req.SamplerName, "Euler")
-	assert.Equal(t, "Simple", req.Scheduler)
+	assert.Equal(t, "euler", req.SamplerName)
+	assert.Equal(t, "simple", req.Scheduler)
 	require.NotNil(t, req.DenoisingStrength)
 	assert.InDelta(t, 1.0, *req.DenoisingStrength, 1e-9)
 	assert.NotContains(t, result.EffectivePrompt, "Moss_Edit_LoRA")
@@ -360,8 +350,8 @@ func TestEditModel_T6_KleinQuality(t *testing.T) {
 		assert.NotContains(t, req.Prompt, "Moss_Edit_LoRA", "req %d", i)
 		assert.Equal(t, 8, req.Steps, "req %d", i)
 		assert.InDelta(t, 1.0, req.CfgScale, 1e-9, "req %d", i)
-		assert.Contains(t, req.SamplerName, "Euler", "req %d", i)
-		assert.Equal(t, "Simple", req.Scheduler, "req %d", i)
+		assert.Equal(t, "euler", req.SamplerName, "req %d", i)
+		assert.Equal(t, "simple", req.Scheduler, "req %d", i)
 	}
 	last := reqs[len(reqs)-1]
 	assert.Equal(t, 2048, last.Width)

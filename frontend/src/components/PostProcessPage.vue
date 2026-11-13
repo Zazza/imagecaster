@@ -965,7 +965,6 @@ function onEditApplyRecipe(payload) {
 
 const lookBusy = ref(false)
 const lookResultPrompt = ref('')
-const lookResetFailed = ref(false)
 
 async function onEditApplyLook({ text, strength }) {
   if (lookBusy.value || applyingEffect.value || batchBusy.value || recipeRunning.value) return
@@ -982,7 +981,6 @@ async function onEditApplyLook({ text, strength }) {
     return
   }
   lookBusy.value = true
-  lookResetFailed.value = false
   lookResultPrompt.value = ''
   error.value = ''
   successMsg.value = ''
@@ -992,7 +990,6 @@ async function onEditApplyLook({ text, strength }) {
       appliedEffects.value.push({ prompt: res.effective_prompt || '', strength })
       onToolResult(res.image)
       lookResultPrompt.value = res.effective_prompt || ''
-      lookResetFailed.value = !!res.preserve_identity_reset_failed
     }
   } catch (e) {
     error.value = String(e)
@@ -1846,7 +1843,6 @@ onUnmounted(() => {
   <div class="page-enter post-page">
     <StatusMessage v-if="error" :text="error" @close="error = ''" />
     <StatusMessage v-if="successMsg" kind="success" :timeout="8000" :text="successMsg" @close="successMsg = ''" />
-    <StatusMessage v-if="lookResetFailed" kind="warning" @close="lookResetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <div class="post-workspace">
       <div class="post-preview-col">

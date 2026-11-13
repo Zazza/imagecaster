@@ -40,11 +40,10 @@ type Job struct {
 }
 
 type JobResult struct {
-	ImageBase64                 string `json:"image_base64,omitempty"`
-	FilePath                    string `json:"file_path,omitempty"`
-	SessionItemID               int64  `json:"session_item_id,omitempty"`
-	Info                        string `json:"info,omitempty"`
-	QualityUpscaleSkipped       bool   `json:"quality_upscale_skipped,omitempty"`
-	QualityRedenoiseSkipped     bool   `json:"quality_redenoise_skipped,omitempty"`
-	PreserveIdentityResetFailed bool   `json:"preserve_identity_reset_failed,omitempty"`
+	ImageBase64             string `json:"image_base64,omitempty"`
+	FilePath                string `json:"file_path,omitempty"`
+	SessionItemID           int64  `json:"session_item_id,omitempty"`
+	Info                    string `json:"info,omitempty"`
+	QualityUpscaleSkipped   bool   `json:"quality_upscale_skipped,omitempty"`
+	QualityRedenoiseSkipped bool   `json:"quality_redenoise_skipped,omitempty"`
 }

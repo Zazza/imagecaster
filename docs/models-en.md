@@ -2,7 +2,7 @@
 
 # Models and Presets
 
-Imagecaster uses a dedicated model for each job. Every model except Flux 2 Klein downloads from the app's catalog (Settings → Catalog). Moss and Klein run on [Forge Neo](setup-en.md#stable-diffusion-webui) only.
+Imagecaster uses a dedicated model for each job. Every model except Flux 2 Klein downloads from the app's catalog (Settings → Catalog).
 
 ## Models
 
@@ -29,7 +29,7 @@ SDXL-based models fine-tuned on anime and drawn characters. Presets use `riMixPO
 
 ### Z-Image Turbo
 
-`z-image-turbo-fp8-aio` — photorealism in 8 steps at CFG 1. Good for going through many variants. The original Forge does not support it.
+`z-image-turbo-fp8-aio` — photorealism in 8 steps at CFG 1. Good for going through many variants.
 
 ### Moss-Image
 

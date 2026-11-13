@@ -313,7 +313,7 @@ type ServerInfo struct {
 
 const ServerName = "Imagecaster Server"
 
-var RequiredFeatures = []string{"sdcpp", "download_stream"}
+var RequiredFeatures = []string{"sdcpp", "download_stream", "sd_jobs"}
 
 var probeHTTPClient = &http.Client{Timeout: 3 * time.Second}
 

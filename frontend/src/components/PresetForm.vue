@@ -31,7 +31,7 @@ const form = reactive({
   type_id: props.preset?.type_id ?? props.defaults?.type_id ?? null,
   prompt: props.preset?.prompt || '',
   negative_prompt: props.preset?.negative_prompt || '',
-  sampler: props.preset?.sampler || 'Euler a',
+  sampler: props.preset?.sampler || 'euler_a',
   schedule_type: props.preset?.schedule_type || '',
   steps: props.preset?.steps || 20,
   cfg_scale: props.preset?.cfg_scale || 7.0,
@@ -194,7 +194,7 @@ onMounted(() => {
           <select class="form-select" v-model="form.sampler">
             <option v-if="!samplers.some(s => s.name === form.sampler)" :value="form.sampler">{{ form.sampler }}</option>
             <option v-for="s in samplers" :key="s.name" :value="s.name">{{ s.name }}</option>
-            <option v-if="samplers.length === 0 && form.sampler !== 'Euler a'" value="Euler a">Euler a</option>
+            <option v-if="samplers.length === 0 && form.sampler !== 'euler_a'" value="euler_a">euler_a</option>
           </select>
         </div>
 

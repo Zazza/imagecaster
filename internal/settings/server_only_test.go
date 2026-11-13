@@ -33,7 +33,7 @@ func imagecasterHandler(t *testing.T, name string, features []string, hits *int3
 }
 
 func fullFeatures() []string {
-	return []string{"sdcpp", "download_stream", "llamacpp"}
+	return []string{"sdcpp", "download_stream", "sd_jobs", "llamacpp"}
 }
 
 func restoreDB(t *testing.T, settings map[string]string) *preset.DB {
@@ -222,13 +222,14 @@ func TestCheckServer(t *testing.T) {
 		wantReason  string
 	}{
 		{name: "ok with llamacpp", srvName: serverclient.ServerName, features: fullFeatures(), wantState: ServerOK},
-		{name: "ollama without llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "ollama"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
-		{name: "ollama and llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "ollama", "llamacpp"}, wantState: ServerOK},
-		{name: "old server without features", srvName: serverclient.ServerName, features: nil, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "llamacpp"}, wantReason: "old_version"},
-		{name: "forge server without sdcpp", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp"}, wantReason: "no_sdcpp"},
-		{name: "forge server without sdcpp and download_stream", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream"}, wantReason: "no_sdcpp"},
-		{name: "missing download_stream", srvName: serverclient.ServerName, features: []string{"sdcpp", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"download_stream"}, wantReason: "missing_features"},
-		{name: "missing llm backend", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
+		{name: "ollama without llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "sd_jobs", "ollama"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
+		{name: "ollama and llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "sd_jobs", "ollama", "llamacpp"}, wantState: ServerOK},
+		{name: "old server without features", srvName: serverclient.ServerName, features: nil, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "sd_jobs", "llamacpp"}, wantReason: "old_version"},
+		{name: "forge server without sdcpp", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "sd_jobs"}, wantReason: "no_sdcpp"},
+		{name: "forge server without sdcpp and download_stream", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "sd_jobs"}, wantReason: "no_sdcpp"},
+		{name: "missing download_stream", srvName: serverclient.ServerName, features: []string{"sdcpp", "sd_jobs", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"download_stream"}, wantReason: "missing_features"},
+		{name: "missing sd_jobs", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sd_jobs"}, wantReason: "missing_features"},
+		{name: "missing llm backend", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "sd_jobs"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
 		{name: "foreign server", srvName: "Something Else", features: fullFeatures(), wantState: ServerNotFound},
 	}
 	for _, tt := range tests {

@@ -14,12 +14,15 @@ import (
 	"github.com/Zazza/imagecaster/internal/sd"
 )
 
-func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd.Img2ImgRequest) (resp *sd.Txt2ImgResponse, resetFailed bool, err error) {
-	s.referenceMu.Lock()
-	defer s.referenceMu.Unlock()
+func kleinRefSpec() sd.ModelSpec {
+	m := modelSpec(kleinLookModel)
+	m.KleinReference = true
+	return m
+}
 
+func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 	if err := s.sd.HealthCheck(); err != nil {
-		return nil, false, fmt.Errorf("SD is not available: %w", err)
+		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
 	s.StartSDPolling()
 	defer s.StopSDPolling()
@@ -28,24 +31,6 @@ func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd
 	}
 
 	s.guard.EnsureHeadroom(kleinLookModel, logPrefix)
-	if err := s.setModel(kleinLookModel, logPrefix); err != nil {
-		return nil, false, fmt.Errorf("%s not available on SD backend: %w", kleinLookModel, err)
-	}
-	if err := s.sd.SetVAE("Automatic"); err != nil {
-		s.log.Warn("%s: reset vae: %s", logPrefix, err)
-	}
-	if err := s.sd.SetOption(kleinReferenceOption, true); err != nil {
-		if rerr := s.sd.SetOption(kleinReferenceOption, false); rerr != nil {
-			s.log.Warn("%s: disable klein reference after failed enable: %s", logPrefix, rerr)
-		}
-		return nil, false, fmt.Errorf("enable %s reference: %w", logPrefix, err)
-	}
-	defer func() {
-		if derr := s.sd.SetOption(kleinReferenceOption, false); derr != nil {
-			s.log.Warn("%s: disable klein reference: %s", logPrefix, derr)
-			resetFailed = true
-		}
-	}()
 
 	denoise := objectDenoise
 	batchSize, batchCount := 1, 1
@@ -56,23 +41,22 @@ func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd
 	req.DenoisingStrength = &denoise
 	req.BatchSize = &batchSize
 	req.BatchCount = &batchCount
-	req.DoNotSaveImages = true
-	req.DoNotSaveGrid = true
+	req.Model = kleinRefSpec()
 
-	resp, err = s.sd.Img2Img(req)
+	resp, err := s.sd.Img2Img(req)
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
-			return nil, resetFailed, ierr
+			return nil, ierr
 		}
-		return nil, resetFailed, err
+		return nil, err
 	}
 	if resp == nil || len(resp.Images) == 0 {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
-			return nil, resetFailed, ierr
+			return nil, ierr
 		}
-		return nil, resetFailed, fmt.Errorf("no image generated (%s)", logPrefix)
+		return nil, fmt.Errorf("no image generated (%s)", logPrefix)
 	}
-	return resp, resetFailed, nil
+	return resp, nil
 }
 
 func (s *Service) KleinEdit(imageBase64, instruction string, seed *int64) (*GenerateImageResult, error) {
@@ -120,7 +104,7 @@ func (s *Service) kleinEdit(imageBase64, instruction string, seed *int64, denois
 	}
 	width, height := alignLookSize(cfg.Width, cfg.Height)
 
-	resp, resetFailed, err := s.kleinReferenceImg2Img("stylist", nil, sd.Img2ImgRequest{
+	resp, err := s.kleinReferenceImg2Img("stylist", nil, sd.Img2ImgRequest{
 		InitImages:        []string{imageBase64},
 		Prompt:            instruction,
 		NegativePrompt:    s.kids.ApplyNegative(""),
@@ -133,10 +117,9 @@ func (s *Service) kleinEdit(imageBase64, instruction string, seed *int64, denois
 		return nil, err
 	}
 	return &GenerateImageResult{
-		Image:                       resp.Images[0],
-		Info:                        resp.Info,
-		EffectivePrompt:             instruction,
-		PreserveIdentityResetFailed: resetFailed,
+		Image:           resp.Images[0],
+		Info:            resp.Info,
+		EffectivePrompt: instruction,
 	}, nil
 }
 

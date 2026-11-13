@@ -333,11 +333,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		prompt = fmt.Sprintf(template, object, prompt)
 	}
 
-	if err := s.prepareSDContext(p, "from-image"); err != nil {
-		return nil, err
-	}
+	spec := s.prepareSDContext(p, "from-image")
 
-	samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
+	samplerName := p.Sampler
 
 	clipSkip := 1
 	if p.ClipSkip != nil {
@@ -347,35 +345,8 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	batchCount := 1
 
 	if params.Mode == "img2img" {
-		var result *GenerateImageResult
-		refDisabled := false
-		if params.PreserveIdentity {
-			s.referenceMu.Lock()
-			defer s.referenceMu.Unlock()
-			if err := s.sd.SetOption(kleinReferenceOption, true); err != nil {
-				if rerr := s.sd.SetOption(kleinReferenceOption, false); rerr != nil {
-					s.log.Warn("from-image: disable identity reference after failed enable: %s", rerr)
-				}
-				return nil, fmt.Errorf("enable identity reference: %w", err)
-			}
-			defer func() {
-				if refDisabled {
-					return
-				}
-				derr := s.sd.SetOption(kleinReferenceOption, false)
-				if derr != nil {
-					s.log.Warn("from-image: disable identity reference: %s", derr)
-				}
-				if result != nil {
-					result.PreserveIdentityResetFailed = derr != nil
-				}
-			}()
-		}
-		if !params.PreserveIdentity && config.IsFlux2Klein(p.ModelName) {
-			if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
-				s.log.Warn("from-image: clear stale klein reference: %s", err)
-			}
-		}
+		refSpec := spec
+		refSpec.KleinReference = params.PreserveIdentity
 		srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
 		rawW, rawH := srcW, srcH
 		if srcW > 0 && srcH > 0 {
@@ -409,6 +380,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			denoising = 0.5
 		}
 		resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+			Model:             refSpec,
 			InitImages:        []string{params.ImageBase64},
 			Prompt:            prompt,
 			NegativePrompt:    negativePrompt,
@@ -423,8 +395,6 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			ClipSkip:          &clipSkip,
 			BatchSize:         &batchSize,
 			BatchCount:        &batchCount,
-			DoNotSaveImages:   true,
-			DoNotSaveGrid:     true,
 		})
 		if err != nil {
 			return nil, err
@@ -440,19 +410,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		upscaleSkipped := false
 		redenoiseSkipped := false
 		if params.OutputMode == "quality" {
-			qualityReady := true
-			if params.PreserveIdentity {
-				if err := s.sd.SetOption(kleinReferenceOption, false); err != nil {
-					s.log.Warn("from-image: disable identity reference before quality failed, skipping quality: %s", err)
-					upscaleSkipped = true
-					redenoiseSkipped = true
-					qualityReady = false
-				} else {
-					refDisabled = true
-				}
-			}
-			if qualityReady {
+			{
 				qualityReq := sd.Txt2ImgRequest{
+					Model:          spec,
 					Prompt:         prompt,
 					NegativePrompt: negativePrompt,
 					SamplerName:    samplerName,
@@ -515,7 +475,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 				Denoise: &denoising,
 			}, upscaleSkipped, redenoiseSkipped)
 		}
-		result = &GenerateImageResult{
+		result := &GenerateImageResult{
 			Image:                   finalImage,
 			Info:                    finalInfo,
 			QualityUpscaleSkipped:   upscaleSkipped,
@@ -536,6 +496,7 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	}
 
 	result, err := s.sd.Txt2Img(sd.Txt2ImgRequest{
+		Model:                  spec,
 		Prompt:                 prompt,
 		NegativePrompt:         negativePrompt,
 		SamplerName:            samplerName,
@@ -553,8 +514,6 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		HiresUpscale:           hiresUpscale,
 		HiresDenoisingStrength: hiresDenoising,
 		HiresUpscaler:          hiresUpscaler,
-		DoNotSaveImages:        true,
-		DoNotSaveGrid:          true,
 	})
 	if err != nil {
 		return nil, err
@@ -635,10 +594,8 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 		prompt := bp.Prompt
 		negativePrompt := bp.NegativePrompt
 
-		if err := s.prepareSDContext(p, fmt.Sprintf("from-image compound step %d", stepIdx+1)); err != nil {
-			return nil, err
-		}
-		samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
+		s.guard.EnsureHeadroom(p.ModelName, fmt.Sprintf("from-image compound step %d", stepIdx+1))
+		samplerName := p.Sampler
 		width, height := s.resolveStepResolution(step, p, params.ResolutionID)
 
 		clipSkip := 1
@@ -798,10 +755,8 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		prompt := bp.Prompt
 		negativePrompt := bp.NegativePrompt
 
-		if err := s.prepareSDContext(p, fmt.Sprintf("compound step %d", stepIdx+1)); err != nil {
-			return nil, err
-		}
-		samplerName := promptutil.BuildSamplerName(p.Sampler, p.ScheduleType)
+		s.guard.EnsureHeadroom(p.ModelName, fmt.Sprintf("compound step %d", stepIdx+1))
+		samplerName := p.Sampler
 		width, height := s.resolveStepResolution(step, p, params.ResolutionID)
 
 		clipSkip := 1

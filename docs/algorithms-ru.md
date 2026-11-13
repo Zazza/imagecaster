@@ -124,10 +124,10 @@ doPost(url, body)
 3. Prompt = preset.Prompt + ", " + generated tags
 4. NegativePrompt = preset.NegativePrompt + ", " + extra negatives
 5. LoRAs: JSON → <lora:name:weight> теги в конец prompt
-6. SamplerName = Sampler + " " + ScheduleType (если есть)
-7. Установить модель/VAE через SD API (SetModel/SetVAE)
+6. Сэмплер и планировщик передаются раздельно, имена sd.cpp ("euler_a", "karras")
+7. Модель, VAE и модули — в блоке model задания (POST /api/sd/jobs)
 8. Дефолты если без пресета:
-   - Sampler: "Euler a"
+   - Sampler: "euler_a"
    - Steps: 20
    - CfgScale: 7
    - Width/Height: из изображения или 512x512

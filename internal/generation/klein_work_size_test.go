@@ -328,7 +328,7 @@ func TestGenerateFromImage_KleinWithResolution_SizeUnchangedNoUpscale(t *testing
 
 func TestGenerateFromImage_KleinQualityMode_Unchanged(t *testing.T) {
 	t.Parallel()
-	r := &kleinRun{upscalers: []sd.Upscaler{{Name: "ESRGAN"}}}
+	r := &kleinRun{upscalers: []sd.Upscaler{{Name: "RealESRGAN_x4plus"}}}
 	_, err := runKleinFromImage(t, r, 600, 800, func(db *preset.DB, p *GenerateFromImageParams) {
 		res := &preset.Resolution{Name: "r-1024x1536", Width: 1024, Height: 1536}
 		require.NoError(t, db.CreateResolution(res))

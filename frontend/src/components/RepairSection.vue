@@ -23,7 +23,6 @@ const seedInput = ref('')
 const running = ref(false)
 watch(running, v => emit('busy', v))
 const error = ref('')
-const resetFailed = ref(false)
 const moreOpen = ref(false)
 const tileDone = ref(0)
 const tileTotal = ref(0)
@@ -60,7 +59,6 @@ async function run() {
   }
   running.value = true
   error.value = ''
-  resetFailed.value = false
   tileDone.value = 0
   tileTotal.value = 0
   resetProgress()
@@ -75,7 +73,6 @@ async function run() {
     })
     if (reqId !== reqCounter || props.source !== runSource) return
     if (result?.image) {
-      resetFailed.value = !!result.preserve_identity_reset_failed
       lastEmitted = result.image
       emit('result', result.image)
     }
@@ -160,7 +157,6 @@ defineExpose({
       <button class="btn btn-sm btn-secondary" style="width: 100%; margin-top: 8px; font-size: 11px;" @click="interruptGeneration">{{ t('progress.btn_interrupt') }}</button>
     </div>
 
-    <StatusMessage v-if="resetFailed" kind="warning" style="margin-top: 8px;" @close="resetFailed = false">{{ t('fi.preserve_identity_reset_failed') }}</StatusMessage>
 
     <details class="repair-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
       <summary>{{ t('repair.more') }}</summary>

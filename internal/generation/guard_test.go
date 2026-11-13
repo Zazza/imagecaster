@@ -79,7 +79,6 @@ type guardSD struct {
 	memoryInfoCalls atomic.Int32
 }
 
-func (m *guardSD) SetOption(key string, value any) error { return nil }
 func (m *guardSD) MemoryInfo() (*sd.MemoryStats, error) {
 	m.memoryInfoCalls.Add(1)
 	if m.err != nil {
@@ -96,22 +95,22 @@ func (m *guardSD) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (m *guardSD) GetModels() ([]sd.SDModel, error)            { return nil, nil }
-func (m *guardSD) GetSamplers() ([]sd.Sampler, error)          { return nil, nil }
-func (m *guardSD) GetSchedulers() ([]sd.Scheduler, error)      { return nil, nil }
-func (m *guardSD) GetUpscalers() ([]sd.Upscaler, error)        { return nil, nil }
-func (m *guardSD) GetVAEs() ([]sd.VAE, error)                  { return nil, nil }
-func (m *guardSD) GetLoRAs() ([]sd.LoRA, error)                { return nil, nil }
-func (m *guardSD) GetOptions() (map[string]interface{}, error) { return nil, nil }
-func (m *guardSD) GetProgress() (*sd.ProgressResponse, error)  { return nil, nil }
-func (m *guardSD) Interrupt() error                            { return nil }
-func (m *guardSD) HealthCheck() error                          { return nil }
-func (m *guardSD) SetURL(baseURL string)                       {}
-func (m *guardSD) SetModel(modelName string) error             { return nil }
-func (m *guardSD) SetModelWithModules(modelName string, modules []string) error {
-	return nil
+func (m *guardSD) GetModels() ([]sd.SDModel, error)       { return nil, nil }
+func (m *guardSD) GetSamplers() ([]sd.Sampler, error)     { return nil, nil }
+func (m *guardSD) GetSchedulers() ([]sd.Scheduler, error) { return nil, nil }
+func (m *guardSD) GetUpscalers() ([]sd.Upscaler, error)   { return nil, nil }
+func (m *guardSD) GetVAEs() ([]sd.VAE, error)             { return nil, nil }
+func (m *guardSD) GetLoRAs() ([]sd.LoRA, error)           { return nil, nil }
+func (m *guardSD) Interrupt() error                       { return nil }
+func (m *guardSD) HealthCheck() error                     { return nil }
+
+func (m *guardSD) State() (*sd.ServerState, error) { return &sd.ServerState{}, nil }
+func (m *guardSD) ListJobs(ctx context.Context, client string) ([]sd.JobStatus, error) {
+	return nil, nil
 }
-func (m *guardSD) SetVAE(vaeName string) error { return nil }
+func (m *guardSD) SetProgressHandler(fn func(sd.JobStatus)) {}
+
+func (m *guardSD) SetURL(baseURL string) {}
 
 func (m *guardSD) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
 	return "", fmt.Errorf("not implemented")

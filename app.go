@@ -100,14 +100,30 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 		&a.emitter, a.kidsMgr, a.sessions, a.settingsSvc, a.settingsSvc, a.log,
 	)
 	queueStore := queue.NewStore(presets.DB())
-	queueProc := queue.NewProcessor(a.gen, queueStore, a.dataDir, &a.emitter)
+	scoper, _ := sdClient.(sd.QueueScoper)
+	queueProc := queue.NewProcessor(a.gen, scoper, queueStore, a.dataDir, &a.emitter)
 	a.queueSvc = queue.NewService(queueStore, queueProc, &a.emitter)
-	a.queueSvc.SetInterruptFn(func() { _ = a.gen.InterruptGeneration() })
+	if scoper == nil {
+		a.queueSvc.SetInterruptFn(func() { _ = a.gen.InterruptGeneration() })
+	} else {
+		a.queueSvc.SetJobCleanup(func(id int64) {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := scoper.CleanupQueueJob(ctx, id); err != nil {
+					a.log.Warn("queue: clean up server jobs of %d: %s", id, err)
+				}
+			}()
+		})
+	}
 	a.batch = batch.New(filepath.Join(a.dataDir, "batch"))
 	return a
 }
 
-const externalSessionPoll = 2 * time.Second
+const (
+	externalSessionPoll = 2 * time.Second
+	queueStopTimeout    = 5 * time.Second
+)
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
@@ -118,12 +134,15 @@ func (a *App) startup(ctx context.Context) {
 		a.log.Warn("queue: clear completed: %s", err)
 	}
 	a.queueSvc.Start(ctx)
-	go a.gen.ResetReferences()
 	go a.sessions.WatchExternal(ctx, externalSessionPoll)
 	if err := a.batch.Reset(); err != nil {
 		a.log.Warn("batch: reset: %s", err)
 	}
 	a.restoreWindowLayout()
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	a.queueSvc.Stop(queueStopTimeout)
 }
 
 func (a *App) restoreWindowLayout() {

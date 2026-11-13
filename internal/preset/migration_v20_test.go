@@ -123,6 +123,8 @@ func TestMigrationV20_OldInstallWithoutKeyRunsOnce(t *testing.T) {
 	require.NoError(t, db.Create(userPreset))
 	_, err := db.DB().Exec(`DELETE FROM settings WHERE key = ?`, migrationV20Key)
 	require.NoError(t, err)
+	_, err = db.DB().Exec(`PRAGMA user_version = 0`)
+	require.NoError(t, err)
 	require.NoError(t, db.Close())
 
 	reopened := openFileDB(t, path)

@@ -55,12 +55,6 @@ func (s *Server) imageResult(name, slug string, res *generation.GenerateImageRes
 	if res.QualityRedenoiseSkipped {
 		out["quality_redenoise_skipped"] = true
 	}
-	if res.EditReferenceResetFailed {
-		out["edit_reference_reset_failed"] = true
-	}
-	if res.PreserveIdentityResetFailed {
-		out["preserve_identity_reset_failed"] = true
-	}
 	if !save && !s.deps.NoImageBytes {
 		out["image_base64"] = res.Image
 		return toJSON(out), nil

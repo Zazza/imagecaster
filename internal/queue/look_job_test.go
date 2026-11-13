@@ -77,7 +77,7 @@ func TestEnqueueLook_ValidParamsCreateLookJob(t *testing.T) {
 }
 
 func TestProcessJob_LookIsDispatched(t *testing.T) {
-	p := NewProcessor(nil, nil, t.TempDir(), &mockEmitter{})
+	p := NewProcessor(nil, nil, nil, t.TempDir(), &mockEmitter{})
 	job := &Job{Type: JobLook, Params: "not json"}
 
 	var res *JobResult

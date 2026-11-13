@@ -28,8 +28,8 @@ func TestLoad_DefaultValues(t *testing.T) {
 	if cfg.Port != "8080" {
 		t.Errorf("Port = %q, want %q", cfg.Port, "8080")
 	}
-	if cfg.DefaultSampler != "Euler a" {
-		t.Errorf("DefaultSampler = %q, want %q", cfg.DefaultSampler, "Euler a")
+	if cfg.DefaultSampler != "euler_a" {
+		t.Errorf("DefaultSampler = %q, want %q", cfg.DefaultSampler, "euler_a")
 	}
 	if cfg.DefaultSteps != 20 {
 		t.Errorf("DefaultSteps = %d, want %d", cfg.DefaultSteps, 20)

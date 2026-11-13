@@ -6,7 +6,17 @@
 
 Путь: `data/presets.db` (настраивается через `DB_PATH`).
 
-Миграции выполняются автоматически при `preset.Open()` (версии 1-10).
+Версия схемы хранится в `PRAGMA user_version` (текущая — `schemaVersion` = 33, `internal/preset/schema.go`). `preset.Open()`:
+
+- пустая база (нет таблиц) — итоговая схема и начальные данные создаются сразу одной транзакцией (`createLatestSchema`), версия = 33;
+- база с таблицами и `user_version = 0` (всё, что создано до версии 1.6) — один раз выполняется старая цепочка `legacyMigrations` (`migrate` … `migrateV32`, порядок прежний, метки вроде `migration_v20_done` работают), затем версия = 32 и шаги `schemaSteps`;
+- `user_version` ≥ 33 — ничего не выполняется, запись в базу при запуске не идёт.
+
+Шаги `schemaSteps` (с 33) идут в транзакции `BEGIN IMMEDIATE`. v33 пересобирает таблицу `presets` ради значения по умолчанию `sampler` = `euler_a` (было имя Forge `Euler a`), данные, индексы, триггеры и `sqlite_sequence` сохраняются.
+
+Новая миграция — шаг в `schemaSteps` с номером 34, 35, …: выполняется один раз, если номер больше `user_version`, после чего версия поднимается. Изменение схемы правится и в шаге, и в `latestSchemaDDL`; тест `TestSchema_FreshEqualsFullLegacyChain`/`TestSchema_OldDBUpgradesToLatest` сверяет, что новая и обновлённая база совпадают.
+
+v32 переводит сохранённые имена Forge в имена sd.cpp: `presets.sampler`/`schedule_type` (составное имя вроде «DPM++ 2M Karras» разделяется), `hires_profiles.upscaler` («R-ESRGAN 4x+» → «RealESRGAN_x4plus», «Lanczos» → «lanczos», «Latent» → «latent», «None» → ""), настройки `test_sampler`/`test_schedule_type`. Неизвестное имя Forge становится "" (по умолчанию) и пишется в лог. Импорт пресетов из файла переводит имена так же.
 
 ## Схема
 
@@ -21,8 +31,8 @@
 | preset_type | TEXT | Название типа (денормрализовано) |
 | prompt | TEXT | Positive prompt |
 | negative_prompt | TEXT | Negative prompt |
-| sampler | TEXT | Sampler name |
-| schedule_type | TEXT | "auto", "karras", "exponential" |
+| sampler | TEXT | Сэмплер sd.cpp ("euler_a", "dpm++2m", …) |
+| schedule_type | TEXT | Планировщик sd.cpp: "", "karras", "simple", "discrete", … ("" — по умолчанию) |
 | steps | INTEGER | Количество шагов |
 | cfg_scale | REAL | CFG Scale |
 | width | INTEGER | Ширина |
@@ -204,7 +214,7 @@ Key-value хранилище настроек.
 | id | INTEGER PK | Auto-increment |
 | name | TEXT | Название профиля |
 | enable | BOOLEAN | Включить hires fix |
-| upscaler | TEXT | Название upscaler |
+| upscaler | TEXT | Апскейлер sd.cpp: имя файла модели без расширения или "lanczos"/"nearest" |
 | scale | REAL | Множитель увеличения |
 | denoising | REAL | Сила denoising |
 | resize_x | INTEGER | Целевая ширина |

@@ -72,7 +72,7 @@ func (c *Client) FaceLandmarks(imageBase64 string) ([]Point, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), faceDetectTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/controlnet/detect", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/controlnet/detect", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("face landmarks: %w", err)
 	}

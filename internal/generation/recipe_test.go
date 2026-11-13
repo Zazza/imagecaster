@@ -548,11 +548,9 @@ func TestApplyLookDirect_HappyPath(t *testing.T) {
 	assert.Equal(t, 1024, capturedReq.Height)
 	require.NotNil(t, capturedReq.Seed)
 	assert.Equal(t, int64(42), *capturedReq.Seed)
-	assert.True(t, capturedReq.DoNotSaveImages)
 
 	assert.Equal(t, "look-b64", result.Image)
 	assert.Equal(t, "cold blue neon dusk, wet asphalt reflections", result.EffectivePrompt)
-	assert.False(t, result.PreserveIdentityResetFailed)
 
 	require.Len(t, sessions.items, 1)
 	item := sessions.items[0]
@@ -561,48 +559,6 @@ func TestApplyLookDirect_HappyPath(t *testing.T) {
 	require.NotNil(t, item.meta)
 	assert.Equal(t, "Look: neon night look", item.meta.Label)
 	assert.Equal(t, kleinLookModel, item.meta.Model)
-}
-
-func TestApplyLookDirect_EnableReferenceFails(t *testing.T) {
-	t.Parallel()
-
-	db := openTestDB(t)
-	var mu sync.Mutex
-	var ops []string
-	sdSvc := &mockSD{}
-	sdSvc.setOption = func(key string, value any) error {
-		mu.Lock()
-		defer mu.Unlock()
-		ops = append(ops, fmt.Sprintf("option:%s=%v", key, value))
-		if value == true {
-			return fmt.Errorf("options boom")
-		}
-		return nil
-	}
-	imgCalls := 0
-	sdSvc.img2img = func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		imgCalls++
-		return &sd.Txt2ImgResponse{Images: []string{"must-not-happen"}}, nil
-	}
-	llmSvc := &mockLLM{}
-	llmSvc.chatFn = func(model, systemPrompt, userMessage string, temperature float64, maxTokens int) (string, error) {
-		return "some look", nil
-	}
-	svc := newTestService(t, db, llmSvc, sdSvc)
-
-	_, err := svc.ApplyLookDirect(tinyPNGBase64(t), "neon night look", 0.5, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "enable look reference")
-
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Equal(t, []string{
-		"option:" + kleinReferenceOption + "=true",
-		"option:" + kleinReferenceOption + "=false",
-	}, ops)
-	assert.Equal(t, 0, imgCalls)
 }
 
 func TestApplyLookDirect_StrengthClamped(t *testing.T) {
