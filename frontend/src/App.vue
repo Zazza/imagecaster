@@ -2,7 +2,7 @@
 import TitleBar from './components/TitleBar.vue'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
-import { Sparkles, Sliders, SlidersHorizontal, Settings, Package, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+import { Sparkles, Sliders, SlidersHorizontal, Settings, Package, Images, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
 import { api } from './api.js'
 import { t, setLocale, locale } from './i18n/index.js'
 import UnifiedPresetsPage from './components/UnifiedPresetsPage.vue'
@@ -10,6 +10,7 @@ import UnifiedGeneratePage from './components/UnifiedGeneratePage.vue'
 import PostProcessPage from './components/PostProcessPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import CatalogPage from './components/CatalogPage.vue'
+import GalleryPage from './components/GalleryPage.vue'
 import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
 import WelcomeModal from './components/WelcomeModal.vue'
@@ -247,6 +248,9 @@ onUnmounted(() => {
         <a class="sidebar-link" :class="{ active: page === 'postprocess' }" @click="page = 'postprocess'" :title="t('app.nav_postprocess')">
           <SlidersHorizontal :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_postprocess') }}</span>
         </a>
+        <a class="sidebar-link" :class="{ active: page === 'gallery' }" @click="page = 'gallery'" :title="t('app.nav_gallery')">
+          <Images :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_gallery') }}</span>
+        </a>
         <a class="sidebar-link" :class="{ active: page === 'browser' }" @click="page = 'browser'" :title="t('app.nav_my_images')">
           <FolderOpen :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_my_images') }}</span>
         </a>
@@ -291,6 +295,7 @@ onUnmounted(() => {
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />
+        <GalleryPage v-else-if="page === 'gallery'" @navigate="onNavigate" />
         <component v-else :is="currentPage" />
       </template>
     </main>

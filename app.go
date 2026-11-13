@@ -1058,6 +1058,18 @@ func (a *App) DeleteSession(id int64) error {
 	return a.sessions.DeleteSession(id)
 }
 
+func (a *App) ListHistory(f preset.HistoryFilter) (*preset.HistoryPage, error) {
+	return a.sessions.ListHistory(f)
+}
+
+func (a *App) DeleteHistoryItems(ids []int64) (int, error) {
+	return a.sessions.DeleteSessionItems(ids)
+}
+
+func (a *App) OpenInHistory(id int64) error {
+	return a.sessions.OpenInHistory(id)
+}
+
 func (a *App) GetSessionItems() ([]preset.SessionItem, error) {
 	return a.sessions.GetSessionItems()
 }

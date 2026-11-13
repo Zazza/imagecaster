@@ -114,6 +114,10 @@ export function DeleteHiresProfile(arg1) {
   return window['go']['main']['App']['DeleteHiresProfile'](arg1);
 }
 
+export function DeleteHistoryItems(arg1) {
+  return window['go']['main']['App']['DeleteHistoryItems'](arg1);
+}
+
 export function DeletePostRecipe(arg1) {
   return window['go']['main']['App']['DeletePostRecipe'](arg1);
 }
@@ -410,6 +414,10 @@ export function ListHiresProfiles() {
   return window['go']['main']['App']['ListHiresProfiles']();
 }
 
+export function ListHistory(arg1) {
+  return window['go']['main']['App']['ListHistory'](arg1);
+}
+
 export function ListPostRecipes() {
   return window['go']['main']['App']['ListPostRecipes']();
 }
@@ -444,6 +452,10 @@ export function OpenImportCompoundFile() {
 
 export function OpenImportFile() {
   return window['go']['main']['App']['OpenImportFile']();
+}
+
+export function OpenInHistory(arg1) {
+  return window['go']['main']['App']['OpenInHistory'](arg1);
 }
 
 export function PauseQueue() {

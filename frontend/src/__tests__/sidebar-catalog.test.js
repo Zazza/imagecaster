@@ -149,13 +149,13 @@ describe('sidebar menu (M1, M2)', () => {
     expect(w.findAll('.sidebar-group-label')).toHaveLength(0)
   })
 
-  it('links go in order generate, postprocess, my images | styles, catalog | settings', async () => {
+  it('links go in order generate, postprocess, gallery, my images | styles, catalog | settings', async () => {
     const w = await mountApp()
     const nav = w.find('.sidebar-nav')
     const items = nav.element.children
     const seq = [...items].map(el => (el.classList.contains('sidebar-divider') ? '|' : el.getAttribute('title')))
     expect(seq).toEqual([
-      ru['app.nav_generate'], ru['app.nav_postprocess'], ru['app.nav_my_images'], '|',
+      ru['app.nav_generate'], ru['app.nav_postprocess'], ru['app.nav_gallery'], ru['app.nav_my_images'], '|',
       ru['app.nav_styles'], ru['app.nav_catalog'], '|',
       ru['app.nav_settings'],
     ])

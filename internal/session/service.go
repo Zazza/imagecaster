@@ -332,6 +332,24 @@ func (s *Service) CreateSession(name string) (*preset.SessionInfo, error) {
 	return si, nil
 }
 
+func (s *Service) ListHistory(f preset.HistoryFilter) (*preset.HistoryPage, error) {
+	return s.db.ListHistory(f)
+}
+
+func (s *Service) OpenInHistory(id int64) error {
+	item, err := s.db.GetSessionItem(id)
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		return fmt.Errorf("session item not found")
+	}
+	if err := s.SwitchSession(item.SessionID); err != nil {
+		return err
+	}
+	return s.SetActiveSessionItem(id)
+}
+
 func (s *Service) ListSessions() ([]preset.SessionInfo, error) {
 	sessions, err := s.db.ListSessions()
 	if err != nil {
@@ -427,12 +445,43 @@ func (s *Service) SetActiveSessionItem(id int64) error {
 }
 
 func (s *Service) DeleteSessionItem(id int64) error {
-	item, err := s.db.GetSessionItem(id)
-	if err != nil {
+	deleted, err := s.removeSessionItem(id)
+	if err != nil || !deleted {
 		return err
 	}
+	s.emit.Emit("session:removed", map[string]int64{"id": id})
+	return nil
+}
+
+func (s *Service) DeleteSessionItems(ids []int64) (int, error) {
+	n := 0
+	var firstErr error
+	for _, id := range ids {
+		deleted, err := s.removeSessionItem(id)
+		if err != nil {
+			log.Printf("[session] delete item %d: %v", id, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if deleted {
+			n++
+		}
+	}
+	if n > 0 {
+		s.emit.Emit("session:removed", map[string]any{"ids": ids})
+	}
+	return n, firstErr
+}
+
+func (s *Service) removeSessionItem(id int64) (bool, error) {
+	item, err := s.db.GetSessionItem(id)
+	if err != nil {
+		return false, err
+	}
 	if item == nil {
-		return nil
+		return false, nil
 	}
 	sessionDir := filepath.Join(s.dataDir, "sessions", strconv.FormatInt(item.SessionID, 10))
 	thumbDir := filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(item.SessionID, 10))
@@ -443,10 +492,9 @@ func (s *Service) DeleteSessionItem(id int64) error {
 		os.Remove(filepath.Join(thumbDir, item.ThumbName))
 	}
 	if err := s.db.DeleteSessionItem(id); err != nil {
-		return err
+		return false, err
 	}
-	s.emit.Emit("session:removed", map[string]int64{"id": id})
-	return nil
+	return true, nil
 }
 
 func (s *Service) ClearSession() error {

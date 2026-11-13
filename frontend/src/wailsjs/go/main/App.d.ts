@@ -70,6 +70,8 @@ export function DeleteExportPreset(arg1:number):Promise<void>;
 
 export function DeleteHiresProfile(arg1:number):Promise<void>;
 
+export function DeleteHistoryItems(arg1:Array<number>):Promise<number>;
+
 export function DeletePostRecipe(arg1:number):Promise<void>;
 
 export function DeletePreset(arg1:number):Promise<void>;
@@ -218,6 +220,8 @@ export function ListExportPresets():Promise<Array<preset.ExportPreset>>;
 
 export function ListHiresProfiles():Promise<Array<preset.HiresProfile>>;
 
+export function ListHistory(arg1:preset.HistoryFilter):Promise<preset.HistoryPage>;
+
 export function ListPostRecipes():Promise<Array<preset.PostRecipe>>;
 
 export function ListPresetTypes():Promise<Array<preset.PresetType>>;
@@ -235,6 +239,8 @@ export function ListSessions():Promise<Array<preset.SessionInfo>>;
 export function OpenImportCompoundFile():Promise<importexport.CompoundImportPreview>;
 
 export function OpenImportFile():Promise<importexport.ImportPreview>;
+
+export function OpenInHistory(arg1:number):Promise<void>;
 
 export function PauseQueue():Promise<void>;
 

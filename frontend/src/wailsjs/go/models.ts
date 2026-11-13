@@ -1153,6 +1153,202 @@ export namespace preset {
 	        this.created_at = source["created_at"];
 	    }
 	}
+	export class HistoryFacet {
+	    value: string;
+	    name?: string;
+	    count: number;
+	    pipeline?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryFacet(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.value = source["value"];
+	        this.name = source["name"];
+	        this.count = source["count"];
+	        this.pipeline = source["pipeline"];
+	    }
+	}
+	export class HistoryFacets {
+	    sessions: HistoryFacet[];
+	    models: HistoryFacet[];
+	    labels: HistoryFacet[];
+	    kinds: HistoryFacet[];
+	    shapes: HistoryFacet[];
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryFacets(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessions = this.convertValues(source["sessions"], HistoryFacet);
+	        this.models = this.convertValues(source["models"], HistoryFacet);
+	        this.labels = this.convertValues(source["labels"], HistoryFacet);
+	        this.kinds = this.convertValues(source["kinds"], HistoryFacet);
+	        this.shapes = this.convertValues(source["shapes"], HistoryFacet);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HistoryFilter {
+	    session_ids: number[];
+	    models: string[];
+	    labels: string[];
+	    kinds: string[];
+	    shapes: string[];
+	    search: string;
+	    date_from: string;
+	    date_to: string;
+	    offset: number;
+	    limit: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session_ids = source["session_ids"];
+	        this.models = source["models"];
+	        this.labels = source["labels"];
+	        this.kinds = source["kinds"];
+	        this.shapes = source["shapes"];
+	        this.search = source["search"];
+	        this.date_from = source["date_from"];
+	        this.date_to = source["date_to"];
+	        this.offset = source["offset"];
+	        this.limit = source["limit"];
+	    }
+	}
+	export class HistoryItem {
+	    id: number;
+	    session_id: number;
+	    file_name: string;
+	    thumb_name: string;
+	    source: string;
+	    prompt: string;
+	    negative_prompt: string;
+	    sampler: string;
+	    steps: number;
+	    cfg_scale: number;
+	    seed?: number;
+	    denoising: number;
+	    width: number;
+	    height: number;
+	    is_preview: boolean;
+	    preset_id?: number;
+	    is_active: boolean;
+	    created_at: string;
+	    meta?: GenerationMeta;
+	    session_name: string;
+	    kind: string;
+	    model_name: string;
+	    label: string;
+	    shape: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.session_id = source["session_id"];
+	        this.file_name = source["file_name"];
+	        this.thumb_name = source["thumb_name"];
+	        this.source = source["source"];
+	        this.prompt = source["prompt"];
+	        this.negative_prompt = source["negative_prompt"];
+	        this.sampler = source["sampler"];
+	        this.steps = source["steps"];
+	        this.cfg_scale = source["cfg_scale"];
+	        this.seed = source["seed"];
+	        this.denoising = source["denoising"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.is_preview = source["is_preview"];
+	        this.preset_id = source["preset_id"];
+	        this.is_active = source["is_active"];
+	        this.created_at = source["created_at"];
+	        this.meta = this.convertValues(source["meta"], GenerationMeta);
+	        this.session_name = source["session_name"];
+	        this.kind = source["kind"];
+	        this.model_name = source["model_name"];
+	        this.label = source["label"];
+	        this.shape = source["shape"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HistoryPage {
+	    items: HistoryItem[];
+	    total: number;
+	    facets: HistoryFacets;
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryPage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], HistoryItem);
+	        this.total = source["total"];
+	        this.facets = this.convertValues(source["facets"], HistoryFacets);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LoRAEntry {
 	    name: string;
 	    weight: number;

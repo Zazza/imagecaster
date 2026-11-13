@@ -310,6 +310,7 @@ onUnmounted(() => {
           :aria-expanded="infoExpanded"
           @click="infoExpanded = !infoExpanded"
         ><Info :size="14" /> {{ t('viewer.info_toggle') }}</button>
+        <slot name="actions" />
         <button v-if="showActions" class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
         <template v-if="showActions && canDelete">
           <span class="iv-sep" aria-hidden="true"></span>
