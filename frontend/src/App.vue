@@ -2,7 +2,7 @@
 import TitleBar from './components/TitleBar.vue'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
-import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon } from 'lucide-vue-next'
+import { Sparkles, Sliders, SlidersHorizontal, Settings, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
 import { api } from './api.js'
 import { t, setLocale, locale } from './i18n/index.js'
 import UnifiedPresetsPage from './components/UnifiedPresetsPage.vue'
@@ -103,6 +103,12 @@ const settingsKey = ref(0)
 const postprocessSection = ref('')
 const initialImage = ref('')
 const theme = ref('dark')
+const SIDEBAR_KEY = 'imagecaster_sidebar'
+const sidebarCollapsed = ref((() => { try { return localStorage.getItem(SIDEBAR_KEY) === '1' } catch (e) { console.warn('sidebar state', e); return false } })())
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  try { localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed.value ? '1' : '0') } catch (e) { console.warn('sidebar state', e) }
+}
 
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
@@ -229,7 +235,7 @@ onUnmounted(() => {
   <div class="app">
     <TitleBar />
     <div class="app-body">
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-logo" :title="t('welcome.tab_about')" @click="welcome = 'about'">
         <img src="./assets/logo.png" alt="logo" class="logo-img" /> <span class="sidebar-label">{{ t('app.title') }}</span>
       </div>
@@ -266,6 +272,10 @@ onUnmounted(() => {
         </div>
       </nav>
       <div class="sidebar-footer">
+        <button class="sidebar-theme-btn sidebar-collapse-btn" :title="sidebarCollapsed ? t('app.sidebar_expand') : t('app.sidebar_collapse')" :aria-label="sidebarCollapsed ? t('app.sidebar_expand') : t('app.sidebar_collapse')" @click="toggleSidebar">
+          <ChevronsRight v-if="sidebarCollapsed" :size="14" class="icon" />
+          <ChevronsLeft v-else :size="14" class="icon" />
+        </button>
         <button class="sidebar-theme-btn" @click="toggleTheme" :title="theme === 'dark' ? t('app.theme_light') : t('app.theme_dark')">
           <Sun v-if="theme === 'dark'" :size="14" class="icon" />
           <Moon v-else :size="14" class="icon" />

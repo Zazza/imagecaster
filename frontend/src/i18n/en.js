@@ -18,6 +18,8 @@ export const en = {
   'app.theme_light': 'Light mode',
   'app.theme_dark': 'Dark mode',
   'app.confirm': 'Confirm?',
+  'app.sidebar_collapse': 'Collapse menu',
+  'app.sidebar_expand': 'Expand menu',
   'app.reset_all': 'Reset All',
 
   // GeneratePage.vue

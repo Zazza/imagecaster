@@ -17,6 +17,8 @@ export const ru = {
   'app.theme_light': 'Светлая тема',
   'app.theme_dark': 'Тёмная тема',
   'app.confirm': 'Точно?',
+  'app.sidebar_collapse': 'Свернуть меню',
+  'app.sidebar_expand': 'Развернуть меню',
   'app.reset_all': 'Сбросить всё',
 
   'gen.drop_postprocess': 'Перетащите изображение для постобработки',
