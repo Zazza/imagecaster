@@ -1177,6 +1177,7 @@ export namespace preset {
 	    labels: HistoryFacet[];
 	    kinds: HistoryFacet[];
 	    shapes: HistoryFacet[];
+	    periods: HistoryFacet[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HistoryFacets(source);
@@ -1189,6 +1190,7 @@ export namespace preset {
 	        this.labels = this.convertValues(source["labels"], HistoryFacet);
 	        this.kinds = this.convertValues(source["kinds"], HistoryFacet);
 	        this.shapes = this.convertValues(source["shapes"], HistoryFacet);
+	        this.periods = this.convertValues(source["periods"], HistoryFacet);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1218,6 +1220,7 @@ export namespace preset {
 	    search: string;
 	    date_from: string;
 	    date_to: string;
+	    period_starts: Record<string, string>;
 	    offset: number;
 	    limit: number;
 	
@@ -1235,6 +1238,7 @@ export namespace preset {
 	        this.search = source["search"];
 	        this.date_from = source["date_from"];
 	        this.date_to = source["date_to"];
+	        this.period_starts = source["period_starts"];
 	        this.offset = source["offset"];
 	        this.limit = source["limit"];
 	    }
