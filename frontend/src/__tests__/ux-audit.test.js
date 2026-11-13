@@ -216,7 +216,7 @@ describe('U3: modals do not close on backdrop click', () => {
       expect(selectBtn).toBeTruthy()
       await selectBtn.trigger('click')
 
-      const checkbox = wrapper.find('.preset-card input[type="checkbox"]')
+      const checkbox = wrapper.find('[data-testid="style-row"] input[type="checkbox"]')
       expect(checkbox.exists()).toBe(true)
       await checkbox.setValue(true)
 

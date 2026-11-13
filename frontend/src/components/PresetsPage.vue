@@ -1,11 +1,12 @@
 <script setup>
-import { LayoutGrid, X } from 'lucide-vue-next'
+import { LayoutGrid, X, Pencil, Copy, Trash2 } from 'lucide-vue-next'
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api.js'
 import { withPresetStatuses } from '../composables/usePresets.js'
 import { filterAvailable } from '../presetAvailability.js'
 import { t } from '../i18n/index.js'
 import { effectTypeLabel, isEffectType } from '../effectTypes.js'
+import { presetSource, modelLabel, filterPresets, facetCounts, hasActiveFilters, GROUP_NONE } from '../presetFilters.js'
 import PresetForm from './PresetForm.vue'
 import ImportModal from './ImportModal.vue'
 
@@ -24,7 +25,9 @@ const selectedIds = ref(new Set())
 
 const showImport = ref(false)
 const filterSearch = ref('')
-const filterType = ref('')
+const filterSource = ref('')
+const filterModels = ref([])
+const filterGroup = ref('')
 const importPresets = ref([])
 
 const installStatuses = ref(null)
@@ -89,25 +92,44 @@ const formDefaults = computed(() => {
   return base ? { type_id: base.id, preset_type: 'post' } : { preset_type: 'post' }
 })
 
-const filteredPresets = computed(() => {
-  let list = presets.value
-  if (filterType.value) {
-    list = list.filter(p => {
-      const pt = presetTypes.value.find(t => t.name === filterType.value)
-      return pt && p.type_id === pt.id
-    })
-  }
-  if (filterSearch.value) {
-    const q = filterSearch.value.toLowerCase()
-    list = list.filter(p => p.name.toLowerCase().includes(q) || p.prompt.toLowerCase().includes(q))
-  }
-  return list
-})
+const filters = computed(() => ({
+  search: filterSearch.value,
+  source: filterSource.value,
+  models: filterModels.value,
+  group: filterGroup.value,
+}))
 
-const availableTypes = computed(() => {
-  const types = new Set(presets.value.map(p => p.preset_type).filter(Boolean))
-  return [...types].sort()
-})
+const filteredPresets = computed(() => filterPresets(presets.value, filters.value))
+const facets = computed(() => facetCounts(presets.value, filters.value))
+const filtersActive = computed(() => hasActiveFilters(filters.value))
+
+function toggleModel(label) {
+  const cur = filterModels.value
+  filterModels.value = cur.includes(label) ? cur.filter(m => m !== label) : [...cur, label]
+}
+
+function pickModel(label) {
+  if (!filterModels.value.includes(label)) filterModels.value = [...filterModels.value, label]
+}
+
+function pickGroup(p) {
+  filterGroup.value = (p.preset_type || '').trim() || GROUP_NONE
+}
+
+function resetFilters() {
+  filterSearch.value = ''
+  filterSource.value = ''
+  filterModels.value = []
+  filterGroup.value = ''
+}
+
+function groupLabel(value) {
+  return value === GROUP_NONE ? t('presets.type_general') : effectTypeLabel(value, t)
+}
+
+function modelText(label) {
+  return label || t('presets.model_any')
+}
 
 function openCreate() {
   editingPreset.value = null
@@ -269,55 +291,108 @@ onMounted(load)
     </div>
 
     <template v-else>
-      <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center;">
-        <input class="form-input" v-model="filterSearch" :placeholder="t('presets.search_presets')" style="flex: 1; max-width: 300px;" />
-        <select class="form-select" v-model="filterType" style="width: auto; min-width: 140px;">
-          <option value="">{{ t('presets.all_types') }}</option>
-          <option v-for="at in availableTypes" :key="at" :value="at">{{ effectTypeLabel(at, t) }}</option>
-        </select>
-        <label class="show-unavailable" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); cursor: pointer;">
-          <input type="checkbox" v-model="showUnavailable" />
-          {{ t('presets.show_unavailable') }}
-        </label>
-      </div>
-
-      <div v-if="filteredPresets.length === 0" style="color: var(--text-dim); text-align: center; padding: 24px;">
-        {{ t('presets.no_match') }}
-      </div>
-
-      <div v-else class="card-grid">
-        <div v-for="p in filteredPresets" :key="p.id" class="card preset-card" :class="{ 'preset-selected': selectedIds.has(p.id) }">
-        <div class="preset-card-header">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <input v-if="selectMode" type="checkbox" :checked="selectedIds.has(p.id)" @change="togglePreset(p.id)" />
-            <div class="preset-name">{{ p.name }}</div>
+      <div class="styles-filters">
+        <div class="styles-filter-row">
+          <input class="form-input styles-search" data-testid="filter-search" v-model="filterSearch" :placeholder="t('presets.search_presets')" />
+          <div class="styles-chips">
+            <span class="styles-filter-label">{{ t('presets.filter_source') }}</span>
+            <button class="styles-chip" data-testid="filter-source-all" :class="{ active: filterSource === '' }" @click="filterSource = ''">{{ t('presets.filter_all') }}</button>
+            <button class="styles-chip" data-testid="filter-source-bundled" :class="{ active: filterSource === 'bundled' }" @click="filterSource = 'bundled'">{{ t('presets.filter_bundled') }}</button>
+            <button class="styles-chip" data-testid="filter-source-custom" :class="{ active: filterSource === 'custom' }" @click="filterSource = 'custom'">{{ t('presets.filter_custom') }}</button>
           </div>
-          <span class="preset-type">{{ p.preset_type ? effectTypeLabel(p.preset_type, t) : t('presets.type_general') }}</span>
+          <select class="form-select styles-group" data-testid="filter-group" v-model="filterGroup">
+            <option value="">{{ t('presets.all_groups') }}</option>
+            <option v-for="g in facets.groups" :key="g.value" :value="g.value">{{ groupLabel(g.value) }} ({{ g.count }})</option>
+          </select>
+          <label class="styles-unavailable">
+            <input type="checkbox" v-model="showUnavailable" />
+            {{ t('presets.show_unavailable') }}
+          </label>
+          <button v-if="filtersActive" class="btn btn-secondary btn-sm" data-testid="filter-reset" @click="resetFilters">{{ t('presets.filter_reset') }}</button>
         </div>
-        <div class="preset-prompt">{{ p.prompt || t('presets.no_prompt') }}</div>
-        <div class="preset-meta">
-          <span>{{ p.sampler }}</span>
-          <span>{{ t('presets.meta_steps', { count: p.steps }) }}</span>
-          <span>CFG {{ p.cfg_scale }}</span>
-          <template v-if="getStatus(p.id)">
-            <span v-if="getStatus(p.id).installed" style="color: var(--success);">{{ t('presets.status_installed') }}</span>
-            <span v-else style="color: var(--warning);">
-              {{ t('presets.status_missing') }} {{ [...(getStatus(p.id).missing_sd || []), ...(getStatus(p.id).missing_lora || [])].join(', ') }}
-            </span>
-          </template>
-        </div>
-        <div v-if="!selectMode && getStatus(p.id) && !getStatus(p.id).installed" class="preset-actions" style="margin-top: 4px;">
-          <button class="btn btn-secondary btn-sm" @click="installDeps(p.id)" :disabled="installingId === p.id">
-            {{ installingId === p.id ? t('presets.btn_installing') : t('presets.btn_install') }}
-          </button>
-        </div>
-        <div v-if="!selectMode" class="preset-actions">
-          <button class="btn btn-secondary btn-sm" @click="openEdit(p)">{{ t('presets.btn_edit') }}</button>
-          <button class="btn btn-secondary btn-sm" @click="handleDuplicate(p)">{{ t('presets.btn_duplicate') }}</button>
-          <button class="btn btn-sm" :class="pendingDeleteId === p.id ? 'btn-danger' : 'btn-danger-quiet'" @click="handleDelete(p.id)">{{ pendingDeleteId === p.id ? t('presets.btn_sure') : t('presets.btn_delete') }}</button>
+        <div class="styles-chips styles-models">
+          <span class="styles-filter-label">{{ t('presets.filter_model') }}</span>
+          <button
+            v-for="m in facets.models"
+            :key="m.label"
+            class="styles-chip"
+            data-testid="filter-model"
+            :data-model="m.label"
+            :class="{ active: filterModels.includes(m.label) }"
+            @click="toggleModel(m.label)"
+          >{{ modelText(m.label) }} <span class="styles-chip-count">{{ m.count }}</span></button>
         </div>
       </div>
-    </div>
+
+      <div v-if="filteredPresets.length === 0" class="styles-empty" data-testid="no-match">
+        <p>{{ t('presets.no_match') }}</p>
+        <button v-if="filtersActive" class="btn btn-secondary btn-sm" @click="resetFilters">{{ t('presets.filter_reset') }}</button>
+      </div>
+
+      <div v-else class="styles-table-wrap">
+        <table class="styles-table">
+          <thead>
+            <tr>
+              <th v-if="selectMode" class="col-check"></th>
+              <th>{{ t('presets.col_name') }}</th>
+              <th>{{ t('presets.col_source') }}</th>
+              <th>{{ t('presets.col_model') }}</th>
+              <th>{{ t('presets.col_group') }}</th>
+              <th class="col-num">{{ t('presets.col_steps') }}</th>
+              <th class="col-num">CFG</th>
+              <th class="col-actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in filteredPresets" :key="p.id" data-testid="style-row" :class="{ 'preset-selected': selectedIds.has(p.id) }">
+              <td v-if="selectMode" class="col-check">
+                <input type="checkbox" :checked="selectedIds.has(p.id)" @change="togglePreset(p.id)" />
+              </td>
+              <td class="col-name">
+                <div class="styles-name">{{ p.name }}</div>
+                <div class="styles-prompt" :title="p.prompt">{{ p.prompt || t('presets.no_prompt') }}</div>
+                <div v-if="getStatus(p.id) && !getStatus(p.id).installed" class="styles-missing">
+                  {{ t('presets.status_missing') }} {{ [...(getStatus(p.id).missing_sd || []), ...(getStatus(p.id).missing_lora || [])].join(', ') }}
+                  <button v-if="!selectMode" class="btn btn-secondary btn-sm" @click="installDeps(p.id)" :disabled="installingId === p.id">
+                    {{ installingId === p.id ? t('presets.btn_installing') : t('presets.btn_install') }}
+                  </button>
+                </div>
+              </td>
+              <td>
+                <button
+                  class="badge styles-badge"
+                  data-testid="badge-source"
+                  :class="presetSource(p) === 'bundled' ? 'badge-accent' : 'badge-success'"
+                  :title="t('presets.filter_by')"
+                  @click="filterSource = presetSource(p)"
+                >{{ presetSource(p) === 'bundled' ? t('presets.source_bundled') : t('presets.source_custom') }}</button>
+              </td>
+              <td>
+                <button class="badge badge-muted styles-badge" data-testid="badge-model" :title="p.model_name || t('presets.model_any')" @click="pickModel(modelLabel(p.model_name))">{{ modelText(modelLabel(p.model_name)) }}</button>
+              </td>
+              <td>
+                <button class="badge badge-muted styles-badge" data-testid="badge-group" :title="t('presets.filter_by')" @click="pickGroup(p)">{{ groupLabel((p.preset_type || '').trim() || GROUP_NONE) }}</button>
+              </td>
+              <td class="col-num">{{ p.steps }}</td>
+              <td class="col-num">{{ p.cfg_scale }}</td>
+              <td class="col-actions">
+                <template v-if="!selectMode">
+                  <button class="styles-icon-btn" data-testid="row-edit" :title="t('presets.btn_edit')" :aria-label="t('presets.btn_edit')" @click="openEdit(p)"><Pencil :size="14" /></button>
+                  <button class="styles-icon-btn" data-testid="row-duplicate" :title="t('presets.btn_duplicate')" :aria-label="t('presets.btn_duplicate')" @click="handleDuplicate(p)"><Copy :size="14" /></button>
+                  <button
+                    class="styles-icon-btn"
+                    data-testid="row-delete"
+                    :class="{ danger: pendingDeleteId === p.id }"
+                    :title="pendingDeleteId === p.id ? t('presets.btn_sure') : t('presets.btn_delete')"
+                    :aria-label="t('presets.btn_delete')"
+                    @click="handleDelete(p.id)"
+                  ><Trash2 :size="14" /><span v-if="pendingDeleteId === p.id" class="styles-sure">{{ t('presets.btn_sure') }}</span></button>
+                </template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </template>
 
     <PresetForm
@@ -351,3 +426,49 @@ onMounted(load)
     </div>
   </div>
 </template>
+
+<style scoped>
+.styles-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.styles-filter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.styles-search { flex: 1 1 200px; max-width: 280px; }
+.styles-group { width: auto; min-width: 150px; }
+.styles-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.styles-filter-label { font-size: 11px; color: var(--text-dim); margin-right: 2px; }
+.styles-chip {
+  height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.styles-chip:hover { border-color: var(--accent); }
+.styles-chip.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.styles-chip-count { font-size: 10px; color: var(--text-dim); }
+.styles-chip.active .styles-chip-count { color: var(--accent); }
+.styles-unavailable { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); cursor: pointer; }
+.styles-empty { color: var(--text-dim); text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.styles-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.styles-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.styles-table th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--text-dim);
+  padding: 8px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface);
+}
+.styles-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.styles-table tbody tr:last-child td { border-bottom: none; }
+.styles-table tbody tr:hover { background: var(--accent-bg); }
+.col-check { width: 28px; }
+.col-num { text-align: right; white-space: nowrap; width: 48px; }
+.col-actions { width: 96px; white-space: nowrap; text-align: right; }
+.col-name { min-width: 180px; max-width: 420px; }
+.styles-name { font-weight: 600; }
+.styles-prompt { font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px; }
+.styles-missing { font-size: 11px; color: var(--warning); display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.styles-badge { cursor: pointer; font-family: inherit; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.styles-badge:hover { border-color: var(--accent); }
+.styles-badge.badge-muted { background: transparent; }
+.styles-icon-btn {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; min-width: 26px; padding: 0 6px;
+  border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-dim); cursor: pointer;
+}
+.styles-icon-btn:hover { color: var(--text); background: var(--accent-bg); }
+.styles-icon-btn.danger { color: var(--danger); }
+.styles-sure { font-size: 11px; }
+</style>

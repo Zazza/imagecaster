@@ -77,7 +77,7 @@ async function mountList(mode) {
 }
 
 function cardNames(wrapper) {
-  return wrapper.findAll('.preset-card').map(c => c.find('.preset-name').text())
+  return wrapper.findAll('[data-testid="style-row"]').map(c => c.find('.styles-name').text())
 }
 
 function buttonByText(wrapper, text) {
@@ -237,7 +237,7 @@ describe('Effects tab: empty state', () => {
     givenPresets(STYLES)
     const wrapper = await mountList('effects')
     expect(wrapper.find('.empty-state').exists()).toBe(true)
-    expect(wrapper.findAll('.preset-card').length).toBe(0)
+    expect(wrapper.findAll('[data-testid="style-row"]').length).toBe(0)
     expect(wrapper.find('.empty-state').text()).toContain('Эффектов пока нет')
     expect(wrapper.find('.page-title').text()).toBe('Эффекты')
   })
@@ -246,7 +246,7 @@ describe('Effects tab: empty state', () => {
     givenPresets(EFFECTS)
     const wrapper = await mountList('styles')
     expect(wrapper.find('.empty-state').exists()).toBe(true)
-    expect(wrapper.findAll('.preset-card').length).toBe(0)
+    expect(wrapper.findAll('[data-testid="style-row"]').length).toBe(0)
     expect(wrapper.find('.empty-state').text()).toContain('Стилей пока нет')
     expect(wrapper.find('.page-title').text()).toBe('Стили')
   })
