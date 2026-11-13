@@ -603,6 +603,9 @@ onUnmounted(() => {
         <button class="footer-tab-btn" :class="{ active: expanded && panel === 'queue' }" @click="togglePanel('queue')">
           {{ t('footer.processing') }} {{ queuePendingCount > 0 ? `(${queuePendingCount})` : '' }}
         </button>
+        <button v-if="expanded" class="footer-tab-btn footer-panel-close" :aria-label="t('common.close')" :title="t('common.close')" @click="expanded = false">
+          <X :size="12" />
+        </button>
       </div>
     </div>
 
@@ -634,7 +637,6 @@ onUnmounted(() => {
           <button class="session-delete-btn" :class="{ confirm: confirmDeleteSession }" @click="doDeleteSession" :disabled="sessions.length <= 1">
             <Trash2 :size="12" /> {{ confirmDeleteSession ? t('footer.confirm_delete') : t('footer.btn_delete') }}
           </button>
-          <button class="session-tool-btn" @click="expanded = false"><X :size="12" /></button>
         </div>
       </div>
 
@@ -823,6 +825,12 @@ export default { name: 'AppFooter' }
   background: var(--accent-bg);
   border-color: var(--accent);
   color: var(--text-bright);
+}
+
+.footer-panel-close {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
 }
 
 .status-dot {
