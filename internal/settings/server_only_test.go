@@ -222,7 +222,8 @@ func TestCheckServer(t *testing.T) {
 		wantReason  string
 	}{
 		{name: "ok with llamacpp", srvName: serverclient.ServerName, features: fullFeatures(), wantState: ServerOK},
-		{name: "ok with ollama", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "ollama"}, wantState: ServerOK},
+		{name: "ollama without llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "ollama"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
+		{name: "ollama and llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "ollama", "llamacpp"}, wantState: ServerOK},
 		{name: "old server without features", srvName: serverclient.ServerName, features: nil, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "llamacpp"}, wantReason: "old_version"},
 		{name: "forge server without sdcpp", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp"}, wantReason: "no_sdcpp"},
 		{name: "forge server without sdcpp and download_stream", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream"}, wantReason: "no_sdcpp"},

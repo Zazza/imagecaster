@@ -97,12 +97,13 @@ func TestServerInfo_MissingFeatures(t *testing.T) {
 		want     []string
 	}{
 		{name: "all with llamacpp", features: []string{"sdcpp", "download_stream", "llamacpp"}, want: nil},
-		{name: "all with ollama", features: []string{"sdcpp", "download_stream", "ollama"}, want: nil},
-		{name: "both llm backends", features: []string{"sdcpp", "download_stream", "ollama", "llamacpp", "extra"}, want: nil},
+		{name: "ollama instead of llamacpp", features: []string{"sdcpp", "download_stream", "ollama"}, want: []string{"llamacpp"}},
+		{name: "ollama and llamacpp", features: []string{"sdcpp", "download_stream", "ollama", "llamacpp", "extra"}, want: nil},
 		{name: "old server no features", features: nil, want: []string{"sdcpp", "download_stream", "llamacpp"}},
 		{name: "empty features", features: []string{}, want: []string{"sdcpp", "download_stream", "llamacpp"}},
 		{name: "no llm backend", features: []string{"sdcpp", "download_stream"}, want: []string{"llamacpp"}},
-		{name: "no sdcpp", features: []string{"download_stream", "ollama"}, want: []string{"sdcpp"}},
+		{name: "no sdcpp", features: []string{"download_stream", "llamacpp"}, want: []string{"sdcpp"}},
+		{name: "no sdcpp with ollama only", features: []string{"download_stream", "ollama"}, want: []string{"sdcpp", "llamacpp"}},
 		{name: "no download_stream", features: []string{"sdcpp", "llamacpp"}, want: []string{"download_stream"}},
 		{name: "only unrelated", features: []string{"forge"}, want: []string{"sdcpp", "download_stream", "llamacpp"}},
 	}

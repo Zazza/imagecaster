@@ -15,7 +15,7 @@ const address = ref(serverState.url || '')
 const busy = ref(false)
 const outdated = computed(() => serverState.state === 'outdated')
 const outdatedKind = computed(() => ({ old_version: 'old', no_sdcpp: 'forge' })[serverState.reason] || 'incompatible')
-const FEATURE_KEYS = { sdcpp: 'server.feature_sdcpp', download_stream: 'server.feature_download_stream', llamacpp: 'server.feature_llm', ollama: 'server.feature_llm' }
+const FEATURE_KEYS = { sdcpp: 'server.feature_sdcpp', download_stream: 'server.feature_download_stream', llamacpp: 'server.feature_llm' }
 const missingText = computed(() => [...new Set(serverState.missing.map(f => FEATURE_KEYS[f] ? t(FEATURE_KEYS[f]) : f))].join(', '))
 
 async function search() {

@@ -312,7 +312,7 @@ describe('ServerCheckModal (condition 3)', () => {
   })
 })
 
-const FEATURE_KEY = { sdcpp: 'server.feature_sdcpp', download_stream: 'server.feature_download_stream', llamacpp: 'server.feature_llm', ollama: 'server.feature_llm' }
+const FEATURE_KEY = { sdcpp: 'server.feature_sdcpp', download_stream: 'server.feature_download_stream', llamacpp: 'server.feature_llm' }
 
 function featureText(t, missing) {
   return [...new Set(missing.map(n => FEATURE_KEY[n] ? t(FEATURE_KEY[n]) : n))].join(', ')
@@ -351,12 +351,14 @@ describe('ServerCheckModal outdated reasons', () => {
     expect(text).not.toContain('llamacpp')
   })
 
-  it('llamacpp and ollama together appear once as feature_llm', async () => {
-    const { i18n, w } = await mountModal('outdated', { locale: 'en', extra: { reason: 'missing_features', missing: ['llamacpp', 'ollama', 'download_stream'] } })
-    const llm = i18n.t('server.feature_llm')
-    const text = w.text()
-    expect(text).toContain(`${llm}, ${i18n.t('server.feature_download_stream')}`)
-    expect(text.split(llm).length - 1).toBe(1)
+  it.each([
+    ['ru', 'движок текста (llama.cpp)'],
+    ['en', 'a text engine (llama.cpp)'],
+  ])('%s: missing llamacpp is shown as the llama.cpp text engine without Ollama', async (locale, text) => {
+    const { i18n, w } = await mountModal('outdated', { locale, extra: { reason: 'missing_features', missing: ['llamacpp'] } })
+    expect(i18n.t('server.feature_llm')).toBe(text)
+    expect(w.text()).toContain(text)
+    expect(w.text().toLowerCase()).not.toContain('ollama')
   })
 
   it('an unknown feature name is shown as is', async () => {

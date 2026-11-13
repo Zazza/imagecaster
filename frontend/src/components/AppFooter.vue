@@ -246,7 +246,7 @@ async function checkServices() {
     const status = await api.getServerStatus()
     const health = status.health || {}
     const models = status.models || {}
-    services.llm.available = Boolean(health.llm?.healthy || health.ollama?.healthy)
+    services.llm.available = Boolean(health.llm?.healthy)
     const genModel = settings.llm_generate_model || settings.sd_prompt_model || settings.llm_model || ''
     services.llm.model = genModel && genModel !== 'default' ? genModel : ''
     const visModel = settings.llm_analyze_model || settings.vision_model || ''

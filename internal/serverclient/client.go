@@ -347,7 +347,7 @@ func (i *ServerInfo) MissingFeatures() []string {
 			missing = append(missing, f)
 		}
 	}
-	if !have["llamacpp"] && !have["ollama"] {
+	if !have["llamacpp"] {
 		missing = append(missing, "llamacpp")
 	}
 	return missing

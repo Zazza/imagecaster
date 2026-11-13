@@ -92,7 +92,6 @@ const modelCatalog = ref(null)
 // --- Direct mode forms ---
 const connectionForm = reactive({
   llm_keep_alive: '5m',
-  llm_num_gpu: '-1',
   llm_max_tokens: '256',
 })
 const connectionSaved = ref(false)
@@ -171,7 +170,6 @@ async function loadSettings() {
   try {
     const settings = await api.getSettings()
     connectionForm.llm_keep_alive = settings.llm_keep_alive || '5m'
-    connectionForm.llm_num_gpu = settings.llm_num_gpu || '-1'
     connectionForm.llm_max_tokens = settings.llm_max_tokens || '256'
     generateModel.value = settings.llm_generate_model || settings.sd_prompt_model || ''
     analyzeModel.value = settings.llm_analyze_model || settings.vision_model || ''
@@ -386,7 +384,6 @@ async function saveServerConnection() {
       server_url: serverURL.value,
       llm_generate_model: generateModel.value,
       llm_analyze_model: analyzeModel.value,
-      llm_num_gpu: String(parseInt(connectionForm.llm_num_gpu) || -1),
     })
     connectionSaved.value = true
     await loadServerStatus()
@@ -765,7 +762,7 @@ onMounted(loadSettings)
         <div v-if="serverStatus" style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;">
           <div style="color: var(--text-bright); font-weight: 500; margin-bottom: 8px;">{{ t('settings.section_server_status') }}</div>
           <!-- Services -->
-          <div v-for="(proc, name) in (serverStatus.processes || {})" :key="name" v-show="proc.name && proc.category !== 'utility'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
+          <div v-for="(proc, name) in (serverStatus.processes || {})" :key="name" v-show="proc.name && proc.category !== 'utility' && name !== 'ollama'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
@@ -795,13 +792,13 @@ onMounted(loadSettings)
             {{ t('settings.gpu_vram', { name: serverStatus.gpu.name, used: serverStatus.gpu.memory_used_mb, total: serverStatus.gpu.memory_total_mb }) }}
           </div>
           <!-- Utilities (collapsed) -->
-          <div v-if="Object.values(serverStatus.processes || {}).some(p => p.category === 'utility' && p.name)" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
+          <div v-if="Object.entries(serverStatus.processes || {}).some(([n, p]) => p.category === 'utility' && p.name && n !== 'python' && n !== 'ollama')" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
             <div @click="utilitiesExpanded = !utilitiesExpanded" style="cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
               <span :style="{ transform: utilitiesExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-flex' }"><ChevronRight :size="12" /></span>
               {{ t('settings.section_utilities') }}
             </div>
             <div v-if="utilitiesExpanded">
-              <div v-for="(proc, name) in (serverStatus.processes || {})" :key="'u-'+name" v-show="proc.name && proc.category === 'utility' && name !== 'python'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
+              <div v-for="(proc, name) in (serverStatus.processes || {})" :key="'u-'+name" v-show="proc.name && proc.category === 'utility' && name !== 'python' && name !== 'ollama'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
                 <div>
                   <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
                   <span v-if="serverStatus.installs && serverStatus.installs[name]" :style="{ color: serverStatus.installs[name].installed ? 'var(--success)' : 'var(--danger)', marginLeft: '8px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: serverStatus.installs[name].installed ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)' }">
@@ -836,10 +833,6 @@ onMounted(loadSettings)
           </select>
         </div>
 
-        <div class="form-group" style="margin-top: 16px;">
-          <label class="form-label">{{ t('settings.label_gpu_layers') }}</label>
-          <input class="form-input" type="number" v-model="connectionForm.llm_num_gpu" placeholder="-1" min="-1" max="999" />
-        </div>
 
         <button class="btn btn-primary" @click="saveServerConnection">{{ t('settings.btn_save_server') }}</button>
 

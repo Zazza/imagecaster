@@ -131,5 +131,6 @@ export default {
   SaveWindowLayout: vi.fn(() => Promise.resolve(undefined)),
   GetFooterHeight: vi.fn(() => Promise.resolve(undefined)),
   GetLogEntries: vi.fn(() => Promise.resolve([])),
+  GetModelPresets: vi.fn(() => Promise.resolve({})),
   GetServerProcessLogs: vi.fn(() => Promise.resolve([])),
 }

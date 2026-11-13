@@ -25,12 +25,13 @@ function llmDot(w) {
   return dot
 }
 
-describe('footer LLM availability (condition 5)', () => {
+describe('footer LLM availability uses health.llm only', () => {
   it.each([
-    ['llm healthy (llama.cpp server)', { llm: { healthy: true } }, true],
-    ['ollama healthy (rollback server)', { ollama: { healthy: true } }, true],
-    ['both healthy', { llm: { healthy: true }, ollama: { healthy: true } }, true],
-    ['llm down, ollama healthy', { llm: { healthy: false }, ollama: { healthy: true } }, true],
+    ['llm healthy', { llm: { healthy: true } }, true],
+    ['only ollama healthy', { ollama: { healthy: true } }, false],
+    ['llm and ollama healthy', { llm: { healthy: true }, ollama: { healthy: true } }, true],
+    ['llm down, ollama healthy', { llm: { healthy: false }, ollama: { healthy: true } }, false],
+    ['llm healthy, ollama down', { llm: { healthy: true }, ollama: { healthy: false } }, true],
     ['both down', { llm: { healthy: false }, ollama: { healthy: false } }, false],
     ['no health info', {}, false],
   ])('%s', async (_, health, online) => {
