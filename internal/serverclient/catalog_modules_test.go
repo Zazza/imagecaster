@@ -157,7 +157,11 @@ func TestCatalog_ModulesValid(t *testing.T) {
 				types[mod.Type]++
 			}
 			assert.Equal(t, 1, types["vae"])
-			assert.Equal(t, 1, types["text_encoder"])
+			if strings.HasPrefix(m.Base, "Flux.1") {
+				assert.Equal(t, 2, types["text_encoder"])
+			} else {
+				assert.Equal(t, 1, types["text_encoder"])
+			}
 			assert.LessOrEqual(t, types["tokenizer"], 1)
 			assert.LessOrEqual(t, types["vision"], 1)
 		})

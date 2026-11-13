@@ -65,11 +65,50 @@
       "base": "Z-Image",
       "category": "Photorealism / Turbo",
       "category_ru": "Фотореализм / Турбо",
-      "description": "Tongyi Z-Image Turbo, all-in-one fp8 - 8 steps, CFG 1, ~3 s per image after load. The workhorse",
-      "description_ru": "Tongyi Z-Image Turbo, всё в одном файле fp8: 8 шагов, CFG 1, около 3 с на картинку после загрузки. Основная рабочая модель",
-      "size_gb": 9.6,
+      "description": "Z-Image Turbo: fast photorealism in 8 steps",
+      "description_ru": "Z-Image Turbo: быстрый фотореализм за 8 шагов",
+      "size_gb": 6.58,
       "recommended": true,
-      "url": "https://huggingface.co/Elena2810/z-image-turbo-fp8-aio/resolve/main/z-image-turbo-fp8-aio.safetensors"
+      "url": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
+      "filename": "z-image-turbo-fp8-aio.gguf",
+      "modules": [
+        {
+          "type": "text_encoder",
+          "filename": "Qwen3-4B-Q8_0.gguf",
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q8_0.gguf",
+          "size_gb": 4.28
+        },
+        {
+          "type": "vae",
+          "filename": "ae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors",
+          "size_gb": 0.34
+        }
+      ],
+      "variants": [
+        {
+          "id": "q4_k",
+          "label": "Q4_K",
+          "filename": "z_image_turbo-Q4_K.gguf",
+          "url": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q4_K.gguf",
+          "size_gb": 3.86
+        },
+        {
+          "id": "q8_0",
+          "label": "Q8_0",
+          "filename": "z_image_turbo-Q8_0.gguf",
+          "url": "https://huggingface.co/leejet/Z-Image-Turbo-GGUF/resolve/main/z_image_turbo-Q8_0.gguf",
+          "size_gb": 6.58,
+          "default": true
+        },
+        {
+          "id": "bf16",
+          "label": "BF16",
+          "filename": "z_image_turbo_bf16.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Z-Image-Turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors",
+          "size_gb": 12.31
+        }
+      ]
     },
     {
       "name": "moss_image_sft_bf16",
@@ -78,7 +117,7 @@
       "category_ru": "Фотореализм",
       "description": "OpenMOSS 5B SFT - photorealistic people, precise prompt following. Text encoder, tokenizer and VAE are downloaded with the model",
       "description_ru": "OpenMOSS 5B SFT: фотореалистичные люди, точное следование описанию. Энкодер текста, токенизатор и VAE скачиваются вместе с моделью",
-      "size_gb": 9.5,
+      "size_gb": 10.16,
       "recommended": true,
       "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors",
       "modules": [
@@ -99,6 +138,30 @@
           "filename": "moss.tokenizer.json",
           "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Image-SFT/resolve/main/tokenizer/tokenizer.json",
           "size_gb": 0.02
+        }
+      ],
+      "variants": [
+        {
+          "id": "q4_k",
+          "label": "Q4_K",
+          "filename": "MOSS-Image-SFT-Q4_K.gguf",
+          "url": "https://huggingface.co/leejet/MOSS-Image-SFT-GGUF/resolve/main/MOSS-Image-SFT-Q4_K.gguf",
+          "size_gb": 3.33
+        },
+        {
+          "id": "q8_0",
+          "label": "Q8_0",
+          "filename": "MOSS-Image-SFT-Q8_0.gguf",
+          "url": "https://huggingface.co/leejet/MOSS-Image-SFT-GGUF/resolve/main/MOSS-Image-SFT-Q8_0.gguf",
+          "size_gb": 5.71
+        },
+        {
+          "id": "bf16",
+          "label": "BF16",
+          "filename": "moss_image_sft_bf16.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors",
+          "size_gb": 10.16,
+          "default": true
         }
       ]
     },
@@ -125,6 +188,30 @@
           "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/vae/flux2-vae.safetensors",
           "size_gb": 0.34
         }
+      ],
+      "variants": [
+        {
+          "id": "q4_0",
+          "label": "Q4_0",
+          "filename": "flux-2-klein-4b-Q4_0.gguf",
+          "url": "https://huggingface.co/leejet/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q4_0.gguf",
+          "size_gb": 2.46
+        },
+        {
+          "id": "q8_0",
+          "label": "Q8_0",
+          "filename": "flux-2-klein-4b-Q8_0.gguf",
+          "url": "https://huggingface.co/leejet/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q8_0.gguf",
+          "size_gb": 4.3
+        },
+        {
+          "id": "bf16",
+          "label": "BF16",
+          "filename": "flux-2-klein-4b.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors",
+          "size_gb": 7.75,
+          "default": true
+        }
       ]
     },
     {
@@ -134,7 +221,7 @@
       "category_ru": "Фотореализм / Промпты-тексты",
       "description": "FLUX.3 Image Klein, GGUF Q8 - prose prompts, 16 steps, CFG 1. Downloads the text encoder, VAE and a set of presets",
       "description_ru": "FLUX.3 Image Klein, GGUF Q8: промпты-тексты, 16 шагов, CFG 1. Вместе с моделью скачиваются энкодер текста, VAE и набор пресетов",
-      "size_gb": 6.2,
+      "size_gb": 6.15,
       "filename": "flux3-image-klein-Q8_0.gguf",
       "url": "https://huggingface.co/leejet/flux-3-image-klein-GGUF/resolve/main/flux3-image-klein-Q8_0.gguf",
       "modules": [
@@ -151,7 +238,24 @@
           "size_gb": 0.34
         }
       ],
-      "presets": "flux3-klein.json"
+      "presets": "flux3-klein.json",
+      "variants": [
+        {
+          "id": "q4_k",
+          "label": "Q4_K",
+          "filename": "flux3-image-klein-Q4_K.gguf",
+          "url": "https://huggingface.co/leejet/flux-3-image-klein-GGUF/resolve/main/flux3-image-klein-Q4_K.gguf",
+          "size_gb": 3.51
+        },
+        {
+          "id": "q8_0",
+          "label": "Q8_0",
+          "filename": "flux3-image-klein-Q8_0.gguf",
+          "url": "https://huggingface.co/leejet/flux-3-image-klein-GGUF/resolve/main/flux3-image-klein-Q8_0.gguf",
+          "size_gb": 6.15,
+          "default": true
+        }
+      ]
     },
     {
       "name": "Krea-2-Turbo-Q4_K_M",
@@ -160,7 +264,7 @@
       "category_ru": "Фотореализм / Турбо",
       "description": "Krea 2 Turbo, GGUF Q4 - aesthetic photos in few steps, CFG 1. Downloads the text encoder, VAE and a set of presets",
       "description_ru": "Krea 2 Turbo, GGUF Q4: эстетичные фото за несколько шагов, CFG 1. Вместе с моделью скачиваются энкодер текста, VAE и набор пресетов",
-      "size_gb": 7.2,
+      "size_gb": 7.22,
       "filename": "Krea-2-Turbo-Q4_K_M.gguf",
       "url": "https://huggingface.co/realrebelai/KREA-2_GGUFs/resolve/main/TURBO/Krea-2-Turbo-Q4_K_M.gguf",
       "modules": [
@@ -177,7 +281,31 @@
           "size_gb": 0.25
         }
       ],
-      "presets": "krea2.json"
+      "presets": "krea2.json",
+      "variants": [
+        {
+          "id": "q3_k_m",
+          "label": "Q3_K_M",
+          "filename": "Krea-2-Turbo-Q3_K_M.gguf",
+          "url": "https://huggingface.co/realrebelai/KREA-2_GGUFs/resolve/main/TURBO/Krea-2-Turbo-Q3_K_M.gguf",
+          "size_gb": 5.51
+        },
+        {
+          "id": "q4_k_m",
+          "label": "Q4_K_M",
+          "filename": "Krea-2-Turbo-Q4_K_M.gguf",
+          "url": "https://huggingface.co/realrebelai/KREA-2_GGUFs/resolve/main/TURBO/Krea-2-Turbo-Q4_K_M.gguf",
+          "size_gb": 7.22,
+          "default": true
+        },
+        {
+          "id": "q6_k",
+          "label": "Q6_K",
+          "filename": "Krea-2-Turbo-Q6_K.gguf",
+          "url": "https://huggingface.co/realrebelai/KREA-2_GGUFs/resolve/main/TURBO/Krea-2-Turbo-Q6_K.gguf",
+          "size_gb": 10.52
+        }
+      ]
     },
     {
       "name": "qwen_image_2.1-Q8_0",
@@ -186,7 +314,7 @@
       "category_ru": "Универсальная / Текст на картинке",
       "description": "Qwen-Image 2.1, GGUF Q8 - strong prompt following and readable text in images, CFG 6; also edits photos by instruction and has its own effects (Post-Process: Edit, Effect). Downloads the text encoder, vision module, VAE and a set of presets",
       "description_ru": "Qwen-Image 2.1, GGUF Q8: точно следует промпту и пишет читаемый текст на картинке, CFG 6; ещё правит фото по инструкции и даёт свои эффекты (Постобработка: Правка, Эффект). Вместе с моделью скачиваются энкодер текста, модуль зрения, VAE и набор пресетов",
-      "size_gb": 7.7,
+      "size_gb": 7.69,
       "filename": "qwen_image_2.1-Q8_0.gguf",
       "url": "https://huggingface.co/leejet/Qwen-Image-2.1-GGUF/resolve/main/qwen_image_2.1-Q8_0.gguf",
       "modules": [
@@ -209,7 +337,31 @@
           "size_gb": 1.16
         }
       ],
-      "presets": "qwen-image-2.1.json"
+      "presets": "qwen-image-2.1.json",
+      "variants": [
+        {
+          "id": "q4_k",
+          "label": "Q4_K",
+          "filename": "qwen_image_2.1-Q4_K.gguf",
+          "url": "https://huggingface.co/leejet/Qwen-Image-2.1-GGUF/resolve/main/qwen_image_2.1-Q4_K.gguf",
+          "size_gb": 4.2
+        },
+        {
+          "id": "q6_k",
+          "label": "Q6_K",
+          "filename": "qwen_image_2.1-Q6_K.gguf",
+          "url": "https://huggingface.co/leejet/Qwen-Image-2.1-GGUF/resolve/main/qwen_image_2.1-Q6_K.gguf",
+          "size_gb": 6.0
+        },
+        {
+          "id": "q8_0",
+          "label": "Q8_0",
+          "filename": "qwen_image_2.1-Q8_0.gguf",
+          "url": "https://huggingface.co/leejet/Qwen-Image-2.1-GGUF/resolve/main/qwen_image_2.1-Q8_0.gguf",
+          "size_gb": 7.69,
+          "default": true
+        }
+      ]
     },
     {
       "name": "hidream_o1_image_dev_fp8_scaled",
@@ -222,7 +374,74 @@
       "recommended": false,
       "filename": "hidream_o1_image_dev_fp8_scaled.safetensors",
       "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_fp8_scaled.safetensors",
-      "presets": "hidream-o1.json"
+      "presets": "hidream-o1.json",
+      "variants": [
+        {
+          "id": "fp8",
+          "label": "FP8",
+          "filename": "hidream_o1_image_dev_fp8_scaled.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_fp8_scaled.safetensors",
+          "size_gb": 8.07,
+          "default": true
+        },
+        {
+          "id": "bf16",
+          "label": "BF16",
+          "filename": "hidream_o1_image_dev_bf16.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_bf16.safetensors",
+          "size_gb": 16.37
+        }
+      ]
+    },
+    {
+      "name": "Chroma1-HD",
+      "base": "Chroma",
+      "category": "Universal / Art and photo",
+      "category_ru": "Универсальная / Арт и фото",
+      "description": "Chroma1-HD: open Flux-based model, follows long prompts, slower (CFG 4, 26 steps)",
+      "description_ru": "Chroma1-HD: открытая модель на основе Flux, следует длинным промптам, работает медленнее (CFG 4, 26 шагов)",
+      "url": "https://huggingface.co/silveroxides/Chroma1-HD-GGUF/resolve/main/Chroma1-HD-Q6_K.gguf",
+      "size_gb": 7.65,
+      "filename": "Chroma1-HD.gguf",
+      "modules": [
+        {
+          "type": "text_encoder",
+          "filename": "t5xxl_fp8_e4m3fn.safetensors",
+          "url": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors",
+          "size_gb": 4.89
+        },
+        {
+          "type": "vae",
+          "filename": "ae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors",
+          "size_gb": 0.34
+        }
+      ],
+      "presets": "chroma1-hd.json",
+      "variants": [
+        {
+          "id": "q4_k_s",
+          "label": "Q4_K_S",
+          "filename": "Chroma1-HD-Q4_K_S.gguf",
+          "url": "https://huggingface.co/silveroxides/Chroma1-HD-GGUF/resolve/main/Chroma1-HD-Q4_K_S.gguf",
+          "size_gb": 5.43
+        },
+        {
+          "id": "q6_k",
+          "label": "Q6_K",
+          "filename": "Chroma1-HD-Q6_K.gguf",
+          "url": "https://huggingface.co/silveroxides/Chroma1-HD-GGUF/resolve/main/Chroma1-HD-Q6_K.gguf",
+          "size_gb": 7.65,
+          "default": true
+        },
+        {
+          "id": "q8_0",
+          "label": "Q8_0",
+          "filename": "Chroma1-HD-Q8_0.gguf",
+          "url": "https://huggingface.co/silveroxides/Chroma1-HD-GGUF/resolve/main/Chroma1-HD-Q8_0.gguf",
+          "size_gb": 9.74
+        }
+      ]
     },
     {
       "name": "anima-aesthetic-v1.1",
@@ -281,11 +500,56 @@
       "base": "Flux.1",
       "category": "Photorealism / Prose prompts",
       "category_ru": "Фотореализм / Промпты-тексты",
-      "description": "FLUX.1 dev fp8, all-in-one file (model, text encoders and VAE) - best prose-prompt following",
-      "description_ru": "FLUX.1 dev fp8, всё в одном файле (модель, энкодеры текста и VAE): лучше всех следует промптам-текстам",
-      "size_gb": 17.2,
+      "description": "FLUX.1 dev - best prose-prompt following",
+      "description_ru": "FLUX.1 dev: лучше всех следует промптам-текстам",
+      "size_gb": 6.81,
       "recommended": true,
-      "url": "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors"
+      "url": "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q4_K_S.gguf",
+      "filename": "flux1-dev-fp8.gguf",
+      "modules": [
+        {
+          "type": "text_encoder",
+          "filename": "t5xxl_fp8_e4m3fn.safetensors",
+          "url": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors",
+          "size_gb": 4.89
+        },
+        {
+          "type": "text_encoder",
+          "filename": "clip_l.safetensors",
+          "url": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors",
+          "size_gb": 0.25
+        },
+        {
+          "type": "vae",
+          "filename": "ae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors",
+          "size_gb": 0.34
+        }
+      ],
+      "variants": [
+        {
+          "id": "q4_k_s",
+          "label": "Q4_K_S",
+          "filename": "flux1-dev-Q4_K_S.gguf",
+          "url": "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q4_K_S.gguf",
+          "size_gb": 6.81,
+          "default": true
+        },
+        {
+          "id": "q8_0",
+          "label": "Q8_0",
+          "filename": "flux1-dev-Q8_0.gguf",
+          "url": "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q8_0.gguf",
+          "size_gb": 12.71
+        },
+        {
+          "id": "f16",
+          "label": "F16",
+          "filename": "flux1-dev-F16.gguf",
+          "url": "https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-F16.gguf",
+          "size_gb": 23.8
+        }
+      ]
     },
     {
       "name": "juggernautXL_ragnarokBy",

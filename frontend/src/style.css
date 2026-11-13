@@ -348,6 +348,18 @@ html, body {
   font-size: 11px;
 }
 
+.cat-variant-select {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.cat-filters {
+  margin: 12px 0 4px;
+}
+
 details.cat-extra {
   display: block;
 }

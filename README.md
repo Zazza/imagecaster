@@ -78,7 +78,7 @@ They can run on one computer, or the server can live on another machine on your 
 
 **Styles** — styles, effects and workflows as filterable tables: built-in or your own, by model and group; import and export.
 
-**Catalog** — image models, LoRAs and assistant models with sizes and install status; one click downloads to the server.
+**Catalog** — tabs for image models, assistant models and LoRAs with sizes and install status; filters by family, download state and "fits my GPU"; models come in several versions for different amounts of VRAM, with the fitting one preselected; one click downloads to the server.
 
 **Bottom panel** — **History** (images grouped into histories, each remembers how it was made), **Log**, **Processing** (the queue).
 
@@ -98,6 +98,7 @@ Imagecaster works with the families stable-diffusion.cpp supports. The catalog i
 | Flux.2 Klein | post-processing: edits, effects, object replace and remove |
 | Qwen-Image 2.1 | readable text in images; also a second model for Edit and its own effects |
 | HiDream-O1 | illustration, concept art, painting, posters with text |
+| Chroma | open Flux-based model for art and photo, follows long prompts |
 | Krea 2, Flux.3 | extra models with their own styles |
 
 The assistant uses Qwen 3 models for prompts and Qwen 3 VL / Qwen 3.5 / Gemma 3 for photos. Details: [Models](docs/models-en.md).

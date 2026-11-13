@@ -403,7 +403,7 @@ func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 	}
 	present := map[string]map[string]bool{}
 	unlisted := map[string]bool{}
-	has := func(modelType, filename string) bool {
+	listed := func(modelType string) map[string]bool {
 		if present[modelType] == nil {
 			present[modelType] = map[string]bool{}
 			if items, err := s.GetServerModels(modelType); err == nil {
@@ -415,7 +415,10 @@ func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 				s.log.Warn("list server %s models: %s", modelType, err)
 			}
 		}
-		return present[modelType][filename]
+		return present[modelType]
+	}
+	has := func(modelType, filename string) bool {
+		return listed(modelType)[filename]
 	}
 	plan := &DownloadPlan{Items: []DownloadItem{}}
 	queued := map[string]bool{}
@@ -437,6 +440,7 @@ func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 			return
 		}
 	}
+	vramMB := s.serverVRAMMB()
 	for _, name := range models {
 		m := catalog.FindSDModel(name)
 		if m == nil || m.URL == "" {
@@ -445,7 +449,11 @@ func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
 		for _, mod := range m.Modules {
 			add(DownloadItem{Type: mod.Type, Filename: mod.Filename, URL: mod.URL, SizeGB: mod.SizeGB, Model: m.Name})
 		}
-		add(DownloadItem{Type: "sd", Filename: m.MainFilename(), URL: m.URL, SizeGB: m.SizeGB, Model: m.Name})
+		if _, ok := m.InstalledFile(sdFiles(listed("sd"))); ok {
+			continue
+		}
+		filename, url, size := mainDownload(*m, vramMB)
+		add(DownloadItem{Type: "sd", Filename: filename, URL: url, SizeGB: size, Model: m.Name})
 	}
 	for _, name := range loras {
 		addLoRA(name)
@@ -464,7 +472,7 @@ func (s *Service) DownloadCatalogSDModel(modelName string) error {
 		return fmt.Errorf("model %q has no download link in the catalog", modelName)
 	}
 	present := map[string]map[string]bool{}
-	has := func(modelType, filename string) bool {
+	listed := func(modelType string) map[string]bool {
 		if present[modelType] == nil {
 			present[modelType] = map[string]bool{}
 			if items, err := s.GetServerModels(modelType); err == nil {
@@ -475,7 +483,10 @@ func (s *Service) DownloadCatalogSDModel(modelName string) error {
 				s.log.Warn("list server %s models: %s", modelType, err)
 			}
 		}
-		return present[modelType][filename]
+		return present[modelType]
+	}
+	has := func(modelType, filename string) bool {
+		return listed(modelType)[filename]
 	}
 	for _, mod := range m.Modules {
 		if has(mod.Type, mod.Filename) {
@@ -485,10 +496,35 @@ func (s *Service) DownloadCatalogSDModel(modelName string) error {
 			return fmt.Errorf("download %s %s: %w", mod.Type, mod.Filename, err)
 		}
 	}
-	if !has("sd", m.MainFilename()) {
-		if err := s.DownloadServerModel("sd", m.URL, m.MainFilename()); err != nil {
+	if _, ok := m.InstalledFile(sdFiles(listed("sd"))); !ok {
+		filename, url, _ := mainDownload(*m, s.serverVRAMMB())
+		if err := s.DownloadServerModel("sd", url, filename); err != nil {
 			return fmt.Errorf("download SD model %s: %w", m.Name, err)
 		}
 	}
 	return nil
+}
+
+func sdFiles(names map[string]bool) []serverclient.ModelInfo {
+	files := make([]serverclient.ModelInfo, 0, len(names))
+	for n := range names {
+		files = append(files, serverclient.ModelInfo{Name: n})
+	}
+	return files
+}
+
+func mainDownload(m serverclient.CatalogSDModel, vramMB int) (filename, url string, sizeGB float64) {
+	if v := m.FitVariant(vramMB); v != nil {
+		return v.SaveAs, v.URL, v.SizeGB
+	}
+	return m.MainFilename(), m.URL, m.SizeGB
+}
+
+func (s *Service) serverVRAMMB() int {
+	status, err := s.GetServerStatus()
+	if err != nil {
+		s.log.Warn("server status for VRAM: %s", err)
+		return 0
+	}
+	return status.GPU.MemoryTotal
 }

@@ -950,8 +950,8 @@ func TestModulesForModel(t *testing.T) {
 		{name: "moss_model_gets_modules", model: "moss_image_sft_bf16", want: mossModules},
 		{name: "moss_match_case_insensitive", model: "MOSS_Image_SFT_BF16.SAFETENSORS", want: mossModules},
 		{name: "klein_model_gets_modules", model: "flux-2-klein-4b", want: kleinModules},
-		{name: "z_image_aio_no_modules", model: "z-image-turbo-fp8-aio.safetensors", want: []string{}},
-		{name: "flux_no_modules", model: "flux1-dev-fp8", want: []string{}},
+		{name: "z_image_split_modules", model: "z-image-turbo-fp8-aio.gguf", want: []string{"Qwen3-4B-Q8_0.gguf", "ae.safetensors"}},
+		{name: "flux_split_modules", model: "flux1-dev-fp8", want: []string{"t5xxl_fp8_e4m3fn.safetensors", "clip_l.safetensors", "ae.safetensors"}},
 		{name: "empty_model_no_modules", model: "", want: []string{}},
 	}
 

@@ -17,13 +17,12 @@ import (
 )
 
 const (
-	kleinLookModel        = "flux-2-klein-4b.safetensors"
+	kleinLookModel        = "flux-2-klein-4b"
 	editSampler           = "euler"
 	editScheduler         = "simple"
 	editDenoise           = 1.0
 	editAlign             = 16
 	editMaxDim            = 2048
-	vramReleaseModel      = "z-image-turbo-fp8-aio"
 	editLabelMax          = 60
 	editMaxInstructionLen = 2000
 	editMaxLoras          = 8

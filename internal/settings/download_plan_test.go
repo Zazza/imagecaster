@@ -146,7 +146,15 @@ func TestDownloadPlan_CatalogFacts(t *testing.T) {
 	assert.NotEmpty(t, klein.URL)
 	flux1 := catalogModel(t, "flux1-dev-fp8")
 	assert.NotEmpty(t, flux1.URL)
-	assert.Empty(t, flux1.Modules)
+	flux1Files := []string{}
+	for _, m := range flux1.Modules {
+		flux1Files = append(flux1Files, m.Type+"/"+m.Filename)
+	}
+	assert.ElementsMatch(t, []string{
+		"text_encoder/t5xxl_fp8_e4m3fn.safetensors",
+		"text_encoder/clip_l.safetensors",
+		"vae/ae.safetensors",
+	}, flux1Files)
 	mossFiles := []string{}
 	for _, m := range moss.Modules {
 		mossFiles = append(mossFiles, m.Type+"/"+m.Filename)
@@ -282,17 +290,28 @@ func TestDownloadPlan_SharedFileOnce(t *testing.T) {
 
 func TestDownloadPlan_Flux1Dev(t *testing.T) {
 	t.Parallel()
-	t.Run("missing is one sd item", func(t *testing.T) {
+	t.Run("missing is default variant with modules", func(t *testing.T) {
 		t.Parallel()
 		svc := planService(t, emptyServer(), bundled("flux1-dev-fp8.safetensors"))
 		plan := loadPlan(t, svc)
-		assert.Equal(t, []string{"sd/flux1-dev-fp8.safetensors"}, itemKeys(plan))
-		assert.Equal(t, catalogModel(t, "flux1-dev-fp8").URL, plan.Items[0].URL)
+		assert.ElementsMatch(t, []string{
+			"text_encoder/t5xxl_fp8_e4m3fn.safetensors",
+			"text_encoder/clip_l.safetensors",
+			"vae/ae.safetensors",
+			"sd/flux1-dev-fp8.gguf",
+		}, itemKeys(plan))
+		for _, it := range plan.Items {
+			if it.Type == "sd" {
+				assert.Equal(t, catalogModel(t, "flux1-dev-fp8").URL, it.URL)
+			}
+		}
 	})
-	t.Run("on server not planned", func(t *testing.T) {
+	t.Run("old file on server keeps sd item out", func(t *testing.T) {
 		t.Parallel()
 		srv := emptyServer()
 		srv["sd"] = []string{"flux1-dev-fp8.safetensors"}
+		srv["text_encoder"] = []string{"t5xxl_fp8_e4m3fn.safetensors", "clip_l.safetensors"}
+		srv["vae"] = []string{"ae.safetensors"}
 		svc := planService(t, srv, bundled("flux1-dev-fp8.safetensors"))
 		plan := loadPlan(t, svc)
 		assert.Empty(t, plan.Items)

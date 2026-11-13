@@ -19,20 +19,21 @@ Folders are relative to the server data folder (see [Setup](setup-en.md#data-fol
 
 ## Image models
 
-"Extra files" are downloaded together with the model. ★ — marked as recommended in the catalog.
+"Extra files" are downloaded together with the model. ★ — marked as recommended in the catalog. "Versions" are model files of different sizes for different amounts of VRAM: a smaller file needs less memory at slightly lower quality; the size column shows the default version.
 
-| Model | Family | Best for | Size, GB | Extra files |
-|---|---|---|---|---|
-| `z-image-turbo-fp8-aio` ★ | Z-Image | Photorealism, 8 steps, about 3 s per image after load. The main model | 9.6 | — |
-| `moss_image_sft_bf16` ★ | Moss-Image | Photorealistic people, precise prompt following | 9.5 | text encoder, VAE, tokenizer (10.0) |
-| `flux-2-klein-4b` ★ | Flux.2 | Photo editing: post-processing effects, Edit, Object, Repair, the stylist | 7.75 | text encoder, VAE (8.4) |
-| `flux1-dev-fp8` ★ | Flux.1 | Best at following long plain-language prompts; one file with everything | 17.2 | — |
-| `anima-aesthetic-v1.1` ★ | Anima | Anime and illustration: danbooru tags plus plain sentences, 30 steps | 4.18 | text encoder, VAE (1.4), presets |
-| `anima-turbo-v1.1` | Anima | Faster Anima, 10 steps, about 5 s per image | 4.18 | text encoder, VAE (1.4), presets |
-| `flux3-image-klein-Q8_0` | Flux.3 | Plain-language prompts, 16 steps | 6.2 | text encoder, VAE (2.8), presets |
-| `Krea-2-Turbo-Q4_K_M` | Krea-2 | Aesthetic photos in few steps | 7.2 | text encoder, VAE (2.8), presets |
-| `qwen_image_2.1-Q8_0` | Qwen-Image | Strong prompt following, readable text in images; also Edit by instruction and its own effects | 7.7 | text encoder, vision module, VAE (6.8), presets |
-| `hidream_o1_image_dev_fp8_scaled` | HiDream-O1 | Illustration, concept art, painting, posters with text, product shots; one file, no separate text encoder or VAE | 8.07 | presets |
+| Model | Family | Best for | Size, GB | Extra files | Versions |
+|---|---|---|---|---|---|
+| `z-image-turbo-fp8-aio` ★ | Z-Image | Photorealism in 8 steps. The main model | 6.58 | text encoder, VAE (4.6) | Q4_K 3.86 · Q8_0 6.58 · BF16 12.31 |
+| `moss_image_sft_bf16` ★ | Moss-Image | Photorealistic people, precise prompt following | 10.16 | text encoder, VAE, tokenizer (10.0) | Q4_K 3.33 · Q8_0 5.71 · BF16 10.16 |
+| `flux-2-klein-4b` ★ | Flux.2 | Photo editing: post-processing effects, Edit, Object, Repair, the stylist | 7.75 | text encoder, VAE (8.4) | Q4_0 2.46 · Q8_0 4.30 · BF16 7.75 |
+| `flux1-dev-fp8` ★ | Flux.1 | Best at following long plain-language prompts | 6.81 | t5xxl and clip_l text encoders, VAE (5.5) | Q4_K_S 6.81 · Q8_0 12.71 · F16 23.8 |
+| `anima-aesthetic-v1.1` ★ | Anima | Anime and illustration: danbooru tags plus plain sentences, 30 steps | 4.18 | text encoder, VAE (1.4), presets | — |
+| `anima-turbo-v1.1` | Anima | Faster Anima, 10 steps, about 5 s per image | 4.18 | text encoder, VAE (1.4), presets | — |
+| `flux3-image-klein-Q8_0` | Flux.3 | Plain-language prompts, 16 steps | 6.15 | text encoder, VAE (2.8), presets | Q4_K 3.51 · Q8_0 6.15 |
+| `Krea-2-Turbo-Q4_K_M` | Krea-2 | Aesthetic photos in few steps | 7.22 | text encoder, VAE (2.8), presets | Q3_K_M 5.51 · Q4_K_M 7.22 · Q6_K 10.52 |
+| `qwen_image_2.1-Q8_0` | Qwen-Image | Strong prompt following, readable text in images; also Edit by instruction and its own effects | 7.69 | text encoder, vision module, VAE (6.8), presets | Q4_K 4.20 · Q6_K 6.00 · Q8_0 7.69 |
+| `hidream_o1_image_dev_fp8_scaled` | HiDream-O1 | Illustration, concept art, painting, posters with text, product shots; one file, no separate text encoder or VAE | 8.07 | presets | FP8 8.07 · BF16 16.37 |
+| `Chroma1-HD` | Chroma | Open Flux-based model: long prompts, art and photo; CFG 4, 26 steps — slower than the rest | 7.65 | t5xxl text encoder, VAE (5.2), presets | Q4_K_S 5.43 · Q6_K 7.65 · Q8_0 9.74 |
 | `juggernautXL_ragnarokBy` | SDXL | Versatile photorealism | 6.6 | — |
 | `epicrealismXL_pureFix` | SDXL | Realistic people | 6.5 | — |
 | `photon_v1` | SDXL | Cinematic, film-like look | 2.0 | — |
@@ -47,7 +48,7 @@ Folders are relative to the server data folder (see [Setup](setup-en.md#data-fol
 
 The assistant writes the prompt differently by model family:
 
-- **Plain sentences** — Flux (1, 2, 3), Z-Image, Moss, Klein, Qwen-Image, Krea, HiDream, and also Chroma and Hunyuan models if you add them by hand.
+- **Plain sentences** — Flux (1, 2, 3), Z-Image, Moss, Klein, Qwen-Image, Krea, HiDream, Chroma, and also Hunyuan if you add it by hand.
 - **Comma-separated tags** — every other model (SD 1.5, SDXL, Pony, Anima).
 
 The family is recognized by the model file name.
@@ -88,10 +89,14 @@ The assistant needs two models: one writes prompts, the other reads photos (remi
 
 ## The Catalog page
 
-- Sections: prompt models, photo models, image models, LoRA. Each entry shows its size, "Recommended" for ★ entries and "Installed" when the server already has it.
+- Three tabs: "Image models", "AI models" (prompt and photo models) and "LoRA". Each entry shows its size, "Recommended" for ★ entries and "Installed" when the server already has it.
+- The image models tab has filters: search by name and description, family, "Downloaded" / "Not downloaded", and "Fit in N GB" — only models with at least one version that fits the server GPU.
+- **Versions.** A model with versions has a "Version" list showing each version's size and roughly how much VRAM it needs; versions that won't fit the server GPU are marked. The largest version that fits is preselected (or the downloaded one, if the model is on the server). The memory estimate is rough: the larger part (model or text encoder) plus the VAE plus 1.5 GB for compute. On cards under 15 GB the server spreads the model between VRAM and RAM by itself, so "won't fit" mostly means "slow".
+- Any version is stored on the server under the model's name, so styles work with every version. The downloaded version is recognized by file size; a file that matches no version (for example the old all-in-one Z-Image file) is marked "A different file is downloaded".
+- **Replace with …** appears when the selected version differs from the downloaded one: the app fetches missing extra files, downloads the new version and deletes the old file (if the file name is the same, it deletes first, then downloads).
 - **Download** fetches the model with its extra files; files already on the server are skipped. For models that bring their own presets the app adds those presets right away.
 - **Delete** removes the model from the server.
-- **Download all for presets** downloads everything the built-in presets need and the server lacks: models with their extra files, and LoRAs. Before starting it shows the number of files and total size. The same download is offered in the welcome window on the first start. Models not used by built-in presets (Krea 2, Qwen-Image, HiDream-O1, FLUX.3 and others) are downloaded one by one with their own **Download** button.
+- **Download all for presets** downloads everything the built-in presets need and the server lacks: models (in the version that fits the server GPU) with their extra files, and LoRAs. Before starting it shows the number of files and total size. The same download is offered in the welcome window on the first start. Models not used by built-in presets (Krea 2, Qwen-Image, HiDream-O1, Chroma, FLUX.3 and others) are downloaded one by one with their own **Download** button.
 
 ## Presets
 
@@ -113,6 +118,7 @@ A preset (style) is a ready set: prompt, settings, model and LoRAs. Presets come
 | FLUX.3 Klein, Krea 2 | 4 each, added when the model is downloaded |
 | Qwen-Image 2.1 | 4 generation styles and 16 effects (light, film, weather, background, transform), added when the model is downloaded |
 | HiDream-O1 | 8 styles: illustration, concept art, oil painting, watercolor, poster with text, product shot, storybook, anime |
+| Chroma1-HD | 5 styles: photo realism, cinematic portrait, illustration, oil painting, fantasy; added when the model is downloaded |
 
 ### Edit with Qwen-Image
 
