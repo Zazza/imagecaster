@@ -97,6 +97,8 @@ export default {
   GetServerStatus: vi.fn(() => Promise.resolve(undefined)),
   GetServerModels: vi.fn(() => Promise.resolve(undefined)),
   GetServerLLMModels: vi.fn(() => Promise.resolve(undefined)),
+  GetLLMSetup: vi.fn(() => Promise.resolve({ needed: false, generate: [], vision: [], generate_selected: '', vision_selected: '' })),
+  SaveLLMChoice: vi.fn(() => Promise.resolve(undefined)),
   DownloadServerModel: vi.fn(() => Promise.resolve(undefined)),
   DeleteServerModel: vi.fn(() => Promise.resolve(undefined)),
   PullServerLLMModel: vi.fn(() => Promise.resolve(undefined)),

@@ -1146,6 +1146,14 @@ func (a *App) GetServerProcessLogs(name string, lines int) ([]string, error) {
 	return a.settingsSvc.GetServerProcessLogs(name, lines)
 }
 
+func (a *App) GetLLMSetup() (*settings.LLMSetup, error) {
+	return a.settingsSvc.GetLLMSetup()
+}
+
+func (a *App) SaveLLMChoice(generate, vision string) error {
+	return a.settingsSvc.SaveLLMChoice(generate, vision)
+}
+
 func (a *App) GetLogEntries() []logger.Entry {
 	return a.log.Entries()
 }

@@ -382,3 +382,28 @@ func (c *Client) ProcessLogs(name string, lines int) ([]string, error) {
 	}
 	return body.Logs, nil
 }
+
+func (c *Client) LLMCapabilities(name string) ([]string, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("server not configured")
+	}
+	payload, err := json.Marshal(map[string]string{"model": name})
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Post(c.baseURL+"/api/llm/api/show", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("server unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("show %s: status %d", name, resp.StatusCode)
+	}
+	var body struct {
+		Capabilities []string `json:"capabilities"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return nil, fmt.Errorf("show %s: %w", name, err)
+	}
+	return body.Capabilities, nil
+}

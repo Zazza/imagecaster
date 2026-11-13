@@ -13,6 +13,7 @@ import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
 import WelcomeModal from './components/WelcomeModal.vue'
 import ServerCheckModal from './components/ServerCheckModal.vue'
+import LLMSetupModal from './components/LLMSetupModal.vue'
 import { serverState, checkServer } from './serverState.js'
 import { WELCOME_KEY, welcomeClosed, isFreshInstall, startupTab } from './welcome.js'
 import { RELEASE_NOTES } from './releaseNotes.js'
@@ -22,10 +23,21 @@ const page = ref('generate')
 const APP_VERSION = RELEASE_NOTES[0]?.version || ''
 const welcome = ref(null)
 const showServerCheck = ref(false)
+const llmSetup = ref(null)
+
+async function checkLLMSetup() {
+  try {
+    const setup = await api.getLLMSetup()
+    if (setup?.needed) llmSetup.value = setup
+  } catch (e) {
+    console.warn('getLLMSetup', e)
+  }
+}
 
 async function startup() {
   if (await checkServer() === 'ok') {
     initWelcome()
+    checkLLMSetup()
     return
   }
   showServerCheck.value = true
@@ -34,6 +46,7 @@ async function startup() {
 function onServerReady() {
   showServerCheck.value = false
   initWelcome()
+  checkLLMSetup()
 }
 
 function onServerCheckClose() {
@@ -284,5 +297,6 @@ onUnmounted(() => {
     </div>
     <ServerCheckModal v-if="showServerCheck" @ready="onServerReady" @close="onServerCheckClose" />
     <WelcomeModal v-if="welcome && !showServerCheck" :tab="welcome" @close="closeWelcome" @settings="welcomeToSettings" />
+    <LLMSetupModal v-if="llmSetup && !welcome && !showServerCheck" :setup="llmSetup" @close="llmSetup = null" />
   </div>
 </template>
