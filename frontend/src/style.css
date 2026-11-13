@@ -939,7 +939,7 @@ details.cat-extra summary {
 
 /* Responsive */
 @media (max-width: 1100px) {
-  .sidebar-collapse-btn {
+  .sidebar .sidebar-collapse-btn {
     display: none;
   }
   .sidebar {
@@ -968,6 +968,7 @@ details.cat-extra summary {
   .sidebar .sidebar-reset-btn {
     width: 26px;
     padding: 0;
+    margin-left: 0;
     justify-content: center;
   }
 }
@@ -998,6 +999,7 @@ details.cat-extra summary {
 .sidebar.collapsed .sidebar-reset-btn {
   width: 26px;
   padding: 0;
+  margin-left: 0;
   justify-content: center;
 }
 
