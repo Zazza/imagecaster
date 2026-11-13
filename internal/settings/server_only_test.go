@@ -225,8 +225,8 @@ func TestCheckServer(t *testing.T) {
 		{name: "ollama without llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "sd_jobs", "ollama"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
 		{name: "ollama and llamacpp", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "sd_jobs", "ollama", "llamacpp"}, wantState: ServerOK},
 		{name: "old server without features", srvName: serverclient.ServerName, features: nil, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "sd_jobs", "llamacpp"}, wantReason: "old_version"},
-		{name: "forge server without sdcpp", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "sd_jobs"}, wantReason: "no_sdcpp"},
-		{name: "forge server without sdcpp and download_stream", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "sd_jobs"}, wantReason: "no_sdcpp"},
+		{name: "forge server without sdcpp", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp", "download_stream"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "sd_jobs"}, wantReason: "missing_features"},
+		{name: "forge server without sdcpp and download_stream", srvName: serverclient.ServerName, features: []string{"forge", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sdcpp", "download_stream", "sd_jobs"}, wantReason: "missing_features"},
 		{name: "missing download_stream", srvName: serverclient.ServerName, features: []string{"sdcpp", "sd_jobs", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"download_stream"}, wantReason: "missing_features"},
 		{name: "missing sd_jobs", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "llamacpp"}, wantState: ServerOutdated, wantMissing: []string{"sd_jobs"}, wantReason: "missing_features"},
 		{name: "missing llm backend", srvName: serverclient.ServerName, features: []string{"sdcpp", "download_stream", "sd_jobs"}, wantState: ServerOutdated, wantMissing: []string{"llamacpp"}, wantReason: "missing_features"},
@@ -329,9 +329,9 @@ func TestUpdateSettings_IgnoresDirectModeKeys(t *testing.T) {
 
 func TestServerCheck_ReasonJSON(t *testing.T) {
 	t.Parallel()
-	b, err := json.Marshal(ServerCheck{State: ServerOutdated, Reason: "no_sdcpp"})
+	b, err := json.Marshal(ServerCheck{State: ServerOutdated, Reason: "missing_features"})
 	require.NoError(t, err)
 	var m map[string]any
 	require.NoError(t, json.Unmarshal(b, &m))
-	assert.Equal(t, "no_sdcpp", m["reason"])
+	assert.Equal(t, "missing_features", m["reason"])
 }

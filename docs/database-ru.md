@@ -4,256 +4,249 @@
 
 ## SQLite
 
-Путь: `data/presets.db` (настраивается через `DB_PATH`).
+- Файл: `data/presets.db` рядом с исполняемым файлом. `DB_PATH` задаёт другой путь (относительный считается от папки исполняемого файла). `imagecaster-mcp` принимает `-db <путь>` или `IMAGECASTER_MCP_DB` и должен указывать на тот же файл, чтобы видеть данные приложения.
+- Драйвер: `modernc.org/sqlite` (чистый Go), сырой SQL через `database/sql`, без ORM.
+- При открытии (`preset.Open`): одно соединение (`SetMaxOpenConns(1)`), `busy_timeout = 5000`, `journal_mode = WAL`, `synchronous = NORMAL`, затем миграция схемы.
+- SQL-функция `ic_lower(text)` регистрируется для всего драйвера (`internal/preset/history.go`): нижний регистр с Unicode, нужна поиску в галерее, потому что `lower()` в SQLite работает только с ASCII.
 
-Версия схемы хранится в `PRAGMA user_version` (текущая — `schemaVersion` = 33, `internal/preset/schema.go`). `preset.Open()`:
+## Миграции
 
-- пустая база (нет таблиц) — итоговая схема и начальные данные создаются сразу одной транзакцией (`createLatestSchema`), версия = 33;
-- база с таблицами и `user_version = 0` (всё, что создано до версии 1.6) — один раз выполняется старая цепочка `legacyMigrations` (`migrate` … `migrateV32`, порядок прежний, метки вроде `migration_v20_done` работают), затем версия = 32 и шаги `schemaSteps`;
-- `user_version` ≥ 33 — ничего не выполняется, запись в базу при запуске не идёт.
+Версия схемы хранится в `PRAGMA user_version` (`internal/preset/schema.go`, текущая `schemaVersion` = 33).
 
-Шаги `schemaSteps` (с 33) идут в транзакции `BEGIN IMMEDIATE`. v33 пересобирает таблицу `presets` ради значения по умолчанию `sampler` = `euler_a` (было имя Forge `Euler a`), данные, индексы, триггеры и `sqlite_sequence` сохраняются.
+| Состояние базы при открытии | Что происходит |
+|---|---|
+| пустая (нет таблиц) | `latestSchemaDDL` + начальные данные создаются одной транзакцией; версия = 33 |
+| есть таблицы, `user_version = 0` (создана старой версией) | один раз выполняется старая цепочка `legacyMigrations` (`internal/preset/db.go`), версия ставится 32, затем `schemaSteps` |
+| `user_version` ≥ 33 | ничего не выполняется; открытие ничего не пишет |
 
-Новая миграция — шаг в `schemaSteps` с номером 34, 35, …: выполняется один раз, если номер больше `user_version`, после чего версия поднимается. Изменение схемы правится и в шаге, и в `latestSchemaDDL`; тест `TestSchema_FreshEqualsFullLegacyChain`/`TestSchema_OldDBUpgradesToLatest` сверяет, что новая и обновлённая база совпадают.
+Шаги `schemaSteps` идут по порядку, каждый в транзакции `BEGIN IMMEDIATE` и только если его номер больше `user_version`; версия поднимается в той же транзакции.
 
-v32 переводит сохранённые имена Forge в имена sd.cpp: `presets.sampler`/`schedule_type` (составное имя вроде «DPM++ 2M Karras» разделяется), `hires_profiles.upscaler` («R-ESRGAN 4x+» → «RealESRGAN_x4plus», «Lanczos» → «lanczos», «Latent» → «latent», «None» → ""), настройки `test_sampler`/`test_schedule_type`. Неизвестное имя Forge становится "" (по умолчанию) и пишется в лог. Импорт пресетов из файла переводит имена так же.
+**Новая миграция:** добавить в `schemaSteps` шаг со следующим номером (34, 35, …), то же изменение внести в `latestSchemaDDL`, поднять `schemaVersion`. Тесты `TestSchema_FreshEqualsFullLegacyChain` и `TestSchema_OldDBUpgradesToLatest` проверяют, что новая и обновлённая базы получают одинаковую схему.
 
-## Схема
+## Таблицы
+
+Типы — как в DDL. Время — текст SQLite `CURRENT_TIMESTAMP` / `datetime('now')` (UTC).
 
 ### presets
-Основная таблица пресетов генерации.
+Стили и эффекты (пресеты генерации).
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | INTEGER PK | Auto-increment |
-| name | TEXT | Название пресета |
-| type_id | INTEGER FK | Ссылка на preset_types.id |
-| preset_type | TEXT | Название типа (денормрализовано) |
-| prompt | TEXT | Positive prompt |
-| negative_prompt | TEXT | Negative prompt |
-| sampler | TEXT | Сэмплер sd.cpp ("euler_a", "dpm++2m", …) |
-| schedule_type | TEXT | Планировщик sd.cpp: "", "karras", "simple", "discrete", … ("" — по умолчанию) |
-| steps | INTEGER | Количество шагов |
-| cfg_scale | REAL | CFG Scale |
-| width | INTEGER | Ширина |
-| height | INTEGER | Высота |
-| model_name | TEXT | SD model filename |
-| vae | TEXT | VAE filename |
-| seed | INTEGER | Seed (NULL = random) |
-| clip_skip | INTEGER | CLIP Skip (NULL = default) |
-| loras | TEXT | JSON: `[{"name":"lora1","weight":0.8}]` |
-| hires_fix | BOOLEAN | Enable Hires fix |
-| hires_upscaler | TEXT | Hires upscaler name |
-| hires_scale | REAL | Hires upscale factor |
-| hires_denoising | REAL | Hires denoising strength |
-| hires_resize_x | INTEGER | Hires target width |
-| hires_resize_y | INTEGER | Hires target height |
-| hires_steps | INTEGER | Hires steps |
-| batch_size | INTEGER | Batch size |
-| batch_count | INTEGER | Batch count |
-| sort_order | INTEGER | Порядок сортировки |
-| created_at | TEXT | ISO 8601 |
-| updated_at | TEXT | ISO 8601 |
+| Колонка | Тип | Примечание |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| name | TEXT NOT NULL | |
+| preset_type | TEXT, по умолчанию `''` | имя типа; типы эффектов — `post`, `post_light`, `post_film`, `post_weather`, `post_background`, … |
+| type_id | INTEGER | → `preset_types.id` |
+| prompt | TEXT, по умолчанию `''` | позитивный промпт |
+| negative_prompt | TEXT, по умолчанию `''` | |
+| sampler | TEXT, по умолчанию `'euler_a'` | имя сэмплера sd.cpp |
+| schedule_type | TEXT, по умолчанию `''` | планировщик sd.cpp, `''` = по умолчанию модели |
+| steps | INTEGER, по умолчанию 20 | |
+| cfg_scale | REAL, по умолчанию 7.0 | |
+| model_name | TEXT, по умолчанию `''` | файл чекпоинта |
+| vae | TEXT, по умолчанию `''` | файл VAE |
+| seed | INTEGER | NULL = случайный |
+| denoising_strength | REAL | NULL = не задано |
+| clip_skip | INTEGER | |
+| batch_size, batch_count | INTEGER | |
+| tags | TEXT, по умолчанию `''` | |
+| loras | TEXT, по умолчанию `''` | список LoRA (JSON), добавляется в промпт как `<lora:имя:вес>` |
+| is_bundled | INTEGER, по умолчанию 0 | 1 = поставлен из встроенного набора пресетов |
+| created_at, updated_at | DATETIME | |
+
+Колонок ширины/высоты и hires нет: размер берётся из `resolutions`, hires — из `hires_profiles`.
 
 ### preset_types
-Типы пресетов (Anime, Realistic, etc.)
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | INTEGER PK | |
-| name | TEXT UNIQUE | Название типа |
-| description | TEXT | Описание |
-| sort_order | INTEGER | Порядок |
-| created_at | TEXT | |
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| description | TEXT, по умолчанию `''` |
+| sort_order | INTEGER, по умолчанию 0 |
+| created_at | DATETIME |
 
 ### compound_presets
-Compound пресеты (pipeline из нескольких шагов).
+Пайплайны (только заголовок; шаги — в `compound_preset_steps`).
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | INTEGER PK | |
-| name | TEXT | Название |
-| description | TEXT | Описание |
-| steps | TEXT | JSON: `[{step_type, preset_id, ...}]` |
-| created_at | TEXT | |
-| updated_at | TEXT | |
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| description | TEXT, по умолчанию `''` |
+| created_at, updated_at | DATETIME |
 
-**compound_preset_steps (JSON):**
-```json
-[
-  {"step_type": "txt2img", "preset_id": 1, "order": 0},
-  {"step_type": "upscale", "preset_id": 2, "order": 1}
-]
-```
+### compound_preset_steps
 
-### settings
-Key-value хранилище настроек.
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| key | TEXT PK | Ключ настройки |
-| value | TEXT | Значение |
-
-**Ключи:**
-
-| Ключ | Описание | Default |
-|------|----------|---------|
-| `server_url` | Адрес Imagecaster Server | — |
-| `llm_generate_model` | Модель для промптов | из env |
-| `llm_analyze_model` | Модель для vision | из env |
-| `llm_max_tokens` | Max tokens | `256` |
-| `llm_keep_alive` | Ollama keep_alive | `5m` |
-| `llm_num_ctx` | Ollama context | `4096` |
-| `sd_prompt_instruction` | System prompt для SD | DefaultSDPromptInstruction |
-| `kids_mode` | Kids mode on/off | `false` |
-| `kids_pin_hash` | SHA256 хэш PIN | — |
-| `kids_pin_attempts` | Попытки ввода PIN | `0` |
-| `kids_pin_lockout` | Время блокировки | — |
-| `kids_categories` | JSON включённых категорий | — |
-| `fi_mode` | From Image: режим | `img2img` |
-| `fi_preset_id` | From Image: preset | — |
-| `fi_gen_mode` | From Image: gen mode | `preset` |
-| `fi_denoising` | From Image: denoising | `0.5` |
-| `fi_extra_negative` | From Image: negative | — |
-| `fi_analyze_mode` | From Image: quick/deep | `quick` |
-| `fi_mask_padding` | From Image: mask dilation (px) | `8` |
-| `fi_mask_feather` | From Image: mask feathering (px) | `8` |
-| `gen_resolution_id` | Generate: выбранный профиль разрешения | первый из списка |
-| `gen_hires_profile_id` | Generate: выбранный профиль hires | — (отключен) |
-| `browser_folder` | File browser: папка | — |
-
-### saved_descriptions
-Сохранённые пользовательские описания.
-
-| Поле | Тип |
-|------|-----|
-| id | INTEGER PK |
-| text | TEXT |
-| name | TEXT |
-| negative_prompt | TEXT |
-| type | TEXT |
-| created_at | TEXT |
-
-### saved_prompts
-Сохранённые промпты.
-
-| Поле | Тип |
-|------|-----|
-| id | INTEGER PK |
-| text | TEXT |
-| created_at | TEXT |
-
-### sessions
-Сессии генерации.
-
-| Поле | Тип |
-|------|-----|
-| id | INTEGER PK |
-| name | TEXT |
-| created_at | TEXT |
-| updated_at | TEXT |
-
-### session_items
-Элементы сессии (сгенерированные изображения).
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | INTEGER PK | |
-| session_id | INTEGER FK | Ссылка на sessions.id |
-| file_name | TEXT | Имя файла PNG |
-| thumb_name | TEXT | Имя файла thumbnail |
-| source | TEXT | "preset" / "compound" / "remove" / "test" |
-| prompt | TEXT | Использованный промпт |
-| negative_prompt | TEXT | Использованный negative |
-| model | TEXT | SD модель |
-| sampler | TEXT | Sampler |
-| steps | INTEGER | Шаги |
-| cfg_scale | REAL | CFG |
-| seed | INTEGER | Seed |
-| is_active | BOOLEAN | Активный элемент сессии (только один на session_id) |
-| preset_id | INTEGER FK | Ссылка на presets.id |
-| created_at | TEXT | |
-
-Файлы хранятся в:
-- Изображения: `data/sessions/{session_id}/{file_name}`
-- Thumbnails: `data/sessions/{session_id}/thumb/{thumb_name}`
-
-### export_presets
-Пресеты экспорта изображений.
-
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | INTEGER PK | |
-| name | TEXT | |
-| format | TEXT | "png", "jpg", "webp" |
-| width | INTEGER | Target width |
-| height | INTEGER | Target height |
-| lock_ratio | BOOLEAN | Сохранять пропорции |
-| quality | INTEGER | Качество (jpg/webp) |
-| interpolation | TEXT | nearest/bilinear/bicubic/lanczos |
-| created_at | TEXT | |
-| updated_at | TEXT | |
+| Колонка | Тип | Примечание |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| compound_preset_id | INTEGER NOT NULL | → `compound_presets.id`, ON DELETE CASCADE |
+| step_order | INTEGER NOT NULL | 1, 2, … |
+| preset_id | INTEGER NOT NULL | → `presets.id` |
+| denoising_strength | REAL, по умолчанию 0.5 | сила img2img для шагов после первого |
+| resolution_id | INTEGER | → `resolutions.id`, NULL = разрешение запуска |
+| loras | TEXT, по умолчанию `''` | замена LoRA для шага |
 
 ### resolutions
-Профили разрешений для генерации.
+Изначально 14 встроенных размеров (`is_builtin = 1`): квадрат 512–1024, портрет, альбом, широкий.
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | INTEGER PK | Auto-increment |
-| name | TEXT | Название профиля |
-| width | INTEGER | Ширина в пикселях |
-| height | INTEGER | Высота в пикселях |
-| sort_order | INTEGER | Порядок сортировки |
-| created_at | TEXT | ISO 8601 |
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| width, height | INTEGER NOT NULL |
+| is_builtin | INTEGER, по умолчанию 0 |
+| created_at | TEXT |
 
 ### hires_profiles
-Профили hires fix для генерации.
+Изначально: Light (1.5×, 0.3), Standard (2.0×, 0.45), Heavy (2.5×, 0.55), Max (3.0×, 0.6), у всех апскейлер `RealESRGAN_x4plus`.
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| id | INTEGER PK | Auto-increment |
-| name | TEXT | Название профиля |
-| enable | BOOLEAN | Включить hires fix |
-| upscaler | TEXT | Апскейлер sd.cpp: имя файла модели без расширения или "lanczos"/"nearest" |
-| scale | REAL | Множитель увеличения |
-| denoising | REAL | Сила denoising |
-| resize_x | INTEGER | Целевая ширина |
-| resize_y | INTEGER | Целевая высота |
-| steps | INTEGER | Шаги hires |
-| sort_order | INTEGER | Порядок сортировки |
-| created_at | TEXT | ISO 8601 |
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| upscale | REAL, по умолчанию 2.0 |
+| denoising_strength | REAL, по умолчанию 0.45 |
+| upscaler | TEXT, по умолчанию `''` |
+| is_builtin | INTEGER, по умолчанию 0 |
+| created_at | TEXT |
 
-## Raw SQL паттерны
+### export_presets
+Настройки экспорта. Изначально: Quality Photo (PNG, исходный размер), Web Optimized (JPEG шириной 1920, q85), Social Media (JPEG 1080×1080, q90), Thumbnail (JPEG 256×256, q75).
 
-Проект использует `database/sql` без ORM. Типичные паттерны:
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| format | TEXT, по умолчанию `'png'` |
+| width, height | INTEGER, по умолчанию 0 (0 = не менять) |
+| lock_ratio | INTEGER, по умолчанию 1 |
+| quality | INTEGER, по умолчанию 90 |
+| interpolation | TEXT, по умолчанию `'lanczos'` |
+| created_at, updated_at | TEXT |
 
-**Query:**
-```go
-rows, err := db.Query("SELECT id, name FROM presets WHERE type_id = ?", typeID)
-defer rows.Close()
-for rows.Next() {
-    var p Preset
-    rows.Scan(&p.ID, &p.Name)
-}
-```
+### post_recipes
+Сохранённые рецепты постобработки.
 
-**QueryRow:**
-```go
-var value string
-err := db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&value)
-if err == sql.ErrNoRows { ... }
-```
+| Колонка | Тип | Примечание |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| name | TEXT NOT NULL | |
+| steps | TEXT, по умолчанию `'[]'` | JSON-список: `{"preset_id", "strength"}` (эффект) или `{"prompt", "strength"}` (образ) |
+| adjust | TEXT, по умолчанию `'{}'` | JSON со значениями коррекции |
+| created_at, updated_at | TEXT | |
 
-**Exec:**
-```go
-result, err := db.Exec("INSERT INTO presets (name, prompt) VALUES (?, ?)", name, prompt)
-id, _ := result.LastInsertId()
-```
+### sessions
+Группы истории. Изначально одна сессия «Default».
 
-**Transaction:**
-```go
-tx, _ := db.Begin()
-tx.Exec(...)
-tx.Exec(...)
-tx.Commit()
-```
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| created_at, updated_at | DATETIME |
+
+### session_active
+Одна строка (`id = 1`) с текущей сессией.
+
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK, CHECK (id = 1) |
+| session_id | INTEGER → `sessions.id` |
+
+### session_items
+Каждая сгенерированная или обработанная картинка. Файлы: `data/sessions/<session_id>/<file_name>`, миниатюры — `data/thumbs/<session_id>/<thumb_name>`.
+
+| Колонка | Тип | Примечание |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| session_id | INTEGER NOT NULL | → `sessions.id`, ON DELETE CASCADE |
+| file_name, thumb_name | TEXT, по умолчанию `''` | |
+| source | TEXT, по умолчанию `''` | `generate`, `from-image`, `compound`, `compound-from-image`, `edit`, `look`, `object`, `repair`, `stylist`, `editor`, … (галерея объединяет их в типы) |
+| prompt, negative_prompt | TEXT, по умолчанию `''` | |
+| sampler | TEXT, по умолчанию `''` | |
+| steps | INTEGER, по умолчанию 0 | |
+| cfg_scale | REAL, по умолчанию 0 | |
+| seed | INTEGER | |
+| denoising | REAL, по умолчанию 0 | |
+| width, height | INTEGER, по умолчанию 0 | |
+| is_preview | INTEGER, по умолчанию 0 | |
+| preset_id | INTEGER | |
+| is_active | INTEGER, по умолчанию 0 | выбранный элемент сессии; один на сессию |
+| created_at | DATETIME | |
+| meta | TEXT | JSON: `preset_id`, `model`, `label`, `chain` (шаги пайплайна), `source_item` |
+
+### job_queue
+Очередь обработки приложения (см. «Алгоритмы», §7).
+
+| Колонка | Тип | Примечание |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| type | TEXT NOT NULL | `txt2img`, `from_image`, `compound`, `look`, `edit` |
+| status | TEXT, по умолчанию `'pending'` | `pending`, `running`, `completed`, `failed`, `cancelled`, `paused` |
+| params | TEXT, по умолчанию `'{}'` | JSON запроса |
+| progress | REAL, по умолчанию 0 | 0–1 |
+| progress_detail | TEXT, по умолчанию `'{}'` | JSON |
+| result | TEXT, по умолчанию `''` | JSON результата (id элемента сессии, info, …) |
+| error | TEXT, по умолчанию `''` | |
+| source | TEXT, по умолчанию `''` | |
+| created_at | DATETIME | |
+| started_at, completed_at | DATETIME | |
+| retry_count | INTEGER, по умолчанию 0 | |
+| max_retries | INTEGER, по умолчанию 3 | |
+| next_retry_at | DATETIME | не раньше этого времени повтор |
+
+Индексы: `idx_job_queue_status (status)`; частичный `idx_job_queue_next_retry (next_retry_at) WHERE status = 'pending' AND next_retry_at IS NOT NULL`.
+
+### saved_descriptions
+Сохранённые описания сцен (страница «Генерация»).
+
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| text | TEXT NOT NULL |
+| name | TEXT, по умолчанию `''` |
+| negative_prompt | TEXT, по умолчанию `''` |
+| type | TEXT, по умолчанию `''` |
+| created_at | DATETIME |
+
+### saved_prompts
+
+| Колонка | Тип |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| text | TEXT NOT NULL |
+| created_at | DATETIME |
+
+### settings
+Хранилище ключ–значение: `key TEXT PRIMARY KEY`, `value TEXT NOT NULL DEFAULT ''`. Интерфейс может записать только ключи из `config.AllowedSettings`; остальные пишет само приложение.
+
+## Ключи настроек
+
+**Подключение и модели**
+
+| Ключ | По умолчанию | Что делает |
+|---|---|---|
+| `server_url` | `''` | адрес Imagecaster Server; `http://` добавляется, если не указан. Пусто = не настроен |
+| `llm_generate_model` | — | модель llama.cpp для текстовых промптов; пусто или `default` = первая модель из списка сервера |
+| `llm_analyze_model` | — | vision-модель llama.cpp для описания фото |
+| `llm_max_tokens` | 256 в настройках (512, если не задано) | предел длины ответа LLM |
+| `llm_keep_alive` | `5m` | уходит как `keep_alive` с каждым запросом к LLM. Слой llama.cpp на сервере выгружает модель после такого простоя; `0` = выгрузить сразу после ответа. Без него сервер берёт свой `llm.keep_alive` |
+| `llm_num_ctx`, `llm_generate_num_ctx`, `llm_analyze_num_ctx` | 4096 | уходит как `options.num_ctx`, но сервер его игнорирует: размер контекста llama.cpp задаёт `llm.context_size` сервера (по умолчанию 8192) |
+| `llm_generate_*` / `llm_analyze_*` `temperature`, `top_p`, `num_predict`, `num_thread` | 0.4 / 0.9 / 256 / 0 | хранятся и показываются в настройках, но на сервер не отправляются; температура задана в коде для каждой операции |
+| `llm_auto_unload` | `true` | защита памяти: выгружать LLM-модели перед заданием SD, если мало свободной VRAM/RAM |
+| `auto_installed_presets` | — | имена встроенных пресетов, уже поставленных `SyncPresets` (удалённые не возвращаются) |
+| `install_id` | случайный | 16 hex-символов; префикс `client_ref` у каждого задания на сервере |
+
+**Промпты** (пусто = встроенный по умолчанию)
+
+| Ключ | Для чего |
+|---|---|
+| `sd_prompt_instruction` | системный промпт «идея → теги» |
+| `sd_prompt_instruction_prose` | то же для прозаических моделей (Flux, Klein, Z-Image, …) |
+| `analyze_system_prompt`, `analyze_prompt` | фото → теги |
+| `analyze_describe_prompt` | фото → описание прозой |
+| `edit_garment_prompt` | фото → описание одежды |
+
+**Детский режим**: `kids_mode`, `kids_cat_violence`, `kids_cat_horror`, `kids_cat_weapons`, `kids_cat_substances`, `kids_cat_mature` (категории), `kids_pin_hash`, `kids_pin_salt`, `kids_pin_attempts`, `kids_pin_lockout` (PIN).
+
+**Состояние интерфейса**: `ui_locale`, `theme`, размер и положение окна (`window_*`), последние значения форм (`gen_*`, `batch_*`, `test_*`, `fi_*`, `object_*`, `edit_*`, `effect_*`), `file_browser_path`.

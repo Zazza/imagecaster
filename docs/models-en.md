@@ -2,98 +2,128 @@
 
 # Models and Presets
 
-Imagecaster uses a dedicated model for each job. Every model except Flux 2 Klein downloads from the app's catalog (the Catalog page).
+All models live on Imagecaster Server. The app has a built-in catalog of models with download links and downloads them to the server from the **Catalog** page. Files you put into the server folders by hand are used as well.
 
-## Models
+## File types and where they land
 
-| Model | Best for |
-|-------|----------|
-| **SD 1.5 / SDXL** | Light models for low-end graphics cards. Any style, from photo to illustration |
-| **Pony / Illustrious** | Anime, cartoon and stylized characters |
-| **Flux 1** | Follows detailed plain-language descriptions precisely, realism |
-| **Z-Image Turbo** | Photorealism, the fastest of the set: 8 steps instead of the usual 20–50 |
-| **Moss-Image** | Follows detailed descriptions as precisely as Flux 1, photorealistic people |
-| **Flux 2 Klein** | Post-processing: effects, object replace and remove, remix that keeps the face, stylist |
+| Type | What it is | Server folder |
+|---|---|---|
+| Image model (checkpoint) | the main model file, `.safetensors` or `.gguf` | `models/checkpoints/` |
+| Text encoder, tokenizer | extra files some image models need | `models/text_encoders/` |
+| VAE | image decoder for some models | `models/vae/` |
+| LoRA | small add-ons that change detail or look | `models/loras/` |
+| Upscaler | model for enlarging images; not in the catalog — put the file in by hand (`.pth`, `.safetensors`, `.bin`, `.gguf`). Built in: `lanczos`, `nearest` | `models/upscalers/` |
+| Assistant model | text model for prompts, or a model that reads photos | the server's text model folder |
 
-### SD 1.5 / SDXL
+Folders are relative to the server data folder (see [Setup](setup-en.md#data-folder)).
 
-The first generation of Stable Diffusion models. Presets use `dreamshaper_8` (all-round), `realisticVisionV60B1_v51HyperVAE` (portraits). The catalog has a few more for photorealism.
+## Image models
 
-### Pony / Illustrious
+"Extra files" are downloaded together with the model. ★ — marked as recommended in the catalog.
 
-SDXL-based models fine-tuned on anime and drawn characters. Presets use `riMixPONYIllustrious_riMixV2` (anime-realism blend). Prompts use quality tags `score_9, score_8_up…` — the presets add them for you.
+| Model | Family | Best for | Size, GB | Extra files |
+|---|---|---|---|---|
+| `z-image-turbo-fp8-aio` ★ | Z-Image | Photorealism, 8 steps, about 3 s per image after load. The main model | 9.6 | — |
+| `moss_image_sft_bf16` ★ | Moss-Image | Photorealistic people, precise prompt following | 9.5 | text encoder, VAE, tokenizer (10.0) |
+| `flux-2-klein-4b` ★ | Flux.2 | Photo editing: post-processing effects, Edit, Object, Repair, the stylist | 7.75 | text encoder, VAE (8.4) |
+| `flux1-dev-fp8` ★ | Flux.1 | Best at following long plain-language prompts; one file with everything | 17.2 | — |
+| `anima-aesthetic-v1.1` ★ | Anima | Anime and illustration: danbooru tags plus plain sentences, 30 steps | 4.18 | text encoder, VAE (1.4), presets |
+| `anima-turbo-v1.1` | Anima | Faster Anima, 10 steps, about 5 s per image | 4.18 | text encoder, VAE (1.4), presets |
+| `flux3-image-klein-Q8_0` | Flux.3 | Plain-language prompts, 16 steps | 6.2 | text encoder, VAE (2.8), presets |
+| `Krea-2-Turbo-Q4_K_M` | Krea-2 | Aesthetic photos in few steps | 7.2 | text encoder, VAE (2.8), presets |
+| `qwen_image_2.1-Q8_0` | Qwen-Image | Strong prompt following, readable text in images | 7.7 | text encoder, VAE (5.7), presets |
+| `juggernautXL_ragnarokBy` | SDXL | Versatile photorealism | 6.6 | — |
+| `epicrealismXL_pureFix` | SDXL | Realistic people | 6.5 | — |
+| `photon_v1` | SDXL | Cinematic, film-like look | 2.0 | — |
+| `realisticVisionV60B1_v51HyperVAE` | SD 1.5 | Portraits, fast on low VRAM | 2.0 | — |
+| `epicrealism_naturalSinRC1VAE` | SD 1.5 | Natural skin, soft-light portraits | 2.0 | — |
+| `dreamshaper_8` | SD 1.5 | All-round, from photo to illustration | 2.0 | — |
+| `revAnimated_v2Rebirth` | SD 1.5 | Classic anime look | 4.0 | — |
+| `ponyDiffusionV6XL_v6StartWithThisOne` | Pony XL | Pony V6 base, many styles | 6.5 | — |
+| `riMixPONYIllustrious_riMixV2` | Pony/Illustrious | Anime-realism blend | 6.5 | — |
 
-### Flux 1
+### How the prompt is written
 
-`flux1-dev-fp8` understands long scene descriptions in plain sentences well: who stands where, what they hold, what the light is. On Hugging Face the model is gated behind a license acceptance.
+The assistant writes the prompt differently by model family:
 
-### Z-Image Turbo
+- **Plain sentences** — Flux (1, 2, 3), Z-Image, Moss, Klein, Qwen-Image, Krea, and also Chroma and Hunyuan models if you add them by hand.
+- **Comma-separated tags** — every other model (SD 1.5, SDXL, Pony, Anima).
 
-`z-image-turbo-fp8-aio` — photorealism in 8 steps at CFG 1. Good for going through many variants.
+The family is recognized by the model file name.
 
-### Moss-Image
+## LoRA
 
-`moss_image_sft_bf16` follows detailed descriptions as precisely as Flux 1. It is used for text-to-image generation only: Edit, Effect and Preserve face run on Flux 2 Klein. Besides the checkpoint it needs the `qwen35_9b_int8_convrot.safetensors` text encoder in `models/text_encoder/` and the `flux2-vae_small.safetensors` VAE in `models/VAE/` (the Comfy-Org/MOSS-Image repo).
+| LoRA | For | Weight | Size, MB | What it does |
+|---|---|---|---|---|
+| `add-detail-xl` | SDXL | 0.7 | 136 | More detail and sharpness |
+| `Add_Details_v1.2` | SDXL | 0.6 | 5.2 | Detail slider: positive weight adds, negative removes; also for Pony and Illustrious |
+| `HDR_Photography` | Flux.1 | 0.5 | 18.4 | HDR photo look |
+| `hairdetailer` | SD 1.5/SDXL | 0.6 | 68 | Hair strand detail |
 
-### Flux 2 Klein
+"Weight" is the default weight the app uses.
 
-`flux-2-klein-4b` powers the sections that change a finished photo:
+## Assistant models
 
-- **Post-Process** — light, film, skin, clothing material and style-change effects (presets below);
-- **Object** — replace or remove what the mask outlines;
-- **Remix** with "Preserve face" checked;
-- **Stylist** for AI agents — trying on haircuts and outfits.
+The assistant needs two models: one writes prompts, the other reads photos (remix, edits, looks, photo descriptions). They are chosen in the first-start window or in Settings and run on the server's llama.cpp. Photos are described only by this local model.
 
-Klein is not in the catalog: put the checkpoint into `models/Stable-diffusion/`, the `qwen_3_4b.safetensors` text encoder into `models/text_encoder/` and the `flux2-klein-vae.safetensors` VAE into `models/VAE/`.
+**Prompt model**
 
-## Generation presets
+| Model | Graphics card | Size, GB |
+|---|---|---|
+| `qwen3:4b` | 8 GB | 2.5 |
+| `qwen3:8b` ★ | 12 GB | 5.2 |
+| `qwen3:14b` | 16 GB | 9.3 |
+| `qwen3:30b` | 24 GB and more | 18.6 |
 
-A style is a preset: prompt, settings and model. Most styles come in several variants for different models — pick by your graphics card and task.
+**Photo model**
 
-Presets come with their model: when the app sees a model on the server (downloaded from the catalog or put there by hand), it adds that model's presets. Presets whose model or LoRA is missing on the server are hidden; the "Show presets without models" box on the Styles page shows them. A preset you delete is not added back. The Catalog page lists the presets of each model.
+| Model | Graphics card | Size, GB |
+|---|---|---|
+| `qwen3.5:4b` | 8 GB | 3.3 |
+| `qwen3-vl:8b` ★ | 12 GB | 6.2 |
+| `qwen3.5:9b` | 16 GB — also writes text, so it can take both roles | 6.6 |
+| `gemma3:12b` | 16 GB | 8.2 |
+| `qwen3.6:27b` | 24 GB and more | 17.8 |
 
-| Style | SD | Pony | Flux | Z-Image | Moss |
-|---|---|---|---|---|---|
-| 3D Render | ✓ | ✓ | ✓ | ✓ |  |
-| Anime Art | ✓ | ✓ | ✓ | ✓ |  |
-| Architecture Photo | ✓ |  | ✓ | ✓ | ✓ |
-| Art Nouveau | ✓ | ✓ | ✓ | ✓ |  |
-| Cartoon Art | ✓ | ✓ | ✓ | ✓ |  |
-| Cinematic Still | ✓ |  | ✓ | ✓ | ✓ |
-| Comic Art | ✓ | ✓ | ✓ | ✓ |  |
-| Concept Art | ✓ | ✓ | ✓ | ✓ |  |
-| Fantasy Art | ✓ | ✓ | ✓ | ✓ |  |
-| Fashion Editorial | ✓ |  | ✓ | ✓ | ✓ |
-| Food Photo | ✓ |  | ✓ | ✓ | ✓ |
-| Horror Art | ✓ | ✓ | ✓ | ✓ |  |
-| Landscape Photo | ✓ |  | ✓ | ✓ | ✓ |
-| Mecha Art | ✓ | ✓ | ✓ | ✓ |  |
-| Miniature Effect | ✓ |  | ✓ | ✓ |  |
-| Pencil Sketch | ✓ | ✓ | ✓ | ✓ |  |
-| Photo Realism | ✓ |  | ✓ | ✓ | ✓ |
-| Pixel Art | ✓ | ✓ | ✓ | ✓ |  |
-| Portrait Photo | ✓ |  | ✓ | ✓ | ✓ |
-| Product Shot | ✓ |  | ✓ | ✓ | ✓ |
-| Sci-Fi Art | ✓ | ✓ | ✓ | ✓ |  |
-| Wallpaper Desktop | ✓ | ✓ | ✓ | ✓ |  |
-| Wallpaper Phone | ✓ | ✓ | ✓ | ✓ |  |
-| Watercolor Art | ✓ | ✓ | ✓ | ✓ |  |
-| Wildlife Photo | ✓ |  | ✓ | ✓ | ✓ |
-| B&W Film |  |  |  |  | ✓ |
-| Golden Hour |  |  |  |  | ✓ |
-| Night City |  |  |  |  | ✓ |
-| Street Photo |  |  |  |  | ✓ |
-| Studio Portrait |  |  |  |  | ✓ |
+## The Catalog page
 
-## Post-processing presets (Flux 2 Klein)
+- Sections: prompt models, photo models, image models, LoRA. Each entry shows its size, "Recommended" for ★ entries and "Installed" when the server already has it.
+- **Download** fetches the model with its extra files; files already on the server are skipped. For models that bring their own presets the app adds those presets right away.
+- **Delete** removes the model from the server.
+- **Download all for presets** downloads everything the built-in presets need and the server lacks: models with their extra files, and LoRAs. Before starting it shows the number of files and total size. The same download is offered in the welcome window on the first start. Models not used by built-in presets (Krea 2, Qwen-Image, FLUX.3 and others) are downloaded one by one with their own **Download** button.
 
-| Group | Presets |
-|-------|---------|
-| General | Shallow DOF, Color Pop, Soft Glow, Moody Dark, Crisp Reality, Bright & Airy |
-| Light | Golden Hour, Evening Mood, Night City Neon, Soft Studio, Flash Photo, Candlelight, Blue Hour, Backlit, Overcast Soft, Harsh Noon |
-| Film | Film Real 35mm, B&W Film, Vintage 70s, Cinematic Teal-Orange, Polaroid, Portra 400, Expired Film, VHS 90s, Super 8, Cross Process |
-| Skin | Wet Skin, Dewy Skin, Glam Glow, Matte Skin |
-| Clothing materials | Satin Gloss, Leather, Denim, Lace, Velvet, Fur, Latex, Knit & Wool, Sequins, Mesh, Wet Fabric, Cotton, Linen, Tweed, Corduroy, Suede, Chiffon, Tulle, Fleece, Shearling, Metallic |
-| Style change | Realism, Photo Restore, Colorize, 3D Animation, Cartoon, Anime, Watercolor, Pencil Sketch, Oil Painting, Pixel Art |
+## Presets
 
-Presets can be edited, created, imported and exported as JSON.
+A preset (style) is a ready set: prompt, settings, model and LoRAs. Presets come with their model:
+
+- When the app gets the model list from the server, it adds the built-in presets of the models the server has. The names of added presets are remembered, so a preset you delete is not added back.
+- Presets whose model or LoRA is not on the server are hidden. The "Show presets without models" box on the Styles page shows them.
+- If the server does not return the model list, nothing is hidden.
+
+| Model | Built-in presets |
+|---|---|
+| `z-image-turbo-fp8-aio`, `flux1-dev-fp8` | one variant of each of the 25 generation styles (3D Render, Anime, Architecture, Portrait, Watercolor and others) |
+| `realisticVisionV60B1_v51HyperVAE`, `dreamshaper_8` | SD 1.5 variants of the same styles: photo styles on Realistic Vision, drawn styles on DreamShaper |
+| `riMixPONYIllustrious_riMixV2` | variants of the drawn styles |
+| `juggernautXL_ragnarokBy` | 3D Render |
+| `moss_image_sft_bf16` | 14 photo presets of its own |
+| `flux-2-klein-4b` | 100 post-processing effects |
+| Anima aesthetic, Anima turbo | 5 each, added when the model is downloaded |
+| FLUX.3 Klein, Krea 2, Qwen-Image 2.1 | 4 each, added when the model is downloaded |
+
+### Post-processing effects (Flux.2 Klein)
+
+| Group | Count |
+|---|---|
+| General | 7 |
+| Light | 15 |
+| Film | 13 |
+| Skin | 6 |
+| Clothing materials | 26 |
+| Style change | 16 |
+| Pattern | 5 |
+| Hair | 5 |
+| Background | 4 |
+| Weather | 3 |
+
+Presets can be edited, created, imported and exported.

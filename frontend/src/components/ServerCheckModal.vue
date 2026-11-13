@@ -14,7 +14,7 @@ const searched = ref(false)
 const address = ref(serverState.url || '')
 const busy = ref(false)
 const outdated = computed(() => serverState.state === 'outdated')
-const outdatedKind = computed(() => ({ old_version: 'old', no_sdcpp: 'forge' })[serverState.reason] || 'incompatible')
+const outdatedKind = computed(() => ({ old_version: 'old' })[serverState.reason] || 'incompatible')
 const FEATURE_KEYS = { sdcpp: 'server.feature_sdcpp', download_stream: 'server.feature_download_stream', llamacpp: 'server.feature_llm', sd_jobs: 'server.feature_sd_jobs' }
 const missingText = computed(() => [...new Set(serverState.missing.map(f => FEATURE_KEYS[f] ? t(FEATURE_KEYS[f]) : f))].join(', '))
 
@@ -105,7 +105,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
       <p v-if="serverState.error && !outdated" class="server-check-lead err">{{ serverState.error }}</p>
 
       <div class="server-check-actions">
-        <button class="btn btn-secondary" @click="openInstall">{{ !outdated ? t('server.how_to_install') : outdatedKind === 'forge' ? t('server.server_guide') : t('server.how_to_update') }}</button>
+        <button class="btn btn-secondary" @click="openInstall">{{ !outdated ? t('server.how_to_install') : t('server.how_to_update') }}</button>
         <span class="server-check-spacer"></span>
         <button class="btn btn-secondary" :disabled="busy || serverState.checking" @click="retry">{{ t('server.retry') }}</button>
         <button class="btn btn-secondary" @click="close">{{ t('server.close_limited') }}</button>

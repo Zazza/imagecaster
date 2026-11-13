@@ -93,10 +93,10 @@ describe('App startup server check (condition 4)', () => {
 })
 
 describe('App banner per outdated reason', () => {
-  const BANNERS = ['server.banner_offline', 'server.banner_outdated', 'server.banner_incompatible', 'server.banner_forge']
+  const BANNERS = ['server.banner_offline', 'server.banner_outdated', 'server.banner_incompatible']
   it.each([
     ['old_version', 'server.banner_outdated'],
-    ['no_sdcpp', 'server.banner_forge'],
+    ['no_sdcpp', 'server.banner_incompatible'],
     ['missing_features', 'server.banner_incompatible'],
     ['', 'server.banner_incompatible'],
     ['something_new', 'server.banner_incompatible'],

@@ -1,317 +1,217 @@
 [English](api-reference-en.md) | [Русский](api-reference-ru.md)
 
-# Imagecaster — API Reference (Wails Bindings)
+# Imagecaster — справочник API (Wails bindings)
 
-## Общие типы
+Фронтенд общается с Go только через Wails bindings: экспортируемые методы `*App` в `app.go` (единственная привязанная структура, см. `Bind` в `main.go`). Wails генерирует JS-обёртки в `frontend/src/wailsjs/go/main/App.js` / `App.d.ts`; интерфейс вызывает их через `frontend/src/api.js` (имена в camelCase, например `GetSettings` → `api.getSettings()`).
 
-### GenerateImageResult
-Используется всеми методами генерации как результат.
+Всего 156 методов; список ниже совпадает с `App.d.ts`. Каждый вызов возвращает Promise. Go-ошибка (`error`) превращается в отклонённый Promise.
 
-```typescript
-interface GenerateImageResult {
-  image: string                    // base64 PNG
-  parameters: any                  // JSON от SD WebUI
-  info: any                        // JSON с деталями генерации
-  effective_prompt: string         // итоговый positive prompt
-  effective_negative_prompt: string // итоговый negative prompt
-}
-```
+Изображения передаются строками base64 (PNG или JPEG без префикса `data:`). Сохранённые картинки истории ещё и отдаются по HTTP обработчиком ассетов Wails в `main.go`: `/api/img/<id>.jpg` (полное изображение) и `/api/thumb/<id>.jpg` (миниатюра), где `<id>` — id элемента сессии.
 
-### ServiceStatus
-```typescript
-interface ServiceStatus {
-  sd: boolean                      // SD WebUI доступен
-  llm: boolean                     // LLM API доступен
-}
-```
+Вызовы, которым нужен сервер (`generateSdPrompt`, `generateImage`, `upscaleImage`, `analyzeImage`, `generateCompoundImage`, `editImage`, `editObject`, `repairImage`, `describeForStyle`, `applyLookDirect`, все `enqueue*`, `retryQueueJob`), `api.js` блокирует с сообщением `server.need_server`, пока проверка сервера не вернула `ok`.
 
----
+## Общий результат: GenerateImageResult
 
-## Генерация
+Возвращают все прямые методы генерации и правки (Go: `internal/generation/service.go`).
 
-### GenerateImage
-Генерация изображения с нуля по пресету.
+| Поле | Смысл |
+|---|---|
+| `image` | результат, base64 |
+| `parameters`, `info` | детали генерации (JSON) |
+| `effective_prompt`, `effective_negative_prompt` | итоговые промпты, ушедшие в модель |
+| `hires_fix_skipped`, `hires_fix_manual` | состояние hires fix |
+| `quality_upscale_skipped`, `quality_redenoise_skipped` | пропущенные шаги режима качества |
+| `detected_object` | название объекта, найденного правкой «Объект» |
+| `session_item_id` | id элемента истории, куда сохранён результат |
 
-```typescript
-api.generateImage(presetId: number, extraPrompt?: string, extraNegativePrompt?: string)
-  → Promise<GenerateImageResult>
-```
+## Генерация (напрямую)
 
-**Параметры:**
-| Параметр | Тип | Обязательный | Описание |
-|----------|-----|-------------|----------|
-| presetId | number | Да | ID пресета |
-| extraPrompt | string | Нет | Дополнительный промпт |
-| extraNegativePrompt | string | Нет | Дополнительный negative |
+Выполняются сразу и ждут результата. Прогресс приходит событиями (см. ниже).
 
-**Flow:** LLM генерирует промпт → SD txt2img → результат
+| Метод | Что делает |
+|---|---|
+| `GenerateSDPrompt(params)` | LLM пишет промпт для картинки по описанию и стилю (`preset_id`, `description`, `negative`, `overrides`). Возвращает `{prompt, negative_prompt}`. |
+| `GenerateImage(params)` | Генерация из текста по стилю: `preset_id`, `extra_prompt`, `extra_negative_prompt`, `resolution_id`, `hires_profile_id`, `seed`, `overrides`, `idea`, `idea_negative`. |
+| `GenerateCompoundImage(params)` | Запуск рабочего процесса (`compound_preset_id`) или своих шагов (`steps`) — несколько стилей подряд. |
+| `GenerateFromImage(params)` | Генерация по фото (стиль или рабочий процесс, сила изменения, маска, сохранение цвета, сохранение лица). Интерфейс его не вызывает — ставит в очередь через `EnqueueFromImage`. |
+| `UpscaleImage(params)` | Увеличение сгенерированной картинки по её `gen_info` и стилю. |
+| `EditImage(params)` | Правка фото по текстовой инструкции (`instruction`, необязательный референс, стиль, LoRA, `model`, размер, seed). Постобработка → Правка. |
+| `EditObject(params)` | Удалить или заменить закрашенный предмет (`mask_base64`, `op`, `replacement`, `object`). Постобработка → Объект. |
+| `RepairImage(params)` | Убирает царапины, пыль и заломы внутри маски, по плиткам (`mask_base64`, `strength`). Постобработка → Ремонт. |
+| `ApplyLookDirect(image, text, strength, seed)` | Применяет к фото вид, описанный словами. |
+| `AnalyzeImage(image, mode)` | Описывает фото vision-моделью. `mode`: `describe` (текстом), `garment` (одежда), иначе — теги. |
+| `DescribeForStyle(image)` | Короткое описание фото в 1–2 предложения для подбора эффекта (Постобработка → Эффект → Авто-стиль). |
+| `CompilePostStyle(text)` | Превращает пожелание текстом в рецепт: до 3 шагов-эффектов и значения коррекции. |
+| `InterruptGeneration()` | Прерывает текущую генерацию. |
+| `GetLastImage()` / `ClearLastImage()` | Прочитать / очистить последнюю картинку. `GetLastImage` интерфейс не использует. |
 
----
+Тексты промптов по умолчанию (показываются в Настройки → Промпты):
 
-### GenerateFromImage
-Генерация на основе загруженного изображения.
+| Метод | Возвращает |
+|---|---|
+| `GetDefaultPromptInstruction()` | инструкцию по умолчанию для промптов картинок (теги) |
+| `GetDefaultPromptInstructionProse()` | то же, вариант текстом |
+| `GetDefaultAnalyzePrompts()` | `{system_prompt, single_prompt, describe_prompt}` для описания фото |
+| `GetDefaultEditGarmentPrompt()` | промпт по умолчанию для описания одежды с референса |
 
-```typescript
-api.generateFromImage(params: GenerateFromImageParams)
-  → Promise<GenerateImageResult>
-```
+## Очередь
 
-```typescript
-interface GenerateFromImageParams {
-  image_base64: string              // Обязательно
-  mode: "txt2img" | "img2img" | "inpaint"
-  gen_mode: "preset" | "compound"
-  preset_id: number
-  compound_preset_id: number
-  denoising_strength: number        // 0.05 - 1.0, default 0.5
-  tags: string                      // LLM tags или вручную
-  extra_negative_prompt: string
-  mask_base64: string               // Обязательно для inpaint/remove
-  mask_blur: number                 // default 4
-  inpaint_fill: 0 | 1 | 2          // 0=Fill, 1=Original, 2=Latent Noise
-  inpaint_full_res: boolean
-  remove_object: boolean            // true = Smart Remove mode
-}
-```
+Фоновые задания в SQLite (`internal/queue`). Каждый `Enqueue*` возвращает id задания.
 
-**Events:**
-```javascript
-EventsOn("analyze:step", (step, total) => { ... })  // Deep analysis progress
-EventsOn("remove:stage", (stage) => { ... })         // "analyzing" | "generating"
-```
+| Метод | Что делает |
+|---|---|
+| `EnqueueTxt2Img(params)` | генерация из текста в очередь (параметры как у `GenerateImage`) |
+| `EnqueueCompound(params)` | рабочий процесс или свои шаги в очередь |
+| `EnqueueFromImage(params)` | генерация по фото / эффект в очередь |
+| `EnqueueLook(params)` | вид по тексту в очередь (`image_base64`, `text`, `strength`, `seed`) |
+| `EnqueueEdit(params)` | правка по инструкции в очередь |
+| `GetQueue()` | список заданий |
+| `RemoveQueueJob(id)` / `CancelQueueJob(id)` / `RetryQueueJob(id)` | удалить, отменить, повторить одно задание |
+| `PauseQueue()` / `ResumeQueue()` / `IsQueuePaused()` | пауза и продолжение всей очереди |
+| `CancelQueue()` | отменить все задания |
+| `ResumePausedQueueJobs()` | вернуть в ожидание задания, приостановленные после исчерпания повторов; возвращает их число |
+| `ClearCompletedQueueJobs()` | удалить завершённые задания |
 
----
+## Стили (пресеты) и типы
 
----
+| Метод | Что делает |
+|---|---|
+| `ListPresets()`, `ListPresetsByType(type)`, `GetPreset(id)` | чтение стилей (`GetPreset` интерфейс не использует) |
+| `CreatePreset(p)`, `UpdatePreset(p)`, `DeletePreset(id)` | изменение стилей |
+| `ListPresetTypes()`, `GetPresetType(id)`, `CreatePresetType(t)`, `UpdatePresetType(t)`, `DeletePresetType(id)` | типы стилей (типы генерации и типы эффектов `post`, `post_*`) |
+| `GetAllTags()` | все теги стилей |
+| `SyncPresets()` | ставит встроенные стили для моделей, которые есть на сервере; возвращает статусы стилей и число добавленных |
+| `GetModelPresets()` | какие встроенные стили относятся к какой модели |
+| `InstallPresetDeps(id)` | скачивает на сервер модель и недостающие LoRA стиля из каталога |
 
-### EditImage
-Редактирование фотографии по инструкции (режим правки, модель flux-2-klein с reference-движком).
+## Рабочие процессы (составные пресеты)
 
-```typescript
-api.editImage(params: EditImageParams)
-  → Promise<GenerateImageResult>
-```
+| Метод | Что делает |
+|---|---|
+| `ListCompoundPresets()`, `GetCompoundPreset(id)` | чтение рабочих процессов с шагами |
+| `CreateCompoundPreset(cp)`, `UpdateCompoundPreset(cp)` | сохранение; нужны название и хотя бы один шаг |
+| `DeleteCompoundPreset(id)` | удаление |
 
-```typescript
-interface EditImageParams {
-  image_base64: string              // Обязательно, до 16 МБ
-  instruction: string               // Обязательно, любой язык, до 2000 символов
-  model: "" | "klein"              // Опционально, пусто = klein; другое значение отклоняется
-  style_preset_id: number           // Опционально: klein-пресет (вклад: только LoRA)
-  style_tags: boolean               // Опционально: применять и теги стиля (по умолчанию выкл)
-  loras: Array<{name, weight}>      // Опционально: до 8 пользовательских LoRA (стек + стиль)
-  output_mode: "" | "standard" | "quality"  // quality требует resolution_id
-  resolution_id: number             // Целевой бокс для quality-режима
-  seed: number                      // Опционально
-}
-```
+## Разрешения и профили hires
 
-Промпт собирается как `[LoRA стиля][LoRA пользователя][теги стиля] Change only {инструкция}. Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo.` Задание уходит с `klein_reference: true` в модели; на другие задания это не влияет.
+| Метод | Что делает |
+|---|---|
+| `ListResolutions()`, `GetResolution(id)`, `CreateResolution(r)`, `UpdateResolution(r)`, `DeleteResolution(id)` | размеры результата; ширина и высота 64–4096 |
+| `ListHiresProfiles()`, `GetHiresProfile(id)`, `CreateHiresProfile(h)`, `UpdateHiresProfile(h)`, `DeleteHiresProfile(id)` | профили hires; увеличение 1.0–4.0, denoising 0–1 |
 
-**Прямой путь без очереди** (как TestGenerate); сериализация через мьютекс на сервисе.
+`GetResolution` и `GetHiresProfile` интерфейс не использует.
 
-### GenerateSDPrompt
-Генерация SD-промпта через LLM.
+## Сохранённые описания и промпты
 
-```typescript
-api.generateSdPrompt(params: GenerateSDPromptParams)
-  → Promise<GenerateSDPromptResult>
-```
+| Метод | Что делает |
+|---|---|
+| `ListDescriptions()`, `CreateDescription(text)`, `CreateDescriptionFull(d)`, `UpdateDescription(d)`, `DeleteDescription(id)` | сохранённые описания (идеи) для Генерации |
+| `ListPrompts()`, `CreatePrompt(text)`, `DeletePrompt(id)` | сохранённые промпты; интерфейс не использует |
 
-```typescript
-interface GenerateSDPromptParams {
-  preset_id: number
-  description: string
-  negative: string
-}
+## Постобработка (локально, без ИИ)
 
-interface GenerateSDPromptResult {
-  prompt: string
-  negative_prompt: string
-}
-```
+| Метод | Что делает |
+|---|---|
+| `PreviewAdjust(image, adjust, maxW)` | превью Коррекции (яркость, контраст, цвет…), JPEG, уменьшено до `maxW` |
+| `PreviewPost(image, adjust, finish, maxW)` | превью Коррекции вместе с «Формат, рамка, подпись» |
+| `AutoAdjust(image)` | замеряет картинку и возвращает значения автокоррекции |
+| `ExportImage(params)` | применяет настройки экспорта и сохраняет (в `output_dir` или через диалог) |
+| `ListExportPresets()`, `SaveExportPreset(p)`, `DeleteExportPreset(id)` | сохранённые настройки экспорта |
+| `ListPostRecipes()`, `SavePostRecipe(r)`, `DeletePostRecipe(id)` | сохранённые рецепты (цепочки эффектов и коррекций) |
+| `BatchSaveImage(image)` / `BatchReset()` | временные файлы пакетной постобработки (`data/batch`, очищается при запуске) |
 
----
+## История (сессии) и галерея
 
-### UpscaleImage
-Апскейл изображения.
+| Метод | Что делает |
+|---|---|
+| `CreateSession(name)`, `ListSessions()`, `SwitchSession(id)`, `RenameSession(id, name)`, `DeleteSession(id)` | группы истории (сессии) |
+| `GetSessionItems()`, `GetActiveSessionItem()`, `SetActiveSessionItem(id)` | элементы текущей сессии и выбранный элемент |
+| `DeleteSessionItem(id)`, `ClearSession()` | удалить один элемент / все элементы текущей сессии |
+| `GetSessionImage(id)`, `GetSessionThumb(id)` | картинка / миниатюра в base64 |
+| `HasSessionItems()` | есть ли элементы; интерфейс не использует |
+| `ListHistory(filter)` | Галерея: элементы всех сессий с фильтрами (сессии, модели, метки, виды, формы, поиск, даты, периоды), постранично и со счётчиками |
+| `OpenInHistory(id)` | переключает на сессию элемента и выбирает его |
+| `DeleteHistoryItems(ids)` | удаляет несколько элементов; возвращает их число |
+| `SetLastImage(image)` | добавляет картинку (например, из «Мои изображения») в текущую сессию и выбирает её |
+| `ConfirmClose(action)` | закрывает приложение; при `discard` сначала удаляет все сессии. Интерфейс не использует. |
 
-```typescript
-api.upscaleImage(imageBase64: string, genInfo: any, presetId: number)
-  → Promise<GenerateImageResult>
-```
+## Файлы, буфер обмена, окно
 
----
+| Метод | Что делает |
+|---|---|
+| `ReadImageFile()` | диалог выбора PNG/JPEG, возвращает base64 |
+| `ReadClipboardImage()` | картинка из буфера обмена |
+| `SaveImage(image, name)` | сохранить PNG через диалог |
+| `FastSaveImage(image, name, format)` | сохранить в папку «Мои изображения» без диалога; интерфейс не использует |
+| `BrowseDirectory(path)`, `ReadFileAsBase64(path)`, `ReadThumbnail(path)` | «Мои изображения»: список папки, чтение файла, миниатюра |
+| `SelectBrowserFolder()` | диалог выбора папки; запоминает её в `file_browser_path` |
+| `SaveWindowLayout(footerHeight)`, `GetFooterHeight()` | размер/положение окна и высота подвала хранятся в настройках |
+| `Version()` | версия приложения |
+| `GetLogEntries()` | журнал приложения (подвал → Журнал) |
 
-### BatchGenerate
-Пакетная генерация. Работает асинхронно, шлёт events.
+## Настройки, безопасный режим
 
-```typescript
-api.batchGenerate(params: BatchGenerateParams): Promise<void>
-```
+| Метод | Что делает |
+|---|---|
+| `GetSettings()` / `UpdateSettings(map)` | настройки «ключ–значение» из таблицы `settings` |
+| `IsKidsModeActive()`, `SetKidsMode(enabled, pin)` | включение/выключение безопасного режима с PIN |
+| `GetKidsCategories()`, `SetKidsCategory(name, enabled, pin)` | запрещённые категории содержимого |
 
-**Events:**
-```javascript
-EventsOn("batch:progress", (current, total, fileName) => { ... })
-EventsOn("batch:done", () => { ... })
-EventsOn("batch:error", (err) => { ... })
-```
+## Imagecaster Server
 
----
+| Метод | Что делает |
+|---|---|
+| `CheckServer()` | проверяет `server_url`: `state` = `ok`, `not_configured`, `not_found` или `outdated` (со списком `missing` и `reason` `old_version` / `missing_features`) |
+| `DiscoverServers()` | ищет серверы в локальной сети (mDNS) |
+| `CheckServices()` | статус в подвале: доступны ли LLM и генерация картинок, какие модели загружены |
+| `GetServerStatus()` | процессы сервера, здоровье, GPU, установки, модели |
+| `StartServerProcess(name)`, `StopServerProcess(name)`, `RestartServerProcess(name)`, `GetServerProcessLogs(name, lines)` | управление процессами сервера (Настройки → Подключение) |
+| `GetServerModels(type)`, `GetServerLLMModels()` | файлы на сервере по типу (`sd`, `lora`, `vae`, `text_encoder`…) и LLM-модели |
+| `DownloadServerModel(type, url, file)`, `DeleteServerModel(type, file)` | скачать / удалить файл модели на сервере |
+| `DownloadServerModelStream(jobID, type, url, file)` | то же с прогрессом через событие `server:download:progress:<jobID>` |
+| `PullServerLLMModel(name)`, `PullServerLLMModelStream(jobID, name)`, `DeleteServerLLMModel(name)` | скачать / удалить LLM-модель |
+| `GetModelCatalog()` | каталог моделей для страницы «Каталог» |
+| `GetDefaultDownloadPlan()` | файлы, нужные встроенным стилям, и их общий размер (Приветствие → Модели) |
+| `GetLLMSetup()` / `SaveLLMChoice(generate, vision)` | выбор при первом запуске модели для промптов и модели для фото (vision) |
+| `GetSDModels()`, `GetSDSamplers()`, `GetSDSchedulers()`, `GetSDUpscalers()`, `GetSDVAEs()`, `GetSDLoRAs()` | списки для редактирования стилей, берутся с сервера |
+| `GetLLMModels()` | LLM-модели, доступные на сервере |
 
-## Presets (CRUD)
+## Импорт / экспорт
 
-```typescript
-api.listPresets(): Promise<Preset[]>
-api.listPresetsByType(type: string): Promise<Preset[]>
-api.getPresetType(id: number): Promise<PresetType>
-api.createPreset(data: Preset): Promise<Preset>
-api.updatePreset(id: number, data: Preset): Promise<Preset>
-api.deletePreset(id: number): Promise<void>
+| Метод | Что делает |
+|---|---|
+| `ExportPresets(ids)` / `PreparePresetsExport(ids)` | сохранить стили в JSON (диалог сохранения файла / выбора папки) |
+| `OpenImportFile()` | выбрать один или несколько JSON, возвращает предпросмотр стилей |
+| `ValidateImportModels(items)` | предупреждения о моделях, которых нет на сервере |
+| `ImportPresets(items)` | импорт стилей |
+| `ExportCompoundPresets(ids)` / `PrepareCompoundPresetsExport(ids)` | сохранить рабочие процессы в JSON |
+| `OpenImportCompoundFile()`, `ImportCompoundPresets(items)` | импорт рабочих процессов |
 
-api.listPresetTypes(): Promise<PresetType[]>
-api.createPresetType(data: PresetType): Promise<PresetType>
-api.updatePresetType(data: Presetype): Promise<PresetType>
-api.deletePresetType(id: number): Promise<void>
-```
+## События (backend → frontend)
 
-### Preset
-```typescript
-interface Preset {
-  id: number
-  name: string
-  type_id: number
-  preset_type: string
-  prompt: string
-  negative_prompt: string
-  sampler: string
-  schedule_type: string              // "auto", "karras", "exponential"
-  steps: number
-  cfg_scale: number
-  width: number
-  height: number
-  model_name: string
-  vae: string
-  seed: number | null
-  clip_skip: number | null
-  loras: string                      // JSON: [{name, weight}]
-}
-```
+Отправляются через `runtime.EventsEmit`, принимаются через `EventsOn` из `wailsjs/runtime/runtime`.
 
-### Compound Preset
-```typescript
-api.listCompoundPresets(): Promise<CompoundPreset[]>
-api.createCompoundPreset(data: CompoundPreset): Promise<CompoundPreset>
-api.updateCompoundPreset(data: CompoundPreset): Promise<CompoundPreset>
-api.deleteCompoundPreset(id: number): Promise<void>
-api.generateCompoundImage(params): Promise<GenerateImageResult>
-api.testCompoundGenerate(params): Promise<TestGenerateResultItem[]>
-```
+| Событие | Данные | Кто отправляет | Где слушают |
+|---|---|---|---|
+| `llm:status` | `{status: "thinking" \| "done"}` | генерация (вызовы LLM) | `useGenerationProgress.js` |
+| `sd:progress` | прогресс, ETA, шаг, превью | генерация | `useGenerationProgress.js` |
+| `object:stage` | `"analyzing"` / `"generating"` | правка «Объект» | `ObjectSection.vue` |
+| `repair:progress` | `{done, total}` плиток | «Ремонт» | `RepairSection.vue` |
+| `queue:changed` | — | очередь | `useQueue.js`, `AppFooter.vue`, `PostProcessPage.vue` |
+| `queue:started` | `{job_id, type}` | обработчик очереди | `useQueue.js`, `AppFooter.vue` |
+| `queue:progress` | `{job_id, progress, detail}` | обработчик очереди | `useQueue.js` |
+| `queue:completed` | `{job_id, result}` | обработчик очереди | `useQueue.js`, `AppFooter.vue`, `GeneratePage.vue`, `RemixSection.vue`, `PostProcessPage.vue` |
+| `queue:failed` | `{job_id, error}` | обработчик очереди | там же |
+| `queue:paused` | `{job_id, error, retry_count, max_retries}` | обработчик очереди при ошибке, которую можно повторить: задание повторится позже или встанет на паузу, когда повторы кончились | `useQueue.js`, `GeneratePage.vue`, `RemixSection.vue`, `PostProcessPage.vue` |
+| `session:added` | `{id}` | новый элемент истории | `AppFooter.vue`, `GeneratePage.vue` |
+| `session:active` | `{id}` | элемент выбран | `AppFooter.vue` |
+| `session:selected` | `{id}` | элемент выбран пользователем или через `SetLastImage` | `PostProcessPage.vue` |
+| `session:removed` | `{id}` или `{ids}` | элементы удалены | `AppFooter.vue` |
+| `session:cleared` | — | сессия очищена | `AppFooter.vue` |
+| `session:created` | `{session_id, name}` или `{external: true}` | новая сессия; `external` — создана imagecaster-mcp (проверка раз в 2 с) | `AppFooter.vue` |
+| `session:switched` | `{session_id}` | сессия переключена | `AppFooter.vue` |
+| `session:deleted` | `{session_id}` | сессия удалена | `AppFooter.vue` |
+| `log:entry` | запись журнала в JSON | `internal/logger` | `AppFooter.vue` |
+| `server:download:progress:<jobID>` | текст прогресса | `DownloadServerModelStream`, `PullServerLLMModelStream` | `api.js` |
 
----
-
-## SD WebUI Proxy
-
-```typescript
-api.getModels(): Promise<SDModel[]>
-api.getSamplers(): Promise<Sampler[]>
-api.getSchedulers(): Promise<Scheduler[]>
-api.getUpscalers(): Promise<Upscaler[]>
-api.getVAEs(): Promise<VAE[]>
-api.getLoRAs(): Promise<LoRA[]>
-api.getLLMModels(): Promise<LLMModel[]>
-```
-
----
-
-## Изображения
-
-```typescript
-api.analyzeImage(imageBase64: string): Promise<string>  // returns SD tags
-api.readImageFile(): Promise<string>                     // file dialog → base64
-api.readClipboardImage(): Promise<string>                // clipboard → base64
-api.saveImage(base64: string, defaultName: string): Promise<string>
-api.getLastImage(): Promise<GenerateImageResult | null>
-api.clearLastImage(): Promise<void>
-api.setLastImage(base64: string): Promise<void>
-```
-
----
-
-## Settings
-
-```typescript
-api.getSettings(): Promise<Record<string, string>>
-api.updateSettings(data: Record<string, string>): Promise<void>
-api.checkServer(): Promise<ServerCheck>
-```
-
-`ServerCheck`: `{ state, url, version, missing, error }`. `state` — `ok`, `not_configured` (нет `server_url`), `not_found` (сервер не отвечает), `outdated` (в `GET /` нет нужных `features`: `sdcpp`, `download_stream`, `sd_jobs`, `llamacpp`; `missing` — каких именно). Вызовы генерации фронт отклоняет, пока состояние не `ok`.
-
-**Ключи настроек:**
-| Ключ | Описание |
-|------|----------|
-| `server_url` | Адрес Imagecaster Server |
-| `llm_generate_model` | Модель для генерации промптов |
-| `llm_analyze_model` | Модель для vision анализа |
-| `sd_prompt_instruction` | System prompt для генерации SD промптов |
-| `kids_mode` | `true` / `false` |
-
----
-
-## Sessions
-
-```typescript
-api.createSession(name: string): Promise<SessionInfo>
-api.listSessions(): Promise<SessionInfo[]>
-api.switchSession(id: number): Promise<void>
-api.renameSession(id: number, name: string): Promise<void>
-api.deleteSession(id: number): Promise<void>
-api.getSessionItems(): Promise<SessionItem[]>
-api.getActiveSessionItem(): Promise<SessionItem | null>
-api.setActiveSessionItem(id: number): Promise<void>
-api.deleteSessionItem(id: number): Promise<void>
-api.clearSession(): Promise<void>
-api.getSessionImage(id: number): Promise<string>       // base64
-api.getSessionThumb(id: number): Promise<string>       // base64
-api.hasSessionItems(): Promise<boolean>
-```
-
----
-
-## File Browser
-
-```typescript
-api.browseDirectory(dirPath: string): Promise<FileEntry[]>
-api.readFileAsBase64(filePath: string): Promise<string>
-api.readThumbnail(filePath: string): Promise<string>
-api.selectBrowserFolder(): Promise<string>
-api.selectFolder(): Promise<string>
-```
-
----
-
-## Export / Import
-
-```typescript
-api.exportPresets(ids: number[]): Promise<string>       // JSON string
-api.openImportFile(): Promise<ImportPreview>
-api.validateImportModels(items: PresetData[]): Promise<ValidationWarning[]>
-api.importPresets(items: PresetData[]): Promise<Preset[]>
-
-api.exportImage(params: ExportImageParams): Promise<string>
-api.listExportPresets(): Promise<ExportPreset[]>
-api.saveExportPreset(data: ExportPreset): Promise<ExportPreset>
-api.deleteExportPreset(id: number): Promise<void>
-```
-
----
-
-## Kids Mode
-
-```typescript
-api.setKidsMode(enabled: boolean, pin: string): Promise<void>
-api.isKidsModeActive(): Promise<boolean>
-api.getKidsCategories(): Promise<KidsCategoryInfo[]>
-api.setKidsCategory(name: string, enabled: boolean, pin: string): Promise<void>
-```
+Отправляются, но интерфейс их не слушает: `compound:progress`, `fromimage:progress`, `sd:progress:start`, `sd:progress:stop`.

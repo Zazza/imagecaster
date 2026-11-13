@@ -1,276 +1,176 @@
 [English](frontend-en.md) | [Русский](frontend-ru.md)
 
-# Imagecaster — Frontend (Vue 3)
+# Imagecaster — фронтенд (Vue 3)
 
-## Структура
+Vue 3 (`<script setup>`) + Vite, без роутера и без библиотеки состояния. Иконки — `lucide-vue-next`, шрифты — IBM Plex Sans / Mono (`@fontsource`). Код — в `frontend/src/`.
 
 ```
 frontend/src/
-├── main.js                        # Vue app entrypoint
-├── App.vue                        # Root component (sidebar + router)
-├── api.js                         # API-слой (Wails bindings proxy)
-├── style.css                      # Global styles
-├── components/
-│   ├── GeneratePage.vue           # Основная генерация (txt2img)
-│   ├── GenerateFromImagePage.vue  # Генерация из изображения
-│   ├── EditPage.vue               # Режим правки — редактирование по инструкции
-│   ├── ComparePage.vue            # Сравнение пресетов/моделей бок-о-бок
-│   ├── PresetsPage.vue            # Управление пресетами
-│   ├── UnifiedPresetsPage.vue     # Unified: presets + types + compounds
-│   ├── PresetForm.vue             # Форма создания/редактирования пресета
-│   ├── SettingsPage.vue           # Настройки (LLM, SD, prompts)
-│   ├── TestPage.vue               # Тестовая генерация
-│   ├── ExportPage.vue             # Экспорт изображений
-│   ├── FileBrowserPage.vue        # Файловый браузер
-│   ├── CompoundPresetsPage.vue    # Compound пресеты
-│   ├── ImageViewer.vue            # Fullscreen просмотр изображений
-│   ├── ImportModal.vue            # Модальное окно импорта
-│   ├── SavedDescriptionsModal.vue # Сохранённые описания
-│   ├── PinModal.vue               # PIN-код для kids mode
-│   ├── ToggleSwitch.vue           # Toggle компонент
-│   └── AppFooter.vue              # Footer
-├── i18n/
-│   ├── index.js                   # Re-export entry point
-│   └── en.js                      # English strings (~300 keys)
-├── assets/
-│   └── main.css                   # CSS variables, global styles
-└── wailsjs/                       # Auto-generated Wails bindings
-    ├── runtime/runtime.js         # EventsOn, EventsOff, etc.
-    └── go/
-        ├── main/App.js            # JS bindings
-        ├── main/App.d.ts          # TypeScript types
-        └── models.ts              # Data models
+├── main.js            # монтирует App.vue, подключает шрифты и style.css
+├── App.vue            # оболочка: заголовок окна, боковое меню, страницы, подвал, окна запуска
+├── api.js             # обёртка над Wails bindings
+├── i18n/              # index.js, en.js, ru.js
+├── components/        # страницы, секции, модальные окна, мелкие виджеты
+├── composables/       # функции use*
+├── *.js               # модули состояния и чистые помощники
+├── style.css          # глобальные стили и переменные темы
+├── wailsjs/           # генерирует Wails, не править
+└── __tests__/         # vitest
 ```
 
-## i18n — Интернационализация
+## Оболочка (App.vue)
 
-Все UI-строки вынесены в `i18n/en.js` — плоский объект с ~300 ключами.
+- **Заголовок окна** — `TitleBar.vue`. На Linux и Windows окно без системной рамки (`Frameless: runtime.GOOS != "darwin"` в `main.go`); `composables/useWindowFrame.js` следит за развёрнутым/полноэкранным состоянием и платформой.
+- **Боковое меню** — страницы (ключ i18n → страница):
 
-```javascript
-import { t } from '../i18n/index.js'
+| Ключ | Подпись | Компонент |
+|---|---|---|
+| `app.nav_generate` | Генерация | `UnifiedGeneratePage.vue` → `GeneratePage.vue` |
+| `app.nav_postprocess` | Постобработка | `PostProcessPage.vue` |
+| `app.nav_gallery` | Галерея | `GalleryPage.vue` |
+| `app.nav_my_images` | Мои изображения | `FileBrowserPage.vue` |
+| `app.nav_styles` | Стили | `UnifiedPresetsPage.vue` |
+| `app.nav_catalog` | Каталог | `CatalogPage.vue` |
+| `app.nav_settings` | Настройки | `SettingsPage.vue` |
 
-// Использование
-t('generate.btn_generate')                    // → "Generate"
-t('settings.label_llm_url')                   // → "LLM URL"
-t('fi.progress_analyze', { step: 1, total: 3 }) // → "Analyzing 1/3..."
-```
+  Внизу меню: кнопка сворачивания (состояние в `localStorage`, ключ `imagecaster_sidebar`), светлая/тёмная тема (сохраняется в настройку `theme`), переключатель RU/EN, «Сбросить всё» (`app.reset_all`, два нажатия) — очищает сохранённые значения форм Генерации и Постобработки и последнюю картинку.
+- **Полоса о сервере** — видна, когда проверка сервера не `ok` и окно проверки закрыто: `server.banner_offline`, `server.banner_outdated` или `server.banner_incompatible`, с кнопкой `server.banner_fix`, которая снова открывает окно проверки.
+- **Подвал** — `AppFooter.vue`.
+- Настройки и Каталог остаются смонтированными (`v-show`); остальные страницы создаются при открытии.
 
-**Конвенция именования ключей:** `{component}.{context}` — например `generate.btn_generate`, `settings.label_llm_url`.
+### Порядок запуска
 
-**Добавление нового языка:**
-1. Создать `i18n/{lang}.js` с таким же набором ключей
-2. Добавить переключатель в `i18n/index.js`
+1. `checkServer()` из `serverState.js` (метод `CheckServer`).
+2. Не `ok` → `ServerCheckModal.vue`: поиск в локальной сети (`DiscoverServers`), ввод адреса вручную, ссылка «Как установить/обновить сервер» (`server.how_to_install` / `server.how_to_update`), «Повторить», «Закрыть» (`server.close_limited`) — приложение продолжает работать в ограниченном режиме с полосой о сервере.
+3. `WelcomeModal.vue` — вкладки «Что это» (`welcome.tab_about`) и «Что нового» (`welcome.tab_news`, из `releaseNotes.js`). Открывается при запуске, пока не отмечено «Больше не показывать при запуске» (`welcome.dont_show`); после обновления открывается на «Что нового»; при новой установке (на сервере нет SD-моделей) открывается, даже если его отключили. Блок «Модели» предлагает «Скачать всё для пресетов» (`settings.btn_download_all`) — файлы, нужные встроенным стилям (`GetDefaultDownloadPlan`). Состояние — `localStorage`, ключ `imagecaster_welcome`. Клик по логотипу в меню открывает окно снова.
+4. `LLMSetupModal.vue` — если `GetLLMSetup().needed`: выбор модели для промптов и модели для фото (vision); можно скачать выбранные модели и сохранить (`SaveLLMChoice`).
 
-## api.js — API-слой
+## Страницы и секции
 
-Все вызовы Wails bindings проходят через `api.js`. Это единственная точка импорта для компонентов.
+### Генерация
+`UnifiedGeneratePage.vue` держит общее состояние (`provide('sharedGenState')`) и принимает перетащенный файл картинки — открывает Постобработку → Ремикс с этой картинкой. `GeneratePage.vue`:
+- режимы: Стиль (`generate.btn_style`), Рабочий процесс (`generate.btn_workflow`), Конструктор (`generate.btn_custom`, шаги редактируются в `CustomPipelineEditor.vue`, до 8 — `customSteps.js`);
+- «Сгенерировать изображение» (`generate.btn_generate`): LLM пишет промпт по описанию (`GenerateSDPrompt`), затем нужное число картинок (1–100) уходит в очередь (`EnqueueTxt2Img` / `EnqueueCompound`);
+- «Сгенерировать напрямую» (`generate.btn_generate_directly`): сразу отправляет уже написанный промпт (`GenerateImage` / `GenerateCompoundImage`);
+- сохранённые описания и пакет идей — `SavedDescriptionsModal.vue`, `ideasBatch.js` (до 20 картинок на идею);
+- `ResolutionSelector.vue`, `HiresProfileSelector.vue`, `PresetOverridesPanel.vue` (разовая подмена настроек стиля, веса LoRA через `loraOverride.js`), увеличение ×2 (`UpscaleImage`);
+- значения формы сохраняются в настройки (ключи `gen_*`).
 
-```javascript
-import { GenerateImage, ... } from './wailsjs/go/main/App.js'
+### Постобработка
+`PostProcessPage.vue` — одна картинка (или пакет), карточки пронумерованы по порядку:
 
-export const api = {
-  generateImage: (presetId, extraPrompt, extraNegativePrompt) =>
-    GenerateImage({ preset_id: presetId, ... }),
-  // ...
-}
-```
+| № | Ключ заголовка | Подпись | Реализация |
+|---|---|---|---|
+| 01 | `post.section_edit` | Правка | `EditSection.vue`: правка по инструкции (`EditImage` / `EnqueueEdit`) или «Описать вид» (`edit.mode_look`: `CompilePostStyle`, `ApplyLookDirect` / `EnqueueLook`); референс, стиль, LoRA |
+| 02 | `post.section_remix` | Ремикс | `RemixSection.vue`: перерисовка в стиле или рабочем процессе (`EnqueueFromImage`), анализ фото (`AnalyzeImage`) |
+| 03 | `post.section_object` | Объект | `ObjectSection.vue`: маска кистью, Удалить / Заменить (`EditObject`) |
+| 04 | `post.section_repair` | Ремонт | `RepairSection.vue`: маска по повреждениям (`RepairImage`) |
+| 05 | `post.effect_title` | Эффект | стили-эффекты типов `post`, `post_*` (группы в `effectTypes.js`) через `EnqueueFromImage`; Авто-стиль (`post.autostyle`, `DescribeForStyle`) |
+| 06 | `post.adjust_title` | Коррекция | локальная коррекция без ИИ (`PreviewAdjust`, `AutoAdjust`) |
+| 07 | `post.finish_title` | Формат, рамка, подпись | применяется при сохранении (`PreviewPost`) |
+| 08 | `export.export_settings` | Настройки экспорта | `ExportImage`, сохранённые настройки экспорта |
+| 09 | `post.recipes_title` | Рецепты | сохранённые цепочки (`RecipeComposition.vue`, `ListPostRecipes` / `SavePostRecipe`) |
 
-**Добавление нового binding:**
-1. Метод в `app.go` с заглавной буквы
-2. Запустить `wails dev` для генерации bindings (или добавить вручную в `App.js`, `App.d.ts`, `models.ts`)
-3. Добавить в `api.js`
+Ещё: отмена/повтор применённых шагов (Ctrl+Z / Ctrl+Y или Ctrl+Shift+Z), масштаб (`useZoomPan.js`), маски (`useMaskCanvas.js`). Пакетный режим (`postBatch.js`) обрабатывает через очередь несколько картинок, присланных из «Мои изображения» или Истории; временные файлы — через `BatchSaveImage`. Страница слушает `session:selected`, чтобы загрузить картинку, выбранную в Истории.
 
-## Events (Backend → Frontend)
+### Галерея
+`GalleryPage.vue` — все картинки истории по всем сессиям (`ListHistory`): фильтры по сессии (группе), периоду (`galleryFilters.js`: всё / сегодня / неделя / месяц / свой), модели, стилю или рабочему процессу, типу и форме, поиск по промпту; подгрузка «Загрузить ещё»; выбор и удаление (`DeleteHistoryItems`); «Открыть в истории» (`gallery.open_in_history`, `OpenInHistory`); просмотр в `ImageViewer.vue`.
 
-```javascript
-import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime'
+### Мои изображения
+`FileBrowserPage.vue` — просмотр локальной папки (`BrowseDirectory`, `ReadThumbnail`), сортировка по дате или имени (`fileSort.js`), выбор папки (`SelectBrowserFolder`), выбор нескольких файлов и отправка в Постобработку (`browser.send_to_postprocess_multi`).
 
-// Подписка
-EventsOn("remove:stage", (stage) => { ... })
+### Стили
+`UnifiedPresetsPage.vue` с вкладками:
+- Стили (`unified.tab_presets`) и Эффекты (`unified.tab_effects`) — `PresetsPage.vue` в режимах `styles` / `effects`: таблица с фильтрами (`presetFilters.js`), редактирование в `PresetForm.vue`, импорт (`ImportModal.vue`) / экспорт, установка моделей стиля (`InstallPresetDeps`);
+- Рабочие процессы (`unified.tab_pipelines`) — `CompoundPresetsPage.vue`: таблица с фильтрами (`pipelineFilters.js`), редактирование шагов с `SearchableSelect.vue`, импорт (`PipelineImportModal.vue`), удаление с подтверждением.
 
-// Отписка
-EventsOff("remove:stage")
-```
+Стили, для которых на сервере нет модели или LoRA, скрыты (`presetAvailability.js`, статусы от `SyncPresets` через `composables/usePresets.js`); если список статусов не получен, ничего не скрывается.
 
-### Все events
+### Каталог
+`CatalogPage.vue` — каталог моделей сервера (`GetModelCatalog`): скачать / удалить модели и LLM, «Скачать всё для пресетов», прогресс в `DownloadProgress.vue`. Состояние — в `serverModels.js`.
 
-| Event | Data | Страница |
-|-------|------|----------|
-| `analyze:step` | `(step, total)` | GenerateFromImage |
-| `remove:stage` | `"analyzing"` / `"generating"` | GenerateFromImage |
-| `batch:progress` | `(current, total, fileName)` | Batch |
-| `batch:done` | — | Batch |
-| `batch:error` | `error` | Batch |
-| `session:added` | — | GenerateFromImage |
+### Настройки
+`SettingsPage.vue`, вкладки:
+- Подключение (`settings.tab_connection`) — адрес сервера и поиск в сети, процессы сервера (запуск / остановка / перезапуск / логи), память GPU, выбор моделей для промптов и для фото, параметры LLM (температура, контекст, максимум токенов, top-p, потоки);
+- Промпты (`settings.tab_prompts`) — редактируемые промпты со значениями по умолчанию от бэкенда;
+- Безопасность (`settings.tab_safety`) — безопасный режим (`settings.section_kids`) с PIN (`PinModal.vue`) и категориями;
+- Дополнительно (`settings.tab_advanced`) — видеопамять (`settings.section_memory_guard`, автовыгрузка LLM), списки SD/LoRA и LLM-моделей на сервере.
 
-## Основные компоненты
+### Подвал
+`AppFooter.vue` — статус сервисов (`CheckServices`), версия приложения, три вкладки панели:
+- История (`footer.session`) — элементы текущей сессии, переключение сессий (слушает `session:*`);
+- Журнал (`footer.log`) — `GetLogEntries` + `log:entry`;
+- Обработка (`footer.processing`) — `QueuePanel.vue`: пауза / продолжение, отмена, повтор, продолжение приостановленных (`queue.resume_paused`).
 
-### GeneratePage.vue
-Основная страница генерации.
+Одна кнопка закрытия открытой панели. Высота подвала сохраняется через `SaveWindowLayout`.
 
-**State:**
-```javascript
-const selectedPresetId = ref(null)
-const description = ref('')
-const extraPrompt = ref('')
-const extraNegativePrompt = ref('')
-const generating = ref(false)
-const generatedImage = ref('')
-const genInfo = ref(null)
-```
+### Общие виджеты
+`ImageViewer.vue` (полный просмотр, масштаб, пред./след., удаление, отправка в Постобработку, данные генерации), `FoldBlock.vue` (сворачиваемый блок), `StatusMessage.vue`, `ToggleSwitch.vue`, `SearchableSelect.vue`, `DownloadProgress.vue`.
 
-**Flow:**
-1. Выбор пресета → заполнение описания
-2. `api.generateSdPrompt()` → превью промпта
-3. `api.generateImage()` → генерация
-4. Результат: image (base64) + info (JSON)
-5. Скачать / upscale / добавить в сессию
+## api.js
 
-### GenerateFromImagePage.vue
-Генерация из изображения. 4 режима.
+- Импортирует методы из `wailsjs/go/main/App.js` и экспортирует один объект `api` с методами в camelCase; часть добавляет значения по умолчанию или собирает объект параметров (например, `generateImage(presetId, extraPrompt, …)` → `GenerateImage({preset_id, …})`).
+- `sessionImageUrl(id)` / `sessionThumbUrl(id)` возвращают `/api/img/<id>.jpg` / `/api/thumb/<id>.jpg`.
+- `downloadServerModelStream` / `pullServerLLMModelStream` создают id задания, подписываются на `server:download:progress:<jobID>` и разбирают прогресс через `downloadProgress.js`.
+- Вызовы сервера (генерация, анализ, правки, `enqueue*`, `retryQueueJob`) обёрнуты `serverGate.js`: пока проверка сервера не `ok`, они отклоняются с `server.need_server`.
+- Методы: см. [api-reference-ru.md](api-reference-ru.md).
 
-**Режимы:**
-```javascript
-const mode = ref('img2img')  // img2img | inpaint | remove
-```
+## Composables
 
-**Mask Canvas (inpaint/remove):**
-- HTML5 Canvas поверх изображения
-- Рисование белой полупрозрачной кистью
-- `getMaskBase64()` — конвертация в ч/б PNG (белый = маска) с dilation + feathering
-- **Mask Padding** (0–64px) — dilation: blur + threshold, расширяет маску
-- **Mask Feather** (0–64px) — Gaussian blur краёв маски для плавного перехода
-- Fullscreen редактор маски
-- Undo (история состояний canvas)
+| Файл | Назначение |
+|---|---|
+| `useGenerationProgress.js` | прогресс LLM/SD из `llm:status` и `sd:progress`, прерывание |
+| `useQueue.js` | список очереди и состояние паузы, обновляется по событиям `queue:*` |
+| `usePresets.js` | загрузка стилей, типов и рабочих процессов; `withPresetStatuses` ждёт `SyncPresets` до 1,5 с, чтобы скрыть недоступные стили |
+| `useKidsMode.js` | включён ли безопасный режим |
+| `useMaskCanvas.js` | рисование маски с отменой/повтором |
+| `useZoomPan.js` | масштаб 10–500 % (быстрые 30/50/100), сдвиг, Ctrl+колесо |
+| `useWindowFrame.js` | классы состояния окна для окна без рамки |
 
-**Drag & Drop:**
-- Перетаскивание изображения на drop zone
-- Ctrl+V вставка из буфера
-- Кнопка "Last Generated" (из сессии)
+## Модули состояния и помощники
 
-### PresetsPage.vue / UnifiedPresetsPage.vue
-CRUD пресетов.
+Общее состояние — обычные `reactive`/`ref`, экспортируемые из модулей:
 
-**PresetForm.vue** — форма с полями:
-- Name, Type, Prompt, Negative Prompt
-- Model, VAE, Sampler, Scheduler
-- Steps, Cfg Scale, Width, Height, Seed, Clip Skip
-- LoRA: динамический список `{name, weight}`
+| Файл | Что хранит / делает |
+|---|---|
+| `serverState.js` | результат проверки сервера (`state`, `url`, `version`, `missing`, `reason`), `checkServer()`, `useServer(url)`; ссылки на установку сервера |
+| `serverGate.js` | шлагбаум, блокирующий вызовы сервера в `api.js` |
+| `serverModels.js` | файлы на сервере по типам, текущая загрузка, соответствие «модель → стили», помощники скачивания/удаления |
+| `modelDownloads.js` | план и прогресс «скачать всё» |
+| `remixQueue.js` | список картинок, переданных в пакетную постобработку |
+| `historyViewer.js` | позволяет другим страницам открыть элемент в просмотрщике Истории в подвале |
+| `welcome.js`, `releaseNotes.js` | когда показывать окно приветствия; список изменений |
+| `customSteps.js`, `ideasBatch.js`, `loraOverride.js`, `modelLora.js`, `seed.js` | помощники Генерации |
+| `postBatch.js`, `effectTypes.js` | пакет Постобработки и группы эффектов |
+| `galleryFilters.js`, `presetFilters.js`, `pipelineFilters.js`, `presetAvailability.js`, `fileSort.js`, `highlight.js` | фильтры, сортировка, подсветка |
+| `downloadProgress.js` | разбор и форматирование прогресса загрузки |
+| `windowEdge.js` | курсор изменения размера у края окна |
+| `constants.js` | `MAX_IMAGE_SIZE` (128 МБ) |
 
-### SettingsPage.vue
-Настройки приложения. Табы:
-- **General:** LLM URL, SD URL, Backend
-- **Models:** LLM generate model, LLM analyze model
-- **Prompt:** sd_prompt_instruction (textarea)
-- **Image Browser:** default folder
-- **Kids Mode:** PIN, категории
+## i18n
 
-Пакетная генерация по файлам из папки.
+- `i18n/index.js`: `t(key, params)`, `setLocale(l)`, `locale`. Порядок поиска: текущий язык → английский → сам ключ. Параметры в строках пишутся как `{name}`.
+- Языки: `ru` (по умолчанию) и `en`. Выбор хранится в `localStorage` (ключ `ui_locale`) и передаётся бэкенду настройкой `ui_locale`.
+- В `en.js` и `ru.js` одинаковые 1079 ключей, сгруппированные по префиксу (`app.`, `generate.`, `post.`, `settings.`, `gallery.`, `queue.`, `server.`, `welcome.`, …).
+- Правило: каждая видимая пользователю строка идёт через `t()` и добавляется в оба файла.
 
-**Flow:**
-1. Выбор папки → сканирование файлов
-2. Выбор пресета + описание
-3. `api.batchGenerate()` — асинхронная генерация
-4. Progress через `batch:progress` events
+## Тема
 
-### ImageViewer.vue
-Fullscreen просмотр изображений (зум, навигация).
+`style.css` задаёт переменные на `:root` (тёмная) и `[data-theme="light"]`: `--bg`, `--surface`, `--border`, `--text`, `--text-bright`, `--text-dim`, `--accent`, `--accent-hover`, `--danger`, `--warning`, `--success`, `--radius`, `--font-sans`, `--font-mono` и другие. Тема включается атрибутом `data-theme` на `<html>`.
 
-```vue
-<ImageViewer :image-base64="image" @close="showViewer = false" />
-```
+## Клавиатура
 
-## CSS Variables
+| Клавиши | Где | Действие |
+|---|---|---|
+| Ctrl/Cmd+Enter | Генерация, Ремикс, Объект, Ремонт | запуск |
+| Ctrl/Cmd+Z, Ctrl/Cmd+Y, Ctrl/Cmd+Shift+Z | Постобработка (не в текстовых полях) | отмена / повтор (маски — в режиме маски) |
+| Ctrl+колесо | Постобработка, просмотрщик | масштаб |
+| Esc, ←, →, Delete | просмотрщик | закрыть, предыдущая, следующая, удалить |
+| Esc | окна проверки сервера и приветствия | закрыть |
 
-```css
-:root {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --surface-2: #1e2a4a;
-  --text-primary: #e0e0e0;
-  --text-dim: #888;
-  --accent: #4f8fff;
-  --border: #2a3a5e;
-  --radius-sm: 6px;
-  --error-bg: #2e1a1a;
-  --error-text: #ff6b6b;
-}
-```
+## Тесты
 
-## Клавиатурные сокращения
-
-| Shortcut | Действие | Контекст |
-|----------|----------|----------|
-| `Ctrl+Enter` | Generate | GeneratePage, GenerateFromImagePage |
-| `Escape` | Close fullscreen mask editor | GenerateFromImagePage |
-
-## Testing
-
-### Инфраструктура
-- **Vitest** + `@vue/test-utils` + `happy-dom`
-- Запуск: `npm test` (или `npm run test:watch`)
-- Конфиг: `vitest.config.js`
-
-### Mocks
-Все Wails bindings мокаются в `src/__tests__/setup.js` через `vi.mock()`. Компоненты не обращаются к реальному бэкенду.
-
-**Runtime mocks** (`src/__tests__/mocks/runtime.js`):
-- `EventsOn`, `EventsOff`, `EventsEmit` — можно emit'ить события в тестах
-- `clearEventMocks()` — очистка между тестами
-
-**Wails binding mocks** (`src/__tests__/mocks/wails.js`):
-- `mockWailsBinding(name, fn)` — переопределение мока для конкретного теста
-- `clearWailsMocks()` — очистка
-
-### Написание тестов
-```javascript
-import { mount } from '@vue/test-utils'
-import MyComponent from '../MyComponent.vue'
-
-test('renders correctly', () => {
-  const wrapper = mount(MyComponent, { props: { ... } })
-  expect(wrapper.text()).toContain('expected text')
-})
-```
-
-### Формат base64 изображений
-Все изображения передаются как чистый base64 (без `data:image/...;base64,` префикса). Преобразование для `<img>`:
-
-```vue
-<img :src="'data:image/png;base64,' + imageBase64" />
-```
-
-### Error handling
-```javascript
-try {
-  const result = await api.generateImage(presetId, description)
-  if (!result || !result.image) {
-    error.value = 'No image returned'
-  }
-} catch (e) {
-  error.value = String(e)  // Показать пользователю
-}
-```
-
-### Preset persistence (GenerateFromImagePage)
-Состояние (mode, preset_id, denoising, etc.) сохраняется в settings через `fi_*` ключи:
-```javascript
-function saveFIState() {
-  api.updateSettings({
-    fi_mode: mode.value,
-    fi_preset_id: String(selectedPresetId.value),
-    fi_denoising: String(denoisingStrength.value),
-    // ...
-  })
-}
-```
-
-### Shared state
-Между страницами через `inject('sharedGenState')`:
-```javascript
-// Из GeneratePage в GenerateFromImagePage
-const shared = inject('sharedGenState', null)
-if (shared) {
-  shared.description = tags.value
-}
-```
+- Vitest + `@vue/test-utils`, окружение `happy-dom` (`frontend/vitest.config.js`, файл настройки `src/__tests__/setup.js`).
+- Запуск: `cd frontend && npm test` (`vitest run`), в режиме наблюдения — `npm run test:watch`.
+- 75 файлов тестов в `src/__tests__/`, по областям: Генерация, Постобработка (эффекты, пакет, формат и рамка, живое превью, маски), Галерея, таблицы Стилей и Рабочих процессов, Каталог, Настройки, проверка сервера, приветствие и выбор LLM, очередь, подвал, просмотрщик, боковое меню, i18n отдельных текстов.
+- Моки: тесты подменяют методы через `vi.mock('../wailsjs/go/main/App.js', …)` — обычно `mocks/wails-app.js` (все методы как `vi.fn`) — и runtime через `vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))`; `mocks/runtime.js` хранит настоящих слушателей и даёт `EventsEmit`, чтобы вызывать события в тестах.

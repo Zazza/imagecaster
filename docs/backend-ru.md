@@ -1,339 +1,179 @@
 [English](backend-en.md) | [Русский](backend-ru.md)
 
-# Imagecaster — Backend (Go)
+# Imagecaster — Бэкенд (Go)
 
-## Конструкторы (Dependency Injection)
+Как устроена часть на Go: запуск, конфигурация, сервисы и их Wails bindings, события, обработка ошибок. Общая картина и протокол сервера — в [architecture-ru.md](architecture-ru.md).
 
-Все основные компоненты создаются в `main.go` и внедряются через конструкторы:
+## Запуск
 
-```go
-cfg := config.Load()
-presets, _ := preset.Open(cfg.DBPath)
-llmClient := llm.New(cfg.LLMUrl)
-sdClient := sd.New(cfg.SDUrl)
-app := NewApp(presets, llmClient, sdClient, cfg)
-```
+`main.go`:
 
-## internal/config
+1. `config.Load()` — значения по умолчанию и путь к БД.
+2. `preset.Open(cfg.DBPath)` — открывает SQLite и применяет миграции.
+3. Создаёт `llm.Client`, `sd.Client` (берёт ID установки из БД), `serverclient.Client`.
+4. `settings.Restore(...)` — читает из БД `server_url` и выбор моделей, направляет клиенты на сервер.
+5. `NewApp(...)` — собирает все сервисы; затем сервису настроек передаются встроенные пресеты (`data/presets/*.json`).
+6. `wails.Run(...)`, единственный привязанный объект — `App`. Обработчик ресурсов отдаёт `/api/img/<id>` и `/api/thumb/<id>` из `data/sessions` и `data/thumbs`.
 
-### Config
-```go
-type Config struct {
-    LLMUrl         string  // env: LLM_URL
-    SDUrl          string  // env: SD_URL
-    LLMModel       string  // env: LLM_MODEL
-    SDPromptModel  string  // env: SD_PROMPT_MODEL (алиас для LLMModel)
-    VisionModel    string  // env: VISION_MODEL
-    Port           string  // env: PORT
-    DBPath         string  // env: DB_PATH
-    SystemPrompt   string  // env: SYSTEM_PROMPT
-    DefaultNegative string // env: DEFAULT_NEGATIVE
-    DefaultSampler  string
-    DefaultSteps    int
-    DefaultCfgScale float64
-    DefaultWidth    int
-    DefaultHeight   int
-}
-```
+`App.startup`: удаляет завершённые задания очереди, запускает обработчик очереди, запускает опрос БД раз в 2 с (сессии от `imagecaster-mcp`), очищает `data/batch`, восстанавливает размер и положение окна.
+`App.shutdown`: останавливает очередь (до 5 с); выполнявшееся задание возвращается в `pending`.
 
-### Константы промптов
-- `DefaultSDPromptInstruction` — системный промпт для генерации SD промптов
-- `DefaultAnalyzeSystemPrompt` — промпт для анализа изображений
-- `DefaultAnalyzeChainPrompts` — цепочка промптов для глубокого анализа
-- `KidsModePrompt` — промпт для безопасного режима
-
-## internal/llm
-
-### Client
-HTTP-клиент для OpenAI-совместимого API.
+Сборка в `NewApp`:
 
 ```go
-type Client struct { ... }
-
-func New(baseURL, backend string) *Client
-func (c *Client) Chat(model, systemPrompt, userMessage string, temperature float64, maxTokens int) (string, error)
-func (c *Client) ChatVision(model, systemPrompt, userText, imageBase64 string, temperature float64, maxTokens int) (string, error)
-func (c *Client) AnalyzeImage(model, systemPrompt, imageBase64 string, maxTokens int) (string, error)
-func (c *Client) GenerateSDPrompt(systemPrompt, description, presetType, model string, maxTokens int) (string, error)
-func (c *Client) ChatWithMessages(model string, messages []Message, temperature float64, maxTokens int) (string, error)
-func (c *Client) GetModels() ([]LLMModel, error)
-func (c *Client) HealthCheck() error
-func (c *Client) SetURL(baseURL string)
-func (c *Client) SetBackendConfig(cfg BackendConfig)
+a.sessions    = session.New(presets, dataDir, emitter)
+a.settingsSvc = settings.New(presets, llm, sd, cfg, log, srvClient)
+a.ieSvc       = importexport.New(presets, sd, log)
+a.gen         = generation.New(presets, llm, sd, cfg, dataDir, emitter, kidsMgr, sessions, settingsSvc, settingsSvc, log)
+queueProc     = queue.NewProcessor(gen, sd.(sd.QueueScoper), queueStore, dataDir, emitter)
+a.queueSvc    = queue.NewService(queueStore, queueProc, emitter)
+a.batch       = batch.New(dataDir + "/batch")
 ```
 
-### BackendConfig
-```go
-type BackendConfig struct {
-    KeepAlive string  // "5m", "0" (выгрузить сразу)
-    NumCtx    int     // размер контекста
-}
-```
+`cmd/imagecaster-mcp/main.go` повторяет шаги 1–4 и так же собирает `generation`, но без очереди и с пустым отправителем событий.
 
-### Утилиты
-- `CleanTags(s string) string` — очистка и обрезка тегов
-- `stripThinkTags(s string) string` — удаление `<think/>` блоков
+## Конфигурация
 
-## internal/sd
+### Источники
 
-### Client
-HTTP-клиент картиночной части Imagecaster Server (`<server>/api/sd`). Каждая генерация — задание на сервере: поставить, опрашивать, забрать результат, удалить. Общей «текущей модели» нет: каждое задание само называет checkpoint, VAE, доп. модули и флаги опорного кадра.
+| Источник | Что |
+|----------|-----|
+| `config.Load()` | Встроенные значения по умолчанию и тексты промптов. |
+| Переменная `DB_PATH` | Файл БД; относительный путь считается от исполняемого файла. По умолчанию `data/presets.db`. |
+| Таблица `settings` | Всё, что меняет пользователь: `server_url`, выбранные модели, тексты промптов, детский режим, состояние интерфейса, последние значения форм. |
 
-```go
-type ModelSpec struct {
-    Checkpoint, VAE string
-    Modules         []string
-    KleinReference  bool
-    MossReference   bool
-}
-type JobRequest struct { Kind, ClientRef string; Model ModelSpec; Params any }
+`UpdateSettings` записывает только ключи из `config.AllowedSettings`, остальные пропускает. `server_url` нормализуется (добавляется `http://`, убирается `/` в конце); `llm_num_ctx` и `llm_max_tokens` становятся `0`, если это не неотрицательное число.
 
-func New(baseURL string) *Client
-func (c *Client) SetClientName(name string)            // по умолчанию "imagecaster"; MCP — "imagecaster-mcp"
-func (c *Client) SubmitJob(ctx, JobRequest) (*JobStatus, error)    // POST /jobs
-func (c *Client) GetJob(ctx, id) (*JobStatus, error)               // GET /jobs/{id}
-func (c *Client) JobResult(ctx, id) (*JobResult, error)            // GET /jobs/{id}/result
-func (c *Client) CancelJob(ctx, id) error                          // POST /jobs/{id}/cancel
-func (c *Client) DeleteJob(ctx, id) error                          // DELETE /jobs/{id}
-func (c *Client) ListJobs(ctx, client string) ([]JobStatus, error) // GET /jobs?client=
-func (c *Client) RunJob(ctx, JobRequest, onProgress func(JobStatus)) (*JobResult, error)
-func (c *Client) ForQueueJob(ctx, queueJobID int64) Service
-func (c *Client) Txt2Img(req Txt2ImgRequest) (*Txt2ImgResponse, error)   // поставить и ждать
-func (c *Client) Img2Img(req Img2ImgRequest) (*Txt2ImgResponse, error)   // поставить и ждать
-func (c *Client) UpscaleImage(image, upscaler string, scale float64) (string, error)
-func (c *Client) Interrupt() error        // отменяет незавершённые задания своего имени клиента и своей установки
-func (c *Client) SetProgressHandler(fn func(JobStatus))
-func (c *Client) GetModels/GetSamplers/GetSchedulers/GetUpscalers/GetVAEs/GetLoRAs()
-func (c *Client) State() (*ServerState, error)   // GET /state: загруженная модель, идущее задание
-func (c *Client) MemoryInfo() (*MemoryStats, error)
-func (c *Client) HealthCheck() error             // GET /state
-```
+### Адрес сервера
 
-### RunJob
-- Интервал опроса — `PollInterval` (по умолчанию 1 с). Сетевая ошибка опроса не прерывает ожидание.
-- Статус `lost` (или `failed` с кодом `server_restarted`) либо 404 при опросе — задание ставится заново один раз с тем же `client_ref`; повторная потеря — ошибка `ErrJobLost`.
-- `failed` — ошибка с текстом сервера. Сетевая ошибка при постановке — ещё до 3 постановок с тем же `client_ref`; HTTP 4xx/5xx при постановке не повторяются.
-- Отмена контекста с причиной `sd.ErrUserCancel` отменяет задание на сервере. Любая другая отмена (закрытие приложения) задание на сервере не трогает.
-- После получения результата задание удаляется на сервере.
+`settings.ApplyServerURL` задаёт базовый адрес `serverclient` и выводит `<server_url>/api/sd` для `sd` и `<server_url>/api/llm` для `llm`. Вызывается при запуске (`Restore`) и при сохранении `server_url`.
 
-### Задания очереди
-`ForQueueJob(ctx, id)` возвращает `Service`, у которого вызовы генерации идут с `ctx` и `client_ref = <inst>:q<id>:s<seq>:<hash8>` (seq = 1, 2, 3… по порядку вызовов, hash8 — первые 8 hex sha256 от kind+model+params). Повтор той же цепочки даёт те же ref: сервер сразу отдаёт готовые шаги и подключает к идущему.
+При первом запуске после обновления с версии с прямым подключением `Restore` смотрит старые настройки `sd_url` / `llm_url`, проверяет порт 8080 на том же хосте и, если отвечает Imagecaster Server, сохраняет его как `server_url`.
 
-`<inst>` — id установки: случайные 16 hex, создаются один раз и хранятся в настройке `install_id` (`preset.DB.InstallID`), передаются в `SetInstallID`. Прямые вызовы идут с `<inst>:d:<random>`. `CleanupQueueJob` удаляет только `<inst>:q<id>:*`, `Interrupt` — только задания с префиксом `<inst>:`, поэтому два компьютера с одним сервером не трогают задания друг друга. imagecaster-mcp читает ту же БД и тот же id, но работает под своим именем клиента.
+### Структура Config
 
-### Запросы
-`Txt2ImgRequest` / `Img2ImgRequest` несут `Model ModelSpec`, промпт, сэмплер и планировщик (имена sd.cpp, напр. `euler_a`, `karras`, `""` — по умолчанию), шаги, CFG, размер, seed (nil — случайный), clip skip, batch size × batch count (уходит одним `batch_size`), hires (txt2img), исходник, маску и силу denoise (img2img).
+Главные поля `config.Config`: `DBPath`, `LLMModel`, `SDPromptModel` (модель для промптов), `VisionModel` (модель для фото), `SystemPrompt`, `DefaultNegative`, значения по умолчанию для сэмплера/шагов/CFG/размера. Поля моделей перезаписываются из настроек (`llm_model`, `sd_prompt_model`, `vision_model`, `llm_generate_model`, `llm_analyze_model`).
 
-## internal/preset
+Константы `config`: инструкции промптов по умолчанию (варианты с тегами и связным текстом, анализ, описание одежды), `KidsModePrompt`, `MaxImageBytes` = 128 МБ и `ImageTooLarge(what)`.
 
-### DB
-SQLite CRUD для всех данных приложения.
+### imagecaster-mcp
 
-```go
-type DB struct { ... }
+| Переменная / флаг | Значение |
+|-------------------|----------|
+| `-db` или `IMAGECASTER_MCP_DB` | путь к БД (иначе `DB_PATH` / по умолчанию) |
+| `IMAGECASTER_MCP_OUT` | папка для файлов, по умолчанию `~/imagecaster-mcp-out` |
+| `IMAGECASTER_MCP_NO_IMAGE_BYTES=1` | старые инструменты не отдают `image_base64` |
 
-func Open(dbPath string) (*DB, error)
-func (db *DB) Close() error
-```
+Старые имена с префиксом `SD_MCP_` тоже читаются.
 
-### CRUD методы
-Пресеты: `ListPresets`, `Get`, `Create`, `Update`, `Delete`, `ListByType`
-Типы: `ListPresetTypes`, `GetPresetType`, `CreatePresetType`, `UpdatePresetType`, `DeletePresetType`
-Compound: `ListCompoundPresets`, `GetCompoundPreset`, `CreateCompoundPreset`, `UpdateCompoundPreset`, `DeleteCompoundPreset`
-Settings: `GetSetting(key)`, `SetSetting(key, value)`
-Descriptions: `ListDescriptions`, `CreateDescription`, `UpdateDescription`, `DeleteDescription`
-Prompts: `ListPrompts`, `CreatePrompt`, `DeletePrompt`
-Sessions: `CreateSession`, `ListSessions`, `SwitchSession`, `DeleteSession`, etc.
-- `AddSessionItem` деактивирует предыдущие элементы (`is_active=0`) перед вставкой нового
-Export: `ListExportPresets`, `SaveExportPreset`, `DeleteExportPreset`
+## Сервисы и bindings по областям
 
-### Миграции
-Версии 1-10 в `db.go`. Автоматически выполняются при `Open()`.
+Все bindings — экспортируемые методы `*App` в `app.go`. Большинство просто передаёт вызов сервису.
 
-### Модели
+### Генерация — `internal/generation`
 
-**Preset:**
-```go
-type Preset struct {
-    ID             int64
-    Name           string
-    TypeID         int64
-    PresetType     string
-    Prompt         string
-    NegativePrompt string
-    Sampler        string
-    ScheduleType   string
-    Steps          int
-    CfgScale       float64
-    Width, Height  int
-    ModelName      string
-    VAE            string
-    Seed           *int64
-    ClipSkip       *int
-    Loras          string   // JSON: [{"name":"lora1","weight":0.8}]
-}
-```
+| Bindings | Что делают |
+|----------|-----------|
+| `GenerateSDPrompt`, `GetDefaultPromptInstruction`, `GetDefaultPromptInstructionProse` | ИИ превращает описание в промпт (теги или связный текст — по модели). |
+| `GenerateImage`, `GenerateCompoundImage`, `GenerateFromImage`, `UpscaleImage` | Стиль, пайплайн (несколько шагов), из картинки, увеличение. |
+| `EditImage`, `EditObject`, `RepairImage`, `ApplyLookDirect` | Правка по инструкции, удаление/замена объекта по маске, восстановление по тайлам, образ (одежда/причёска). |
+| `AnalyzeImage`, `GetDefaultAnalyzePrompts`, `GetDefaultEditGarmentPrompt`, `DescribeForStyle` | Описание фото vision-моделью. |
+| `CompilePostStyle` | ИИ превращает текст в рецепт постобработки. |
+| `GetLastImage`, `ClearLastImage`, `SetLastImage` | Текущая картинка. |
+| `InterruptGeneration` | Отменяет незавершённые задания этой установки на сервере. |
 
-**LoRAEntry:**
-```go
-type LoRAEntry struct {
-    Name   string  `json:"name"`
-    Weight float64 `json:"weight"`
-}
-```
+Результаты сохраняются в активную сессию истории. Детский режим фильтрует входной и выходной текст и добавляет негативные теги.
 
-## internal/generation
+### Очередь — `internal/queue`
 
-Сервис генерации, обрабатывающий все режимы генерации изображений. Извлечён из `app.go` для изоляции логики генерации от Wails bindings.
+| Bindings | Что делают |
+|----------|-----------|
+| `EnqueueTxt2Img`, `EnqueueFromImage`, `EnqueueCompound`, `EnqueueLook`, `EnqueueEdit` | Добавить задание; возвращает ID. |
+| `GetQueue`, `RemoveQueueJob`, `RetryQueueJob`, `CancelQueueJob`, `CancelQueue`, `ClearCompletedQueueJobs` | Управление заданиями. |
+| `PauseQueue`, `ResumeQueue`, `IsQueuePaused`, `ResumePausedQueueJobs` | Пауза и продолжение. |
 
-```go
-type Service struct { ... }
+- Таблица `job_queue`; типы `txt2img`, `from_image`, `compound`, `look`, `edit`; статусы `pending`, `running`, `completed`, `failed`, `cancelled`, `paused`.
+- Один обработчик. Каждое задание выполняется с SD-клиентом, привязанным к этому заданию (`sd.ForQueueJob`), и обёрткой LLM, которая сохраняет ответы в `data/queue-llm/<id>.json`.
+- Сетевые ошибки (connection refused, timeout, EOF, reset, неизвестный хост, сеть недоступна) повторяются через 5 с × 2ⁿ, не больше 60 с; после `max_retries` (по умолчанию 3) задание становится `paused`. Остальные ошибки — `failed`.
+- При запуске задания в статусе `running` возвращаются в `pending` (или `paused`, если повторы исчерпаны).
+- Когда задание заканчивается, его задания на сервере удаляются в фоне.
 
-func New(presetDB *preset.DB, llmClient llm.Service, sdClient sd.Service, cfg *config.Config, ...) *Service
-func (s *Service) SetContext(ctx context.Context)
-func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResult, error)
-func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateImageResult, error)
-func (s *Service) GenerateSDPrompt(description, presetType string) (string, error)
-func (s *Service) GenerateCompoundImage(params CompoundParams) (*GenerateImageResult, error)
-func (s *Service) UpscaleImage(image, mode string, scale float64) (*GenerateImageResult, error)
-func (s *Service) StartSDPolling()
-func (s *Service) StopSDPolling()
-```
+### История и сессии — `internal/session`, `internal/preset`
 
-Методы:
-- `GenerateImage` — генерация txt2img с разрешением пресета, генерацией промпта через LLM и опциональным батчем
-- `GenerateFromImage` — генерация img2img с анализом исходного изображения и инпейнтингом
-- `GenerateSDPrompt` — преобразование текстового описания в SD промпт через LLM
-- `GenerateCompoundImage` — многошаговая генерация с использованием составных пресетов
-- `UpscaleImage` — апскейл x2 заданием img2img
-- `StartSDPolling` / `StopSDPolling` — включают/выключают события `sd:progress`; прогресс берётся из статуса задания `RunJob`
-- `WithSD(sd.Service)` — поверхностная копия, работающая через другой `sd.Service` (очередь передаёт `ForQueueJob`); состояние прогресса общее
+| Bindings | Что делают |
+|----------|-----------|
+| `CreateSession`, `ListSessions`, `SwitchSession`, `RenameSession`, `DeleteSession` | Сессии. |
+| `GetSessionItems`, `GetActiveSessionItem`, `SetActiveSessionItem`, `DeleteSessionItem`, `ClearSession`, `GetSessionImage`, `GetSessionThumb`, `HasSessionItems` | Элементы активной сессии. |
+| `ListHistory`, `OpenInHistory`, `DeleteHistoryItems` | Галерея по всей истории: фильтры по сессии, модели, стилю/пайплайну, типу, форме, периоду, тексту промпта; счётчики по фильтрам. Поиск не учитывает регистр и для нелатинского текста (SQL-функция `ic_lower`). |
+| `ConfirmClose` | Ответ на диалог закрытия, затем выход. |
 
-## internal/queue
+### Стили, пайплайны, сохранённые тексты — `internal/preset`, `internal/importexport`
 
-Очередь задач с логикой повторных попыток и состоянием паузы.
+| Bindings | Что делают |
+|----------|-----------|
+| `ListPresets`, `ListPresetsByType`, `GetPreset`, `CreatePreset`, `UpdatePreset`, `DeletePreset`, `GetAllTags` | Стили. |
+| `ListPresetTypes`, `GetPresetType`, `CreatePresetType`, `UpdatePresetType`, `DeletePresetType` | Типы стилей. |
+| `ListCompoundPresets`, `GetCompoundPreset`, `CreateCompoundPreset`, `UpdateCompoundPreset`, `DeleteCompoundPreset` | Пайплайны (нужны имя и хотя бы один шаг). |
+| `ListResolutions` … `DeleteResolution`, `ListHiresProfiles` … `DeleteHiresProfile` | Размеры и hires-профили. |
+| `ListDescriptions`, `CreateDescription`, `CreateDescriptionFull`, `UpdateDescription`, `DeleteDescription`, `ListPrompts`, `CreatePrompt`, `DeletePrompt` | Сохранённые описания и промпты. |
+| `ExportPresets`, `PreparePresetsExport`, `OpenImportFile`, `ValidateImportModels`, `ImportPresets` | Импорт/экспорт стилей. |
+| `ExportCompoundPresets`, `PrepareCompoundPresetsExport`, `OpenImportCompoundFile`, `ImportCompoundPresets` | Импорт/экспорт пайплайнов. |
 
-```go
-type Service struct { ... }
+### Постобработка и экспорт — `internal/adjust`, `internal/finish`, `internal/importexport`
 
-func NewService(store *Store, processor Processor, emit EventEmitter) *Service
-func (s *Service) Start(ctx context.Context)
-func (s *Service) Enqueue(jobType JobType, params any, source string) (int64, error)
-func (s *Service) GetJobs() ([]*Job, error)
-func (s *Service) RemoveJob(id int64) error
-func (s *Service) CancelJob(id int64) error
-func (s *Service) PauseQueue()
-func (s *Service) ResumeQueue()
-func (s *Service) ResumePausedJobs() (int, error)
-```
+| Bindings | Что делают |
+|----------|-----------|
+| `PreviewAdjust`, `PreviewPost`, `AutoAdjust` | Превью коррекции (JPEG, ограниченная ширина) и автозначения. |
+| `ExportImage` | Применяет коррекцию, размер, формат/рамку/подпись и сохраняет. |
+| `ListExportPresets`, `SaveExportPreset`, `DeleteExportPreset` | Пресеты экспорта. |
+| `ListPostRecipes`, `SavePostRecipe`, `DeletePostRecipe` | Рецепты постобработки. |
 
-Основные возможности:
-- Состояния задач: pending -> running -> completed/failed/paused
-- Повторные попытки с экспоненциальной задержкой (5с -> 10с -> 20с -> ... -> 60с макс)
-- Состояние paused при исчерпании лимита попыток (3)
-- `IsRetryableError()` проверяет транзиентные ошибки (connection refused, timeout, EOF и т.д.)
-- Воркер опрашивает БД каждые 5с для запланированных повторных попыток
-- Миграция БД v24 добавляет колонки retry_count, max_retries, next_retry_at
-- Каждое задание идёт через `ForQueueJob(ctx, job.ID)`, поэтому его шаги сохраняют `client_ref` между перезапусками
-- Ответы ИИ задания (промпт из идеи, описание фото, переписанный образ) хранятся в `data/queue-llm/<id>.json` (ключ: номер вызова + sha256 запроса) до конца задания, поэтому после перезапуска шаги получают те же промпты и те же `client_ref`; отказ ИИ тоже запоминается, но только если после него ушла генерация (отказ, оборвавший задание, при повторе спрашивается заново)
-- После отмены контекста задания результат в историю не сохраняется; задание считается остановленным (при закрытии приложения возвращается в очередь), а не выполненным с недоделанной картинкой
-- Отмена пользователем одного задания очереди отменяет только его; прямая генерация, идущая в это же время, не прерывается
-- Отмена пользователем отменяет контекст с причиной `sd.ErrUserCancel` (задание на сервере отменяется); закрытие приложения отменяет без этой причины, задание остаётся `running`
-- При запуске `running` возвращаются в `pending` без траты попытки и берутся первыми
-- События фронтенда: `queue:updated`, `queue:job-progress`
+### Файлы — `internal/filebrowser`, `internal/clipboard`, `internal/batch`
 
-### Store
+`ReadImageFile` (диалог открытия), `ReadClipboardImage`, `SaveImage` (диалог сохранения), `FastSaveImage` (в папку, выбранную в «Моих изображениях»), `BrowseDirectory`, `ReadFileAsBase64`, `ReadThumbnail`, `SelectBrowserFolder`, `BatchSaveImage`, `BatchReset`.
 
-```go
-type Store struct { ... }
+### Сервер, модели, настройки — `internal/settings`, `internal/serverclient`
 
-func NewStore(db *preset.DB) *Store
-func (s *Store) CreateJob(job *Job) error
-func (s *Store) UpdateJob(job *Job) error
-func (s *Store) GetPendingJobs() ([]*Job, error)
-func (s *Store) GetScheduledJobs() ([]*Job, error)
-func (s *Store) GetJobByID(id int64) (*Job, error)
-func (s *Store) DeleteJob(id int64) error
-```
+| Bindings | Что делают |
+|----------|-----------|
+| `CheckServer`, `DiscoverServers`, `GetServerStatus`, `CheckServices` | Проверка сервера (`ok` / `not_configured` / `not_found` / `outdated`), поиск по mDNS, статус, доступность SD и LLM. |
+| `GetSettings`, `UpdateSettings` | Настройки. |
+| `GetSDModels`, `GetSDSamplers`, `GetSDSchedulers`, `GetSDUpscalers`, `GetSDVAEs`, `GetSDLoRAs`, `GetLLMModels` | Списки с сервера. |
+| `GetServerModels`, `GetServerLLMModels`, `DownloadServerModel`, `DownloadServerModelStream`, `PullServerLLMModel`, `PullServerLLMModelStream`, `DeleteServerModel`, `DeleteServerLLMModel` | Файлы моделей на сервере; варианты `Stream` шлют события прогресса. |
+| `StartServerProcess`, `StopServerProcess`, `RestartServerProcess`, `GetServerProcessLogs` | Процессы сервера. |
+| `GetModelCatalog`, `GetDefaultDownloadPlan`, `InstallPresetDeps` | Встроенный каталог, список файлов, нужных встроенным стилям, загрузка файлов одного стиля. |
+| `GetLLMSetup`, `SaveLLMChoice` | Выбор модели для промптов и модели для фото. |
+| `SyncPresets`, `GetModelPresets` | Ставит встроенные пресеты для моделей, которые есть на сервере (имена — в `auto_installed_presets`; удалённые не возвращаются), и отдаёт доступность. |
 
-### Модель Job
+### Детский режим — `internal/kids`
 
-```go
-type Job struct {
-    ID          int64
-    Type        JobType
-    Status      JobStatus
-    Params      string    // JSON-закодированные параметры
-    Source      string
-    Result      string    // JSON-закодированный результат
-    Error       string
-    RetryCount  int
-    MaxRetries  int
-    NextRetryAt *time.Time
-    CreatedAt   time.Time
-    UpdatedAt   time.Time
-}
-```
+`IsKidsModeActive`, `SetKidsMode(enabled, pin)`, `GetKidsCategories`, `SetKidsCategory(name, enabled, pin)`. PIN — 4 цифры, хранится как хеш с солью. Категории `nsfw` и `selfharm` включены всегда; `violence`, `horror`, `weapons`, `substances`, `mature` можно выключить с PIN.
 
-## internal/logger
+### Прочее
 
-Логгер событий с LogBridge для перехвата всех log-сообщений.
+`Version`, `SaveWindowLayout`, `GetFooterHeight`, `GetLogEntries`.
 
-```go
-type Logger struct { ... }
+## События (бэкенд → фронтенд)
 
-func New(ctx context.Context) *Logger
-func (l *Logger) SetContext(ctx context.Context)
-func (l *Logger) InstallBridge()
-func (l *Logger) Error(format string, args ...interface{})
-func (l *Logger) Warn(format string, args ...interface{})
-func (l *Logger) Info(format string, args ...interface{})
-func (l *Logger) Debug(format string, args ...interface{})
-```
+| Событие | Когда |
+|---------|-------|
+| `sd:progress`, `sd:progress:start`, `sd:progress:stop` | Прогресс задания картинки. |
+| `llm:status` | ИИ `thinking` / `done`. |
+| `object:stage`, `repair:progress`, `test:progress` | Этапы правки объекта, восстановления, тестовой генерации. |
+| `queue:started`, `queue:progress`, `queue:completed`, `queue:failed`, `queue:paused`, `queue:changed` | Очередь. |
+| `session:created`, `session:switched`, `session:deleted`, `session:added`, `session:active`, `session:selected`, `session:removed`, `session:cleared` | История. `session:created` с `external: true` — изменение от `imagecaster-mcp`. |
+| `server:download:progress:<jobID>` | Одна строка прогресса загрузки модели. |
+| `log:entry` | Новая запись журнала. |
 
-`InstallBridge()` перехватывает `log.SetOutput` для захвата всех стандартных log-сообщений (из пакетов LLM, SD, queue) и повторной отправки как событий `log:entry`, отображаемых в панели логов подвала фронтенда.
+## Обработка ошибок
 
-## Сохранение Layout окна
-
-Привязки `SaveWindowLayout(footerHeight)` и `GetFooterHeight()` сохраняют состояние окна:
-- Размер окна (ширина, высота), позиция (x, y), состояние максимизации
-- Высота панели подвала (footer)
-- Хранятся в таблице `settings` SQLite
-- Восстанавливаются при запуске через `restoreWindowLayout()`
-- Сохраняются при событии `beforeunload` и после перетаскивания/изменения размера footer
-
-## Вспомогательные функции app.go
-
-### Preset Resolution
-Общий паттерн для всех режимов генерации:
-```go
-// Загрузить пресет -> извлечь параметры -> установить модель/VAE
-p, _ := a.presets.Get(presetID)
-samplerName, steps, cfgScale, width, height = ...
-spec := s.prepareSDContext(p, "generate") // sd.ModelSpec{Checkpoint, VAE, Modules}
-s.sd.Txt2Img(sd.Txt2ImgRequest{Model: spec, ...})
-```
-
-### Image Processing
-- `analyzeRemoveContext(image, mask)` — красный overlay + LLM vision
-
-### LLM Config
-- `applyLLMConfig(mode)` — загружает Ollama-специфичные настройки из settings
-- Режимы: `"generate"` (текст), `"analyze"` (vision)
-
-### Events
-```go
-runtime.EventsEmit(a.ctx, "event:name", data)
-```
-- `analyze:step` — прогресс анализа
-- `remove:stage` — "analyzing" / "generating"
-- `batch:progress` / `batch:done` / `batch:error`
-- `session:added` — новое изображение в сессии
-- `queue:updated` — изменение состояния очереди
-- `queue:job-progress` — прогресс выполнения задачи
-- `log:entry` — запись лога от LogBridge
-
-### Kids Mode
-- `isKidsMode()` — проверка включён
-- `filterKidsInput(text)` — фильтрация входных данных
-- `applyKidsSystemPrompt(prompt)` — модификация system prompt
+- Стиль: `if err != nil`, обёртка `fmt.Errorf("...: %w", err)`. Если binding вернул ошибку, promise во фронтенде отклоняется с её текстом.
+- Проверки входа в bindings возвращают простые ошибки (`no image provided`, `name is required`, `no save directory set …`). Картинки больше 128 МБ отклоняются с `… too large (max 128 MB)`.
+- Клиент `sd`:
+  - `APIError` — сервер ответил статусом ошибки (`sd server: <code>: <message> (status N)`);
+  - `JobError` — задание упало на сервере (`code: message`);
+  - `ErrUserCancel`, `ErrJobCancelled`, `ErrJobLost`, `ErrBadResponse`;
+  - отправка задания повторяется до 3 раз при сетевых ошибках, но не при ошибках сервера; потерянное задание отправляется заново один раз, затем `ErrJobLost`.
+- `serverclient`: поток загрузки заканчивается `[DONE]`, `[ERROR] <текст>` превращается в ошибку, оборванная связь — `ErrStreamLost` («connection to server lost»).
+- Очередь: правила повторов выше; паника внутри задания помечает его `failed` с `panic: …`.
+- Журнал: `logger.Logger` хранит последние 500 записей для вкладки «Логи»; вывод стандартного `log` перехватывается туда же. Ошибки, которые не возвращаются (уборка, сохранение настроек), пишутся как предупреждения.

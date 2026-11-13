@@ -4,256 +4,249 @@
 
 ## SQLite
 
-Path: `data/presets.db` (configurable via `DB_PATH`).
+- File: `data/presets.db` next to the executable. `DB_PATH` overrides it (a relative path is resolved from the executable's folder). `imagecaster-mcp` takes `-db <path>` or `IMAGECASTER_MCP_DB` and must point at the same file to see the app's data.
+- Driver: `modernc.org/sqlite` (pure Go), raw SQL through `database/sql`, no ORM.
+- On open (`preset.Open`): one connection (`SetMaxOpenConns(1)`), `busy_timeout = 5000`, `journal_mode = WAL`, `synchronous = NORMAL`, then schema migration.
+- The SQL function `ic_lower(text)` is registered for the whole driver (`internal/preset/history.go`): Unicode lower-case, used by gallery search because SQLite's `lower()` only handles ASCII.
 
-The schema version is kept in `PRAGMA user_version` (current: `schemaVersion` = 33, `internal/preset/schema.go`). `preset.Open()`:
+## Migrations
 
-- empty database (no tables): the final schema and seed data are created at once in one transaction (`createLatestSchema`), version = 33;
-- database with tables and `user_version = 0` (anything created before 1.6): the old `legacyMigrations` chain (`migrate` … `migrateV32`, same order, markers like `migration_v20_done` still work) runs once, then version = 32 and the `schemaSteps`;
-- `user_version` ≥ 33: nothing runs, startup does not write to the database.
+The schema version is stored in `PRAGMA user_version` (`internal/preset/schema.go`, current `schemaVersion` = 33).
 
-`schemaSteps` (from 33) run in a `BEGIN IMMEDIATE` transaction. v33 rebuilds `presets` so the `sampler` default is `euler_a` (was the Forge name `Euler a`), keeping rows, indexes, triggers and `sqlite_sequence`.
+| Database state at open | What happens |
+|---|---|
+| empty (no tables) | `latestSchemaDDL` + seed data are created in one transaction; version = 33 |
+| has tables, `user_version = 0` (created by an old version) | the old migration chain `legacyMigrations` (`internal/preset/db.go`) runs once, version is set to 32, then `schemaSteps` |
+| `user_version` ≥ 33 | nothing runs; opening does not write |
 
-A new migration is a `schemaSteps` entry numbered 34, 35, …: it runs once when its number is above `user_version`, then the version is raised. A schema change goes into both the step and `latestSchemaDDL`; `TestSchema_FreshEqualsFullLegacyChain`/`TestSchema_OldDBUpgradesToLatest` check that fresh and upgraded databases match.
+`schemaSteps` entries run in order, each in a `BEGIN IMMEDIATE` transaction, only if its number is above `user_version`; the version is raised in the same transaction.
 
-v32 converts stored Forge names to sd.cpp names: `presets.sampler`/`schedule_type` (a combined name like "DPM++ 2M Karras" is split), `hires_profiles.upscaler` ("R-ESRGAN 4x+" → "RealESRGAN_x4plus", "Lanczos" → "lanczos", "Latent" → "latent", "None" → ""), settings `test_sampler`/`test_schedule_type`. An unknown Forge name becomes "" (default) and is logged. Preset import from a file converts the same way.
+**Adding a migration:** add a `schemaSteps` entry with the next number (34, 35, …), make the same change in `latestSchemaDDL`, raise `schemaVersion`. Tests `TestSchema_FreshEqualsFullLegacyChain` and `TestSchema_OldDBUpgradesToLatest` check that a new database and an upgraded one end with the same schema.
 
-## Schema
+## Tables
+
+Types are as written in the DDL. Timestamps are SQLite `CURRENT_TIMESTAMP` / `datetime('now')` text (UTC).
 
 ### presets
-Main table for generation presets.
+Styles and effects (generation presets).
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | INTEGER PK | Auto-increment |
-| name | TEXT | Preset name |
-| type_id | INTEGER FK | Reference to preset_types.id |
-| preset_type | TEXT | Type name (denormalized) |
-| prompt | TEXT | Positive prompt |
-| negative_prompt | TEXT | Negative prompt |
-| sampler | TEXT | sd.cpp sampler name ("euler_a", "dpm++2m", …) |
-| schedule_type | TEXT | sd.cpp scheduler: "", "karras", "simple", "discrete", … ("" = default) |
-| steps | INTEGER | Number of steps |
-| cfg_scale | REAL | CFG Scale |
-| width | INTEGER | Width |
-| height | INTEGER | Height |
-| model_name | TEXT | SD model filename |
-| vae | TEXT | VAE filename |
-| seed | INTEGER | Seed (NULL = random) |
-| clip_skip | INTEGER | CLIP Skip (NULL = default) |
-| loras | TEXT | JSON: `[{"name":"lora1","weight":0.8}]` |
-| hires_fix | BOOLEAN | Enable Hires fix |
-| hires_upscaler | TEXT | Hires upscaler name |
-| hires_scale | REAL | Hires upscale factor |
-| hires_denoising | REAL | Hires denoising strength |
-| hires_resize_x | INTEGER | Hires target width |
-| hires_resize_y | INTEGER | Hires target height |
-| hires_steps | INTEGER | Hires steps |
-| batch_size | INTEGER | Batch size |
-| batch_count | INTEGER | Batch count |
-| sort_order | INTEGER | Sort order |
-| created_at | TEXT | ISO 8601 |
-| updated_at | TEXT | ISO 8601 |
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| name | TEXT NOT NULL | |
+| preset_type | TEXT, default `''` | type name; effect types are `post`, `post_light`, `post_film`, `post_weather`, `post_background`, … |
+| type_id | INTEGER | → `preset_types.id` |
+| prompt | TEXT, default `''` | positive prompt |
+| negative_prompt | TEXT, default `''` | |
+| sampler | TEXT, default `'euler_a'` | sd.cpp sampler name |
+| schedule_type | TEXT, default `''` | sd.cpp scheduler, `''` = model default |
+| steps | INTEGER, default 20 | |
+| cfg_scale | REAL, default 7.0 | |
+| model_name | TEXT, default `''` | checkpoint file |
+| vae | TEXT, default `''` | VAE file |
+| seed | INTEGER | NULL = random |
+| denoising_strength | REAL | NULL = not set |
+| clip_skip | INTEGER | |
+| batch_size, batch_count | INTEGER | |
+| tags | TEXT, default `''` | |
+| loras | TEXT, default `''` | LoRA list (JSON), added to the prompt as `<lora:name:weight>` |
+| is_bundled | INTEGER, default 0 | 1 = installed from the bundled preset set |
+| created_at, updated_at | DATETIME | |
+
+There are no width/height or hires columns: size comes from `resolutions`, hires from `hires_profiles`.
 
 ### preset_types
-Preset types (Anime, Realistic, etc.)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | INTEGER PK | |
-| name | TEXT UNIQUE | Type name |
-| description | TEXT | Description |
-| sort_order | INTEGER | Sort order |
-| created_at | TEXT | |
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| description | TEXT, default `''` |
+| sort_order | INTEGER, default 0 |
+| created_at | DATETIME |
 
 ### compound_presets
-Compound presets (multi-step pipeline).
+Pipelines (header only; steps are in `compound_preset_steps`).
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | INTEGER PK | |
-| name | TEXT | Name |
-| description | TEXT | Description |
-| steps | TEXT | JSON: `[{step_type, preset_id, ...}]` |
-| created_at | TEXT | |
-| updated_at | TEXT | |
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| description | TEXT, default `''` |
+| created_at, updated_at | DATETIME |
 
-**compound_preset_steps (JSON):**
-```json
-[
-  {"step_type": "txt2img", "preset_id": 1, "order": 0},
-  {"step_type": "upscale", "preset_id": 2, "order": 1}
-]
-```
+### compound_preset_steps
 
-### settings
-Key-value settings store.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| key | TEXT PK | Setting key |
-| value | TEXT | Value |
-
-**Keys:**
-
-| Key | Description | Default |
-|-----|-------------|---------|
-| `server_url` | Imagecaster Server address | — |
-| `llm_generate_model` | Model for prompts | from env |
-| `llm_analyze_model` | Model for vision | from env |
-| `llm_max_tokens` | Max tokens | `256` |
-| `llm_keep_alive` | Ollama keep_alive | `5m` |
-| `llm_num_ctx` | Ollama context | `4096` |
-| `sd_prompt_instruction` | System prompt for SD | DefaultSDPromptInstruction |
-| `kids_mode` | Kids mode on/off | `false` |
-| `kids_pin_hash` | SHA256 hash of PIN | — |
-| `kids_pin_attempts` | PIN entry attempts | `0` |
-| `kids_pin_lockout` | Lockout time | — |
-| `kids_categories` | JSON of enabled categories | — |
-| `fi_mode` | From Image: mode | `img2img` |
-| `fi_preset_id` | From Image: preset | — |
-| `fi_gen_mode` | From Image: gen mode | `preset` |
-| `fi_denoising` | From Image: denoising | `0.5` |
-| `fi_extra_negative` | From Image: negative | — |
-| `fi_analyze_mode` | From Image: quick/deep | `quick` |
-| `fi_mask_padding` | From Image: mask dilation (px) | `8` |
-| `fi_mask_feather` | From Image: mask feathering (px) | `8` |
-| `gen_resolution_id` | Generate: selected resolution profile | first from list |
-| `gen_hires_profile_id` | Generate: selected hires profile | — (disabled) |
-| `browser_folder` | File browser: folder | — |
-
-### saved_descriptions
-Saved user descriptions.
-
-| Field | Type |
-|-------|------|
-| id | INTEGER PK |
-| text | TEXT |
-| name | TEXT |
-| negative_prompt | TEXT |
-| type | TEXT |
-| created_at | TEXT |
-
-### saved_prompts
-Saved prompts.
-
-| Field | Type |
-|-------|------|
-| id | INTEGER PK |
-| text | TEXT |
-| created_at | TEXT |
-
-### sessions
-Generation sessions.
-
-| Field | Type |
-|-------|------|
-| id | INTEGER PK |
-| name | TEXT |
-| created_at | TEXT |
-| updated_at | TEXT |
-
-### session_items
-Session items (generated images).
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | INTEGER PK | |
-| session_id | INTEGER FK | Reference to sessions.id |
-| file_name | TEXT | PNG file name |
-| thumb_name | TEXT | Thumbnail file name |
-| source | TEXT | "preset" / "compound" / "remove" / "test" |
-| prompt | TEXT | Prompt used |
-| negative_prompt | TEXT | Negative prompt used |
-| model | TEXT | SD model |
-| sampler | TEXT | Sampler |
-| steps | INTEGER | Steps |
-| cfg_scale | REAL | CFG |
-| seed | INTEGER | Seed |
-| is_active | BOOLEAN | Active session item (only one per session_id) |
-| preset_id | INTEGER FK | Reference to presets.id |
-| created_at | TEXT | |
-
-Files are stored at:
-- Images: `data/sessions/{session_id}/{file_name}`
-- Thumbnails: `data/sessions/{session_id}/thumb/{thumb_name}`
-
-### export_presets
-Image export presets.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | INTEGER PK | |
-| name | TEXT | |
-| format | TEXT | "png", "jpg", "webp" |
-| width | INTEGER | Target width |
-| height | INTEGER | Target height |
-| lock_ratio | BOOLEAN | Preserve aspect ratio |
-| quality | INTEGER | Quality (jpg/webp) |
-| interpolation | TEXT | nearest/bilinear/bicubic/lanczos |
-| created_at | TEXT | |
-| updated_at | TEXT | |
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| compound_preset_id | INTEGER NOT NULL | → `compound_presets.id`, ON DELETE CASCADE |
+| step_order | INTEGER NOT NULL | 1, 2, … |
+| preset_id | INTEGER NOT NULL | → `presets.id` |
+| denoising_strength | REAL, default 0.5 | img2img strength for steps after the first |
+| resolution_id | INTEGER | → `resolutions.id`, NULL = use the run's resolution |
+| loras | TEXT, default `''` | LoRA override for this step |
 
 ### resolutions
-Resolution profiles for generation.
+Seeded with 14 built-in sizes (`is_builtin = 1`): square 512–1024, portrait, landscape, widescreen.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | INTEGER PK | Auto-increment |
-| name | TEXT | Profile name |
-| width | INTEGER | Width in pixels |
-| height | INTEGER | Height in pixels |
-| sort_order | INTEGER | Sort order |
-| created_at | TEXT | ISO 8601 |
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| width, height | INTEGER NOT NULL |
+| is_builtin | INTEGER, default 0 |
+| created_at | TEXT |
 
 ### hires_profiles
-Hires fix profiles for generation.
+Seeded: Light (1.5×, 0.3), Standard (2.0×, 0.45), Heavy (2.5×, 0.55), Max (3.0×, 0.6), all with upscaler `RealESRGAN_x4plus`.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | INTEGER PK | Auto-increment |
-| name | TEXT | Profile name |
-| enable | BOOLEAN | Enable hires fix |
-| upscaler | TEXT | sd.cpp upscaler: model file name without extension or "lanczos"/"nearest" |
-| scale | REAL | Upscale factor |
-| denoising | REAL | Denoising strength |
-| resize_x | INTEGER | Target width |
-| resize_y | INTEGER | Target height |
-| steps | INTEGER | Hires steps |
-| sort_order | INTEGER | Sort order |
-| created_at | TEXT | ISO 8601 |
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| upscale | REAL, default 2.0 |
+| denoising_strength | REAL, default 0.45 |
+| upscaler | TEXT, default `''` |
+| is_builtin | INTEGER, default 0 |
+| created_at | TEXT |
 
-## Raw SQL Patterns
+### export_presets
+Export settings. Seeded: Quality Photo (PNG, original size), Web Optimized (JPEG 1920 wide, q85), Social Media (JPEG 1080×1080, q90), Thumbnail (JPEG 256×256, q75).
 
-The project uses `database/sql` without an ORM. Typical patterns:
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| format | TEXT, default `'png'` |
+| width, height | INTEGER, default 0 (0 = keep) |
+| lock_ratio | INTEGER, default 1 |
+| quality | INTEGER, default 90 |
+| interpolation | TEXT, default `'lanczos'` |
+| created_at, updated_at | TEXT |
 
-**Query:**
-```go
-rows, err := db.Query("SELECT id, name FROM presets WHERE type_id = ?", typeID)
-defer rows.Close()
-for rows.Next() {
-    var p Preset
-    rows.Scan(&p.ID, &p.Name)
-}
-```
+### post_recipes
+Saved post-processing recipes.
 
-**QueryRow:**
-```go
-var value string
-err := db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&value)
-if err == sql.ErrNoRows { ... }
-```
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| name | TEXT NOT NULL | |
+| steps | TEXT, default `'[]'` | JSON list: `{"preset_id", "strength"}` (effect) or `{"prompt", "strength"}` (look) |
+| adjust | TEXT, default `'{}'` | JSON correction values |
+| created_at, updated_at | TEXT | |
 
-**Exec:**
-```go
-result, err := db.Exec("INSERT INTO presets (name, prompt) VALUES (?, ?)", name, prompt)
-id, _ := result.LastInsertId()
-```
+### sessions
+History groups. Seeded with one session "Default".
 
-**Transaction:**
-```go
-tx, _ := db.Begin()
-tx.Exec(...)
-tx.Exec(...)
-tx.Commit()
-```
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| name | TEXT NOT NULL |
+| created_at, updated_at | DATETIME |
+
+### session_active
+One row (`id = 1`) pointing at the current session.
+
+| Column | Type |
+|---|---|
+| id | INTEGER PK, CHECK (id = 1) |
+| session_id | INTEGER → `sessions.id` |
+
+### session_items
+Every generated or edited image. Files: `data/sessions/<session_id>/<file_name>`, thumbnails `data/thumbs/<session_id>/<thumb_name>`.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| session_id | INTEGER NOT NULL | → `sessions.id`, ON DELETE CASCADE |
+| file_name, thumb_name | TEXT, default `''` | |
+| source | TEXT, default `''` | `generate`, `from-image`, `compound`, `compound-from-image`, `edit`, `look`, `object`, `repair`, `stylist`, `editor`, … (gallery groups these into kinds) |
+| prompt, negative_prompt | TEXT, default `''` | |
+| sampler | TEXT, default `''` | |
+| steps | INTEGER, default 0 | |
+| cfg_scale | REAL, default 0 | |
+| seed | INTEGER | |
+| denoising | REAL, default 0 | |
+| width, height | INTEGER, default 0 | |
+| is_preview | INTEGER, default 0 | |
+| preset_id | INTEGER | |
+| is_active | INTEGER, default 0 | the session's selected item; one per session |
+| created_at | DATETIME | |
+| meta | TEXT | JSON: `preset_id`, `model`, `label`, `chain` (pipeline steps), `source_item` |
+
+### job_queue
+App processing queue (see Algorithms, §7).
+
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| type | TEXT NOT NULL | `txt2img`, `from_image`, `compound`, `look`, `edit` |
+| status | TEXT, default `'pending'` | `pending`, `running`, `completed`, `failed`, `cancelled`, `paused` |
+| params | TEXT, default `'{}'` | JSON request |
+| progress | REAL, default 0 | 0–1 |
+| progress_detail | TEXT, default `'{}'` | JSON |
+| result | TEXT, default `''` | JSON result (session item id, info, …) |
+| error | TEXT, default `''` | |
+| source | TEXT, default `''` | |
+| created_at | DATETIME | |
+| started_at, completed_at | DATETIME | |
+| retry_count | INTEGER, default 0 | |
+| max_retries | INTEGER, default 3 | |
+| next_retry_at | DATETIME | earliest time to retry |
+
+Indexes: `idx_job_queue_status (status)`; partial `idx_job_queue_next_retry (next_retry_at) WHERE status = 'pending' AND next_retry_at IS NOT NULL`.
+
+### saved_descriptions
+Saved scene descriptions (Generate page).
+
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| text | TEXT NOT NULL |
+| name | TEXT, default `''` |
+| negative_prompt | TEXT, default `''` |
+| type | TEXT, default `''` |
+| created_at | DATETIME |
+
+### saved_prompts
+
+| Column | Type |
+|---|---|
+| id | INTEGER PK AUTOINCREMENT |
+| text | TEXT NOT NULL |
+| created_at | DATETIME |
+
+### settings
+Key–value store: `key TEXT PRIMARY KEY`, `value TEXT NOT NULL DEFAULT ''`. The UI can write only keys listed in `config.AllowedSettings`; other keys are written by the app itself.
+
+## Settings keys
+
+**Connection and models**
+
+| Key | Default | What it does |
+|---|---|---|
+| `server_url` | `''` | Imagecaster Server address; `http://` is added if missing. Empty = not configured |
+| `llm_generate_model` | — | llama.cpp model for text prompts; empty or `default` = first model the server lists |
+| `llm_analyze_model` | — | llama.cpp vision model for photo description |
+| `llm_max_tokens` | 256 in Settings (512 if unset) | answer length limit for LLM calls |
+| `llm_keep_alive` | `5m` | sent as `keep_alive` with every LLM request. The server's llama.cpp layer unloads the model after this idle time; `0` = unload right after the answer. Without it the server uses its own `llm.keep_alive` |
+| `llm_num_ctx`, `llm_generate_num_ctx`, `llm_analyze_num_ctx` | 4096 | sent as `options.num_ctx`, but the server ignores it: llama.cpp context size is the server's `llm.context_size` (default 8192) |
+| `llm_generate_*` / `llm_analyze_*` `temperature`, `top_p`, `num_predict`, `num_thread` | 0.4 / 0.9 / 256 / 0 | stored and shown in Settings, but not sent to the server; temperatures are fixed in code per operation |
+| `llm_auto_unload` | `true` | memory guard: unload LLM models before an SD job when free VRAM/RAM is low |
+| `auto_installed_presets` | — | names of bundled presets already installed by `SyncPresets` (deleted ones are not reinstalled) |
+| `install_id` | random | 16 hex chars; prefix of every server job `client_ref` |
+
+**Prompts** (empty = built-in default)
+
+| Key | Used for |
+|---|---|
+| `sd_prompt_instruction` | system prompt for idea → tags |
+| `sd_prompt_instruction_prose` | same for prose models (Flux, Klein, Z-Image, …) |
+| `analyze_system_prompt`, `analyze_prompt` | photo → tags |
+| `analyze_describe_prompt` | photo → prose description |
+| `edit_garment_prompt` | photo → clothing description |
+
+**Kids mode**: `kids_mode`, `kids_cat_violence`, `kids_cat_horror`, `kids_cat_weapons`, `kids_cat_substances`, `kids_cat_mature` (category switches), `kids_pin_hash`, `kids_pin_salt`, `kids_pin_attempts`, `kids_pin_lockout` (PIN).
+
+**UI state**: `ui_locale`, `theme`, window size/position (`window_*`), last form values (`gen_*`, `batch_*`, `test_*`, `fi_*`, `object_*`, `edit_*`, `effect_*`), `file_browser_path`.

@@ -9,7 +9,6 @@ const (
 	ServerOutdated      = "outdated"
 
 	ReasonOldVersion = "old_version"
-	ReasonNoSDCpp    = "no_sdcpp"
 	ReasonNoFeature  = "missing_features"
 )
 
@@ -32,19 +31,14 @@ func (s *Service) CheckServer() ServerCheck {
 		return ServerCheck{State: ServerNotFound, URL: u, Error: err.Error()}
 	}
 	if missing := info.MissingFeatures(); len(missing) > 0 {
-		return ServerCheck{State: ServerOutdated, URL: u, Version: info.Version, Missing: missing, Reason: outdatedReason(info.Features, missing)}
+		return ServerCheck{State: ServerOutdated, URL: u, Version: info.Version, Missing: missing, Reason: outdatedReason(info.Features)}
 	}
 	return ServerCheck{State: ServerOK, URL: u, Version: info.Version}
 }
 
-func outdatedReason(features, missing []string) string {
+func outdatedReason(features []string) string {
 	if len(features) == 0 {
 		return ReasonOldVersion
-	}
-	for _, m := range missing {
-		if m == "sdcpp" {
-			return ReasonNoSDCpp
-		}
 	}
 	return ReasonNoFeature
 }

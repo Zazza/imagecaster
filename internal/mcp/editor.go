@@ -179,7 +179,7 @@ func faceBox(pts []faceguard.Point, w, h int) (cx, cy, share float64, ok bool) {
 func faceInfo(eng EditorEngine, b64 string, img image.Image) (map[string]any, float64, float64, bool) {
 	pts, err := eng.FaceLandmarks(b64)
 	if err != nil {
-		return map[string]any{"found": false, "error": "поиск лица не удался (Forge недоступен или ошибся) — это не значит, что лица нет"}, 0, 0, false
+		return map[string]any{"found": false, "error": "поиск лица не удался (сервер недоступен или ошибся) — это не значит, что лица нет"}, 0, 0, false
 	}
 	if len(pts) == 0 {
 		return map[string]any{"found": false}, 0, 0, false
@@ -409,7 +409,7 @@ func editorApply(eng EditorEngine, sessions AppSessions, src photoSource, args m
 func registerEditorTools(s *Server) {
 	s.Register(Tool{
 		Name: "editor_describe",
-		Description: "Фоторедактор: описать фото ЛОКАЛЬНОЙ vision-моделью (сцена, свет, цвета, настроение) и замерить его кодом: размер и ориентация, экспозиция, средняя яркость (0–255), контраст, насыщенность (0–1, средняя разница между самым ярким и самым тёмным каналом), цветовой оттенок, auto_suggest — автоуровни и температура как стартовые числа для adjust, face — где лицо (доли кадра; ищется через Forge). effects — эффекты, которые можно передать в editor_apply. " +
+		Description: "Фоторедактор: описать фото ЛОКАЛЬНОЙ vision-моделью (сцена, свет, цвета, настроение) и замерить его кодом: размер и ориентация, экспозиция, средняя яркость (0–255), контраст, насыщенность (0–1, средняя разница между самым ярким и самым тёмным каналом), цветовой оттенок, auto_suggest — автоуровни и температура как стартовые числа для adjust, face — где лицо (доли кадра; ищется через сервер). effects — эффекты, которые можно передать в editor_apply. " +
 			"Фото — photo_path или item (\"active\" — открытое в приложении, или id элемента). Сам фото не открывай — фото не покидают локальную сеть; в ответе только текст.",
 		InputSchema: props(map[string]any{
 			"photo_path": prop("путь к фото (или item)", "string"),

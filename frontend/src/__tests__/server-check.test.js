@@ -318,12 +318,12 @@ function featureText(t, missing) {
   return [...new Set(missing.map(n => FEATURE_KEY[n] ? t(FEATURE_KEY[n]) : n))].join(', ')
 }
 
-const OUTDATED_TITLES = ['server.outdated_old_title', 'server.outdated_forge_title', 'server.outdated_incompatible_title']
+const OUTDATED_TITLES = ['server.outdated_old_title', 'server.outdated_incompatible_title']
 
 describe('ServerCheckModal outdated reasons', () => {
   const cases = [
     ['old_version', ['sdcpp', 'download_stream', 'llamacpp'], 'server.outdated_old_title', 'server.outdated_old_lead', true],
-    ['no_sdcpp', ['sdcpp'], 'server.outdated_forge_title', 'server.outdated_forge_lead', false],
+    ['no_sdcpp', ['sdcpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
     ['missing_features', ['download_stream', 'llamacpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
     ['', ['download_stream', 'llamacpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
     ['something_new', ['download_stream', 'llamacpp'], 'server.outdated_incompatible_title', 'server.outdated_incompatible_lead', false],
@@ -367,7 +367,7 @@ describe('ServerCheckModal outdated reasons', () => {
   })
 
   it.each([
-    ['outdated', 'no_sdcpp', 'server.server_guide'],
+    ['outdated', 'no_sdcpp', 'server.how_to_update'],
     ['outdated', 'old_version', 'server.how_to_update'],
     ['outdated', 'missing_features', 'server.how_to_update'],
     ['outdated', '', 'server.how_to_update'],
@@ -379,11 +379,20 @@ describe('ServerCheckModal outdated reasons', () => {
       const { i18n, w } = await mountModal(state, { locale, url: state === 'not_configured' ? '' : 'http://srv:7860', extra: { reason } })
       const labels = w.findAll('button').map(b => b.text())
       expect(labels.some(l => l.includes(i18n.t(key))), `${locale} ${key}`).toBe(true)
-      for (const other of ['server.server_guide', 'server.how_to_update', 'server.how_to_install'].filter(k => k !== key)) {
+      for (const other of ['server.how_to_update', 'server.how_to_install'].filter(k => k !== key)) {
         expect(labels.some(l => l.includes(i18n.t(other))), `${locale} ${other}`).toBe(false)
       }
       w.unmount()
     }
+  })
+})
+
+describe('no Forge texts', () => {
+  it.each(['ru', 'en'])('%s: server texts do not mention Forge', async (locale) => {
+    const dict = locale === 'ru' ? (await import('../i18n/ru.js')).ru : (await import('../i18n/en.js')).en
+    for (const k of ['server.outdated_forge_title', 'server.outdated_forge_lead', 'server.banner_forge', 'server.server_guide']) expect(dict[k]).toBeUndefined()
+    const forge = Object.entries(dict).filter(([k, v]) => k.startsWith('server.') && /forge/i.test(v))
+    expect(forge).toEqual([])
   })
 })
 
