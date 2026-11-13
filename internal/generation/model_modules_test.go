@@ -2,6 +2,7 @@ package generation
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Zazza/imagecaster/internal/serverclient"
@@ -49,7 +50,12 @@ func TestModulesForModel_Flux3UsesCatalogModules(t *testing.T) {
 func TestModulesForModel_CatalogModels(t *testing.T) {
 	for _, model := range []string{"anima-aesthetic-v1.1", "Krea-2-Turbo-Q4_K_M", "qwen_image_2.1-Q8_0"} {
 		t.Run(model, func(t *testing.T) {
-			want := catalogModuleFilenames(t, model)
+			want := []string{}
+			for _, f := range catalogModuleFilenames(t, model) {
+				if !strings.Contains(f, "mmproj") {
+					want = append(want, f)
+				}
+			}
 			assert.ElementsMatch(t, want, modulesForModel(model))
 		})
 	}

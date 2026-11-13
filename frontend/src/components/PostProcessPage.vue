@@ -744,9 +744,12 @@ const effectGroups = computed(() => {
 })
 
 function effectLabel(name) {
-  const k = 'post.effect_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  const m = String(name || '').match(/^(.*?)\s*(\([^()]+\))$/)
+  const base = m ? m[1] : String(name || '')
+  const k = 'post.effect_' + base.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
   const v = t(k)
-  return v === k ? name : v
+  if (v === k) return name
+  return m ? `${v} ${m[2]}` : v
 }
 
 const selectedEffectId = ref(null)
@@ -823,6 +826,10 @@ async function loadEffectModel() {
 }
 
 const effectModelSummary = computed(() => modelLoraText('Klein', effectLoras.value))
+const selectedEffectNonKlein = computed(() => {
+  const p = presets.value.find(x => x.id === selectedEffectId.value)
+  return !!(p?.model_name && !/klein/i.test(p.model_name))
+})
 
 async function onEffectModelToggle(open) {
   if (open && !effectLoraChoices.value.length) {
@@ -854,6 +861,7 @@ function removeEffectLora(idx) {
 
 function effectOverrides(presetId) {
   const preset = presets.value.find(p => p.id === presetId)
+  if (preset?.model_name && !/klein/i.test(preset.model_name)) return null
   if (!effectLoras.value.some(l => l.name)) return null
   return { loras: JSON.stringify([...parseLoraList(preset?.loras), ...cleanLoras(effectLoras.value)]) }
 }
@@ -2157,7 +2165,7 @@ onUnmounted(() => {
               </template>
             </div>
 
-            <FoldBlock class="fx-model" :title="t('model.block_title')" :summary="effectModelSummary" @toggle="onEffectModelToggle">
+            <FoldBlock v-if="!selectedEffectNonKlein" class="fx-model" :title="t('model.block_title')" :summary="effectModelSummary" @toggle="onEffectModelToggle">
               <div class="fx-model-body">
                 <div class="form-hint">{{ t('model.hint_klein') }}</div>
                 <div v-for="(l, i) in effectLoras" :key="i" class="fx-lora-row">

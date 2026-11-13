@@ -184,8 +184,8 @@
       "base": "Qwen-Image",
       "category": "Versatile / Text in images",
       "category_ru": "Универсальная / Текст на картинке",
-      "description": "Qwen-Image 2.1, GGUF Q8 - strong prompt following and readable text in images, CFG 6. Downloads the text encoder, VAE and a set of presets",
-      "description_ru": "Qwen-Image 2.1, GGUF Q8: точно следует промпту и пишет читаемый текст на картинке, CFG 6. Вместе с моделью скачиваются энкодер текста, VAE и набор пресетов",
+      "description": "Qwen-Image 2.1, GGUF Q8 - strong prompt following and readable text in images, CFG 6; also edits photos by instruction and has its own effects (Post-Process: Edit, Effect). Downloads the text encoder, vision module, VAE and a set of presets",
+      "description_ru": "Qwen-Image 2.1, GGUF Q8: точно следует промпту и пишет читаемый текст на картинке, CFG 6; ещё правит фото по инструкции и даёт свои эффекты (Постобработка: Правка, Эффект). Вместе с моделью скачиваются энкодер текста, модуль зрения, VAE и набор пресетов",
       "size_gb": 7.7,
       "filename": "qwen_image_2.1-Q8_0.gguf",
       "url": "https://huggingface.co/leejet/Qwen-Image-2.1-GGUF/resolve/main/qwen_image_2.1-Q8_0.gguf",
@@ -201,9 +201,28 @@
           "filename": "qwen_image_2.1_vae_bf16.safetensors",
           "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors",
           "size_gb": 0.68
+        },
+        {
+          "type": "text_encoder",
+          "filename": "mmproj-Qwen3VL-8B-Instruct-F16.gguf",
+          "url": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-8B-Instruct-F16.gguf",
+          "size_gb": 1.16
         }
       ],
       "presets": "qwen-image-2.1.json"
+    },
+    {
+      "name": "hidream_o1_image_dev_fp8_scaled",
+      "base": "HiDream-O1",
+      "category": "Art / Illustration",
+      "category_ru": "Арт / Иллюстрация",
+      "description": "HiDream-O1-Image Dev, fp8 - one file, no separate text encoder or VAE: illustration, concept art, painting, posters with text, product shots; photos of people are softer than photo models. CFG 1. Downloads a set of presets",
+      "description_ru": "HiDream-O1-Image Dev, fp8: один файл, без отдельных энкодера и VAE. Иллюстрация, концепт-арт, живопись, постеры с надписью, предметное фото; фото людей мягче, чем у фотомоделей. CFG 1. Вместе с моделью скачивается набор пресетов",
+      "size_gb": 8.07,
+      "recommended": false,
+      "filename": "hidream_o1_image_dev_fp8_scaled.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_fp8_scaled.safetensors",
+      "presets": "hidream-o1.json"
     },
     {
       "name": "anima-aesthetic-v1.1",

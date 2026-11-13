@@ -62,7 +62,7 @@ They can run on one computer, or the server can live on another machine on your 
 
 | Card | What it does |
 |---|---|
-| Edit | Change a photo by instruction ("replace the jacket with a red coat") or describe a new look, optionally with a garment reference |
+| Edit | Change a photo by instruction ("replace the jacket with a red coat") or describe a new look, optionally with a garment reference. Model: Flux.2 Klein, or Qwen-Image if it is downloaded |
 | Remix | Redraw a photo in another style or workflow |
 | Object | Remove or replace an object by mask |
 | Repair | Paint over scratches, dust and creases on an old photo — only those spots are fixed |
@@ -96,7 +96,9 @@ Imagecaster works with the families stable-diffusion.cpp supports. The catalog i
 | Z-Image Turbo | fast photorealism |
 | Moss-Image | photorealistic people |
 | Flux.2 Klein | post-processing: edits, effects, object replace and remove |
-| Krea 2, Qwen-Image, Flux.3 | extra models with their own styles |
+| Qwen-Image 2.1 | readable text in images; also a second model for Edit and its own effects |
+| HiDream-O1 | illustration, concept art, painting, posters with text |
+| Krea 2, Flux.3 | extra models with their own styles |
 
 The assistant uses Qwen 3 models for prompts and Qwen 3 VL / Qwen 3.5 / Gemma 3 for photos. Details: [Models](docs/models-en.md).
 

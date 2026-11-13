@@ -296,8 +296,8 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		return nil, fmt.Errorf("preset not found: %w", err)
 	}
 	ApplyPresetOverrides(p, params.Overrides)
-	if params.PreserveIdentity && !config.IsFlux2Klein(p.ModelName) {
-		return nil, fmt.Errorf("preserve identity requires a flux-2-klein model, got %q", p.ModelName)
+	if params.PreserveIdentity && !config.IsFlux2Klein(p.ModelName) && !config.IsQwenImage(p.ModelName) {
+		return nil, fmt.Errorf("preserve identity requires a flux-2-klein or qwen-image model, got %q", p.ModelName)
 	}
 
 	seed := p.Seed
@@ -346,7 +346,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 
 	if params.Mode == "img2img" {
 		refSpec := spec
-		refSpec.KleinReference = params.PreserveIdentity
+		if params.PreserveIdentity {
+			refSpec = withReference(spec)
+		}
 		srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
 		rawW, rawH := srcW, srcH
 		if srcW > 0 && srcH > 0 {
@@ -363,16 +365,20 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 			imgW, imgH = s.fitImageToResolution(srcW, srcH, params.ResolutionID)
 		}
 		kleinOutW, kleinOutH := 0, 0
-		if config.IsFlux2Klein(p.ModelName) {
+		qwenRef := params.PreserveIdentity && config.IsQwenImage(p.ModelName)
+		if config.IsFlux2Klein(p.ModelName) || qwenRef {
 			if params.ResolutionID == nil || *params.ResolutionID <= 0 {
 				kleinOutW, kleinOutH = kleinImg2ImgSize(imgW, imgH)
 				if rawW > 0 && rawH > 0 {
-					imgW, imgH = kleinWorkSize(rawW, rawH)
+					imgW, imgH = refEditWorkSize(p.ModelName, rawW, rawH)
 				} else {
-					imgW, imgH = kleinWorkSize(kleinOutW, kleinOutH)
+					imgW, imgH = refEditWorkSize(p.ModelName, kleinOutW, kleinOutH)
 				}
 			} else {
 				imgW, imgH = alignLookSize(imgW, imgH)
+				if qwenRef {
+					imgW, imgH = alignTo(imgW, imgH, qwenAlign)
+				}
 			}
 		}
 		denoising := params.DenoisingStrength

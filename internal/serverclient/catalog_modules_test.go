@@ -150,11 +150,16 @@ func TestCatalog_ModulesValid(t *testing.T) {
 					types["tokenizer"]++
 					continue
 				}
+				if mod.Type == "text_encoder" && strings.Contains(strings.ToLower(mod.Filename), "mmproj") {
+					types["vision"]++
+					continue
+				}
 				types[mod.Type]++
 			}
 			assert.Equal(t, 1, types["vae"])
 			assert.Equal(t, 1, types["text_encoder"])
 			assert.LessOrEqual(t, types["tokenizer"], 1)
+			assert.LessOrEqual(t, types["vision"], 1)
 		})
 	}
 	assert.Greater(t, count, 0)

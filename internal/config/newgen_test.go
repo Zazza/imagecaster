@@ -9,7 +9,7 @@ import (
 func TestNewGenModelFamilies_ExactList(t *testing.T) {
 	t.Parallel()
 	assert.ElementsMatch(t,
-		[]string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan", "krea"},
+		[]string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan", "krea", "hidream"},
 		NewGenModelFamilies,
 	)
 }
@@ -28,6 +28,7 @@ func TestIsNewGenModel(t *testing.T) {
 		{"chroma-unlocked-v35", true},
 		{"HunyuanImage-2.1", true},
 		{"FLUX1-DEV", true},
+		{"hidream_o1_image_dev_fp8_scaled", true},
 		{"my_Klein_merge", true},
 		{"models/Z-IMAGE.safetensors", true},
 		{"juggernautXL_ragnarokBy", false},

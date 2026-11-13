@@ -23,7 +23,7 @@ type Config struct {
 	DefaultHeight   int
 }
 
-var NewGenModelFamilies = []string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan", "krea"}
+var NewGenModelFamilies = []string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan", "krea", "hidream"}
 
 func normalizeModelName(s string) string {
 	return strings.NewReplacer("_", "-", " ", "-").Replace(strings.ToLower(strings.TrimSpace(s)))
@@ -40,6 +40,10 @@ func IsNewGenModel(modelName string) bool {
 		}
 	}
 	return false
+}
+
+func IsQwenImage(modelName string) bool {
+	return strings.Contains(normalizeModelName(modelName), "qwen-image")
 }
 
 func IsFlux2Klein(modelName string) bool {

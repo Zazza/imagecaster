@@ -6,6 +6,7 @@ import { modelLoraText } from '../modelLora.js'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { listAvailablePresets } from '../composables/usePresets.js'
+import { serverModelsKnown, hasServerFile } from '../serverModels.js'
 import { parseSeedInput } from '../seed.js'
 import { t } from '../i18n/index.js'
 import { MAX_IMAGE_SIZE } from '../constants.js'
@@ -37,6 +38,9 @@ const isRefDragOver = ref(false)
 const instruction = ref('')
 const seedInput = ref('')
 const loraRows = ref([])
+const editModel = ref('klein')
+const lorasByModel = { klein: [], qwen: [] }
+const QWEN_VISION_FILE = 'mmproj-Qwen3VL-8B-Instruct-F16.gguf'
 const serverLoras = ref([])
 const lorasLoaded = ref(false)
 const loraLoadError = ref(false)
@@ -54,8 +58,19 @@ const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
 const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 
+const isQwenModel = (name) => /qwen[-_ ]image/i.test(name || '')
+const qwenAvailable = computed(() => (Array.isArray(allPresets.value) ? allPresets.value : []).some(p => isQwenModel(p?.model_name)))
+watch(qwenAvailable, ok => { if (!ok) editModel.value = 'klein' })
+watch(editModel, (next, prev) => {
+  lorasByModel[prev] = loraRows.value
+  loraRows.value = lorasByModel[next] || []
+  stylePresetId.value = 0
+})
+const qwenVisionMissing = computed(() => editModel.value === 'qwen' && serverModelsKnown.text_encoder === true && !hasServerFile('text_encoder', QWEN_VISION_FILE))
+
 const stylePresets = computed(() => {
   const list = Array.isArray(allPresets.value) ? allPresets.value : []
+  if (editModel.value === 'qwen') return list.filter((p) => isQwenModel(p?.model_name) && !String(p?.preset_type || '').startsWith('post'))
   return list.filter((p) => (p?.model_name || '').toLowerCase().includes('klein'))
 })
 
@@ -66,7 +81,7 @@ watch(stylePresets, list => {
 
 const selectedStyleLoras = computed(() => parseLoras(selectedStyle.value?.loras || ''))
 
-const canGenerate = computed(() => !!props.source && !!instruction.value.trim() && !generatingImage.value && !(props.batch && props.lookBusy))
+const canGenerate = computed(() => !!props.source && !!instruction.value.trim() && !generatingImage.value && !qwenVisionMissing.value && !(props.batch && props.lookBusy))
 
 function addLora() {
   if (loraRows.value.length >= 8) return
@@ -94,7 +109,7 @@ function onLorasToggle(open) {
   if (open) loadLoras()
 }
 
-const modelLoraSummary = computed(() => modelLoraText('Klein', loraRows.value))
+const modelLoraSummary = computed(() => modelLoraText(editModel.value === 'qwen' ? 'Qwen-Image' : 'Klein', loraRows.value))
 
 function editLorasPayload(rows = loraRows.value) {
   return rows
@@ -204,7 +219,7 @@ function editParams(instr) {
   const params = {
     instruction: instr,
     seed: parseSeedInput(seedInput.value),
-    model: 'klein',
+    model: editModel.value,
   }
   if (referenceImage.value) params.reference_image_base64 = referenceImage.value
   if (stylePresetId.value) {
@@ -272,7 +287,9 @@ onMounted(() => {
   })
   api.getSettings().then(async s => {
     if (s?.edit_instruction) instruction.value = s.edit_instruction
-    if (s?.edit_loras_klein) loraRows.value = parseLoras(s.edit_loras_klein)
+    if (s?.edit_loras_klein) lorasByModel.klein = parseLoras(s.edit_loras_klein)
+    if (s?.edit_loras_qwen) lorasByModel.qwen = parseLoras(s.edit_loras_qwen)
+    loraRows.value = lorasByModel[editModel.value] || []
     if (s?.edit_quality_mode) qualityMode.value = s.edit_quality_mode === 'true'
     if (s?.edit_style_tags) styleTags.value = s.edit_style_tags === 'true'
     if (s?.edit_look_mode) lookWay.value = s.edit_look_mode === 'free' ? 'free' : 'effects'
@@ -295,7 +312,13 @@ onUnmounted(() => {
   if (!settingsRestored) return
   api.updateSettings({
     edit_instruction: instruction.value,
-    edit_loras_klein: JSON.stringify(editLorasPayload(loraRows.value)),
+    ...(() => {
+      lorasByModel[editModel.value] = loraRows.value
+      return {
+        edit_loras_klein: JSON.stringify(editLorasPayload(lorasByModel.klein)),
+        edit_loras_qwen: JSON.stringify(editLorasPayload(lorasByModel.qwen)),
+      }
+    })(),
     edit_quality_mode: qualityMode.value ? 'true' : 'false',
     edit_resolution_id: selectedResolutionId.value ? String(selectedResolutionId.value) : '',
     edit_style_preset_id: stylePresetId.value ? String(stylePresetId.value) : '',
@@ -390,6 +413,16 @@ onUnmounted(() => {
       <input data-testid="edit-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
     </div>
 
+    <div v-if="qwenAvailable" class="form-group">
+      <label class="form-label" for="edit-model-select">{{ t('edit.model_label') }}</label>
+      <select id="edit-model-select" data-testid="edit-model-select" class="form-select" v-model="editModel">
+        <option value="klein">Flux.2 Klein</option>
+        <option value="qwen">Qwen-Image</option>
+      </select>
+      <div class="field-hint">{{ editModel === 'qwen' ? t('edit.model_hint_qwen') : t('edit.model_hint_klein') }}</div>
+      <div v-if="qwenVisionMissing" data-testid="edit-qwen-vision-missing" class="field-hint field-hint-warn">{{ t('edit.qwen_vision_missing') }}</div>
+    </div>
+
     <div class="form-group">
       <label class="form-label" for="edit-style-select">{{ t('edit.style_label') }}</label>
       <select id="edit-style-select" data-testid="edit-style-select" class="form-select" v-model="stylePresetId">
@@ -410,7 +443,7 @@ onUnmounted(() => {
     </div>
 
     <FoldBlock class="edit-model-lora" :title="t('model.block_title')" :summary="modelLoraSummary" @toggle="onLorasToggle">
-      <div class="field-hint">{{ t('model.hint_klein') }}</div>
+      <div class="field-hint">{{ editModel === 'qwen' ? t('model.hint_qwen') : t('model.hint_klein') }}</div>
       <div v-if="loraLoadError" class="field-hint field-hint-warn">{{ t('overrides.load_error') }}</div>
       <div class="lora-head">
         <label class="form-label">{{ t('edit.loras') }}</label>

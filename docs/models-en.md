@@ -31,7 +31,8 @@ Folders are relative to the server data folder (see [Setup](setup-en.md#data-fol
 | `anima-turbo-v1.1` | Anima | Faster Anima, 10 steps, about 5 s per image | 4.18 | text encoder, VAE (1.4), presets |
 | `flux3-image-klein-Q8_0` | Flux.3 | Plain-language prompts, 16 steps | 6.2 | text encoder, VAE (2.8), presets |
 | `Krea-2-Turbo-Q4_K_M` | Krea-2 | Aesthetic photos in few steps | 7.2 | text encoder, VAE (2.8), presets |
-| `qwen_image_2.1-Q8_0` | Qwen-Image | Strong prompt following, readable text in images | 7.7 | text encoder, VAE (5.7), presets |
+| `qwen_image_2.1-Q8_0` | Qwen-Image | Strong prompt following, readable text in images; also Edit by instruction and its own effects | 7.7 | text encoder, vision module, VAE (6.8), presets |
+| `hidream_o1_image_dev_fp8_scaled` | HiDream-O1 | Illustration, concept art, painting, posters with text, product shots; one file, no separate text encoder or VAE | 8.07 | presets |
 | `juggernautXL_ragnarokBy` | SDXL | Versatile photorealism | 6.6 | — |
 | `epicrealismXL_pureFix` | SDXL | Realistic people | 6.5 | — |
 | `photon_v1` | SDXL | Cinematic, film-like look | 2.0 | — |
@@ -46,7 +47,7 @@ Folders are relative to the server data folder (see [Setup](setup-en.md#data-fol
 
 The assistant writes the prompt differently by model family:
 
-- **Plain sentences** — Flux (1, 2, 3), Z-Image, Moss, Klein, Qwen-Image, Krea, and also Chroma and Hunyuan models if you add them by hand.
+- **Plain sentences** — Flux (1, 2, 3), Z-Image, Moss, Klein, Qwen-Image, Krea, HiDream, and also Chroma and Hunyuan models if you add them by hand.
 - **Comma-separated tags** — every other model (SD 1.5, SDXL, Pony, Anima).
 
 The family is recognized by the model file name.
@@ -90,7 +91,7 @@ The assistant needs two models: one writes prompts, the other reads photos (remi
 - Sections: prompt models, photo models, image models, LoRA. Each entry shows its size, "Recommended" for ★ entries and "Installed" when the server already has it.
 - **Download** fetches the model with its extra files; files already on the server are skipped. For models that bring their own presets the app adds those presets right away.
 - **Delete** removes the model from the server.
-- **Download all for presets** downloads everything the built-in presets need and the server lacks: models with their extra files, and LoRAs. Before starting it shows the number of files and total size. The same download is offered in the welcome window on the first start. Models not used by built-in presets (Krea 2, Qwen-Image, FLUX.3 and others) are downloaded one by one with their own **Download** button.
+- **Download all for presets** downloads everything the built-in presets need and the server lacks: models with their extra files, and LoRAs. Before starting it shows the number of files and total size. The same download is offered in the welcome window on the first start. Models not used by built-in presets (Krea 2, Qwen-Image, HiDream-O1, FLUX.3 and others) are downloaded one by one with their own **Download** button.
 
 ## Presets
 
@@ -109,7 +110,13 @@ A preset (style) is a ready set: prompt, settings, model and LoRAs. Presets come
 | `moss_image_sft_bf16` | 14 photo presets of its own |
 | `flux-2-klein-4b` | 100 post-processing effects |
 | Anima aesthetic, Anima turbo | 5 each, added when the model is downloaded |
-| FLUX.3 Klein, Krea 2, Qwen-Image 2.1 | 4 each, added when the model is downloaded |
+| FLUX.3 Klein, Krea 2 | 4 each, added when the model is downloaded |
+| Qwen-Image 2.1 | 4 generation styles and 16 effects (light, film, weather, background, transform), added when the model is downloaded |
+| HiDream-O1 | 8 styles: illustration, concept art, oil painting, watercolor, poster with text, product shot, storybook, anime |
+
+### Edit with Qwen-Image
+
+When Qwen-Image 2.1 is on the server, the Edit card offers a model choice: Flux.2 Klein (default, fast) or Qwen-Image (slower, keeps the face and garment details more strictly, flatter light). Qwen edits need the vision module `mmproj-Qwen3VL-8B-Instruct-F16.gguf`; the catalog downloads it with the model. Qwen effects appear in the Effect card next to the Klein ones, marked "(Qwen-Image)". Describe the look and the AI-agent tools stay on Klein.
 
 ### Post-processing effects (Flux.2 Klein)
 

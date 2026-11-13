@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/png"
 	"math"
@@ -200,7 +201,7 @@ func effectList(eng EditorEngine) (map[string][]string, map[string]preset.Preset
 	byName := map[string]preset.Preset{}
 	for _, p := range all {
 		g, ok := editorEffectGroups[p.PresetType]
-		if !ok {
+		if !ok || (p.ModelName != "" && !config.IsFlux2Klein(p.ModelName)) {
 			continue
 		}
 		groups[g] = append(groups[g], p.Name)

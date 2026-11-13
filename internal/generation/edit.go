@@ -31,6 +31,10 @@ const (
 	editMaxLoraNameLen    = 200
 	kleinEditSteps        = 8
 	kleinEditCfgScale     = 1.0
+	qwenEditModel         = "qwen_image_2.1-Q8_0"
+	qwenEditSteps         = 20
+	qwenEditCfgScale      = 6.0
+	qwenAlign             = 32
 
 	editPromptSuffix = ". Keep the person, face, pose, background and composition unchanged, and keep the original lighting and color palette so the new clothing matches the photo."
 
@@ -45,6 +49,28 @@ var loraTagPrefixRe = regexp.MustCompile(`(?i)<lora:`)
 var mossModules = []string{mossTEModule, mossVAEModule}
 var kleinModules = []string{kleinTEModule, kleinVAEModule}
 
+func isVisionModule(filename string) bool {
+	return strings.Contains(strings.ToLower(filename), "mmproj")
+}
+
+func catalogModules(model string, vision bool) []string {
+	catalog, err := serverclient.LoadCatalog()
+	if err != nil {
+		return []string{}
+	}
+	m := catalog.FindSDModel(model)
+	if m == nil {
+		return []string{}
+	}
+	files := []string{}
+	for _, mod := range m.Modules {
+		if isVisionModule(mod.Filename) == vision {
+			files = append(files, mod.Filename)
+		}
+	}
+	return files
+}
+
 func modulesForModel(model string) []string {
 	if config.ModelMatchesCSV(model, "moss") {
 		return mossModules
@@ -52,16 +78,35 @@ func modulesForModel(model string) []string {
 	if config.IsFlux2Klein(model) {
 		return kleinModules
 	}
-	if catalog, err := serverclient.LoadCatalog(); err == nil {
-		if m := catalog.FindSDModel(model); m != nil && len(m.Modules) > 0 {
-			files := make([]string, 0, len(m.Modules))
-			for _, mod := range m.Modules {
-				files = append(files, mod.Filename)
-			}
-			return files
-		}
+	return catalogModules(model, false)
+}
+
+func withReference(spec sd.ModelSpec) sd.ModelSpec {
+	spec.KleinReference = true
+	if vision := catalogModules(spec.Checkpoint, true); len(vision) > 0 {
+		spec.Modules = append(append([]string{}, spec.Modules...), vision...)
 	}
-	return []string{}
+	return spec
+}
+
+func alignTo(w, h, align int) (int, int) {
+	w = w / align * align
+	h = h / align * align
+	if w < 64 {
+		w = 64
+	}
+	if h < 64 {
+		h = 64
+	}
+	return w, h
+}
+
+func refEditWorkSize(model string, w, h int) (int, int) {
+	w, h = kleinWorkSize(w, h)
+	if config.IsQwenImage(model) {
+		w, h = alignTo(w, h, qwenAlign)
+	}
+	return w, h
 }
 
 type EditImageParams struct {
@@ -88,8 +133,10 @@ func resolveEditModel(model string) (editModelProfile, error) {
 	switch model {
 	case "", "klein":
 		return editModelProfile{model: kleinLookModel, family: "klein", steps: kleinEditSteps, cfg: kleinEditCfgScale}, nil
+	case "qwen":
+		return editModelProfile{model: qwenEditModel, family: "qwen-image,qwen_image", steps: qwenEditSteps, cfg: qwenEditCfgScale}, nil
 	}
-	return editModelProfile{}, fmt.Errorf("model must be klein, got %q", truncateRunes(model, 40))
+	return editModelProfile{}, fmt.Errorf("model must be klein or qwen, got %q", truncateRunes(model, 40))
 }
 
 type editStyle struct {
@@ -293,15 +340,14 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	s.guard.EnsureHeadroom(prof.model, "edit")
 
 	spec := modelSpec(prof.model)
-	refSpec := spec
-	refSpec.KleinReference = true
+	refSpec := withReference(spec)
 
 	srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
 	if srcW <= 0 || srcH <= 0 {
 		return nil, errors.New("decode image size: invalid image")
 	}
 	width, height := kleinImg2ImgSize(srcW, srcH)
-	workW, workH := kleinWorkSize(srcW, srcH)
+	workW, workH := refEditWorkSize(prof.model, srcW, srcH)
 
 	styleTags := ""
 	if style != nil && params.StyleTags {

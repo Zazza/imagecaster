@@ -754,7 +754,7 @@ func RegisterTools(s *Server) {
 		Name: "from_image",
 		Description: "Ремикс img2img по image_path: перерисовка пресетом (preset_id) или пайплайном (compound_preset_id). tags (описание изменений) проходит LLM-конвертацию. " +
 			"quality=true (только preset_id, требует resolution_id): после генерации — ESRGAN-апскейл до бокса разрешения и дочерний img2img denoise 0.35. " +
-			"preserve_identity=true (только preset_id на klein-модели): klein reference-ремикс — лицо исходника сохраняется, denoise ≤0.9, оптимально 0.6–0.7. " +
+			"preserve_identity=true (только preset_id на klein- или qwen-image-модели): reference-ремикс — лицо исходника сохраняется, denoise ≤0.9, оптимально 0.6–0.7. " +
 			"Удаление и замена объекта по маске — инструмент object_edit, правка по инструкции — edit. Результат: PNG + sidecar в out_dir.",
 		InputSchema: props(map[string]any{
 			"image_path":         prop("путь к исходному изображению", "string"),
@@ -768,7 +768,7 @@ func RegisterTools(s *Server) {
 			"seed":               prop("фиксированный сид (только preset_id)", "integer"),
 			"overrides":          overridesSchema,
 			"quality":            prop("качественный режим: 3 шага — img2img нативно, апскейл до бокса resolution_id, дочерний img2img (только preset_id)", "boolean"),
-			"preserve_identity":  prop("сохранять лицо исходника (klein reference-ремикс; только preset_id с klein-моделью)", "boolean"),
+			"preserve_identity":  prop("сохранять лицо исходника (reference-ремикс; только preset_id с klein- или qwen-image-моделью)", "boolean"),
 		}, "image_path"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			img, err := readImageArg(args, "image_path", true)

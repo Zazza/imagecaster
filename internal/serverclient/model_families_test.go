@@ -24,6 +24,7 @@ var newGenBases = map[string]bool{
 	"Qwen-Image":   true,
 	"Chroma":       true,
 	"HunyuanImage": true,
+	"HiDream-O1":   true,
 }
 
 var taggedBases = map[string]bool{
