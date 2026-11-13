@@ -929,6 +929,7 @@ export const ru = {
   'settings.process_restarts': 'перезапусков: {count}',
   'settings.btn_logs': 'Журнал',
   'settings.no_logs': 'Журнал пуст',
+  'settings.logs_error': 'Не удалось получить журнал: {error}',
   'settings.title_sd_models': 'Модели изображений',
   'settings.no_loras': 'LoRA нет',
   'settings.title_llm_models': 'Модели ИИ-помощника (Ollama)',

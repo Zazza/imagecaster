@@ -150,10 +150,36 @@ function itemTitle(item) {
   return lines.join('\n')
 }
 
+const seenLogIds = new Set()
+
+function pushLog(entry) {
+  if (entry.id) {
+    if (seenLogIds.has(entry.id)) return false
+    seenLogIds.add(entry.id)
+  }
+  logs.push(entry)
+  return true
+}
+
+async function loadLogHistory() {
+  let history
+  try {
+    history = await api.getLogEntries()
+  } catch (e) {
+    console.warn('getLogEntries', e)
+    return
+  }
+  const live = logs.splice(0, logs.length)
+  seenLogIds.clear()
+  for (const entry of [...(history || []), ...live]) pushLog(entry)
+  logs.sort((a, b) => (a.id || 0) - (b.id || 0))
+  if (logs.length > 500) logs.splice(0, logs.length - 500)
+}
+
 function addLog(raw) {
   try {
     const entry = JSON.parse(raw)
-    logs.push(entry)
+    if (!pushLog(entry)) return
     if (logs.length > 500) {
       logs.splice(0, logs.length - 500)
     }
@@ -436,6 +462,7 @@ async function refreshQueueCount() {
 
 onMounted(async () => {
   EventsOn('log:entry', addLog)
+  loadLogHistory()
   checkServices()
   const interval = setInterval(checkServices, 30000)
   setupObserver()

@@ -271,7 +271,7 @@ onUnmounted(() => {
       <button class="btn btn-secondary btn-sm" @click="showServerCheck = true">{{ t('server.banner_fix') }}</button>
     </div>
     <main class="main">
-      <SettingsPage v-show="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
+      <SettingsPage v-show="page === 'settings'" :active="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
       <template v-if="page !== 'settings'">
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />

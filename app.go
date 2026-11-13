@@ -1142,6 +1142,14 @@ func (a *App) PullServerLLMModel(name string) error {
 	return a.settingsSvc.PullServerLLMModel(name)
 }
 
+func (a *App) GetServerProcessLogs(name string, lines int) ([]string, error) {
+	return a.settingsSvc.GetServerProcessLogs(name, lines)
+}
+
+func (a *App) GetLogEntries() []logger.Entry {
+	return a.log.Entries()
+}
+
 func (a *App) DeleteServerLLMModel(name string) error {
 	return a.settingsSvc.DeleteServerLLMModel(name)
 }

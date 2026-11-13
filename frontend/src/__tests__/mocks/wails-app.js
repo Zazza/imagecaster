@@ -130,4 +130,6 @@ export default {
   ResumePausedQueueJobs: vi.fn(() => Promise.resolve(undefined)),
   SaveWindowLayout: vi.fn(() => Promise.resolve(undefined)),
   GetFooterHeight: vi.fn(() => Promise.resolve(undefined)),
+  GetLogEntries: vi.fn(() => Promise.resolve([])),
+  GetServerProcessLogs: vi.fn(() => Promise.resolve([])),
 }

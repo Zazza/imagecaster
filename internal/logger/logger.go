@@ -23,15 +23,20 @@ const (
 	DEBUG Level = "debug"
 )
 
+const keepEntries = 500
+
 type Entry struct {
+	ID        int64  `json:"id"`
 	Level     Level  `json:"level"`
 	Message   string `json:"message"`
 	Timestamp string `json:"timestamp"`
 }
 
 type Logger struct {
-	ctx context.Context
-	mu  sync.Mutex
+	ctx     context.Context
+	mu      sync.Mutex
+	lastID  int64
+	entries []Entry
 }
 
 func New(ctx context.Context) *Logger {
@@ -51,17 +56,29 @@ func (l *Logger) emit(level Level, format string, args ...interface{}) {
 		Timestamp: time.Now().Format("15:04:05"),
 	}
 
-	data, _ := json.Marshal(e)
-
 	l.mu.Lock()
+	l.lastID++
+	e.ID = l.lastID
+	l.entries = append(l.entries, e)
+	if len(l.entries) > keepEntries {
+		l.entries = append(l.entries[:0:0], l.entries[len(l.entries)-keepEntries:]...)
+	}
 	ctx := l.ctx
 	l.mu.Unlock()
+
+	data, _ := json.Marshal(e)
 
 	fmt.Fprintf(os.Stderr, "[%s] %s\n", level, e.Message)
 
 	if ctx != nil {
 		runtime.EventsEmit(ctx, "log:entry", string(data))
 	}
+}
+
+func (l *Logger) Entries() []Entry {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]Entry(nil), l.entries...)
 }
 
 func (l *Logger) Error(format string, args ...interface{}) {

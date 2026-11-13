@@ -1,7 +1,7 @@
 <script setup>
 import { Check, ChevronRight, X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { checkServer } from '../serverState.js'
 import { defaultDownloads, loadDefaultPlan, runDefaultPlan } from '../modelDownloads.js'
@@ -12,7 +12,8 @@ import FoldBlock from './FoldBlock.vue'
 import DownloadProgress from './DownloadProgress.vue'
 
 const props = defineProps({
-  initialTab: { type: String, default: 'connection' }
+  initialTab: { type: String, default: 'connection' },
+  active: { type: Boolean, default: true }
 })
 
 const activeTab = ref(props.initialTab || 'connection')
@@ -341,19 +342,40 @@ function pollServerStatus(interval = 2000, count = 10) {
   }, interval)
 }
 
+const logTimers = {}
+
+async function refreshProcessLogs(name) {
+  try {
+    processLogs[name] = await api.getServerProcessLogs(name, 50) || []
+  } catch (e) {
+    processLogs[name] = [t('settings.logs_error', { error: e?.message || String(e) })]
+  }
+}
+
+function hideProcessLogs(name) {
+  visibleLogs[name] = false
+  clearInterval(logTimers[name])
+  delete logTimers[name]
+}
+
+function hideAllProcessLogs() {
+  for (const name of Object.keys(visibleLogs)) hideProcessLogs(name)
+}
+
+watch(() => props.active, (on) => { if (!on) hideAllProcessLogs() })
+watch(activeTab, (tab) => { if (tab !== 'connection') hideAllProcessLogs() })
+onUnmounted(hideAllProcessLogs)
+
 async function showProcessLogs(name) {
   if (visibleLogs[name]) {
-    visibleLogs[name] = false
+    hideProcessLogs(name)
     return
   }
-  try {
-    const resp = await fetch(`${serverURL.value}/api/server/logs/${name}?lines=50`)
-    const data = await resp.json()
-    processLogs[name] = data.logs || []
-  } catch {
-    processLogs[name] = ['Failed to load logs']
-  }
   visibleLogs[name] = true
+  await refreshProcessLogs(name)
+  if (visibleLogs[name] && !logTimers[name]) {
+    logTimers[name] = setInterval(() => refreshProcessLogs(name), 2000)
+  }
 }
 
 async function saveServerConnection() {

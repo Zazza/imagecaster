@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -350,4 +351,34 @@ func (i *ServerInfo) MissingFeatures() []string {
 		missing = append(missing, "llamacpp")
 	}
 	return missing
+}
+
+func (c *Client) ProcessLogs(name string, lines int) ([]string, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("server not configured")
+	}
+	endpoint := fmt.Sprintf("%s/api/server/logs/%s?lines=%d", c.baseURL, url.PathEscape(name), lines)
+	resp, err := c.httpClient.Get(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("server unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Logs  []string `json:"logs"`
+		Error string   `json:"error"`
+	}
+	decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body)
+	if resp.StatusCode != http.StatusOK {
+		if decodeErr == nil && body.Error != "" {
+			return nil, fmt.Errorf("server: %s", body.Error)
+		}
+		return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+	if decodeErr != nil {
+		return nil, fmt.Errorf("read logs: %w", decodeErr)
+	}
+	if body.Logs == nil {
+		body.Logs = []string{}
+	}
+	return body.Logs, nil
 }

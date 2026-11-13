@@ -957,6 +957,7 @@ export const en = {
   'settings.process_restarts': 'restarts: {count}',
   'settings.btn_logs': 'Logs',
   'settings.no_logs': 'No logs available',
+  'settings.logs_error': 'Could not load the log: {error}',
   'settings.title_sd_models': 'SD Models',
   'settings.no_loras': 'No LoRAs',
   'settings.title_llm_models': 'LLM Models (Ollama)',
