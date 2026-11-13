@@ -59,6 +59,7 @@ func (p *processor) processGeneration(job *Job, gen func() (*generation.Generate
 	return &JobResult{
 		ImageBase64:                 result.Image,
 		Info:                        string(result.Info),
+		SessionItemID:               result.SessionItemID,
 		QualityUpscaleSkipped:       result.QualityUpscaleSkipped,
 		QualityRedenoiseSkipped:     result.QualityRedenoiseSkipped,
 		PreserveIdentityResetFailed: result.PreserveIdentityResetFailed,
