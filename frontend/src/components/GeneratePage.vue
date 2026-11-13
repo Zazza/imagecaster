@@ -12,6 +12,7 @@ import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
 import { usePresets } from '../composables/usePresets.js'
+import { useZoomPan, ZOOM_MIN, ZOOM_MAX, ZOOM_PRESETS } from '../composables/useZoomPan.js'
 import { runIdeasBatch } from '../ideasBatch.js'
 import SavedDescriptionsModal from './SavedDescriptionsModal.vue'
 import ImageViewer from './ImageViewer.vue'
@@ -82,49 +83,14 @@ const shownItemId = ref(null)
 
 const openSection = ref('main')
 
-// Масштаб результата: вписать (по умолчанию) или проценты от натурального
-// размера картинки — как зум превью Постобработки.
-const genZoomFit = ref(true)
-const genZoomPct = ref(100)
-const genNatural = ref({ w: 0, h: 0 })
 const genStageEl = ref(null)
-const genStageSize = ref({ w: 0, h: 0 })
-let genStageRO = null
-const genFitScale = computed(() => {
-  if (!genNatural.value.w || !genStageSize.value.w) return 1
-  return Math.min(genStageSize.value.w / genNatural.value.w, genStageSize.value.h / genNatural.value.h)
-})
-const genZoomLabel = computed(() => genZoomFit.value ? t('viewer.zoom_fit') : Math.round(genZoomPct.value) + '%')
-function ensureStageObserver() {
-  if (genStageRO || !genStageEl.value) return
-  const measure = () => {
-    const r = genStageEl.value?.getBoundingClientRect()
-    if (r) genStageSize.value = { w: r.width, h: r.height }
-  }
-  measure()
-  genStageRO = new ResizeObserver(measure)
-  genStageRO.observe(genStageEl.value)
+const genZoom = useZoomPan(genStageEl)
+const { isFit: genZoomFit, zoomPct: genZoomPct, zoomLabel: genZoomLabel, layerStyle: genLayerStyle, panEnabled: genPanEnabled, panning: genPanning, zoomMenuOpen: genZoomMenuOpen } = genZoom
+watch(generatedImage, () => genZoom.setFit())
+function onResultClick() {
+  if (genZoom.wasDragged() || !genZoomFit.value) return
+  openGeneratedViewer()
 }
-function onResultLoad(e) {
-  genNatural.value = { w: e.target.naturalWidth, h: e.target.naturalHeight }
-  ensureStageObserver()
-}
-function toggleZoomFit() {
-  genZoomFit.value = !genZoomFit.value
-  if (!genZoomFit.value) genZoomPct.value = 100
-}
-function zoomResultBy(delta) {
-  if (genZoomFit.value) {
-    genZoomFit.value = false
-    genZoomPct.value = Math.max(20, Math.min(400, Math.round(genFitScale.value * 100)))
-  }
-  genZoomPct.value = Math.max(20, Math.min(400, genZoomPct.value + delta))
-}
-function onStageWheel(e) {
-  if (!e.deltaY) return
-  zoomResultBy(e.deltaY < 0 ? 10 : -10)
-}
-onUnmounted(() => { genStageRO?.disconnect() })
 
 function setOpenSection(name) {
   if (openSection.value === name) return
@@ -1046,16 +1012,31 @@ function onKeydown(e) {
           </div>
           <div v-else-if="generatedImage" class="gen-result">
             <StatusMessage v-if="hiresSkipped" kind="warning" style="margin-bottom: 8px; text-align: center;" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
-            <div ref="genStageEl" class="gen-stage" :class="{ fit: genZoomFit }" @wheel="onStageWheel">
+            <div class="gen-stage-wrap">
               <div class="viewfinder" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-              <img :src="imageSrc" alt="Generated" class="img-fade-in gen-stage-img" :style="genZoomFit ? '' : { width: Math.round(genNatural.w * genZoomPct / 100) + 'px' }" @load="onResultLoad" @click="openGeneratedViewer" />
-              <div class="split-zoom" @pointerdown.stop @click.stop @dblclick.stop @wheel.stop>
-                <button class="split-zoom-btn" :title="t('viewer.zoom_fit')" @click="toggleZoomFit">{{ genZoomLabel }}</button>
-                <button class="split-zoom-btn" :title="t('viewer.zoom_out')" :disabled="!genZoomFit && genZoomPct <= 20" @click="zoomResultBy(-10)">−</button>
-                <button class="split-zoom-btn" :title="t('viewer.zoom_in')" :disabled="!genZoomFit && genZoomPct >= 400" @click="zoomResultBy(10)">+</button>
+              <div
+                ref="genStageEl"
+                class="gen-stage"
+                :class="{ fit: genZoomFit, pannable: genPanEnabled, panning: genPanning }"
+                @pointerdown="genZoom.onPointerDown"
+                @pointermove="genZoom.onPointerMove"
+                @pointerup="genZoom.onPointerUp"
+                @pointercancel="genZoom.onPointerUp"
+                @wheel="genZoom.onWheel"
+              >
+                <img :src="imageSrc" alt="Generated" class="img-fade-in gen-stage-img" :style="genLayerStyle" draggable="false" @load="genZoom.onImgLoad" @click="onResultClick" />
+                <div class="split-zoom" @pointerdown.stop @click.stop @dblclick.stop @wheel.stop>
+                  <button class="split-zoom-btn" :title="t('viewer.zoom_out')" :aria-label="t('viewer.zoom_out')" :disabled="genZoomFit && genZoom.fitPercent() <= ZOOM_MIN" @click="genZoom.zoomBy(-10)">&minus;</button>
+                  <button class="split-zoom-btn split-zoom-label" :title="t('viewer.zoom_presets')" :aria-expanded="genZoomMenuOpen" aria-haspopup="menu" @click="genZoom.onZoomIndicatorClick">{{ genZoomLabel }}</button>
+                  <button class="split-zoom-btn" :title="t('viewer.zoom_in')" :aria-label="t('viewer.zoom_in')" :disabled="!genZoomFit && genZoomPct >= ZOOM_MAX" @click="genZoom.zoomBy(10)">&plus;</button>
+                  <div v-if="genZoomMenuOpen" class="split-zoom-menu" role="menu">
+                    <button :class="{ active: genZoomFit }" @click="genZoom.setFit">{{ t('viewer.zoom_fit') }}</button>
+                    <button v-for="p in ZOOM_PRESETS" :key="p" :class="{ active: !genZoomFit && genZoomPct === p }" @click="genZoom.enterZoom(p)">{{ p }}%</button>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="action-row" style="margin-top: 10px;">
+            <div class="action-row gen-result-actions">
               <button v-if="generatedImage" class="btn btn-primary btn-sm" @click="openFastSaveModal">{{ t('generate.btn_quick_save') }}</button>
               <button v-if="generatedImage" class="btn btn-sm btn-secondary" @click="upscaleImageX2" :disabled="upscalingX2">{{ t('generate.btn_upscale_x2') }}</button>
               <button class="btn btn-sm btn-secondary" @click="downloadImage">{{ t('generate.btn_download') }}</button>
@@ -1424,10 +1405,6 @@ function onKeydown(e) {
 }
 </style>
 <style scoped>
-/* Картинка результата — по центру и в размер колонки, как превью Постобработки */
-</style>
-<style scoped>
-/* Кнопка генерации — обычный размер, не на всю ширину */
 .gen-controls .btn-generate {
   padding: 8px 16px;
   font-size: 13px;
@@ -1435,15 +1412,12 @@ function onKeydown(e) {
 }
 </style>
 <style scoped>
-/* Свёрнутая секция не торчит: паддинги тела обнуляются, как в Постобработке */
 .card-collapse.collapsed > .card-body {
   padding-top: 0;
   padding-bottom: 0;
   overflow: clip;
 }
 
-/* Область результата занимает всю высоту колонки */
-/* Область результата занимает всю высоту колонки */
 .gen-preview-col .generate-image-area {
   flex: 1;
   min-height: 0;
@@ -1451,42 +1425,52 @@ function onKeydown(e) {
   align-items: stretch;
 }
 
-/* Результат — тёмная сцена с визиром и зумом, как превью Постобработки */
 .gen-result {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 12px;
 }
-.gen-stage {
+.gen-result-actions {
+  padding: 0 10px 10px;
+}
+.gen-stage-wrap {
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: auto;
+  padding: 10px;
+}
+.gen-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   border-radius: var(--radius-sm);
   background: #000;
   touch-action: none;
   user-select: none;
 }
-.gen-stage-img {
-  display: block;
+.gen-stage.fit .gen-stage-img {
   cursor: zoom-in;
 }
-.gen-stage .gen-stage-img {
-  max-width: none;
-  max-height: none;
-  flex-shrink: 0;
+.gen-stage.pannable {
+  cursor: grab;
 }
-.gen-stage.fit .gen-stage-img {
-  max-width: 100%;
-  max-height: 100%;
+.gen-stage.panning {
+  cursor: grabbing;
+}
+.gen-stage-img {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   object-position: center;
+  transform-origin: center;
+}
+.gen-stage:not(.fit) .gen-stage-img {
+  pointer-events: none;
 }
 .viewfinder {
   position: absolute;
@@ -1532,5 +1516,38 @@ function onKeydown(e) {
 .split-zoom-btn:disabled {
   opacity: 0.4;
   cursor: default;
+}
+.split-zoom-label {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+.split-zoom-menu {
+  position: absolute;
+  bottom: 30px;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.split-zoom-menu button {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 70px;
+}
+.split-zoom-menu button:hover {
+  background: var(--surface-2);
+}
+.split-zoom-menu button.active {
+  color: var(--accent);
+  font-weight: 600;
 }
 </style>
