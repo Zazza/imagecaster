@@ -18,8 +18,8 @@ function find(list, name) {
 }
 
 function optionText(c) {
-  if (c.installed) return `${c.name} — ${t('llm_setup.installed')}`
-  return `${c.name} — ${t('llm_setup.download', { size: c.size_gb })}`
+  const state = c.installed ? t('llm_setup.installed') : t('llm_setup.download', { size: c.size_gb })
+  return c.recommended ? `${c.name} — ${state}, ${t('llm_setup.recommended')}` : `${c.name} — ${state}`
 }
 
 const toDownload = computed(() => {

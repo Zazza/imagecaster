@@ -137,7 +137,7 @@ doPost(url, body)
 
 ### API сервера
 
-Приложение всегда говорит с сервером в формате Ollama: `/v1/chat/completions` (текст), `/api/chat` (vision), `/api/tags` (модели), `/api/ps` и `keep_alive: 0` (выгрузка). `keep_alive`, `num_ctx` и `num_gpu` берутся из настроек.
+Приложение всегда говорит с сервером в формате Ollama: `/v1/chat/completions` (текст), `/api/chat` (vision), `/api/tags` (модели), `/api/ps` и `keep_alive: 0` (выгрузка). `keep_alive` и `num_ctx` берутся из настроек.
 
 ### Режимы LLM
 

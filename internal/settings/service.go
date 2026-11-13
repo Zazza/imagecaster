@@ -110,7 +110,6 @@ func (s *Service) GetSettings() (map[string]string, error) {
 		"vision_model":                s.cfg.VisionModel,
 		"llm_keep_alive":              "5m",
 		"llm_num_ctx":                 "4096",
-		"llm_num_gpu":                 "-1",
 		"llm_max_tokens":              "256",
 		"llm_generate_model":          s.cfg.SDPromptModel,
 		"llm_analyze_model":           s.cfg.VisionModel,
@@ -164,7 +163,7 @@ func (s *Service) UpdateSettings(data map[string]string) error {
 	}
 
 	numericFields := map[string]bool{
-		"llm_num_ctx": true, "llm_num_gpu": true, "llm_max_tokens": true,
+		"llm_num_ctx": true, "llm_max_tokens": true,
 	}
 	for k, v := range data {
 		if numericFields[k] {
@@ -244,11 +243,6 @@ func (s *Service) ApplyLLMConfig(mode string) {
 	if v, err := s.db.GetSetting(prefix + "num_thread"); err == nil && v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.NumThread = n
-		}
-	}
-	if v, err := s.db.GetSetting("llm_num_gpu"); err == nil && v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			cfg.NumGPU = n
 		}
 	}
 	s.llm.SetBackendConfig(cfg)

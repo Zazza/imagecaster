@@ -137,7 +137,7 @@ A preset contains all generation parameters. The resolution logic (the same for 
 
 ### Server API
 
-The app always talks to the server in Ollama format: `/v1/chat/completions` (text), `/api/chat` (vision), `/api/tags` (models), `/api/ps` and `keep_alive: 0` (unloading). `keep_alive`, `num_ctx` and `num_gpu` come from settings.
+The app always talks to the server in Ollama format: `/v1/chat/completions` (text), `/api/chat` (vision), `/api/tags` (models), `/api/ps` and `keep_alive: 0` (unloading). `keep_alive` and `num_ctx` come from settings.
 
 ### LLM Modes
 

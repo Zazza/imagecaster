@@ -36,16 +36,16 @@ async function checkLLMSetup() {
 
 async function startup() {
   if (await checkServer() === 'ok') {
-    initWelcome()
+    await initWelcome()
     checkLLMSetup()
     return
   }
   showServerCheck.value = true
 }
 
-function onServerReady() {
+async function onServerReady() {
   showServerCheck.value = false
-  initWelcome()
+  await initWelcome()
   checkLLMSetup()
 }
 
@@ -284,7 +284,7 @@ onUnmounted(() => {
       <button class="btn btn-secondary btn-sm" @click="showServerCheck = true">{{ t('server.banner_fix') }}</button>
     </div>
     <main class="main">
-      <SettingsPage v-show="page === 'settings'" :active="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
+      <SettingsPage :key="settingsKey" v-show="page === 'settings'" :active="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
       <template v-if="page !== 'settings'">
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
@@ -297,6 +297,6 @@ onUnmounted(() => {
     </div>
     <ServerCheckModal v-if="showServerCheck" @ready="onServerReady" @close="onServerCheckClose" />
     <WelcomeModal v-if="welcome && !showServerCheck" :tab="welcome" @close="closeWelcome" @settings="welcomeToSettings" />
-    <LLMSetupModal v-if="llmSetup && !welcome && !showServerCheck" :setup="llmSetup" @close="llmSetup = null" />
+    <LLMSetupModal v-if="llmSetup && !welcome && !showServerCheck" :setup="llmSetup" @close="llmSetup = null; settingsKey++" />
   </div>
 </template>

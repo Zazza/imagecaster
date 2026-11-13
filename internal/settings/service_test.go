@@ -296,7 +296,7 @@ func TestGetSettings_AllDefaultKeysPresent(t *testing.T) {
 
 	expectedKeys := []string{
 		"server_url", "llm_model", "sd_prompt_model", "vision_model",
-		"llm_keep_alive", "llm_num_ctx", "llm_num_gpu",
+		"llm_keep_alive", "llm_num_ctx",
 		"llm_max_tokens", "llm_generate_model", "llm_analyze_model",
 		"llm_generate_temperature", "llm_generate_num_ctx",
 		"llm_generate_num_predict", "llm_generate_top_p",
@@ -369,7 +369,6 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 
 	data := map[string]string{
 		"llm_num_ctx":    "8192",
-		"llm_num_gpu":    "1",
 		"llm_max_tokens": "512",
 	}
 
@@ -379,7 +378,6 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
 	assert.Equal(t, "8192", settings["llm_num_ctx"])
-	assert.Equal(t, "1", settings["llm_num_gpu"])
 	assert.Equal(t, "512", settings["llm_max_tokens"])
 }
 
@@ -389,7 +387,6 @@ func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
 
 	data := map[string]string{
 		"llm_num_ctx": "abc",
-		"llm_num_gpu": "-100",
 	}
 
 	err := svc.UpdateSettings(data)
@@ -398,7 +395,6 @@ func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
 	assert.Equal(t, "0", settings["llm_num_ctx"])
-	assert.Equal(t, "0", settings["llm_num_gpu"])
 }
 
 func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
@@ -407,7 +403,6 @@ func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
 
 	data := map[string]string{
 		"llm_num_ctx": "",
-		"llm_num_gpu": "",
 	}
 
 	err := svc.UpdateSettings(data)
@@ -416,7 +411,6 @@ func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
 	assert.Equal(t, "0", settings["llm_num_ctx"])
-	assert.Equal(t, "0", settings["llm_num_gpu"])
 }
 
 func TestUpdateSettings_DisallowedSettingIgnored(t *testing.T) {
@@ -493,7 +487,6 @@ func TestApplyLLMConfig_GenerateMode(t *testing.T) {
 	require.NoError(t, db.SetSetting("llm_generate_num_predict", "128"))
 	require.NoError(t, db.SetSetting("llm_generate_top_p", "0.8"))
 	require.NoError(t, db.SetSetting("llm_generate_num_thread", "4"))
-	require.NoError(t, db.SetSetting("llm_num_gpu", "2"))
 
 	svc.ApplyLLMConfig("generate")
 
@@ -503,7 +496,6 @@ func TestApplyLLMConfig_GenerateMode(t *testing.T) {
 	assert.Equal(t, 128, llmSvc.setBackendCfg.NumPredict)
 	assert.Equal(t, 0.8, llmSvc.setBackendCfg.TopP)
 	assert.Equal(t, 4, llmSvc.setBackendCfg.NumThread)
-	assert.Equal(t, 2, llmSvc.setBackendCfg.NumGPU)
 }
 
 func TestApplyLLMConfig_AnalyzeMode(t *testing.T) {
@@ -516,7 +508,6 @@ func TestApplyLLMConfig_AnalyzeMode(t *testing.T) {
 	require.NoError(t, db.SetSetting("llm_analyze_num_predict", "512"))
 	require.NoError(t, db.SetSetting("llm_analyze_top_p", "0.95"))
 	require.NoError(t, db.SetSetting("llm_analyze_num_thread", "8"))
-	require.NoError(t, db.SetSetting("llm_num_gpu", "1"))
 
 	svc.ApplyLLMConfig("analyze")
 
@@ -526,7 +517,6 @@ func TestApplyLLMConfig_AnalyzeMode(t *testing.T) {
 	assert.Equal(t, 512, llmSvc.setBackendCfg.NumPredict)
 	assert.Equal(t, 0.95, llmSvc.setBackendCfg.TopP)
 	assert.Equal(t, 8, llmSvc.setBackendCfg.NumThread)
-	assert.Equal(t, 1, llmSvc.setBackendCfg.NumGPU)
 }
 
 func TestApplyLLMConfig_DefaultIsGenerate(t *testing.T) {
@@ -567,14 +557,12 @@ func TestApplyLLMConfig_InvalidNumbersIgnored(t *testing.T) {
 
 	require.NoError(t, db.SetSetting("llm_generate_num_ctx", "not-a-number"))
 	require.NoError(t, db.SetSetting("llm_generate_top_p", "bad-float"))
-	require.NoError(t, db.SetSetting("llm_num_gpu", "xyz"))
 
 	svc.ApplyLLMConfig("generate")
 
 	assert.True(t, llmSvc.setBackendCfgV)
 	assert.Equal(t, 0, llmSvc.setBackendCfg.NumCtx)
 	assert.Equal(t, 0.0, llmSvc.setBackendCfg.TopP)
-	assert.Equal(t, 0, llmSvc.setBackendCfg.NumGPU)
 }
 
 func TestGetModelCatalog_LoadsEmbeddedData(t *testing.T) {

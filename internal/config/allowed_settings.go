@@ -3,7 +3,7 @@ package config
 var AllowedSettings = map[string]bool{
 	"llm_model": true, "sd_prompt_model": true,
 	"vision_model":   true,
-	"llm_keep_alive": true, "llm_num_ctx": true, "llm_num_gpu": true, "llm_max_tokens": true,
+	"llm_keep_alive": true, "llm_num_ctx": true, "llm_max_tokens": true,
 	"llm_generate_model": true, "llm_analyze_model": true,
 	"llm_generate_temperature": true, "llm_generate_num_ctx": true, "llm_generate_num_predict": true,
 	"llm_generate_top_p": true, "llm_generate_num_thread": true,

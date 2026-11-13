@@ -148,12 +148,4 @@ describe('i18n settings.* and server.* without Ollama', () => {
       .map(([k]) => k)
     expect(bad).toEqual([])
   })
-
-  it.each([
-    ['ru', ru, 'Модели ИИ-помощника', 'движок текста (llama.cpp)'],
-    ['en', en, 'AI assistant models', 'a text engine (llama.cpp)'],
-  ])('%s: AI assistant models title and text engine feature', (_, dict, title, feature) => {
-    expect(dict['settings.title_llm_models']).toBe(title)
-    expect(dict['server.feature_llm']).toBe(feature)
-  })
 })

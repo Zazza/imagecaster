@@ -94,7 +94,6 @@ Key-value settings store.
 | `llm_max_tokens` | Max tokens | `256` |
 | `llm_keep_alive` | Ollama keep_alive | `5m` |
 | `llm_num_ctx` | Ollama context | `4096` |
-| `llm_num_gpu` | Ollama GPU layers | `1` |
 | `sd_prompt_instruction` | System prompt for SD | DefaultSDPromptInstruction |
 | `kids_mode` | Kids mode on/off | `false` |
 | `kids_pin_hash` | SHA256 hash of PIN | — |

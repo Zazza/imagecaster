@@ -59,16 +59,14 @@ func (c *Client) ChatWithMessages(model string, messages []Message, temperature 
 func (c *Client) GetModels() ([]LLMModel, error)
 func (c *Client) HealthCheck() error
 func (c *Client) SetURL(baseURL string)
-func (c *Client) SetBackend(backend string)
 func (c *Client) SetBackendConfig(cfg BackendConfig)
 ```
 
-### BackendConfig (for Ollama)
+### BackendConfig
 ```go
 type BackendConfig struct {
     KeepAlive string  // "5m", "0" (unload immediately)
     NumCtx    int     // context size
-    NumGPU    int     // GPU layers
 }
 ```
 

@@ -50,9 +50,6 @@ func Restore(db *preset.DB, cfg *config.Config, llmSvc llm.Service, sdSvc sd.Ser
 	} else {
 		backendCfg.NumCtx = 4096
 	}
-	if v, _ := db.GetSetting("llm_num_gpu"); v != "" {
-		fmt.Sscanf(v, "%d", &backendCfg.NumGPU)
-	}
 	llmSvc.SetBackendConfig(backendCfg)
 }
 

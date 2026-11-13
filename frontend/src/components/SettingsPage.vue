@@ -816,7 +816,7 @@ onMounted(loadSettings)
           <label class="form-label">{{ t('settings.label_model_generate') }}</label>
           <div style="display: flex; gap: 8px;">
             <select class="form-select" v-model="generateModel" style="flex: 1;">
-              <option value="">{{ t('settings.option_default') }}</option>
+              <option value="" disabled>{{ t('llm_setup.choose') }}</option>
               <option v-for="m in serverModels.llm" :key="m.name" :value="m.name">{{ m.name }}</option>
             </select>
             <button class="btn btn-secondary btn-sm" @click="loadServerModels" :disabled="serverModelsLoading.llm">

@@ -51,7 +51,6 @@ type ImageURLPart struct {
 
 type ChatOptions struct {
 	NumCtx int `json:"num_ctx,omitempty"`
-	NumGPU int `json:"num_gpu,omitempty"`
 }
 
 type ChatRequest struct {
@@ -89,7 +88,6 @@ func (c *Client) Chat(model, systemPrompt, userMessage string, temperature float
 	reqBody.KeepAlive = c.backendCfg.KeepAlive
 	reqBody.Options = &ChatOptions{
 		NumCtx: c.backendCfg.NumCtx,
-		NumGPU: c.backendCfg.NumGPU,
 	}
 
 	url := c.baseURL + "/v1/chat/completions"
@@ -274,7 +272,6 @@ func (c *Client) ChatWithMessages(model string, messages []Message, temperature 
 	reqBody.KeepAlive = c.backendCfg.KeepAlive
 	reqBody.Options = &ChatOptions{
 		NumCtx: c.backendCfg.NumCtx,
-		NumGPU: c.backendCfg.NumGPU,
 	}
 
 	url := c.baseURL + "/v1/chat/completions"
