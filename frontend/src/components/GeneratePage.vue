@@ -1,5 +1,5 @@
 <script setup>
-import { Check, Sparkles, TriangleAlert } from 'lucide-vue-next'
+import { Check, Sparkles, TriangleAlert, Maximize2, SlidersHorizontal } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
@@ -47,11 +47,6 @@ const hiresSkipped = ref(false)
 const upscalingX2 = ref(false)
 const effectivePrompt = ref('')
 const effectiveNegative = ref('')
-
-const showFastSaveModal = ref(false)
-const fastSaveFilename = ref('')
-const fastSaveFormat = ref('jpg')
-const fastSaveLoading = ref(false)
 
 const generatingImage = ref(false)
 const { llmStatus, sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
@@ -617,51 +612,6 @@ async function resolveImageBase64() {
   return generatedImage.value
 }
 
-async function downloadImage() {
-  if (!generatedImage.value) return
-  try {
-    const b64 = await resolveImageBase64()
-    if (!b64) return
-    const defaultName = 'imagecaster-' + Date.now() + '.png'
-    const savedPath = await api.saveImage(b64, defaultName)
-    if (savedPath) {
-      error.value = ''
-    }
-  } catch (e) {
-    error.value = t('generate.error_save', { error: String(e) })
-  }
-}
-
-function openFastSaveModal() {
-  fastSaveFilename.value = 'imagecaster-' + Date.now()
-  showFastSaveModal.value = true
-}
-
-async function confirmFastSave() {
-  if (!fastSaveFilename.value.trim() || !generatedImage.value) return
-  fastSaveLoading.value = true
-  try {
-    const b64 = await resolveImageBase64()
-    if (!b64) return
-    const savedPath = await api.fastSaveImage(b64, fastSaveFilename.value.trim(), fastSaveFormat.value)
-    if (savedPath) {
-      showFastSaveModal.value = false
-      error.value = ''
-    }
-  } catch (e) {
-    error.value = t('generate.error_quick_save', { error: String(e) })
-  } finally {
-    fastSaveLoading.value = false
-  }
-}
-
-function copyPrompt() {
-  const parts = []
-  if (effectivePrompt.value) parts.push(effectivePrompt.value)
-  if (effectiveNegative.value) parts.push('Negative: ' + effectiveNegative.value)
-  if (parts.length) navigator.clipboard.writeText(parts.join('\n'))
-}
-
 async function toPostProcess() {
   if (!generatedImage.value) return
   try {
@@ -1037,12 +987,15 @@ function onKeydown(e) {
               </div>
             </div>
             <div class="action-row gen-result-actions">
-              <button v-if="generatedImage" class="btn btn-primary btn-sm" @click="openFastSaveModal">{{ t('generate.btn_quick_save') }}</button>
-              <button v-if="generatedImage" class="btn btn-sm btn-secondary" @click="upscaleImageX2" :disabled="upscalingX2">{{ t('generate.btn_upscale_x2') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="downloadImage">{{ t('generate.btn_download') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="copyPrompt">{{ t('generate.btn_copy') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="generateImage">{{ t('generate.btn_regenerate') }}</button>
-              <button class="btn btn-sm btn-secondary" @click="toPostProcess" :disabled="!generatedImage">{{ t('post.btn_send') }}</button>
+              <button class="btn btn-sm btn-secondary" @click="upscaleImageX2" :disabled="upscalingX2">
+                <span v-if="upscalingX2" class="spinner gen-action-spinner"></span>
+                <Maximize2 v-else :size="14" />
+                {{ t('generate.btn_upscale_x2') }}
+              </button>
+              <button class="btn btn-sm btn-primary" @click="toPostProcess">
+                <SlidersHorizontal :size="14" />
+                {{ t('post.btn_send') }}
+              </button>
             </div>
           </div>
           <div v-else class="generate-placeholder">
@@ -1219,30 +1172,6 @@ function onKeydown(e) {
     />
 
     <ImageViewer v-if="showViewer" :image-base64="generatedImage" @close="showViewer = false" />
-
-    <div v-if="showFastSaveModal" class="modal-overlay">
-      <div class="modal-content" style="max-width: 400px;">
-        <h3 style="margin: 0 0 12px;">{{ t('generate.quick_save_title') }}</h3>
-        <div class="form-group">
-          <label class="form-label">{{ t('generate.quick_save_filename') }}</label>
-          <input class="form-input" v-model="fastSaveFilename" @keydown.enter="confirmFastSave" :disabled="fastSaveLoading" autofocus />
-        </div>
-        <div class="form-group" style="margin-top: 8px;">
-          <label class="form-label">{{ t('generate.quick_save_format') }}</label>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-sm" :class="fastSaveFormat === 'jpg' ? 'btn-primary' : 'btn-secondary'" @click="fastSaveFormat = 'jpg'">JPG</button>
-            <button class="btn btn-sm" :class="fastSaveFormat === 'png' ? 'btn-primary' : 'btn-secondary'" @click="fastSaveFormat = 'png'">PNG</button>
-          </div>
-        </div>
-        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
-          <button class="btn btn-secondary" @click="showFastSaveModal = false" :disabled="fastSaveLoading">{{ t('generate.quick_save_cancel') }}</button>
-          <button class="btn btn-primary" @click="confirmFastSave" :disabled="!fastSaveFilename.trim() || fastSaveLoading">
-            <span v-if="fastSaveLoading" class="spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span>
-            {{ t('generate.quick_save_btn') }}
-          </button>
-        </div>
-      </div>
-    </div>
 
     <div v-if="showSavePipelineModal" class="modal-overlay">
       <div class="modal-content" style="max-width: 400px;">
@@ -1452,7 +1381,16 @@ function onKeydown(e) {
   width: 100%;
 }
 .gen-result-actions {
-  padding: 0 10px 10px;
+  padding: 2px 10px 12px;
+  gap: 8px;
+}
+.gen-result-actions .btn {
+  gap: 6px;
+}
+.gen-action-spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
 }
 .gen-stage-wrap {
   position: relative;
