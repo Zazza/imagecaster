@@ -38,16 +38,16 @@ Imagecaster — это две программы:
 ## Скриншоты
 
 <p align="center">
-  <a href="docs/screenshots/generate.png" target="_blank"><img src="docs/screenshots/generate.png" width="45%" alt="Генерация"></a>
-  <a href="docs/screenshots/postprocess.png" target="_blank"><img src="docs/screenshots/postprocess.png" width="45%" alt="Постобработка"></a>
+  <a href="docs/screenshots/generate.jpg" target="_blank"><img src="docs/screenshots/generate.jpg" width="45%" alt="Генерация"></a>
+  <a href="docs/screenshots/postprocess.jpg" target="_blank"><img src="docs/screenshots/postprocess.jpg" width="45%" alt="Постобработка"></a>
 </p>
 <p align="center">
-  <a href="docs/screenshots/gallery.png" target="_blank"><img src="docs/screenshots/gallery.png" width="45%" alt="Галерея"></a>
-  <a href="docs/screenshots/styles.png" target="_blank"><img src="docs/screenshots/styles.png" width="45%" alt="Стили"></a>
+  <a href="docs/screenshots/gallery.jpg" target="_blank"><img src="docs/screenshots/gallery.jpg" width="45%" alt="Галерея"></a>
+  <a href="docs/screenshots/styles.jpg" target="_blank"><img src="docs/screenshots/styles.jpg" width="45%" alt="Стили"></a>
 </p>
 <p align="center">
-  <a href="docs/screenshots/catalog.png" target="_blank"><img src="docs/screenshots/catalog.png" width="45%" alt="Каталог"></a>
-  <a href="docs/screenshots/queue.png" target="_blank"><img src="docs/screenshots/queue.png" width="45%" alt="Очередь обработки"></a>
+  <a href="docs/screenshots/catalog.jpg" target="_blank"><img src="docs/screenshots/catalog.jpg" width="45%" alt="Каталог"></a>
+  <a href="docs/screenshots/queue.jpg" target="_blank"><img src="docs/screenshots/queue.jpg" width="45%" alt="Очередь обработки"></a>
 </p>
 
 Скриншоты сняты с английским интерфейсом; в приложении он переключается на русский.
