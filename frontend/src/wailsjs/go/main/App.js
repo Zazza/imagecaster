@@ -210,10 +210,6 @@ export function ExportPresets(arg1) {
   return window['go']['main']['App']['ExportPresets'](arg1);
 }
 
-export function FastSaveImage(arg1, arg2, arg3) {
-  return window['go']['main']['App']['FastSaveImage'](arg1, arg2, arg3);
-}
-
 export function GenerateCompoundImage(arg1) {
   return window['go']['main']['App']['GenerateCompoundImage'](arg1);
 }
