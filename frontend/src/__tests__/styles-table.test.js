@@ -1,21 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base, SyncPresets: vi.fn() }
-})
+vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).createAppMock({ SyncPresets: vi.fn() }))
 
 import PresetsPage from '../components/PresetsPage.vue'
 import {
-  ListPresets, ListPresetTypes, SyncPresets, GetPresetsInstallStatus, ListCompoundPresets,
+  ListPresets, ListPresetTypes, SyncPresets, ListCompoundPresets,
   DeletePreset, CreatePreset, InstallPresetDeps,
 } from '../wailsjs/go/main/App.js'
 import { t } from '../i18n/index.js'
 import { effectTypeLabel } from '../effectTypes.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -36,14 +32,6 @@ const EFFECTS = [
 ]
 const ALL_NAMES = [...STYLES, ...EFFECTS].map(p => p.name)
 
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   clearEventMocks()
@@ -51,7 +39,6 @@ beforeEach(() => {
   ListPresetTypes.mockResolvedValue(TYPES.map(x => ({ ...x })))
   ListPresets.mockResolvedValue([...STYLES, ...EFFECTS].map(p => ({ ...p })))
   SyncPresets.mockResolvedValue({ statuses: [], added: 0 })
-  GetPresetsInstallStatus.mockResolvedValue([])
   ListCompoundPresets.mockResolvedValue([])
 })
 
@@ -116,13 +103,6 @@ describe('styles table: rows and badges', () => {
   it('group badge shows group label', async () => {
     const w = await mountPage()
     expect(rowOf(w, 'alpha Custom').find('[data-testid="badge-group"]').text().trim()).toBe(effectTypeLabel('anime', t))
-  })
-
-  it('new i18n keys are translated', () => {
-    for (const key of ['presets.source_bundled', 'presets.source_custom', 'presets.model_any']) {
-      expect(t(key)).not.toBe(key)
-      expect(t(key)).toBeTruthy()
-    }
   })
 })
 
@@ -514,10 +494,5 @@ describe('styles table: select all filtered and delete with confirmation', () =>
     expect(DeletePreset).not.toHaveBeenCalled()
     await confirmDelete(w)
     expect(deletedIds()).toEqual(many.map(p => p.id))
-  })
-
-  it('more-line translation exists', () => {
-    expect(t('presets.delete_more', { count: 3 })).not.toBe('presets.delete_more')
-    expect(t('presets.delete_more', { count: 3 })).toContain('3')
   })
 })

@@ -176,14 +176,18 @@ func (s *Store) Get(id int64) (*Job, error) {
 	return &j, nil
 }
 
-func (s *Store) Delete(id int64) error {
-	_, err := s.db.Exec(
+func (s *Store) Delete(id int64) (bool, error) {
+	res, err := s.db.Exec(
 		`DELETE FROM job_queue WHERE id = ? AND status IN ('pending', 'failed', 'cancelled', 'paused')`, id,
 	)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (s *Store) CancelPending() error {

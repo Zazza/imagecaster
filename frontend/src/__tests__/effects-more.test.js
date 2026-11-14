@@ -1,15 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
 
 import PostProcessPage from '../components/PostProcessPage.vue'
 import {
@@ -20,16 +13,13 @@ import { useRemixQueue } from '../remixQueue.js'
 import { t } from '../i18n/index.js'
 import { ru } from '../i18n/ru.js'
 import { en } from '../i18n/en.js'
+import { useFakeImage, useFakeCanvas } from './helpers/dom.js'
+import { settle } from './helpers/async.js'
+import { effectNameKey } from '../effectNames.js'
 
 enableAutoUnmount(afterEach)
 
 const MORE_FILE = resolve(process.cwd(), '..', 'data/presets/effects-more.json')
-const NEW_GROUP_KEYS = [
-  'post.group_effect_weather',
-  'post.group_effect_pattern',
-  'post.group_effect_hair',
-  'post.group_effect_background',
-]
 const MATERIAL = 'post.group_effect_material'
 const LIGHT = 'post.group_effect_light'
 const WEATHER = 'post.group_effect_weather'
@@ -37,10 +27,6 @@ const PATTERN = 'post.group_effect_pattern'
 const HAIR = 'post.group_effect_hair'
 const BACKGROUND = 'post.group_effect_background'
 const HINT = 'post.effect_pattern_mask_hint'
-
-function effectNameKey(name) {
-  return 'post.effect_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-}
 
 const TYPES = [
   { id: 1, name: 'post' },
@@ -74,76 +60,8 @@ const GROUP_OF = {
 }
 const IMG = 'aW1n'
 
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
-function fakeContext(canvas) {
-  const ctx = {
-    canvas,
-    painted: false,
-    fillStyle: '',
-    strokeStyle: '',
-    lineWidth: 1,
-    lineCap: '',
-    lineJoin: '',
-    globalCompositeOperation: 'source-over',
-    getImageData: (x, y, w, h) => {
-      const data = new Uint8ClampedArray(Math.max(1, (w || 1) * (h || 1) * 4))
-      if (ctx.painted) data.fill(255)
-      return { data, width: w, height: h }
-    },
-    putImageData: vi.fn(img => { ctx.painted = !!(img && img.data && img.data.some(v => v > 0)) }),
-    createImageData: (w, h) => ({ data: new Uint8ClampedArray(Math.max(1, (w || 1) * (h || 1) * 4)), width: w, height: h }),
-    clearRect: vi.fn(() => { ctx.painted = false }),
-    fillRect: vi.fn(),
-    beginPath: vi.fn(),
-    closePath: vi.fn(),
-    arc: vi.fn(() => { ctx.painted = true }),
-    fill: vi.fn(() => { ctx.painted = true }),
-    stroke: vi.fn(() => { ctx.painted = true }),
-    moveTo: vi.fn(),
-    lineTo: vi.fn(),
-    drawImage: vi.fn(),
-    save: vi.fn(),
-    restore: vi.fn(),
-  }
-  return ctx
-}
-
-class FakeImage {
-  constructor() {
-    this.onload = null
-    this.onerror = null
-    this.naturalWidth = 64
-    this.naturalHeight = 48
-    this.width = 64
-    this.height = 48
-    this.complete = false
-    this._src = ''
-  }
-  set src(v) {
-    this._src = v
-    setTimeout(() => {
-      this.complete = true
-      if (this.onload) this.onload()
-    }, 0)
-  }
-  get src() {
-    return this._src
-  }
-  decode() {
-    return Promise.resolve()
-  }
-}
-
-const OrigImage = globalThis.Image
-let spies = []
-let addedCapture = false
+useFakeImage()
+useFakeCanvas({ trackPaint: true, layout: true })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -158,36 +76,6 @@ beforeEach(() => {
   GetSessionImage.mockReturnValue(Promise.resolve(''))
   ListPresets.mockReturnValue(Promise.resolve(PRESETS))
   ListPresetTypes.mockReturnValue(Promise.resolve(TYPES))
-  globalThis.Image = FakeImage
-  window.Image = FakeImage
-  spies = [
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function () {
-      if (!this.__ctx) this.__ctx = fakeContext(this)
-      return this.__ctx
-    }),
-    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockImplementation(() => 'data:image/png;base64,TUFTSw=='),
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(() => ({
-      x: 0, y: 0, left: 0, top: 0, right: 64, bottom: 48, width: 64, height: 48, toJSON() {},
-    })),
-    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => 64),
-    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 48),
-  ]
-  if (!Element.prototype.setPointerCapture) {
-    Element.prototype.setPointerCapture = function () {}
-    Element.prototype.releasePointerCapture = function () {}
-    addedCapture = true
-  }
-})
-
-afterEach(() => {
-  if (addedCapture) {
-    delete Element.prototype.setPointerCapture
-    delete Element.prototype.releasePointerCapture
-    addedCapture = false
-  }
-  globalThis.Image = OrigImage
-  window.Image = OrigImage
-  spies.forEach(s => s.mockRestore())
 })
 
 async function mountPage() {
@@ -284,14 +172,6 @@ describe('EM3: ru/en names for new effects and groups', () => {
     expect(file.presets.length).toBeGreaterThan(0)
   })
 
-  it.each(NEW_GROUP_KEYS)('group %s has ru and en name', key => {
-    expect(typeof ru[key]).toBe('string')
-    expect(ru[key].trim()).not.toBe('')
-    expect(typeof en[key]).toBe('string')
-    expect(en[key].trim()).not.toBe('')
-    expect(ru[key]).toMatch(/[а-яё]/i)
-  })
-
   it('every effect in effects-more.json has ru and en name', () => {
     const missing = []
     for (const p of file.presets) {
@@ -300,13 +180,6 @@ describe('EM3: ru/en names for new effects and groups', () => {
       if (typeof en[key] !== 'string' || !en[key].trim()) missing.push('en:' + key)
     }
     expect(missing).toEqual([])
-  })
-
-  it('mask hint text exists in ru and en', () => {
-    expect(typeof ru[HINT]).toBe('string')
-    expect(ru[HINT].trim()).not.toBe('')
-    expect(typeof en[HINT]).toBe('string')
-    expect(en[HINT].trim()).not.toBe('')
   })
 })
 

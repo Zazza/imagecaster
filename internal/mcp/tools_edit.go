@@ -83,6 +83,9 @@ func registerEditTools(s *Server) {
 			"save":        prop("сохранить PNG+sidecar в out_dir (по умолчанию true)", "boolean"),
 		}, "image_path", "mask_path", "op"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
+			if err := s.localOnly("object_edit"); err != nil {
+				return "", err
+			}
 			img, err := readImageArg(args, "image_path", true)
 			if err != nil {
 				return "", err
@@ -127,6 +130,9 @@ func registerEditTools(s *Server) {
 			"save":                 prop("сохранить PNG+sidecar в out_dir (по умолчанию true)", "boolean"),
 		}, "image_path", "instruction"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
+			if err := s.localOnly("edit"); err != nil {
+				return "", err
+			}
 			img, err := readImageArg(args, "image_path", true)
 			if err != nil {
 				return "", err
@@ -176,6 +182,9 @@ func registerEditTools(s *Server) {
 			"save":       prop("сохранить PNG+sidecar в out_dir (по умолчанию true)", "boolean"),
 		}, "image_path", "text"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
+			if err := s.localOnly("look"); err != nil {
+				return "", err
+			}
 			img, err := readImageArg(args, "image_path", true)
 			if err != nil {
 				return "", err

@@ -1,27 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return {
-    ...base,
-    GetDefaultEditGarmentPrompt: vi.fn(() => Promise.resolve('')),
-    GetSDModels: vi.fn(() => Promise.resolve([])),
-    GetSDLoRAs: vi.fn(() => Promise.resolve([])),
-    GetLLMModels: vi.fn(() => Promise.resolve([])),
-  }
-})
 
 import CatalogPage from '../components/CatalogPage.vue'
 import { serverURL, serverModels, serverModelsKnown, modelActionLoading, resetActiveDownload } from '../serverModels.js'
 import {
   GetSettings, UpdateSettings, GetModelCatalog, GetServerStatus, GetServerModels, GetServerLLMModels,
 } from '../wailsjs/go/main/App.js'
-import { setLocale, ru } from '../i18n/index.js'
+import { t, setLocale, ru } from '../i18n/index.js'
 import { api } from '../api.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -31,14 +19,6 @@ function resetShared() {
   for (const k of Object.keys(serverModelsKnown)) delete serverModelsKnown[k]
   for (const k of Object.keys(modelActionLoading)) delete modelActionLoading[k]
   resetActiveDownload()
-}
-
-async function settle() {
-  for (let i = 0; i < 6; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
 }
 
 const CATALOG = {
@@ -106,12 +86,12 @@ describe('catalog download progress', () => {
     expect(bar.exists()).toBe(true)
     expect(bar.find('.dl-progress-pct').text()).toBe('25%')
     expect(bar.find('.dl-progress-text').text()).toBe('1.0 GB / 4.0 GB')
-    expect(bar.find('.dl-progress-label').text()).toBe('Файл 1 из 2: multi-vae.safetensors')
+    expect(bar.find('.dl-progress-label').text()).toBe(t('settings.download_file_of', { n: 1, total: 2, name: 'multi-vae.safetensors' }))
     expect(w.findAll('.dl-progress')).toHaveLength(1)
 
     pending[0].resolve()
     await settle()
-    expect(rowOf(w, 'sd-multi').find('.dl-progress-label').text()).toBe('Файл 2 из 2: sd-multi.safetensors')
+    expect(rowOf(w, 'sd-multi').find('.dl-progress-label').text()).toBe(t('settings.download_file_of', { n: 2, total: 2, name: 'sd-multi.safetensors' }))
     expect(w.findAll('.dl-progress')).toHaveLength(1)
 
     pending[1].resolve()

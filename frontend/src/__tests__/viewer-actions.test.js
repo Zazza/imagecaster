@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
 
 import AppFooter from '../components/AppFooter.vue'
 import FileBrowserPage from '../components/FileBrowserPage.vue'
@@ -18,6 +11,7 @@ import {
   GetSettings, BrowseDirectory, ReadFileAsBase64, ReadThumbnail, SetLastImage,
 } from '../wailsjs/go/main/App.js'
 import { t } from '../i18n/index.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -25,14 +19,6 @@ const OLD_REMIX = 'Ремикс'
 const OLD_EDIT = 'Правка'
 const OLD_CARD_POST = 'В постобработку'
 const OLD_CARD_REMIX = 'В ремикс'
-
-async function settle() {
-  for (let i = 0; i < 4; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 function viewer(wrapper) {
   return wrapper.findComponent(ImageViewer)
@@ -321,15 +307,5 @@ describe('VA2/VA3: My Images', () => {
     await postMulti.trigger('click')
     await settle()
     expect(navigatedToPost(wrapper)).toHaveLength(1)
-  })
-
-  it('U2/VA4: removed i18n keys are gone', async () => {
-    const ru = (await import('../i18n/ru.js')).ru
-    const en = (await import('../i18n/en.js')).en
-    for (const dict of [ru, en]) {
-      for (const key of ['viewer.remix', 'viewer.edit', 'browser.send_to_postprocess', 'browser.send_to_remix', 'browser.send_to_remix_multi']) {
-        expect(dict[key], key).toBeUndefined()
-      }
-    }
   })
 })

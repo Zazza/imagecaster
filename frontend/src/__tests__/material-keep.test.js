@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
 
 import PostProcessPage from '../components/PostProcessPage.vue'
 import {
@@ -16,6 +9,8 @@ import {
 } from '../wailsjs/go/main/App.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { t } from '../i18n/index.js'
+import { useFakeImage } from './helpers/dom.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -31,41 +26,7 @@ const PRESETS = [
 ]
 const IMG = 'aW1n'
 
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
-class FakeImage {
-  constructor() {
-    this.onload = null
-    this.onerror = null
-    this.naturalWidth = 64
-    this.naturalHeight = 48
-    this.width = 64
-    this.height = 48
-    this.complete = false
-    this._src = ''
-  }
-  set src(v) {
-    this._src = v
-    setTimeout(() => {
-      this.complete = true
-      if (this.onload) this.onload()
-    }, 0)
-  }
-  get src() {
-    return this._src
-  }
-  decode() {
-    return Promise.resolve()
-  }
-}
-
-const OrigImage = globalThis.Image
+useFakeImage()
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -84,13 +45,6 @@ beforeEach(() => {
   GetSessionImage.mockReturnValue(Promise.resolve(''))
   ListPresets.mockReturnValue(Promise.resolve(PRESETS))
   ListPresetTypes.mockReturnValue(Promise.resolve(TYPES))
-  globalThis.Image = FakeImage
-  window.Image = FakeImage
-})
-
-afterEach(() => {
-  globalThis.Image = OrigImage
-  window.Image = OrigImage
 })
 
 async function mountSingle() {
@@ -178,10 +132,6 @@ function lastParams() {
 }
 
 describe('Keep color toggle for material effects', () => {
-  it('i18n key exists', () => {
-    expect(t('post.effect_keep_color')).not.toBe('post.effect_keep_color')
-  })
-
   it('material effect selected: toggle shown and on by default, job gets keep_color=true', async () => {
     const wrapper = await mountSingle()
     await selectEffect(wrapper, 'Leather')

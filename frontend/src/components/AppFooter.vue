@@ -460,11 +460,27 @@ async function refreshQueueCount() {
   } catch {}
 }
 
+let checkServicesInterval = null
+
+onUnmounted(() => {
+  EventsOff('log:entry')
+  clearInterval(checkServicesInterval)
+  EventsOff('session:added')
+  EventsOff('session:removed')
+  EventsOff('session:cleared')
+  EventsOff('session:switched')
+  EventsOff('session:active')
+  EventsOff('session:deleted')
+  EventsOff('session:created')
+  if (observer) observer.disconnect()
+  thumbnails.value = {}
+})
+
 onMounted(async () => {
   EventsOn('log:entry', addLog)
   loadLogHistory()
   checkServices()
-  const interval = setInterval(checkServices, 30000)
+  checkServicesInterval = setInterval(checkServices, 30000)
   setupObserver()
 
   EventsOn('session:added', () => {
@@ -503,20 +519,6 @@ onMounted(async () => {
   await loadSessions()
   api.version().then(v => { appVersion.value = v }).catch(() => {})
   await loadItems()
-
-  onUnmounted(() => {
-    EventsOff('log:entry')
-    clearInterval(interval)
-    EventsOff('session:added')
-    EventsOff('session:removed')
-    EventsOff('session:cleared')
-    EventsOff('session:switched')
-    EventsOff('session:active')
-    EventsOff('session:deleted')
-    EventsOff('session:created')
-    if (observer) observer.disconnect()
-    thumbnails.value = {}
-  })
 })
 
 function onDragStart(e) {

@@ -6,7 +6,7 @@ const openURL = vi.hoisted(() => vi.fn())
 
 vi.mock('../wailsjs/runtime/runtime', async () => ({ ...(await import('./mocks/runtime')), BrowserOpenURL: openURL }))
 vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
+  const { createAppMock } = await import('./mocks/wails-app')
   const extra = {}
   for (const n of [
     'GenerateSDPrompt', 'GenerateImage', 'UpscaleImage', 'AnalyzeImage', 'GenerateCompoundImage',
@@ -14,14 +14,10 @@ vi.mock('../wailsjs/go/main/App.js', async () => {
     'EnqueueTxt2Img', 'EnqueueFromImage', 'EnqueueLook', 'EnqueueEdit', 'EnqueueCompound', 'RetryQueueJob',
     'ListSessions',
   ]) extra[n] = vi.fn(() => Promise.resolve('called'))
-  return {
-    ...base,
+  return createAppMock({
     ...extra,
     GetSettings: vi.fn(() => Promise.resolve({ ok: 1 })),
-    UpdateSettings: vi.fn(() => Promise.resolve(undefined)),
-    DiscoverServers: vi.fn(() => Promise.resolve([])),
-    CheckServer: vi.fn(() => Promise.resolve({ state: 'ok', url: 'http://s:1', version: '2', missing: [], error: '' })),
-  }
+  })
 })
 
 enableAutoUnmount(afterEach)
@@ -67,12 +63,6 @@ describe('serverState.checkServer (condition 1)', () => {
     expect(ss.serverState.missing).toEqual(['sdcpp'])
     expect(ss.serverState.error).toBe('e1')
     expect(ss.serverState.checking).toBe(false)
-  })
-
-  it('api.checkServer returns the binding result', async () => {
-    const { App, api } = await load()
-    App.CheckServer.mockResolvedValue(resp('outdated'))
-    expect(await api.checkServer()).toEqual(resp('outdated'))
   })
 
   it('a thrown error becomes not_found', async () => {

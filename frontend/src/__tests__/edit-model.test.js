@@ -1,17 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base, EditImage: vi.fn(() => Promise.resolve(undefined)) }
-})
 
 import EditSection from '../components/EditSection.vue'
 import { GetSettings, UpdateSettings, ListPresets, EditImage, GetSDLoRAs } from '../wailsjs/go/main/App.js'
 import { t } from '../i18n/index.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -20,14 +14,6 @@ const MOSS_STYLE = { id: 1, name: 'Moss Film', model_name: 'moss_image_sft_bf16'
 const KLEIN_STYLE = { id: 2, name: 'Klein Film', model_name: 'flux-2-klein-4b', prompt: 'klein tags', loras: '' }
 const Z_STYLE = { id: 3, name: 'Z Photo', model_name: 'z-image-turbo', prompt: 'z tags', loras: '' }
 const PRESETS = [MOSS_STYLE, KLEIN_STYLE, Z_STYLE]
-
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 beforeEach(() => {
   vi.clearAllMocks()

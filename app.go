@@ -471,60 +471,6 @@ func (a *App) SaveImage(base64Data, defaultName string) (string, error) {
 	return path, nil
 }
 
-func (a *App) FastSaveImage(base64Data, filename, format string) (string, error) {
-	if base64Data == "" {
-		return "", fmt.Errorf("no image data")
-	}
-	dir, err := a.presets.GetSetting("file_browser_path")
-	if err != nil || dir == "" {
-		return "", fmt.Errorf("no save directory set — open File Browser and select a folder first")
-	}
-
-	if filename == "" {
-		filename = "imagecaster-image"
-	}
-
-	ext := ".jpg"
-	if format == "png" {
-		ext = ".png"
-	}
-	filename = filebrowser.SanitizeFilename(filename) + ext
-
-	path := filepath.Join(dir, filename)
-	if _, err := os.Stat(path); err == nil {
-		base := filename[:len(filename)-len(ext)]
-		for i := 1; ; i++ {
-			path = filepath.Join(dir, fmt.Sprintf("%s_%d%s", base, i, ext))
-			if _, err := os.Stat(path); err != nil {
-				break
-			}
-		}
-	}
-
-	data, err := base64.StdEncoding.DecodeString(base64Data)
-	if err != nil {
-		return "", err
-	}
-
-	if format == "jpg" {
-		img, _, err := image.Decode(bytes.NewReader(data))
-		if err == nil {
-			var buf bytes.Buffer
-			if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
-				return "", err
-			}
-			data = buf.Bytes()
-		}
-	}
-
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return "", err
-	}
-
-	a.log.UserAction("Fast save: %s", path)
-	return path, nil
-}
-
 // --- SD Info ---
 
 func (a *App) GetSDModels() ([]sd.SDModel, error) {

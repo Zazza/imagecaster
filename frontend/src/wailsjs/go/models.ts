@@ -1751,6 +1751,32 @@ export namespace serverclient {
 	        this.size_mb = source["size_mb"];
 	    }
 	}
+	export class CatalogVariant {
+	    id: string;
+	    label: string;
+	    filename: string;
+	    url: string;
+	    size_gb: number;
+	    default?: boolean;
+	    save_as: string;
+	    vram_gb: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CatalogVariant(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.filename = source["filename"];
+	        this.url = source["url"];
+	        this.size_gb = source["size_gb"];
+	        this.default = source["default"];
+	        this.save_as = source["save_as"];
+	        this.vram_gb = source["vram_gb"];
+	    }
+	}
 	export class CatalogModule {
 	    type: string;
 	    filename: string;
@@ -1782,6 +1808,7 @@ export namespace serverclient {
 	    filename?: string;
 	    modules?: CatalogModule[];
 	    presets?: string;
+	    variants?: CatalogVariant[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CatalogSDModel(source);
@@ -1801,6 +1828,7 @@ export namespace serverclient {
 	        this.filename = source["filename"];
 	        this.modules = this.convertValues(source["modules"], CatalogModule);
 	        this.presets = source["presets"];
+	        this.variants = this.convertValues(source["variants"], CatalogVariant);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1877,6 +1905,7 @@ export namespace serverclient {
 		    return a;
 		}
 	}
+	
 	
 	
 	

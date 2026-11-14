@@ -47,6 +47,8 @@ func TestUpscaler(t *testing.T) {
 		"":                     "",
 		"4x-UltraSharp":        "4x-UltraSharp",
 		"lanczos":              "lanczos",
+		"latent":               "latent",
+		"RealESRGAN_x4plus":    "RealESRGAN_x4plus",
 	}
 	for in, want := range tests {
 		assert.Equal(t, want, Upscaler(in), in)

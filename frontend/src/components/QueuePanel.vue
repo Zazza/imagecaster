@@ -40,14 +40,18 @@ async function removeJob(id) {
   try {
     await api.removeQueueJob(id)
     await refresh()
-  } catch {}
+  } catch (e) {
+    console.warn('remove queue job failed', e)
+  }
 }
 
 async function cancelJob(id) {
   try {
     await api.cancelQueueJob(id)
     await refresh()
-  } catch {}
+  } catch (e) {
+    console.warn('cancel queue job failed', e)
+  }
 }
 
 async function togglePause() {
@@ -58,7 +62,9 @@ async function togglePause() {
       await api.pauseQueue()
     }
     paused.value = !paused.value
-  } catch {}
+  } catch (e) {
+    console.warn('toggle queue pause failed', e)
+  }
 }
 
 async function cancelAll() {
@@ -73,14 +79,18 @@ async function cancelAll() {
   try {
     await api.cancelQueue()
     await refresh()
-  } catch {}
+  } catch (e) {
+    console.warn('cancel queue failed', e)
+  }
 }
 
 async function resumePausedJobs() {
   try {
     await api.resumePausedQueueJobs()
     await refresh()
-  } catch {}
+  } catch (e) {
+    console.warn('resume paused queue jobs failed', e)
+  }
 }
 
 async function retryJob(id) {

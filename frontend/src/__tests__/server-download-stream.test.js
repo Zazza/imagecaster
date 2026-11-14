@@ -1,15 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { EventsEmit, clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return {
-    ...base,
-    DownloadServerModelStream: vi.fn(),
-    PullServerLLMModelStream: vi.fn(),
-  }
-})
+vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).createAppMock({
+  DownloadServerModelStream: vi.fn(),
+  PullServerLLMModelStream: vi.fn(),
+}))
 
 import { DownloadServerModelStream, PullServerLLMModelStream } from '../wailsjs/go/main/App.js'
 import { api } from '../api.js'

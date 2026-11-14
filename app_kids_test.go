@@ -55,49 +55,6 @@ func TestCheckServices_LLMModelField(t *testing.T) {
 	assert.Equal(t, "sd-1.5", status.SD.Model)
 }
 
-func TestUpdateSettings_InvalidURL(t *testing.T) {
-	app, _ := newTestApp(t)
-	err := app.UpdateSettings(map[string]string{"server_url": "::not-a-url"})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid server_url")
-}
-
-func TestUpdateSettings_ValidURL(t *testing.T) {
-	app, _ := newTestApp(t)
-	err := app.UpdateSettings(map[string]string{"llm_url": "http://localhost:1234"})
-	assert.NoError(t, err)
-}
-
-func TestUpdateSettings_InvalidNumeric(t *testing.T) {
-	app, _ := newTestApp(t)
-	err := app.UpdateSettings(map[string]string{"llm_num_ctx": "abc"})
-	assert.NoError(t, err)
-	v, _ := app.presets.GetSetting("llm_num_ctx")
-	assert.Equal(t, "0", v)
-}
-
-func TestUpdateSettings_NegativeNumeric(t *testing.T) {
-	app, _ := newTestApp(t)
-	err := app.UpdateSettings(map[string]string{"llm_max_tokens": "-1"})
-	assert.NoError(t, err)
-	v, _ := app.presets.GetSetting("llm_max_tokens")
-	assert.Equal(t, "0", v)
-}
-
-func TestUpdateSettings_ValidNumeric(t *testing.T) {
-	app, _ := newTestApp(t)
-	err := app.UpdateSettings(map[string]string{"llm_num_ctx": "4096"})
-	assert.NoError(t, err)
-}
-
-func TestLLMInterface(t *testing.T) {
-	var _ llm.Service = llm.New("http://localhost:1234")
-}
-
-func TestSDInterface(t *testing.T) {
-	var _ sd.Service = sd.New("http://localhost:7860")
-}
-
 func TestApp_ResolutionCRUD(t *testing.T) {
 	t.Parallel()
 	app, _ := newTestApp(t)

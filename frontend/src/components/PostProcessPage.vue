@@ -14,6 +14,7 @@ import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import EditSection from './EditSection.vue'
 import { EFFECT_TYPE_GROUPS } from '../effectTypes.js'
+import { effectLabel } from '../effectNames.js'
 import { useMaskCanvas } from '../composables/useMaskCanvas.js'
 import RemixSection from './RemixSection.vue'
 import ObjectSection from './ObjectSection.vue'
@@ -742,15 +743,6 @@ const effectGroups = computed(() => {
     .filter(g => byKey.has(g.labelKey))
     .map(g => ({ labelKey: g.labelKey, presets: byKey.get(g.labelKey) }))
 })
-
-function effectLabel(name) {
-  const m = String(name || '').match(/^(.*?)\s*(\([^()]+\))$/)
-  const base = m ? m[1] : String(name || '')
-  const k = 'post.effect_' + base.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
-  const v = t(k)
-  if (v === k) return name
-  return m ? `${v} ${m[2]}` : v
-}
 
 const selectedEffectId = ref(null)
 watch(presets, list => {
@@ -1928,6 +1920,7 @@ onUnmounted(() => {
                 <button
                   v-if="maskMode"
                   class="split-zoom-btn"
+                  data-testid="mask-overlay-toggle"
                   :title="maskOverlayVisible ? t('post.mask_hide') : t('post.mask_show')"
                   :aria-label="maskOverlayVisible ? t('post.mask_hide') : t('post.mask_show')"
                   @click="maskOverlayVisible = !maskOverlayVisible"

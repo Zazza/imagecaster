@@ -130,7 +130,7 @@ a.batch       = batch.New(dataDir + "/batch")
 
 ### Файлы — `internal/filebrowser`, `internal/clipboard`, `internal/batch`
 
-`ReadImageFile` (диалог открытия), `ReadClipboardImage`, `SaveImage` (диалог сохранения), `FastSaveImage` (в папку, выбранную в «Моих изображениях»), `BrowseDirectory`, `ReadFileAsBase64`, `ReadThumbnail`, `SelectBrowserFolder`, `BatchSaveImage`, `BatchReset`.
+`ReadImageFile` (диалог открытия), `ReadClipboardImage`, `SaveImage` (диалог сохранения), `BrowseDirectory`, `ReadFileAsBase64`, `ReadThumbnail`, `SelectBrowserFolder`, `BatchSaveImage`, `BatchReset`.
 
 ### Сервер, модели, настройки — `internal/settings`, `internal/serverclient`
 

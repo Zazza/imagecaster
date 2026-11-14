@@ -82,9 +82,12 @@ func (s *Service) Enqueue(jobType JobType, params any, source string) (int64, er
 }
 
 func (s *Service) RemoveJob(id int64) error {
-	err := s.store.Delete(id)
+	deleted, err := s.store.Delete(id)
 	if err != nil {
 		return err
+	}
+	if !deleted {
+		return nil
 	}
 	s.cleanupJob(id)
 	s.emit.Emit(EventQueueChanged)

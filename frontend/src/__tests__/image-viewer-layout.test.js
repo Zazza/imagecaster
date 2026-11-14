@@ -1,12 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { nextTick } from 'vue'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
 
 import ImageViewer from '../components/ImageViewer.vue'
 import { t, setLocale } from '../i18n/index.js'
@@ -61,10 +55,9 @@ describe('ImageViewer layout', () => {
 
   it('счётчик «5 из 12» в полосе', () => {
     const w = make({ position: 5, total: 12 })
-    expect(t('viewer.counter', { n: 5, total: 12 })).toBe('5 из 12')
     const c = w.find('.iv-toolbar .iv-counter')
     expect(c.exists()).toBe(true)
-    expect(c.text().trim()).toBe('5 из 12')
+    expect(c.text().trim()).toBe(t('viewer.counter', { n: 5, total: 12 }))
   })
 
   it('total=1 — счётчика нет', () => {

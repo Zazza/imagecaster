@@ -206,32 +206,60 @@ func TestApplyPresetOverrides_ClipSkipFreshPointer(t *testing.T) {
 	assert.NotSame(t, &ovClipSkip, p.ClipSkip)
 }
 
-func TestGenerateImageParams_OverridesJSONRoundTrip(t *testing.T) {
-	params := GenerateImageParams{
-		PresetID: 7,
-		Overrides: &PresetOverrides{
-			Sampler:      strPtr("Euler"),
-			ScheduleType: strPtr("Simple"),
-			Steps:        intPtr(8),
-			CfgScale:     floatPtr(1.0),
-			ClipSkip:     intPtr(1),
-			ModelName:    strPtr("z-image-turbo-fp8-aio"),
-			Loras:        strPtr("[]"),
-		},
-	}
-	data, err := json.Marshal(params)
-	require.NoError(t, err)
+func TestGenerateImageParams_ParsesFrontendPayload(t *testing.T) {
+	payload := `{
+		"preset_id": 7,
+		"extra_prompt": "red hat",
+		"extra_negative_prompt": "blur",
+		"resolution_id": 3,
+		"hires_profile_id": null,
+		"seed": 42,
+		"overrides": {
+			"model_name": "z-image-turbo-fp8-aio",
+			"sampler": "Euler",
+			"schedule_type": "Simple",
+			"steps": 8,
+			"cfg_scale": 1.5,
+			"clip_skip": 2,
+			"loras": "[{\"name\":\"detail\",\"weight\":0.6}]"
+		}
+	}`
 
-	var back GenerateImageParams
-	require.NoError(t, json.Unmarshal(data, &back))
-	require.NotNil(t, back.Overrides)
-	assert.Equal(t, "Euler", *back.Overrides.Sampler)
-	assert.Equal(t, "Simple", *back.Overrides.ScheduleType)
-	assert.Equal(t, 8, *back.Overrides.Steps)
-	assert.Equal(t, 1.0, *back.Overrides.CfgScale)
-	assert.Equal(t, 1, *back.Overrides.ClipSkip)
-	assert.Equal(t, "z-image-turbo-fp8-aio", *back.Overrides.ModelName)
-	assert.Equal(t, "[]", *back.Overrides.Loras)
+	var params GenerateImageParams
+	require.NoError(t, json.Unmarshal([]byte(payload), &params))
+
+	assert.Equal(t, int64(7), params.PresetID)
+	assert.Equal(t, "red hat", params.ExtraPrompt)
+	assert.Equal(t, "blur", params.ExtraNegativePrompt)
+	require.NotNil(t, params.ResolutionID)
+	assert.Equal(t, int64(3), *params.ResolutionID)
+	assert.Nil(t, params.HiresProfileID)
+	require.NotNil(t, params.Seed)
+	assert.Equal(t, int64(42), *params.Seed)
+
+	ov := params.Overrides
+	require.NotNil(t, ov)
+	assert.Equal(t, &PresetOverrides{
+		ModelName:    strPtr("z-image-turbo-fp8-aio"),
+		Sampler:      strPtr("Euler"),
+		ScheduleType: strPtr("Simple"),
+		Steps:        intPtr(8),
+		CfgScale:     floatPtr(1.5),
+		ClipSkip:     intPtr(2),
+		Loras:        strPtr(`[{"name":"detail","weight":0.6}]`),
+	}, ov)
+
+	p := &preset.Preset{Sampler: "dpm++2m", Steps: 30, CfgScale: 7}
+	ApplyPresetOverrides(p, ov)
+	assert.Equal(t, "euler", p.Sampler)
+	assert.Equal(t, 8, p.Steps)
+	assert.Equal(t, 1.5, p.CfgScale)
+}
+
+func TestGenerateImageParams_NullOverridesFromFrontend(t *testing.T) {
+	var params GenerateImageParams
+	require.NoError(t, json.Unmarshal([]byte(`{"preset_id":1,"overrides":null}`), &params))
+	assert.Nil(t, params.Overrides)
 }
 
 func TestApplyPresetOverrides_TrimsAndClamps(t *testing.T) {

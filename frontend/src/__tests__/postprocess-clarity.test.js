@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base, EditImage: vi.fn(() => Promise.resolve(undefined)) }
-})
 
 import PostProcessPage from '../components/PostProcessPage.vue'
 import RemixSection from '../components/RemixSection.vue'
@@ -18,13 +11,16 @@ import {
   ListPresets, ListPresetTypes, ListHiresProfiles, EnqueueFromImage,
 } from '../wailsjs/go/main/App.js'
 import { useRemixQueue } from '../remixQueue.js'
-import { t, setLocale, ru, en } from '../i18n/index.js'
+import { t, setLocale } from '../i18n/index.js'
 import { modelLoraText, activeLoraCount } from '../modelLora.js'
+import { useFakeImage } from './helpers/dom.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
 const IMG = 'aW1n'
 const SEP = ' · '
+const summary = (model, n) => model + SEP + (n > 0 ? t('model.lora_count', { n }) : t('model.no_lora'))
 const TYPES = [{ id: 1, name: 'post' }]
 const EFFECT = { id: 10, name: 'Soft Focus', preset_type: 'post', type_id: 1, denoising_strength: null, loras: '' }
 const STYLE_PLAIN = { id: 21, name: 'Plain Style', preset_type: 'post', type_id: 1, model_name: 'sdxl-base', prompt: 'p', loras: '' }
@@ -33,43 +29,7 @@ const STYLE_LORAS = {
   loras: '[{"name":"StyleA","weight":0.6},{"name":"StyleB","weight":0.8}]',
 }
 
-const SUB_KEYS = ['edit', 'remix', 'object', 'repair', 'effect', 'adjust', 'finish', 'export', 'recipes'].map(s => 'post.sub_' + s)
-
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
-class FakeImage {
-  constructor() {
-    this.onload = null
-    this.onerror = null
-    this.naturalWidth = 64
-    this.naturalHeight = 48
-    this.width = 64
-    this.height = 48
-    this.complete = false
-    this._src = ''
-  }
-  set src(v) {
-    this._src = v
-    setTimeout(() => {
-      this.complete = true
-      if (this.onload) this.onload()
-    }, 0)
-  }
-  get src() {
-    return this._src
-  }
-  decode() {
-    return Promise.resolve()
-  }
-}
-
-const OrigImage = globalThis.Image
+useFakeImage()
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -90,13 +50,6 @@ beforeEach(() => {
   GetSessionImage.mockReturnValue(Promise.resolve(''))
   ListPresets.mockReturnValue(Promise.resolve([EFFECT, STYLE_PLAIN, STYLE_LORAS]))
   ListPresetTypes.mockReturnValue(Promise.resolve(TYPES))
-  globalThis.Image = FakeImage
-  window.Image = FakeImage
-})
-
-afterEach(() => {
-  globalThis.Image = OrigImage
-  window.Image = OrigImage
 })
 
 function foldByTitle(wrapper, title) {
@@ -123,15 +76,6 @@ function before(a, b) {
 }
 
 describe('1. Section headers on the post-process page have a one-line description', () => {
-  it.each(SUB_KEYS)('%s exists and is non-empty in ru and en', (key) => {
-    expect(typeof ru[key]).toBe('string')
-    expect(ru[key].trim()).not.toBe('')
-    expect(typeof en[key]).toBe('string')
-    expect(en[key].trim()).not.toBe('')
-    expect(ru[key]).not.toBe(key)
-    expect(en[key]).not.toBe(key)
-  })
-
   it('every section header shows its title together with its description', async () => {
     const wrapper = mount(PostProcessPage, { props: { initialSection: 'effect' }, attachTo: document.body })
     await settle()
@@ -233,7 +177,6 @@ describe('2. Remix: analysis first, rare options folded into "Дополните
   it('summary says "по умолчанию" when nothing is set', async () => {
     const wrapper = await mountRemix({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
     expect(headText(moreFold(wrapper))).toContain(t('remix.more_default'))
-    expect(t('remix.more_default')).toBe('по умолчанию')
   })
 
   it('summary contains the typed seed in preset mode', async () => {
@@ -281,7 +224,6 @@ describe('3a. Model block in Edit', () => {
   it('is collapsed by default, has Klein LoRA rows and no model select', async () => {
     const wrapper = await mountEdit({ edit_loras_klein: '[{"name":"KleinL","weight":0.8}]' })
     const fold = block(wrapper)
-    expect(t('model.block_title')).toBe('Модель и LoRA')
     expect(isOpen(fold)).toBe(false)
     expect(fold.find('[data-testid="edit-model-select"]').exists()).toBe(false)
     expect(fold.findAll('[data-testid="edit-lora-name"]').length).toBe(1)
@@ -289,17 +231,17 @@ describe('3a. Model block in Edit', () => {
 
   it('header summary "Klein · без LoRA" by default', async () => {
     const wrapper = await mountEdit()
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 0))
   })
 
   it('header summary counts saved Klein LoRA rows: "Klein · 2 LoRA"', async () => {
     const wrapper = await mountEdit({ edit_loras_klein: '[{"name":"K1","weight":0.8},{"name":"K2","weight":0.5}]' })
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + '2 LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 2))
   })
 
   it('old Moss LoRA list and edit_model=moss are ignored', async () => {
     const wrapper = await mountEdit({ edit_model: 'moss', edit_loras: '[{"name":"M1","weight":0.8}]' })
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 0))
     expect(headText(block(wrapper))).not.toContain('Moss')
   })
 
@@ -309,13 +251,13 @@ describe('3a. Model block in Edit', () => {
     await wrapper.find('[data-testid="edit-lora-add"]').trigger('click')
     await settle()
     expect(wrapper.findAll('[data-testid="edit-lora-name"]').length).toBe(1)
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 0))
     await wrapper.find('[data-testid="edit-lora-name"]').setValue('   ')
     await settle()
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 0))
     await wrapper.find('[data-testid="edit-lora-name"]').setValue('Real')
     await settle()
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + '1 LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 1))
   })
 
   it('opened block shows the Klein hint and no Moss', async () => {
@@ -353,7 +295,7 @@ describe('3b. Model block in Effect', () => {
 
   it('header summary "Klein · без LoRA" by default', async () => {
     const wrapper = await mountPage()
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 0))
   })
 
   it('saved effect_model=moss with Moss LoRAs shows "Klein · без LoRA"', async () => {
@@ -361,7 +303,7 @@ describe('3b. Model block in Effect', () => {
       effect_model: 'moss',
       effect_loras_moss: '[{"name":"LoraA","weight":0.5},{"name":"LoraB","weight":0.7}]',
     })
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 0))
     expect(headText(block(wrapper))).not.toContain('Moss')
   })
 
@@ -370,7 +312,7 @@ describe('3b. Model block in Effect', () => {
       effect_model: 'klein',
       effect_loras_klein: '[{"name":"LoraA","weight":0.5},{"name":"","weight":0.7},{"name":"  ","weight":1}]',
     })
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + '1 LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 1))
   })
 
   it('adding a LoRA updates the summary', async () => {
@@ -381,7 +323,7 @@ describe('3b. Model block in Effect', () => {
     const row = wrapper.findAll('.fx-model-body .fx-lora-row').at(-1)
     await row.find('select.fx-lora-name').setValue('LoraA')
     await settle()
-    expect(headText(block(wrapper))).toContain('Klein' + SEP + '1 LoRA')
+    expect(headText(block(wrapper))).toContain(summary('Klein', 1))
   })
 
   it('opened block shows the Klein hint, no model select and no Moss', async () => {
@@ -420,14 +362,13 @@ describe('3c. Model block in Remix (style override panel)', () => {
   it('summary is "Как в стиле · без LoRA" without overrides and a style without LoRA', async () => {
     const wrapper = await mountRemixPreset()
     await pickStyle(wrapper, STYLE_PLAIN)
-    expect(t('overrides.as_preset')).toBe('Как в стиле')
-    expect(headText(block(wrapper))).toContain('Как в стиле' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary(t('overrides.as_preset'), 0))
   })
 
   it('summary counts the style LoRAs: "Как в стиле · 2 LoRA"', async () => {
     const wrapper = await mountRemixPreset()
     await pickStyle(wrapper, STYLE_LORAS)
-    expect(headText(block(wrapper))).toContain('Как в стиле' + SEP + '2 LoRA')
+    expect(headText(block(wrapper))).toContain(summary(t('overrides.as_preset'), 2))
   })
 
   it('summary shows the overriding model name', async () => {
@@ -439,8 +380,8 @@ describe('3c. Model block in Remix (style override panel)', () => {
     await modelSelect.setValue('juggernaut-xl')
     await settle()
     const head = headText(block(wrapper))
-    expect(head).toContain('juggernaut-xl' + SEP + 'без LoRA')
-    expect(head).not.toContain('Как в стиле')
+    expect(head).toContain(summary('juggernaut-xl', 0))
+    expect(head).not.toContain(t('overrides.as_preset'))
   })
 
   it('an added LoRA row with an empty name is not counted', async () => {
@@ -451,7 +392,7 @@ describe('3c. Model block in Remix (style override panel)', () => {
     expect(add).toBeTruthy()
     await add.trigger('click')
     await settle()
-    expect(headText(block(wrapper))).toContain('Как в стиле' + SEP + 'без LoRA')
+    expect(headText(block(wrapper))).toContain(summary(t('overrides.as_preset'), 0))
   })
 })
 
@@ -477,19 +418,19 @@ describe('modelLora helper', () => {
   })
 
   it('modelLoraText: "Klein · без LoRA" for no rows', () => {
-    expect(modelLoraText('Klein', [])).toBe('Klein · без LoRA')
+    expect(modelLoraText('Klein', [])).toBe(summary('Klein', 0))
   })
 
   it('modelLoraText: "Moss · 2 LoRA" for two named rows', () => {
-    expect(modelLoraText('Moss', [{ name: 'A' }, { name: 'B' }])).toBe('Moss · 2 LoRA')
+    expect(modelLoraText('Moss', [{ name: 'A' }, { name: 'B' }])).toBe(summary('Moss', 2))
   })
 
   it('modelLoraText: unnamed rows only → без LoRA', () => {
-    expect(modelLoraText('Moss', [{ name: '' }, { name: ' ' }])).toBe('Moss · без LoRA')
+    expect(modelLoraText('Moss', [{ name: '' }, { name: ' ' }])).toBe(summary('Moss', 0))
   })
 
   it('modelLoraText: non-array rows → без LoRA', () => {
-    expect(modelLoraText('Klein', null)).toBe('Klein · без LoRA')
+    expect(modelLoraText('Klein', null)).toBe(summary('Klein', 0))
   })
 
   it('modelLoraText follows the UI language', () => {

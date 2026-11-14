@@ -110,14 +110,6 @@ func encodePNG(t *testing.T, w, h int) string {
 	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
-func TestNew_ServiceCreated(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	log := logger.New(nil)
-	svc := New(db, &mockSDService{}, log)
-	assert.NotNil(t, svc)
-}
-
 func TestPrepareExportData_EmptyIDs(t *testing.T) {
 	t.Parallel()
 	svc := newTestService(t, &mockSDService{})

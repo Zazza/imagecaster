@@ -2,9 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
-
 import PostProcessPage from '../components/PostProcessPage.vue'
 import { GetSettings, GetActiveSessionItem, GetSessionImage } from '../wailsjs/go/main/App.js'
 
@@ -32,8 +29,8 @@ describe('mask overlay eye toggle', () => {
     const shown = () => !canvas.element.classList.contains('mask-overlay-hidden')
 
     expect(shown()).toBe(true)
-    const buttons = wrapper.findAll('.split-zoom-btn')
-    const eye = buttons.find(b => (b.attributes('title') || '').includes('маск') || (b.attributes('title') || '').toLowerCase().includes('mask'))
+    const eye = wrapper.find('[data-testid="mask-overlay-toggle"]')
+    expect(eye.exists()).toBe(true)
 
     await eye.trigger('click')
     await flushPromises()

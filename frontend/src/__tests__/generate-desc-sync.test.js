@@ -2,9 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
-
 import GeneratePage from '../components/GeneratePage.vue'
 import SavedDescriptionsModal from '../components/SavedDescriptionsModal.vue'
 import { UpdateDescription } from '../wailsjs/go/main/App.js'

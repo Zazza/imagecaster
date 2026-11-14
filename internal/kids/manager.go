@@ -31,10 +31,11 @@ type CategoryInfo struct {
 
 type Manager struct {
 	store SettingsStore
+	now   func() time.Time
 }
 
 func NewManager(store SettingsStore) *Manager {
-	return &Manager{store: store}
+	return &Manager{store: store, now: time.Now}
 }
 
 func (m *Manager) IsActive() bool {
@@ -223,8 +224,8 @@ func (m *Manager) checkPinLockout() error {
 		m.store.SetSetting("kids_pin_attempts", "0")
 		return nil
 	}
-	if time.Now().Before(lockoutTime) {
-		remaining := time.Until(lockoutTime).Truncate(time.Second)
+	if now := m.now(); now.Before(lockoutTime) {
+		remaining := lockoutTime.Sub(now).Truncate(time.Second)
 		return fmt.Errorf("PIN locked. Try again in %s", remaining)
 	}
 	m.store.SetSetting("kids_pin_lockout", "")
@@ -241,7 +242,7 @@ func (m *Manager) recordFailedPinAttempt() {
 	attempts++
 	m.store.SetSetting("kids_pin_attempts", strconv.Itoa(attempts))
 	if attempts >= maxPinAttempts {
-		lockoutUntil := time.Now().Add(pinLockoutMins * time.Minute).Format(time.RFC3339)
+		lockoutUntil := m.now().Add(pinLockoutMins * time.Minute).Format(time.RFC3339)
 		m.store.SetSetting("kids_pin_lockout", lockoutUntil)
 	}
 }

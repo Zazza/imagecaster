@@ -34,6 +34,12 @@ export async function listAvailablePresets(onList) {
   })
 }
 
+export function resetPresetsState() {
+  presets.value = []
+  presetTypes.value = []
+  compoundPresets.value = []
+}
+
 export function usePresets() {
   async function loadPresets() {
     try {

@@ -142,7 +142,6 @@ Background jobs stored in SQLite (`internal/queue`). Each `Enqueue*` returns the
 | `ReadImageFile()` | file dialog for PNG/JPEG, returns base64 |
 | `ReadClipboardImage()` | image from the clipboard |
 | `SaveImage(image, name)` | save PNG via a save dialog |
-| `FastSaveImage(image, name, format)` | save to the My Images folder without a dialog; not used by the UI |
 | `BrowseDirectory(path)`, `ReadFileAsBase64(path)`, `ReadThumbnail(path)` | My Images: list a folder, read a file, read a thumbnail |
 | `SelectBrowserFolder()` | folder dialog; remembers the folder in `file_browser_path` |
 | `SaveWindowLayout(footerHeight)`, `GetFooterHeight()` | window size/position and footer height are stored in settings |

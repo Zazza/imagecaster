@@ -130,7 +130,7 @@ Results are saved to the active history session. Kids mode filters input and out
 
 ### Files — `internal/filebrowser`, `internal/clipboard`, `internal/batch`
 
-`ReadImageFile` (open dialog), `ReadClipboardImage`, `SaveImage` (save dialog), `FastSaveImage` (to the folder chosen in "My images"), `BrowseDirectory`, `ReadFileAsBase64`, `ReadThumbnail`, `SelectBrowserFolder`, `BatchSaveImage`, `BatchReset`.
+`ReadImageFile` (open dialog), `ReadClipboardImage`, `SaveImage` (save dialog), `BrowseDirectory`, `ReadFileAsBase64`, `ReadThumbnail`, `SelectBrowserFolder`, `BatchSaveImage`, `BatchReset`.
 
 ### Server, models, settings — `internal/settings`, `internal/serverclient`
 

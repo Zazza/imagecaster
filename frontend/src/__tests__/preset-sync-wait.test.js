@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base, SyncPresets: vi.fn(), ListPresets: vi.fn() }
-})
+vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).createAppMock({ SyncPresets: vi.fn(), ListPresets: vi.fn() }))
 
 import { SyncPresets, ListPresets } from '../wailsjs/go/main/App.js'
 import { withPresetStatuses, listAvailablePresets, PRESET_SYNC_WAIT_MS } from '../composables/usePresets.js'

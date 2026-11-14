@@ -121,6 +121,10 @@ func (c *Client) GetStatus() (*ServerStatus, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("server status: status %d", resp.StatusCode)
+	}
 
 	var status ServerStatus
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
@@ -153,6 +157,10 @@ func (c *Client) GetLLMModels() ([]LLMModelInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("list llm models: status %d", resp.StatusCode)
+	}
 
 	var models []LLMModelInfo
 	if err := json.NewDecoder(resp.Body).Decode(&models); err != nil {
@@ -289,6 +297,9 @@ func (c *Client) StopProcess(name string) error {
 }
 
 func (c *Client) RestartProcess(name string) error {
+	if err := sanitizePathSegment(name); err != nil {
+		return err
+	}
 	resp, err := c.httpClient.Post(c.baseURL+"/api/server/restart/"+name, "", nil)
 	if err != nil {
 		return err

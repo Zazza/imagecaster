@@ -1,13 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base, EditImage: vi.fn(() => Promise.resolve(undefined)), SyncPresets: vi.fn(() => Promise.resolve(null)) }
-})
+vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).createAppMock({ SyncPresets: vi.fn(() => Promise.resolve(null)) }))
 
 import EditSection from '../components/EditSection.vue'
 import PostProcessPage from '../components/PostProcessPage.vue'
@@ -18,6 +13,8 @@ import {
 import { serverModels, serverModelsKnown } from '../serverModels.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { t } from '../i18n/index.js'
+import { useFakeImage } from './helpers/dom.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -39,41 +36,7 @@ const QWEN_LORAS = '[{"name":"QwenL","weight":0.8}]'
 
 let textEncoders = null
 
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
-class FakeImage {
-  constructor() {
-    this.onload = null
-    this.onerror = null
-    this.naturalWidth = 64
-    this.naturalHeight = 48
-    this.width = 64
-    this.height = 48
-    this.complete = false
-    this._src = ''
-  }
-  set src(v) {
-    this._src = v
-    setTimeout(() => {
-      this.complete = true
-      if (this.onload) this.onload()
-    }, 0)
-  }
-  get src() {
-    return this._src
-  }
-  decode() {
-    return Promise.resolve()
-  }
-}
-
-const OrigImage = globalThis.Image
+useFakeImage()
 
 function setTextEncoders(list) {
   textEncoders = list
@@ -110,13 +73,9 @@ beforeEach(() => {
     return Promise.resolve([])
   })
   setTextEncoders(null)
-  globalThis.Image = FakeImage
-  window.Image = FakeImage
 })
 
 afterEach(() => {
-  globalThis.Image = OrigImage
-  window.Image = OrigImage
   setTextEncoders(null)
 })
 

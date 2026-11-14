@@ -511,16 +511,6 @@ func TestGenerateSDPrompt_EmitsLLMStatus(t *testing.T) {
 	assert.True(t, emitter.hasEvent("llm:status"))
 }
 
-func TestGetDefaultPromptInstruction(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-
-	result := svc.GetDefaultPromptInstruction()
-	assert.Contains(t, result, "Stable Diffusion")
-	assert.Contains(t, result, "prompt")
-}
-
 func TestGetDefaultPromptInstruction_NoVividExamples(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
@@ -779,10 +769,29 @@ func TestGenerateImage_PresetNotFound(t *testing.T) {
 func TestGenerateImage_Success(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	makeTestPreset(t, db, nil)
+	clipSkip := 2
+	seed := int64(123)
+	p := makeTestPreset(t, db, &preset.Preset{
+		Name:           "sent-preset",
+		PresetType:     "anime",
+		Prompt:         "masterpiece, 1girl",
+		NegativePrompt: "lowres",
+		Sampler:        "euler_a",
+		ScheduleType:   "karras",
+		Steps:          25,
+		CfgScale:       6.5,
+		ClipSkip:       &clipSkip,
+		Seed:           &seed,
+		ModelName:      "my-model",
+		VAE:            "my-vae.safetensors",
+	})
+	res := &preset.Resolution{Name: "Wide", Width: 768, Height: 512}
+	require.NoError(t, db.CreateResolution(res))
 
+	var sent []sd.Txt2ImgRequest
 	sdSvc := &mockSD{
 		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
+			sent = append(sent, req)
 			return &sd.Txt2ImgResponse{
 				Images:     []string{"base64imagedata"},
 				Info:       json.RawMessage(`{"seed": 42}`),
@@ -794,11 +803,36 @@ func TestGenerateImage_Success(t *testing.T) {
 	svc := newTestService(t, db, &mockLLM{}, sdSvc)
 	svc.ctx = context.Background()
 
-	result, err := svc.GenerateImage(GenerateImageParams{PresetID: 1})
+	result, err := svc.GenerateImage(GenerateImageParams{
+		PresetID:            p.ID,
+		ExtraPrompt:         "red hat",
+		ExtraNegativePrompt: "blur",
+		ResolutionID:        &res.ID,
+		Overrides:           &PresetOverrides{Steps: intPtr(9)},
+	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "base64imagedata", result.Image)
-	assert.Contains(t, result.EffectivePrompt, "1girl")
+
+	require.Len(t, sent, 1)
+	req := sent[0]
+	assert.Equal(t, "my-model", req.Model.Checkpoint)
+	assert.Equal(t, "my-vae.safetensors", req.Model.VAE)
+	assert.Equal(t, "red hat, BREAK, masterpiece, 1girl", req.Prompt)
+	assert.Contains(t, req.NegativePrompt, "lowres")
+	assert.Contains(t, req.NegativePrompt, "blur")
+	assert.Equal(t, "euler_a", req.SamplerName)
+	assert.Equal(t, "karras", req.Scheduler)
+	assert.Equal(t, 9, req.Steps)
+	assert.Equal(t, 6.5, req.CfgScale)
+	assert.Equal(t, 768, req.Width)
+	assert.Equal(t, 512, req.Height)
+	require.NotNil(t, req.Seed)
+	assert.Equal(t, int64(123), *req.Seed)
+	require.NotNil(t, req.ClipSkip)
+	assert.Equal(t, 2, *req.ClipSkip)
+	assert.Nil(t, req.HiresFix)
+	assert.Equal(t, req.Prompt, result.EffectivePrompt)
 }
 
 func TestGenerateImage_WithExtraPrompt(t *testing.T) {
@@ -1248,21 +1282,68 @@ func TestAnalyzeImage_TooLarge(t *testing.T) {
 
 func TestAnalyzeImage_QuickMode(t *testing.T) {
 	t.Parallel()
-	db := openTestDB(t)
-
-	llmSvc := &mockLLM{
-		analyzeImageFn: func(model, systemPrompt, imageBase64 string, maxTokens int) (string, error) {
-			assert.Contains(t, systemPrompt, "image analyst")
-			return "masterpiece, 1girl, blue eyes, long hair", nil
+	tests := []struct {
+		name      string
+		settings  map[string]string
+		kids      bool
+		wantModel string
+		wantMax   int
+		want      string
+	}{
+		{
+			name:      "defaults",
+			wantModel: "test-vision",
+			wantMax:   512,
+			want:      "masterpiece, 1girl, nude, blue eyes, long hair",
+		},
+		{
+			name:      "settings model and tokens",
+			settings:  map[string]string{"llm_analyze_model": "llava", "llm_max_tokens": "300"},
+			wantModel: "llava",
+			wantMax:   300,
+			want:      "masterpiece, 1girl, nude, blue eyes, long hair",
+		},
+		{
+			name:      "kids mode filters answer",
+			kids:      true,
+			wantModel: "test-vision",
+			wantMax:   512,
+			want:      "masterpiece, 1girl, blue eyes, long hair",
 		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestDB(t)
+			for k, v := range tt.settings {
+				require.NoError(t, db.SetSetting(k, v))
+			}
+			if tt.kids {
+				require.NoError(t, db.SetSetting("kids_mode", "true"))
+			}
+			img := makePNGBase64(t, 64, 64)
 
-	svc := newTestService(t, db, llmSvc, &mockSD{})
-	img := makePNGBase64(t, 64, 64)
+			var gotModel, gotPrompt, gotImage string
+			var gotMax, calls int
+			llmSvc := &mockLLM{
+				analyzeImageFn: func(model, systemPrompt, imageBase64 string, maxTokens int) (string, error) {
+					calls++
+					gotModel, gotPrompt, gotImage, gotMax = model, systemPrompt, imageBase64, maxTokens
+					return "masterpiece, 1girl, nude, blue eyes, long hair", nil
+				},
+			}
+			svc := newTestService(t, db, llmSvc, &mockSD{})
 
-	result, err := svc.AnalyzeImage(img, "quick")
-	require.NoError(t, err)
-	assert.Contains(t, result, "1girl")
+			result, err := svc.AnalyzeImage(img, "quick")
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, result)
+			assert.Equal(t, 1, calls)
+			assert.Equal(t, tt.wantModel, gotModel)
+			assert.Equal(t, config.DefaultAnalyzeSystemPrompt+"\n\n"+config.DefaultAnalyzePrompt, gotPrompt)
+			assert.Equal(t, img, gotImage)
+			assert.Equal(t, tt.wantMax, gotMax)
+		})
+	}
 }
 
 func TestAnalyzeImage_QuickMode_CustomPrompt(t *testing.T) {
@@ -1349,11 +1430,11 @@ func TestGetDefaultAnalyzePrompts(t *testing.T) {
 	db := openTestDB(t)
 	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
 
-	prompts := svc.GetDefaultAnalyzePrompts()
-	require.NotNil(t, prompts)
-	assert.NotEmpty(t, prompts.SystemPrompt)
-	assert.NotEmpty(t, prompts.SinglePrompt)
-	assert.NotEmpty(t, prompts.DescribePrompt)
+	assert.Equal(t, &AnalyzePrompts{
+		SystemPrompt:   config.DefaultAnalyzeSystemPrompt,
+		SinglePrompt:   config.DefaultAnalyzePrompt,
+		DescribePrompt: config.DefaultAnalyzeDescribePrompt,
+	}, svc.GetDefaultAnalyzePrompts())
 }
 
 func TestTestGenerate_InvalidMode(t *testing.T) {
@@ -1678,24 +1759,6 @@ func TestInterruptGeneration(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Error(t, svc.checkSDInterrupted())
-}
-
-func TestSetContext(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-
-	ctx := context.Background()
-	svc.SetContext(ctx)
-	assert.Equal(t, ctx, svc.ctx)
-}
-
-func TestIntPtr(t *testing.T) {
-	t.Parallel()
-
-	result := intPtr(5)
-	require.NotNil(t, result)
-	assert.Equal(t, 5, *result)
 }
 
 func TestGenerateFromImage_Validation(t *testing.T) {

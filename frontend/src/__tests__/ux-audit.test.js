@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
 
 import FileBrowserPage from '../components/FileBrowserPage.vue'
 import SettingsPage from '../components/SettingsPage.vue'
@@ -18,8 +15,8 @@ import {
   GetServerStatus,
   ListPresets,
   ListPresetTypes,
-  GetPresetsInstallStatus,
 } from '../wailsjs/go/main/App.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -35,12 +32,6 @@ function mountPage(component, options = {}) {
       },
     },
   })
-}
-
-async function settle() {
-  for (let i = 0; i < 5; i++) {
-    await flushPromises()
-  }
 }
 
 async function clickBackdrop(wrapper) {
@@ -61,7 +52,6 @@ beforeEach(() => {
   GetServerStatus.mockImplementation(() => Promise.resolve(undefined))
   ListPresets.mockImplementation(() => Promise.resolve([]))
   ListPresetTypes.mockImplementation(() => Promise.resolve([]))
-  GetPresetsInstallStatus.mockImplementation(() => Promise.resolve([]))
   vi.stubGlobal('IntersectionObserver', class {
     observe() {}
     unobserve() {}

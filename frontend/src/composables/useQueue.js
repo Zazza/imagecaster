@@ -50,6 +50,15 @@ function unsubscribe() {
   offPaused?.()
 }
 
+export function resetQueueState() {
+  unsubscribe()
+  offChanged = offStarted = offProgress = offCompleted = offFailed = offPaused = undefined
+  subscribers = 0
+  jobs.value = []
+  paused.value = false
+  loading.value = false
+}
+
 export function useQueue() {
   onMounted(async () => {
     subscribers++

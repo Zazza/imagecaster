@@ -1,25 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
 
 import LLMSetupModal from '../components/LLMSetupModal.vue'
 import { GetSettings, SaveLLMChoice } from '../wailsjs/go/main/App.js'
-import { setLocale } from '../i18n/index.js'
+import { t, setLocale } from '../i18n/index.js'
 import { api } from '../api.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
-
-async function settle() {
-  for (let i = 0; i < 6; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 function setupData(overrides = {}) {
   return {
@@ -85,20 +74,14 @@ async function pick(select, name) {
 }
 
 function laterButton(w) {
-  const b = w.findAll('button').find(x => x.text().includes('Позже'))
-  expect(b, 'button «Позже»').toBeTruthy()
+  const b = w.findAll('button').find(x => x.text().trim() === t('llm_setup.later'))
+  expect(b, 'later button').toBeTruthy()
   return b
 }
 
 function saveButton(w) {
-  const candidates = w.findAll('button').filter(b => {
-    const t = b.text().trim()
-    return t.length > 1 && !t.includes('Позже')
-  })
-  if (candidates.length > 1) {
-    const primary = candidates.find(b => /сохран|скачать|продолж|готово|ok|применить/i.test(b.text()))
-    if (primary) return primary
-  }
+  const labels = [t('llm_setup.save'), t('llm_setup.download_save')]
+  const candidates = w.findAll('button').filter(b => labels.includes(b.text().trim()))
   expect(candidates.length, 'save button').toBe(1)
   return candidates[0]
 }
@@ -110,14 +93,14 @@ function isDisabled(b) {
 describe('LLMSetupModal', () => {
   it('shows window title and both lists with installed and download marks', async () => {
     const w = await mountModal(setupData())
-    expect(w.text()).toContain('Модели ИИ-помощника')
-    expect(w.text()).toContain('Модель для промптов')
-    expect(w.text()).toContain('Модель для фото')
+    expect(w.text()).toContain(t('llm_setup.title'))
+    expect(w.text()).toContain(t('llm_setup.generate'))
+    expect(w.text()).toContain(t('llm_setup.vision'))
     const { generate, vision } = selects(w)
-    expect(optionOf(generate, 'mytext:3b').text()).toContain('установлена')
-    expect(optionOf(generate, 'text-new:4b').text()).toMatch(/скачать.*2[.,]5\s*ГБ/)
-    expect(optionOf(vision, 'vis-rec:8b').text()).toContain('установлена')
-    expect(optionOf(vision, 'vis-new:4b').text()).toMatch(/скачать.*3[.,]3\s*ГБ/)
+    expect(optionOf(generate, 'mytext:3b').text()).toContain(t('llm_setup.installed'))
+    expect(optionOf(generate, 'text-new:4b').text()).toContain(t('llm_setup.download', { size: 2.5 }))
+    expect(optionOf(vision, 'vis-rec:8b').text()).toContain(t('llm_setup.installed'))
+    expect(optionOf(vision, 'vis-new:4b').text()).toContain(t('llm_setup.download', { size: 3.3 }))
     expect(generate.findAll('option').some(o => o.text().includes('vis-new:4b'))).toBe(false)
     expect(vision.findAll('option').some(o => o.text().includes('mytext:3b'))).toBe(false)
   })

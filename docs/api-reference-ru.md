@@ -142,7 +142,6 @@
 | `ReadImageFile()` | диалог выбора PNG/JPEG, возвращает base64 |
 | `ReadClipboardImage()` | картинка из буфера обмена |
 | `SaveImage(image, name)` | сохранить PNG через диалог |
-| `FastSaveImage(image, name, format)` | сохранить в папку «Мои изображения» без диалога; интерфейс не использует |
 | `BrowseDirectory(path)`, `ReadFileAsBase64(path)`, `ReadThumbnail(path)` | «Мои изображения»: список папки, чтение файла, миниатюра |
 | `SelectBrowserFolder()` | диалог выбора папки; запоминает её в `file_browser_path` |
 | `SaveWindowLayout(footerHeight)`, `GetFooterHeight()` | размер/положение окна и высота подвала хранятся в настройках |

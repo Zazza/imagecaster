@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
+import { settle } from './helpers/async.js'
 
 const rt = vi.hoisted(() => ({
   Environment: null,
@@ -22,17 +23,10 @@ vi.mock('../wailsjs/runtime/runtime.js', async () => {
     Quit: (...a) => rt.Quit(...a),
   }
 })
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
 
 enableAutoUnmount(afterEach)
 
 const html = () => document.documentElement.classList
-
-async function flush() {
-  await flushPromises()
-  await flushPromises()
-  await flushPromises()
-}
 
 async function mountBar(platform) {
   if (platform === null) rt.Environment.mockRejectedValue(new Error('no wails'))
@@ -40,7 +34,7 @@ async function mountBar(platform) {
   vi.resetModules()
   const { default: TitleBar } = await import('../components/TitleBar.vue')
   const w = mount(TitleBar)
-  await flush()
+  await settle()
   return w
 }
 
@@ -89,11 +83,11 @@ describe('TitleBar window state', () => {
     await mountBar('darwin')
     rt.WindowIsFullscreen.mockResolvedValue(true)
     window.dispatchEvent(new Event('resize'))
-    await flush()
+    await settle()
     expect(html().contains('win-fullscreen')).toBe(true)
     rt.WindowIsFullscreen.mockResolvedValue(false)
     window.dispatchEvent(new Event('resize'))
-    await flush()
+    await settle()
     expect(html().contains('win-fullscreen')).toBe(false)
   })
 
@@ -101,10 +95,10 @@ describe('TitleBar window state', () => {
     await mountBar('windows')
     expect(html().contains('win-inactive')).toBe(false)
     window.dispatchEvent(new Event('blur'))
-    await flush()
+    await settle()
     expect(html().contains('win-inactive')).toBe(true)
     window.dispatchEvent(new Event('focus'))
-    await flush()
+    await settle()
     expect(html().contains('win-inactive')).toBe(false)
   })
 })

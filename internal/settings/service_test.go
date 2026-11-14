@@ -148,12 +148,6 @@ func testService(t *testing.T, llmSvc *mockLLMService, sdSvc *mockSDService) (*S
 	return svc, db
 }
 
-func TestNew_ServiceCreation(t *testing.T) {
-	t.Parallel()
-	svc, _ := testService(t, nil, nil)
-	assert.NotNil(t, svc)
-}
-
 func TestCheckServices_BothAvailable(t *testing.T) {
 	t.Parallel()
 	sdSvc := &mockSDService{
@@ -382,18 +376,25 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 
 func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
 	t.Parallel()
-	svc, _ := testService(t, nil, nil)
-
-	data := map[string]string{
-		"llm_num_ctx": "abc",
+	tests := []struct {
+		key   string
+		value string
+	}{
+		{"llm_num_ctx", "abc"},
+		{"llm_max_tokens", "-1"},
 	}
+	for _, tt := range tests {
+		t.Run(tt.key+"="+tt.value, func(t *testing.T) {
+			t.Parallel()
+			svc, _ := testService(t, nil, nil)
 
-	err := svc.UpdateSettings(data)
-	require.NoError(t, err)
+			require.NoError(t, svc.UpdateSettings(map[string]string{tt.key: tt.value}))
 
-	settings, err := svc.GetSettings()
-	require.NoError(t, err)
-	assert.Equal(t, "0", settings["llm_num_ctx"])
+			settings, err := svc.GetSettings()
+			require.NoError(t, err)
+			assert.Equal(t, "0", settings[tt.key])
+		})
+	}
 }
 
 func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {

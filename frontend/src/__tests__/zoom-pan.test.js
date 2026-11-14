@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, effectScope } from 'vue'
 import { useZoomPan, ZOOM_MIN, ZOOM_MAX, ZOOM_PRESETS } from '../composables/useZoomPan.js'
 import { t } from '../i18n/index.js'
+
+let scopes = []
+
+function inScope(fn) {
+  const scope = effectScope()
+  scopes.push(scope)
+  return scope.run(fn)
+}
 
 function area(w, h) {
   const el = {
@@ -19,7 +27,7 @@ function area(w, h) {
 
 function setup(img = [1000, 1000], box = [500, 500]) {
   const areaRef = area(...box)
-  const z = useZoomPan(areaRef)
+  const z = inScope(() => useZoomPan(areaRef))
   z.onImgLoad({ target: { naturalWidth: img[0], naturalHeight: img[1] } })
   return { z, areaRef }
 }
@@ -41,7 +49,11 @@ function translate(style) {
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  scopes.forEach(s => s.stop())
+  scopes = []
+  vi.unstubAllGlobals()
+})
 
 describe('useZoomPan constants', () => {
   it('exports bounds and presets', () => {
@@ -53,7 +65,7 @@ describe('useZoomPan constants', () => {
 
 describe('useZoomPan', () => {
   it('1: starts in fit mode with the fit label', () => {
-    const z = useZoomPan(area(500, 500))
+    const z = inScope(() => useZoomPan(area(500, 500)))
     expect(z.isFit.value).toBe(true)
     expect(z.zoomLabel.value).toBe(t('viewer.zoom_fit'))
   })
@@ -225,5 +237,20 @@ describe('useZoomPan', () => {
     z.enterZoom(100)
     z.onWheel(e)
     expect(z.zoomPct.value).toBe(100)
+  })
+})
+
+describe('useZoomPan cleanup', () => {
+  it('disconnects the resize observer when its owner scope is disposed', async () => {
+    const disconnect = vi.fn()
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() { disconnect() } })
+    const scope = effectScope()
+    const areaRef = ref(null)
+    scope.run(() => useZoomPan(areaRef))
+    areaRef.value = area(400, 300).value
+    await nextTick()
+    expect(disconnect).not.toHaveBeenCalled()
+    scope.stop()
+    expect(disconnect).toHaveBeenCalledTimes(1)
   })
 })

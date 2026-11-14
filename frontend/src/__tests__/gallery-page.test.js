@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks, EventsEmit } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => ({
-  ...(await import('./mocks/wails-app')).default,
+vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).createAppMock({
   ListHistory: vi.fn(),
   OpenInHistory: vi.fn(() => Promise.resolve()),
   DeleteHistoryItems: vi.fn(() => Promise.resolve(0)),
@@ -14,11 +11,12 @@ vi.mock('../wailsjs/go/main/App.js', async () => ({
 import GalleryPage from '../components/GalleryPage.vue'
 import { ListHistory, OpenInHistory, DeleteHistoryItems, GetSessionImage, GetSessionThumb, SaveImage } from '../wailsjs/go/main/App.js'
 import { t, setLocale } from '../i18n/index.js'
+import { settle, waitUntil } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
 const utc = (d) => d.toISOString().slice(0, 19).replace('T', ' ')
-const now = new Date()
+const now = new Date(2026, 10, 13, 15, 30, 0)
 const dayAt = (daysAgo, h) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo, h, 0, 0)
 
 function mk(id, extra = {}) {
@@ -47,25 +45,8 @@ function fakeList(filter = {}) {
   return Promise.resolve({ items, total: store.length, facets: JSON.parse(JSON.stringify(facets)) })
 }
 
-async function settle() {
-  for (let i = 0; i < 4; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
-async function waitFor(fn, ms = 2000) {
-  const start = Date.now()
-  for (;;) {
-    await settle()
-    if (fn()) return
-    if (Date.now() - start > ms) return
-    await new Promise(r => setTimeout(r, 50))
-  }
-}
-
 beforeEach(() => {
+  vi.setSystemTime(now)
   vi.clearAllMocks()
   clearEventMocks()
   setLocale('ru')
@@ -85,6 +66,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   setLocale('ru')
 })
@@ -163,7 +145,7 @@ describe('gallery grid (G1, G5, G6)', () => {
     const calls = ListHistory.mock.calls.length
     store = [mk(9, { created_at: utc(dayAt(0, 23)) }), ...store]
     EventsEmit('session:added', 9)
-    await waitFor(() => ListHistory.mock.calls.length > calls && items(w).length === 6)
+    await waitUntil(() => ListHistory.mock.calls.length > calls && items(w).length === 6)
     expect(ListHistory.mock.calls.length).toBeGreaterThan(calls)
     expect(itemIds(w)[0]).toBe(9)
   })
@@ -221,7 +203,7 @@ describe('filters (G2)', () => {
   it('search sends the prompt text', async () => {
     const w = await mountPage()
     await w.find('[data-testid="filter-search"]').setValue('рыжий кот')
-    await waitFor(() => lastFilter().search === 'рыжий кот')
+    await waitUntil(() => lastFilter().search === 'рыжий кот')
     expect(lastFilter().search).toBe('рыжий кот')
   })
 
@@ -416,7 +398,7 @@ describe('review follow-ups (G2, G3)', () => {
     expect(q('.iv-counter').textContent).toBe(t('viewer.counter', { n: 3, total: 5 }))
     store = [mk(9, { model_name: 'model-9', created_at: utc(dayAt(0, 23)) }), ...store]
     EventsEmit('session:added', 9)
-    await waitFor(() => items(w).length === 6)
+    await waitUntil(() => items(w).length === 6)
     expect(viewerOpen()).toBe(true)
     expect(q('.image-viewer-overlay').textContent).toContain('model-3')
     expect(q('.image-viewer-overlay').textContent).not.toContain('model-2')
@@ -429,7 +411,7 @@ describe('review follow-ups (G2, G3)', () => {
     expect(viewerOpen()).toBe(true)
     store = store.filter(x => x.id !== 3)
     EventsEmit('session:added', 0)
-    await waitFor(() => items(w).length === 4)
+    await waitUntil(() => items(w).length === 4)
     expect(viewerOpen()).toBe(false)
   })
 
@@ -452,7 +434,7 @@ describe('review follow-ups (G2, G3)', () => {
     await click(q('.iv-delete'))
     store = [mk(9, { model_name: 'model-9', created_at: utc(dayAt(0, 23)) }), ...store]
     EventsEmit('session:added', 9)
-    await waitFor(() => items(w).length === 6)
+    await waitUntil(() => items(w).length === 6)
     await click(q('.iv-delete'))
     for (const [ids] of DeleteHistoryItems.mock.calls) expect(ids).toEqual([4])
     expect(DeleteHistoryItems.mock.calls.flat(2)).not.toContain(9)
@@ -478,14 +460,14 @@ describe('review follow-ups (G2, G3)', () => {
     const before = ListHistory.mock.calls.length
     store = [mk(20000, { created_at: utc(dayAt(0, 23)) }), ...store]
     EventsEmit('session:added', 20000)
-    await waitFor(() => ListHistory.mock.calls.length > before && itemIds(w)[0] === 20000, 10000)
+    await waitUntil(() => ListHistory.mock.calls.length > before && itemIds(w)[0] === 20000, { timeout: 10000 })
     const after = ListHistory.mock.calls.slice(before).map(c => c[0] || {})
     expect(after.length).toBeGreaterThan(0)
     for (const f of after) {
       expect(f.limit).toBeGreaterThan(0)
       expect(f.limit).toBeLessThanOrEqual(500)
     }
-    await waitFor(() => items(w).length === 621, 10000)
+    await waitUntil(() => items(w).length === 621, { timeout: 10000 })
     expect(items(w)).toHaveLength(621)
     expect(itemIds(w)).toEqual(store.map(x => x.id))
   }, 30000)

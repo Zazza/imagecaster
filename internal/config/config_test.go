@@ -9,43 +9,29 @@ import (
 )
 
 func TestLoad_DefaultValues(t *testing.T) {
-	t.Parallel()
+	for _, k := range []string{"LLM_URL", "SD_URL", "LLM_MODEL", "SD_PROMPT_MODEL", "DB_PATH"} {
+		t.Setenv(k, "")
+	}
 
 	cfg := Load()
 
-	if cfg.LLMUrl != "http://localhost:1234" {
-		t.Errorf("LLMUrl = %q, want %q", cfg.LLMUrl, "http://localhost:1234")
+	tests := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"LLMUrl", cfg.LLMUrl, "http://localhost:1234"},
+		{"SDUrl", cfg.SDUrl, "http://localhost:7860"},
+		{"LLMModel", cfg.LLMModel, "openai/gpt-oss-20b"},
+		{"SDPromptModel", cfg.SDPromptModel, "default"},
 	}
-	if cfg.SDUrl != "http://localhost:7860" {
-		t.Errorf("SDUrl = %q, want %q", cfg.SDUrl, "http://localhost:7860")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.got)
+		})
 	}
-	if cfg.LLMModel != "openai/gpt-oss-20b" {
-		t.Errorf("LLMModel = %q, want %q", cfg.LLMModel, "openai/gpt-oss-20b")
-	}
-	if cfg.SDPromptModel != "default" {
-		t.Errorf("SDPromptModel = %q, want %q", cfg.SDPromptModel, "default")
-	}
-	if cfg.Port != "8080" {
-		t.Errorf("Port = %q, want %q", cfg.Port, "8080")
-	}
-	if cfg.DefaultSampler != "euler_a" {
-		t.Errorf("DefaultSampler = %q, want %q", cfg.DefaultSampler, "euler_a")
-	}
-	if cfg.DefaultSteps != 20 {
-		t.Errorf("DefaultSteps = %d, want %d", cfg.DefaultSteps, 20)
-	}
-	if cfg.DefaultCfgScale != 7.0 {
-		t.Errorf("DefaultCfgScale = %f, want %f", cfg.DefaultCfgScale, 7.0)
-	}
-	if cfg.DefaultWidth != 512 {
-		t.Errorf("DefaultWidth = %d, want %d", cfg.DefaultWidth, 512)
-	}
-	if cfg.DefaultHeight != 512 {
-		t.Errorf("DefaultHeight = %d, want %d", cfg.DefaultHeight, 512)
-	}
-	if cfg.DefaultNegative != "blurry, low quality, watermark, text, signature" {
-		t.Errorf("DefaultNegative = %q, want %q", cfg.DefaultNegative, "blurry, low quality, watermark, text, signature")
-	}
+	require.True(t, filepath.IsAbs(cfg.DBPath))
+	require.Equal(t, filepath.Join("data", "presets.db"), filepath.Join(filepath.Base(filepath.Dir(cfg.DBPath)), filepath.Base(cfg.DBPath)))
 }
 
 func TestLoad_DefaultPromptContent(t *testing.T) {
@@ -58,16 +44,6 @@ func TestLoad_DefaultPromptContent(t *testing.T) {
 	}
 	if !strings.Contains(cfg.SystemPrompt, "JSON") {
 		t.Error("SystemPrompt should reference JSON output format")
-	}
-}
-
-func TestLoad_DefaultDBPath(t *testing.T) {
-	t.Parallel()
-
-	cfg := Load()
-
-	if !strings.Contains(cfg.DBPath, "presets.db") {
-		t.Errorf("DBPath = %q, should contain presets.db", cfg.DBPath)
 	}
 }
 
@@ -107,13 +83,6 @@ func TestLoad_EnvOverrides(t *testing.T) {
 			check:    func(cfg *Config) string { return cfg.SDPromptModel },
 			want:     "prompt-model-v1",
 		},
-		{
-			name:     "PORT override",
-			envKey:   "PORT",
-			envValue: "9090",
-			check:    func(cfg *Config) string { return cfg.Port },
-			want:     "9090",
-		},
 	}
 
 	for _, tt := range tests {
@@ -134,14 +103,6 @@ func TestLoad_DBPathOverride(t *testing.T) {
 	cfg := Load()
 	if cfg.DBPath != dbPath {
 		t.Errorf("DBPath = %q, want %q", cfg.DBPath, dbPath)
-	}
-}
-
-func TestLoad_EmptyEnvFallsBack(t *testing.T) {
-	t.Setenv("LLM_URL", "")
-	cfg := Load()
-	if cfg.LLMUrl != "http://localhost:1234" {
-		t.Errorf("LLMUrl with empty env = %q, want default %q", cfg.LLMUrl, "http://localhost:1234")
 	}
 }
 

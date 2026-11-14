@@ -37,6 +37,7 @@ func (s *Service) GetLLMSetup() (*LLMSetup, error) {
 	}
 	installed, err := s.serverClient.GetLLMModels()
 	if err != nil {
+		s.log.Warn("llm setup: installed models: %s", err)
 		return &LLMSetup{Generate: []LLMChoice{}, Vision: []LLMChoice{}}, nil
 	}
 	catalog, err := serverclient.LoadCatalog()

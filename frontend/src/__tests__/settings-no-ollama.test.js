@@ -1,26 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return {
-    ...base,
-    GetDefaultEditGarmentPrompt: vi.fn(() => Promise.resolve('')),
-    GetSDModels: vi.fn(() => Promise.resolve([])),
-    GetSDLoRAs: vi.fn(() => Promise.resolve([])),
-    GetLLMModels: vi.fn(() => Promise.resolve([])),
-    GetModelPresets: vi.fn(() => Promise.resolve([])),
-  }
-})
+vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).createAppMock({ GetModelPresets: vi.fn(() => Promise.resolve([])) }))
 
 import SettingsPage from '../components/SettingsPage.vue'
 import * as App from '../wailsjs/go/main/App.js'
 import { t, setLocale } from '../i18n/index.js'
 import { ru } from '../i18n/ru.js'
 import { en } from '../i18n/en.js'
+import { settle } from './helpers/async.js'
 
 const { GetSettings, UpdateSettings, GetServerStatus } = App
 
@@ -37,14 +26,6 @@ const UTILITIES = {
   sd: { name: 'SD', status: 'running', category: 'sd' },
   git: { name: 'git-tool', status: 'stopped', category: 'utility' },
   ollama: { name: 'Ollama', status: 'stopped', category: 'utility' },
-}
-
-async function settle() {
-  for (let i = 0; i < 4; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
 }
 
 function visibleRows(w, name) {

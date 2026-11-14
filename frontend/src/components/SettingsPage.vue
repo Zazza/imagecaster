@@ -538,21 +538,21 @@ onMounted(loadSettings)
         <div v-if="serverStatus" style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;">
           <div style="color: var(--text-bright); font-weight: 500; margin-bottom: 8px;">{{ t('settings.section_server_status') }}</div>
           <!-- Services -->
-          <div v-for="(proc, name) in (serverStatus.processes || {})" :key="name" v-show="proc.name && proc.category !== 'utility' && name !== 'ollama'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
+          <div v-for="(proc, name) in (serverStatus.processes || {})" :key="name" :data-testid="'process-row-' + name" v-show="proc.name && proc.category !== 'utility' && name !== 'ollama'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
-                <span :style="{ color: proc.status === 'running' ? 'var(--success)' : proc.status === 'starting' ? 'var(--warning)' : 'var(--danger)', marginLeft: '8px', fontSize: '12px' }">
-                  {{ proc.status === 'running' ? t('settings.process_running') : proc.status === 'starting' ? t('settings.process_starting') : proc.status === 'crashed' ? t('settings.process_crashed') : t('settings.process_stopped') }}
+                <span data-testid="process-status" :style="{ color: proc.status === 'running' ? 'var(--success)' : proc.status === 'starting' ? 'var(--warning)' : 'var(--danger)', marginLeft: '8px', fontSize: '12px' }">
+                  {{ proc.status === 'running' ? t('settings.process_running') : proc.status === 'starting' ? t('settings.process_starting') : proc.status === 'crashed' ? t('settings.process_crashed') : proc.status === 'unhealthy' ? t('settings.process_unhealthy') : t('settings.process_stopped') }}
                 </span>
                 <span v-if="proc.pid" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">PID {{ proc.pid }}</span>
                 <span v-if="proc.uptime" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">{{ proc.uptime }}</span>
                 <span v-if="proc.restarts > 0" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.process_restarts', { count: proc.restarts }) }}</span>
               </div>
               <div style="display: flex; gap: 6px;">
-                <button v-if="proc.status !== 'running' && proc.status !== 'starting'" class="btn btn-primary btn-sm" @click="startProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_start') }}</button>
-                <button v-if="proc.status === 'running'" class="btn btn-secondary btn-sm" @click="stopProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_stop') }}</button>
-                <button v-if="proc.status === 'running'" class="btn btn-secondary btn-sm" @click="restartProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_restart') }}</button>
+                <button v-if="proc.status !== 'running' && proc.status !== 'starting' && proc.status !== 'unhealthy'" data-testid="process-start" class="btn btn-primary btn-sm" @click="startProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_start') }}</button>
+                <button v-if="proc.status === 'running' || proc.status === 'unhealthy'" data-testid="process-stop" class="btn btn-secondary btn-sm" @click="stopProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_stop') }}</button>
+                <button v-if="proc.status === 'running' || proc.status === 'unhealthy'" data-testid="process-restart" class="btn btn-secondary btn-sm" @click="restartProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_restart') }}</button>
                 <button class="btn btn-secondary btn-sm" @click="showProcessLogs(name)">{{ t('settings.btn_logs') }}</button>
               </div>
             </div>

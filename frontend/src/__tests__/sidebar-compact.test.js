@@ -1,8 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-
-vi.mock('../wailsjs/runtime/runtime', async () => ({ ...(await import('./mocks/runtime')), WindowSetSystemDefaultTheme: () => {}, WindowSetDarkTheme: () => {}, WindowSetLightTheme: () => {}, Environment: () => Promise.reject(new Error('no wails')), WindowIsMaximised: () => Promise.resolve(false), WindowIsFullscreen: () => Promise.resolve(false) }))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
 
 import App from '../App.vue'
 import { t, setLocale } from '../i18n/index.js'

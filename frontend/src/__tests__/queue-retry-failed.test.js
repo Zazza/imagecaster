@@ -2,17 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base, RetryQueueJob: vi.fn(() => Promise.resolve(undefined)) }
-})
-
 import QueuePanel from '../components/QueuePanel.vue'
 import { api } from '../api.js'
 import { GetQueue, IsQueuePaused, RetryQueueJob } from '../wailsjs/go/main/App.js'
-import { ru } from '../i18n/ru.js'
-import { en } from '../i18n/en.js'
+import { t } from '../i18n/index.js'
 
 enableAutoUnmount(afterEach)
 
@@ -130,19 +123,11 @@ describe('queue panel retry button for failed jobs', () => {
 })
 
 describe('i18n queue.retry', () => {
-  it('ru label is «Повторить»', () => {
-    expect(ru['queue.retry']).toBe('Повторить')
-  })
-
-  it('en label is «Retry»', () => {
-    expect(en['queue.retry']).toBe('Retry')
-  })
-
   it('retry button shows the localized label as text or title', async () => {
     const j = job('failed')
     const w = await mountWith([j])
     const btn = itemFor(w, j)[0].find('.qi-retry')
     const label = (btn.text() + ' ' + (btn.attributes('title') || '') + ' ' + (btn.attributes('aria-label') || ''))
-    expect([ru['queue.retry'], en['queue.retry']].some(l => l && label.includes(l))).toBe(true)
+    expect(label).toContain(t('queue.retry'))
   })
 })

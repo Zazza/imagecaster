@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted, watch } from 'vue'
+import { ref, computed, onScopeDispose, watch } from 'vue'
 import { t } from '../i18n/index.js'
 
 export const ZOOM_MIN = 10
@@ -135,7 +135,7 @@ export function useZoomPan(areaRef) {
     }
     measure()
   })
-  onUnmounted(() => observer?.disconnect())
+  onScopeDispose(() => observer?.disconnect())
 
   return {
     naturalW, naturalH, zoomPct, panning, zoomMenuOpen, isFit, zoomLabel, panEnabled, layerStyle,

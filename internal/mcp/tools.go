@@ -683,6 +683,9 @@ func RegisterTools(s *Server) {
 			"mode":         prop("tags | describe (по умолчанию tags)", "string"),
 		}),
 		Handler: func(s *Server, args map[string]any) (string, error) {
+			if err := s.localOnly("analyze"); err != nil {
+				return "", err
+			}
 			mode := argString(args, "mode")
 			if mode == "" {
 				mode = "tags"
@@ -714,6 +717,9 @@ func RegisterTools(s *Server) {
 			"preset_id":  prop("id пресета исходной генерации", "integer"),
 		}, "image_path"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
+			if err := s.localOnly("upscale"); err != nil {
+				return "", err
+			}
 			path := argString(args, "image_path")
 			if path == "" {
 				return "", fmt.Errorf("image_path обязателен")
@@ -771,6 +777,9 @@ func RegisterTools(s *Server) {
 			"preserve_identity":  prop("сохранять лицо исходника (reference-ремикс; только preset_id с klein- или qwen-image-моделью)", "boolean"),
 		}, "image_path"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
+			if err := s.localOnly("from_image"); err != nil {
+				return "", err
+			}
 			img, err := readImageArg(args, "image_path", true)
 			if err != nil {
 				return "", err

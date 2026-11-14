@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
 
 import AppFooter from '../components/AppFooter.vue'
 import PostProcessPage from '../components/PostProcessPage.vue'
@@ -19,16 +12,10 @@ import {
 } from '../wailsjs/go/main/App.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { t } from '../i18n/index.js'
+import { useFakeImage, useFakeCanvas } from './helpers/dom.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
-
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 function buttonExact(wrapper, text) {
   return wrapper.findAll('button').find(b => b.text().trim() === text)
@@ -267,60 +254,8 @@ describe('PostProcessPage queue from history', () => {
   const IMG = { 501: 'SElTVDUwMQ==', 502: 'SElTVDUwMg==', 503: 'SElTVDUwMw==', 504: 'SElTVDUwNA==' }
   const THUMB = { 501: 'VEhNQjUwMQ==', 502: 'VEhNQjUwMg==', 503: 'VEhNQjUwMw==', 504: 'VEhNQjUwNA==' }
 
-  class FakeImage {
-    constructor() {
-      this.onload = null
-      this.onerror = null
-      this.naturalWidth = 64
-      this.naturalHeight = 48
-      this.width = 64
-      this.height = 48
-      this.complete = false
-      this._src = ''
-    }
-    set src(v) {
-      this._src = v
-      setTimeout(() => {
-        this.complete = true
-        if (this.onload) this.onload()
-      }, 0)
-    }
-    get src() {
-      return this._src
-    }
-    decode() {
-      return Promise.resolve()
-    }
-  }
-
-  function fakeContext(canvas) {
-    return {
-      canvas,
-      fillStyle: '',
-      strokeStyle: '',
-      lineWidth: 1,
-      globalCompositeOperation: 'source-over',
-      getImageData: (x, y, w, h) => ({ data: new Uint8ClampedArray(Math.max(1, (w || 1) * (h || 1) * 4)), width: w, height: h }),
-      putImageData: vi.fn(),
-      createImageData: (w, h) => ({ data: new Uint8ClampedArray(Math.max(1, (w || 1) * (h || 1) * 4)), width: w, height: h }),
-      clearRect: vi.fn(),
-      fillRect: vi.fn(),
-      beginPath: vi.fn(),
-      closePath: vi.fn(),
-      arc: vi.fn(),
-      fill: vi.fn(),
-      stroke: vi.fn(),
-      moveTo: vi.fn(),
-      lineTo: vi.fn(),
-      drawImage: vi.fn(),
-      save: vi.fn(),
-      restore: vi.fn(),
-    }
-  }
-
-  const OrigImage = globalThis.Image
-  let getContextSpy
-  let toDataURLSpy
+  useFakeImage()
+  useFakeCanvas()
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -338,20 +273,6 @@ describe('PostProcessPage queue from history', () => {
     BatchSaveImage.mockImplementation(() => Promise.resolve('/batch/v.png'))
     BatchReset.mockImplementation(() => Promise.resolve())
     ExportImage.mockImplementation(() => Promise.resolve('/out/x.png'))
-    globalThis.Image = FakeImage
-    window.Image = FakeImage
-    getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function () {
-      if (!this.__ctx) this.__ctx = fakeContext(this)
-      return this.__ctx
-    })
-    toDataURLSpy = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockImplementation(() => 'data:image/png;base64,TUFTSw==')
-  })
-
-  afterEach(() => {
-    globalThis.Image = OrigImage
-    window.Image = OrigImage
-    getContextSpy.mockRestore()
-    toDataURLSpy.mockRestore()
   })
 
   function historyItems(ids) {

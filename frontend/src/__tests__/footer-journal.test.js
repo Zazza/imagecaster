@@ -3,9 +3,6 @@ import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { clearEventMocks, EventsEmit } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
-
 import AppFooter from '../components/AppFooter.vue'
 import { t, setLocale } from '../i18n/index.js'
 import { GetSettings, GetServerStatus, GetLogEntries } from '../wailsjs/go/main/App.js'

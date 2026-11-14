@@ -1,19 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks, EventsEmit } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return {
-    ...base,
-    GetDefaultEditGarmentPrompt: vi.fn(() => Promise.resolve('')),
-    GetSDModels: vi.fn(() => Promise.resolve([])),
-    GetSDLoRAs: vi.fn(() => Promise.resolve([])),
-    GetLLMModels: vi.fn(() => Promise.resolve([])),
-  }
-})
 
 import SettingsPage from '../components/SettingsPage.vue'
 import GeneratePage from '../components/GeneratePage.vue'
@@ -23,17 +10,10 @@ import {
   GetSettings, UpdateSettings, GetDefaultPromptInstruction, GetDefaultPromptInstructionProse,
   GetDefaultAnalyzePrompts, GetDefaultEditGarmentPrompt, GetActiveSessionItem, UpscaleImage,
 } from '../wailsjs/go/main/App.js'
-import { setLocale, ru, en } from '../i18n/index.js'
+import { t, setLocale, ru } from '../i18n/index.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
-
-async function settle() {
-  for (let i = 0; i < 4; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 const DEF = {
   sd_prompt_instruction: 'DEFAULT tags instruction',
@@ -136,24 +116,14 @@ describe('settings tabs', () => {
   it('has Connection, Prompts, Safety, Advanced and no Generation / Analyze tabs (ru)', async () => {
     const w = await mountSettings()
     const names = tabButtons(w).map(b => b.text().trim())
-    expect(ru['settings.tab_prompts']).toBe('Промпты')
-    expect(names).toContain('Подключение')
-    expect(names).toContain('Промпты')
-    expect(names).toContain('Безопасность')
-    expect(names).toContain('Дополнительно')
-    expect(names).not.toContain('Генерация')
-    expect(names).not.toContain('Анализ')
-    expect(names.filter(n => n === 'Промпты')).toHaveLength(1)
+    expect(names).toEqual([t('settings.tab_connection'), t('settings.tab_prompts'), t('settings.tab_safety'), t('settings.tab_advanced')])
   })
 
   it('en locale also shows a single Prompts tab from settings.tab_prompts', async () => {
     setLocale('en')
     const w = await mountSettings()
     const names = tabButtons(w).map(b => b.text().trim())
-    expect(en['settings.tab_prompts']).toBeTruthy()
-    expect(names).toContain(en['settings.tab_prompts'])
-    expect(names).not.toContain('Generation')
-    expect(names).not.toContain('Analyze')
+    expect(names).toEqual([t('settings.tab_connection'), t('settings.tab_prompts'), t('settings.tab_safety'), t('settings.tab_advanced')])
   })
 })
 
@@ -180,8 +150,6 @@ describe('prompts tab: groups and fold blocks', () => {
     const photoKeys = foldsIn(photoGroup, w).map(f => keyOfValue(f.textarea.element.value, custom))
     expect(imgKeys.sort()).toEqual([...IMAGE_KEYS].sort())
     expect(photoKeys.sort()).toEqual([...PHOTO_KEYS].sort())
-    expect(ru['settings.group_image_prompt']).toBe('Промпт для картинки')
-    expect(ru['settings.group_describe_photo']).toBe('Описание фото')
   })
 
   it('every prompt fold is closed by default: textarea not visible', async () => {
@@ -220,11 +188,11 @@ describe('prompts tab: groups and fold blocks', () => {
       expect(head).toContain(f.fold.props('hint'))
       const isDefault = custom[key] === DEF[key]
       if (isDefault) {
-        expect(head, key).toContain('по умолчанию')
-        expect(head, key).not.toContain('изменён')
+        expect(head, key).toContain(t('settings.prompt_default'))
+        expect(head, key).not.toContain(t('settings.prompt_custom'))
       } else {
-        expect(head, key).toContain('изменён')
-        expect(head, key).not.toContain('по умолчанию')
+        expect(head, key).toContain(t('settings.prompt_custom'))
+        expect(head, key).not.toContain(t('settings.prompt_default'))
       }
     }
   })
@@ -234,10 +202,10 @@ describe('prompts tab: groups and fold blocks', () => {
     const w = await mountSettings()
     await openPromptsTab(w)
     const f = folds(w).find(x => x.textarea.element.value === DEF.analyze_describe_prompt)
-    expect(f.head.text()).toContain('по умолчанию')
+    expect(f.head.text()).toContain(t('settings.prompt_default'))
     await f.textarea.setValue('something else')
     await settle()
-    expect(f.head.text()).toContain('изменён')
+    expect(f.head.text()).toContain(t('settings.prompt_custom'))
   })
 
   it('garment fold title is "Одежда"', async () => {
@@ -245,7 +213,7 @@ describe('prompts tab: groups and fold blocks', () => {
     const w = await mountSettings()
     await openPromptsTab(w)
     const f = folds(w).find(x => x.textarea.element.value === custom.edit_garment_prompt)
-    expect(f.fold.props('title')).toBe('Одежда')
+    expect(f.fold.props('title')).toBe(t('settings.edit_garment_prompt'))
   })
 })
 
@@ -253,8 +221,8 @@ describe('describe photo group: save and reset include garment', () => {
   function groupButtons(w) {
     const photoGroup = groupCard(w, 'settings.group_describe_photo')
     const btns = buttonsOutsideFolds(photoGroup, w)
-    const save = btns.find(b => b.textContent.trim() === 'Сохранить промпты')
-    const reset = btns.find(b => b.textContent.trim() === 'Сбросить по умолчанию')
+    const save = btns.find(b => b.textContent.trim() === t('settings.btn_save_prompts'))
+    const reset = btns.find(b => b.textContent.trim() === t('settings.btn_reset_default'))
     return { photoGroup, save, reset }
   }
 
@@ -270,7 +238,7 @@ describe('describe photo group: save and reset include garment', () => {
       expect(f.fold.element.contains(save)).toBe(false)
       expect(f.fold.element.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
-    const allSave = Array.from(photoGroup.querySelectorAll('button')).filter(b => b.textContent.trim() === 'Сохранить промпты')
+    const allSave = Array.from(photoGroup.querySelectorAll('button')).filter(b => b.textContent.trim() === t('settings.btn_save_prompts'))
     expect(allSave).toHaveLength(1)
   })
 
@@ -335,10 +303,10 @@ describe('describe photo group: save and reset include garment', () => {
     setStored(stored(extra))
     const w = await mountSettings()
     await openPromptsTab(w)
-    const f = folds(w).find(x => x.fold.props('title') === 'Одежда')
+    const f = folds(w).find(x => x.fold.props('title') === t('settings.edit_garment_prompt'))
     expect(f).toBeTruthy()
     expect(f.textarea.element.value).toBe(DEF.edit_garment_prompt)
-    expect(f.head.text()).toContain('по умолчанию')
+    expect(f.head.text()).toContain(t('settings.prompt_default'))
   })
 })
 

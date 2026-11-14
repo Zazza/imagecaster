@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
-
 import DownloadProgress from '../components/DownloadProgress.vue'
 import { api } from '../api.js'
 import { defaultDownloads, runDefaultPlan } from '../modelDownloads.js'

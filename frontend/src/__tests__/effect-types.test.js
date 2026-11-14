@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
-
 import GeneratePage from '../components/GeneratePage.vue'
 import { ListPresetTypes, ListPresets, ListPresetsByType } from '../wailsjs/go/main/App.js'
 import { isEffectType, effectTypeLabel } from '../effectTypes.js'
@@ -23,17 +20,15 @@ describe('isEffectType (ET1)', () => {
 describe('effectTypeLabel (ET2)', () => {
   beforeEach(() => setLocale('ru'))
 
-  it('labels known effect group in ru', () => {
-    expect(effectTypeLabel('post_skin', t)).toBe('Эффекты: Кожа')
-  })
   it.each([
-    ['post', 'Эффекты: Базовые'],
-    ['post_material', 'Эффекты: Материалы'],
-    ['post_light', 'Эффекты: Свет'],
-    ['post_film', 'Эффекты: Плёнка'],
-    ['post_transform', 'Эффекты: Преобразование'],
-  ])('%s -> %s', (name, label) => {
-    expect(effectTypeLabel(name, t)).toBe(label)
+    ['post_skin', 'post.group_effect_skin'],
+    ['post', 'post.group_effect_base'],
+    ['post_material', 'post.group_effect_material'],
+    ['post_light', 'post.group_effect_light'],
+    ['post_film', 'post.group_effect_film'],
+    ['post_transform', 'post.group_effect_transform'],
+  ])('%s -> effect prefix and %s', (name, key) => {
+    expect(effectTypeLabel(name, t)).toBe(t('presets.effect_prefix') + ': ' + t(key))
   })
   it('keeps non-effect type name unchanged', () => {
     expect(effectTypeLabel('portrait', t)).toBe('portrait')

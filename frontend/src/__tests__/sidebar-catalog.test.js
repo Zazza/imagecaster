@@ -1,24 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', async () => ({
-  ...(await import('./mocks/runtime')),
-  BrowserOpenURL: vi.fn(),
-  WindowSetSystemDefaultTheme: () => {}, WindowSetDarkTheme: () => {}, WindowSetLightTheme: () => {},
-  Environment: () => Promise.reject(new Error('no wails')),
-  WindowIsMaximised: () => Promise.resolve(false), WindowIsFullscreen: () => Promise.resolve(false),
-}))
-vi.mock('../wailsjs/go/main/App.js', async () => ({
-  ...(await import('./mocks/wails-app')).default,
-  CheckServer: vi.fn(() => Promise.resolve({ state: 'ok', url: 'http://s:1', version: '2', missing: [], error: '' })),
-  DiscoverServers: vi.fn(() => Promise.resolve([])),
-  GetDefaultEditGarmentPrompt: vi.fn(() => Promise.resolve('')),
-  GetSDModels: vi.fn(() => Promise.resolve([])),
-  GetSDLoRAs: vi.fn(() => Promise.resolve([])),
-  GetLLMModels: vi.fn(() => Promise.resolve([])),
-}))
 
 import App from '../App.vue'
 import SettingsPage from '../components/SettingsPage.vue'
@@ -31,6 +13,7 @@ import {
 } from '../wailsjs/go/main/App.js'
 import { setLocale, ru, en } from '../i18n/index.js'
 import { api } from '../api.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -53,14 +36,6 @@ function resetShared() {
   for (const k of Object.keys(serverModelsKnown)) delete serverModelsKnown[k]
   for (const k of Object.keys(modelActionLoading)) delete modelActionLoading[k]
   resetActiveDownload()
-}
-
-async function settle() {
-  for (let i = 0; i < 6; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
 }
 
 function pendingDownloads() {
@@ -219,14 +194,6 @@ describe('settings tabs (M2, M5)', () => {
     const tabs = w.findAll('.tabs button').map(b => b.text().trim())
     expect(tabs.length).toBeGreaterThan(0)
     for (const label of ['Каталог', 'Catalog']) expect(tabs).not.toContain(label)
-  })
-
-  it('removed i18n keys are gone from both locales, catalog nav key exists in both', () => {
-    for (const dict of [ru, en]) {
-      expect(dict['settings.tab_catalog']).toBeUndefined()
-      expect(Object.keys(dict).filter(k => k.startsWith('app.group_'))).toEqual([])
-      expect(dict['app.nav_catalog']).toBeTruthy()
-    }
   })
 })
 

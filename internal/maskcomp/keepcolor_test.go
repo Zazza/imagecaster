@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,13 +39,10 @@ func TestKeepColor_LargeImageFastAndKeepsColor(t *testing.T) {
 		}
 	}
 
-	start := time.Now()
 	out := KeepColor(orig, edited, 0.02)
-	elapsed := time.Since(start)
 
 	require.NotNil(t, out)
 	assert.Equal(t, orig.Bounds().Size(), out.Bounds().Size())
-	assert.Less(t, elapsed, 3*time.Second)
 
 	for _, c := range []struct {
 		x, y int

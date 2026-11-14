@@ -96,16 +96,6 @@ func makeLargeImagePNG(t *testing.T, w, h int) string {
 	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
-func TestNew_ServiceCreation(t *testing.T) {
-	t.Parallel()
-	db, err := preset.Open(":memory:")
-	require.NoError(t, err)
-	defer db.Close()
-
-	svc := New(db, "/tmp/test", &mockEmitter{})
-	assert.NotNil(t, svc)
-}
-
 func TestCreateSession_Success(t *testing.T) {
 	t.Parallel()
 	svc, emitter, _ := testService(t)

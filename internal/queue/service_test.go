@@ -8,40 +8,17 @@ import (
 	"testing"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/stretchr/testify/require"
 )
 
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
+	pdb, err := preset.Open(":memory:")
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS job_queue (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			type TEXT NOT NULL,
-			status TEXT NOT NULL DEFAULT 'pending',
-			params TEXT NOT NULL DEFAULT '{}',
-			progress REAL NOT NULL DEFAULT 0,
-			progress_detail TEXT NOT NULL DEFAULT '{}',
-			result TEXT NOT NULL DEFAULT '',
-			error TEXT NOT NULL DEFAULT '',
-			source TEXT NOT NULL DEFAULT '',
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			started_at DATETIME,
-			completed_at DATETIME,
-			retry_count INTEGER NOT NULL DEFAULT 0,
-			max_retries INTEGER NOT NULL DEFAULT 3,
-			next_retry_at DATETIME
-		);
-		CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status);
-	`)
-	if err != nil {
-		db.Close()
-		t.Fatalf("migrate test db: %v", err)
-	}
-	return db
+	return pdb.DB()
 }
 
 type mockProcessor struct {
@@ -87,6 +64,11 @@ func (m *mockEmitter) countEvent(event string) int {
 		}
 	}
 	return n
+}
+
+func waitEvent(t *testing.T, m *mockEmitter, event string) {
+	t.Helper()
+	require.Eventually(t, func() bool { return m.hasEvent(event) }, 5*time.Second, 5*time.Millisecond, "event %s not emitted", event)
 }
 
 func insertJob(t *testing.T, db *sql.DB, status JobStatus) int64 {
@@ -347,7 +329,7 @@ func TestWorkerProcessNext_CancelledCtx_MarksJobFailed(t *testing.T) {
 	<-procStarted
 
 	worker.CancelCurrent()
-	time.Sleep(200 * time.Millisecond)
+	waitEvent(t, emitter, EventQueueFailed)
 
 	parentCancel()
 	<-doneCh
@@ -385,7 +367,7 @@ func TestWorkerProcessNext_Success(t *testing.T) {
 	}()
 
 	worker.Notify()
-	time.Sleep(300 * time.Millisecond)
+	waitEvent(t, emitter, EventQueueCompleted)
 	parentCancel()
 	<-doneCh
 
@@ -425,7 +407,7 @@ func TestWorkerProcessNext_ProcessorError(t *testing.T) {
 	}()
 
 	worker.Notify()
-	time.Sleep(300 * time.Millisecond)
+	waitEvent(t, emitter, EventQueueFailed)
 	parentCancel()
 	<-doneCh
 

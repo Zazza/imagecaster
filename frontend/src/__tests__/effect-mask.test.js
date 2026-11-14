@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { EventsEmit, clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
 
 import PostProcessPage from '../components/PostProcessPage.vue'
 import {
@@ -16,6 +9,8 @@ import {
 } from '../wailsjs/go/main/App.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { t } from '../i18n/index.js'
+import { useFakeImage, useFakeCanvas } from './helpers/dom.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -25,76 +20,8 @@ const IMG = 'aW1n'
 const IMG_A = 'QUFBQQ=='
 const IMG_B = 'QkJCQg=='
 
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
-function fakeContext(canvas) {
-  const ctx = {
-    canvas,
-    painted: false,
-    fillStyle: '',
-    strokeStyle: '',
-    lineWidth: 1,
-    lineCap: '',
-    lineJoin: '',
-    globalCompositeOperation: 'source-over',
-    getImageData: (x, y, w, h) => {
-      const data = new Uint8ClampedArray(Math.max(1, (w || 1) * (h || 1) * 4))
-      if (ctx.painted) data.fill(255)
-      return { data, width: w, height: h }
-    },
-    putImageData: vi.fn(img => { ctx.painted = !!(img && img.data && img.data.some(v => v > 0)) }),
-    createImageData: (w, h) => ({ data: new Uint8ClampedArray(Math.max(1, (w || 1) * (h || 1) * 4)), width: w, height: h }),
-    clearRect: vi.fn(() => { ctx.painted = false }),
-    fillRect: vi.fn(),
-    beginPath: vi.fn(),
-    closePath: vi.fn(),
-    arc: vi.fn(() => { ctx.painted = true }),
-    fill: vi.fn(() => { ctx.painted = true }),
-    stroke: vi.fn(() => { ctx.painted = true }),
-    moveTo: vi.fn(),
-    lineTo: vi.fn(),
-    drawImage: vi.fn(),
-    save: vi.fn(),
-    restore: vi.fn(),
-  }
-  return ctx
-}
-
-class FakeImage {
-  constructor() {
-    this.onload = null
-    this.onerror = null
-    this.naturalWidth = 64
-    this.naturalHeight = 48
-    this.width = 64
-    this.height = 48
-    this.complete = false
-    this._src = ''
-  }
-  set src(v) {
-    this._src = v
-    setTimeout(() => {
-      this.complete = true
-      if (this.onload) this.onload()
-    }, 0)
-  }
-  get src() {
-    return this._src
-  }
-  decode() {
-    return Promise.resolve()
-  }
-}
-
-const OrigImage = globalThis.Image
-let spies = []
-let addedCapture = false
+useFakeImage()
+useFakeCanvas({ trackPaint: true, layout: true })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -107,36 +34,6 @@ beforeEach(() => {
   BatchReset.mockImplementation(() => Promise.resolve())
   let jobs = 0
   EnqueueFromImage.mockImplementation(() => Promise.resolve('job-' + (++jobs)))
-  globalThis.Image = FakeImage
-  window.Image = FakeImage
-  spies = [
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function () {
-      if (!this.__ctx) this.__ctx = fakeContext(this)
-      return this.__ctx
-    }),
-    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockImplementation(() => 'data:image/png;base64,TUFTSw=='),
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(() => ({
-      x: 0, y: 0, left: 0, top: 0, right: 64, bottom: 48, width: 64, height: 48, toJSON() {},
-    })),
-    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => 64),
-    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => 48),
-  ]
-  if (!Element.prototype.setPointerCapture) {
-    Element.prototype.setPointerCapture = function () {}
-    Element.prototype.releasePointerCapture = function () {}
-    addedCapture = true
-  }
-})
-
-afterEach(() => {
-  if (addedCapture) {
-    delete Element.prototype.setPointerCapture
-    delete Element.prototype.releasePointerCapture
-    addedCapture = false
-  }
-  globalThis.Image = OrigImage
-  window.Image = OrigImage
-  spies.forEach(s => s.mockRestore())
 })
 
 async function mountSingle() {
@@ -228,11 +125,6 @@ function lastEnqueueParams() {
 }
 
 describe('Effect mask in post-process', () => {
-  it('i18n keys for the mask exist', () => {
-    expect(t('post.effect_mask_btn')).not.toBe('post.effect_mask_btn')
-    expect(t('fi.btn_clear_mask')).not.toBe('fi.btn_clear_mask')
-  })
-
   it('single image: mask toggle is shown in the effects section', async () => {
     const wrapper = await mountSingle()
     expect(maskToggle(wrapper)).toBeTruthy()

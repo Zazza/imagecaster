@@ -1,23 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
-
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
 
 import UnifiedPresetsPage from '../components/UnifiedPresetsPage.vue'
 import PresetsPage from '../components/PresetsPage.vue'
 import PresetForm from '../components/PresetForm.vue'
 import {
-  ListPresets, ListPresetTypes, GetPresetsInstallStatus, ListCompoundPresets, PreparePresetsExport, DeletePreset,
+  ListPresets, ListPresetTypes, ListCompoundPresets, PreparePresetsExport, DeletePreset,
   GetSDModels, GetSDSamplers, GetSDSchedulers, GetSDUpscalers, GetSDVAEs, GetSDLoRAs,
 } from '../wailsjs/go/main/App.js'
-import { t, en, ru } from '../i18n/index.js'
+import { t } from '../i18n/index.js'
 import { effectTypeLabel } from '../effectTypes.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -40,14 +34,6 @@ const EFFECTS = [
   { id: 203, name: 'Film Effect Qx', type_id: 4, preset_type: 'post_film' },
 ]
 
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
-
 function givenPresets(list) {
   ListPresets.mockResolvedValue(list.map(p => ({ ...p })))
 }
@@ -57,7 +43,6 @@ beforeEach(() => {
   clearEventMocks()
   localStorage.clear()
   ListPresetTypes.mockResolvedValue(TYPES.map(x => ({ ...x })))
-  GetPresetsInstallStatus.mockResolvedValue([])
   ListCompoundPresets.mockResolvedValue([])
   for (const fn of [GetSDModels, GetSDSamplers, GetSDSchedulers, GetSDUpscalers, GetSDVAEs, GetSDLoRAs]) {
     fn.mockResolvedValue([])
@@ -238,8 +223,8 @@ describe('Effects tab: empty state', () => {
     const wrapper = await mountList('effects')
     expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid="style-row"]').length).toBe(0)
-    expect(wrapper.find('.empty-state').text()).toContain('Эффектов пока нет')
-    expect(wrapper.find('.page-title').text()).toBe('Эффекты')
+    expect(wrapper.find('.empty-state').text()).toContain(t('presets.no_effects'))
+    expect(wrapper.find('.page-title').text()).toBe(t('presets.title_effects'))
   })
 
   it('T5: only effects exist: styles tab shows empty state and no cards', async () => {
@@ -247,17 +232,12 @@ describe('Effects tab: empty state', () => {
     const wrapper = await mountList('styles')
     expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid="style-row"]').length).toBe(0)
-    expect(wrapper.find('.empty-state').text()).toContain('Стилей пока нет')
-    expect(wrapper.find('.page-title').text()).toBe('Стили')
+    expect(wrapper.find('.empty-state').text()).toContain(t('presets.no_presets'))
+    expect(wrapper.find('.page-title').text()).toBe(t('presets.title'))
   })
 })
 
 describe('Effects tab: UnifiedPresetsPage tabs', () => {
-  it('T6: i18n has unified.tab_effects in ru and en', () => {
-    expect(ru['unified.tab_effects']).toBe('Эффекты')
-    expect(en['unified.tab_effects']).toBe('Effects')
-  })
-
   it('T6: three tabs in order Styles, Effects, Workflows; second tab renders effects list', async () => {
     const wrapper = mount(UnifiedPresetsPage, { attachTo: document.body })
     await settle()

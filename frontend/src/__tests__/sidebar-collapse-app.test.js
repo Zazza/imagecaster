@@ -1,35 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
-
-vi.mock('../wailsjs/runtime/runtime', async () => ({
-  ...(await import('./mocks/runtime')),
-  BrowserOpenURL: vi.fn(),
-  WindowSetSystemDefaultTheme: () => {}, WindowSetDarkTheme: () => {}, WindowSetLightTheme: () => {},
-  Environment: () => Promise.reject(new Error('no wails')),
-  WindowIsMaximised: () => Promise.resolve(false), WindowIsFullscreen: () => Promise.resolve(false),
-}))
-vi.mock('../wailsjs/go/main/App.js', async () => ({
-  ...(await import('./mocks/wails-app')).default,
-  CheckServer: vi.fn(() => Promise.resolve({ state: 'ok', url: 'http://s:1', version: '2', missing: [], error: '' })),
-  DiscoverServers: vi.fn(() => Promise.resolve([])),
-}))
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 
 import App from '../App.vue'
 import { t, setLocale, locale } from '../i18n/index.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
 const stubs = { SettingsPage: true, UnifiedGeneratePage: true, AppFooter: true, WelcomeModal: true, ServerCheckModal: true }
 const KEY = 'imagecaster_sidebar'
-
-async function settle() {
-  for (let i = 0; i < 5; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 async function mountApp() {
   const w = mount(App, { global: { stubs } })
@@ -73,12 +52,6 @@ describe('sidebar footer layout (condition 1)', () => {
     const b = w.find('.sidebar-footer .sidebar-collapse-btn')
     expect(b.attributes('title')).toBe(t('app.sidebar_expand'))
     expect(b.attributes('aria-label')).toBe(t('app.sidebar_expand'))
-  })
-
-  it('collapse/expand labels are distinct translated strings, not raw keys', () => {
-    expect(t('app.sidebar_collapse')).not.toBe('app.sidebar_collapse')
-    expect(t('app.sidebar_expand')).not.toBe('app.sidebar_expand')
-    expect(t('app.sidebar_collapse')).not.toBe(t('app.sidebar_expand'))
   })
 
   it('label follows the toggle', async () => {

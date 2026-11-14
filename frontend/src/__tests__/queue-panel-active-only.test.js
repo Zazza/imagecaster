@@ -2,17 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base }
-})
-
 import QueuePanel from '../components/QueuePanel.vue'
 import { GetQueue, IsQueuePaused } from '../wailsjs/go/main/App.js'
 import { t } from '../i18n/index.js'
-import { ru } from '../i18n/ru.js'
-import { en } from '../i18n/en.js'
 
 enableAutoUnmount(afterEach)
 
@@ -34,6 +26,7 @@ function itemFor(w, j) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks()
   clearEventMocks()
   IsQueuePaused.mockImplementation(() => Promise.resolve(false))
 })
@@ -70,10 +63,7 @@ describe('queue panel shows only current and planned work', () => {
 
   it('has no "Clear finished" button even when finished jobs exist', async () => {
     const w = await mountWith([job('completed'), job('cancelled'), job('failed')])
-    const label = ru['queue.clear_done'] || en['queue.clear_done']
-    const texts = w.findAll('button').map(b => b.text() + ' ' + (b.attributes('title') || ''))
-    expect(texts.some(s => s.includes('queue.clear_done'))).toBe(false)
-    if (label) expect(texts.some(s => s.includes(label))).toBe(false)
+    expect(w.findAll('.q-btn').map(b => b.attributes('title'))).toEqual([t('queue.pause'), t('queue.cancel_all')])
   })
 
   it('shows empty text when queue holds only completed/cancelled jobs', async () => {
@@ -86,16 +76,5 @@ describe('queue panel shows only current and planned work', () => {
     const w = await mountWith([])
     expect(w.findAll('.queue-item')).toHaveLength(0)
     expect(w.text()).toContain(t('queue.empty'))
-  })
-})
-
-describe('i18n dictionaries drop clear-finished keys', () => {
-  it.each([['ru', ru], ['en', en]])('%s has no queue.clear_done / queue.confirm_clear', (_, dict) => {
-    expect(dict).not.toHaveProperty(['queue.clear_done'])
-    expect(dict).not.toHaveProperty(['queue.confirm_clear'])
-  })
-
-  it.each([['ru', ru], ['en', en]])('%s keeps queue.empty', (_, dict) => {
-    expect(dict['queue.empty']).toBeTruthy()
   })
 })

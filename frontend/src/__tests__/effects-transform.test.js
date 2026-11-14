@@ -2,9 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).default)
-
 import PostProcessPage from '../components/PostProcessPage.vue'
 import {
   GetSettings, GetActiveSessionItem, GetSessionImage, ListPresets, ListPresetTypes,
@@ -87,7 +84,6 @@ describe('Transform effects in post-process', () => {
 
   it('shows the post_transform group with its effects', async () => {
     const wrapper = await mountPage()
-    expect(t('post.group_effect_transform')).not.toBe('post.group_effect_transform')
     expect(hasTransformOption(wrapper)).toBe(true)
     await pickGroup(wrapper, 'post.group_effect_transform')
     const group = wrapper.find('.fx-group')

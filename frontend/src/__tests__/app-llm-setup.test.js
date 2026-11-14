@@ -1,19 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
-
-vi.mock('../wailsjs/runtime/runtime', async () => ({
-  ...(await import('./mocks/runtime')),
-  BrowserOpenURL: vi.fn(),
-  WindowSetSystemDefaultTheme: () => {}, WindowSetDarkTheme: () => {}, WindowSetLightTheme: () => {},
-  Environment: () => Promise.reject(new Error('no wails')),
-  WindowIsMaximised: () => Promise.resolve(false), WindowIsFullscreen: () => Promise.resolve(false),
-}))
-vi.mock('../wailsjs/go/main/App.js', async () => ({
-  ...(await import('./mocks/wails-app')).default,
-  CheckServer: vi.fn(() => Promise.resolve({ state: 'ok', url: 'http://s:1', version: '2', missing: [], error: '' })),
-  DiscoverServers: vi.fn(() => Promise.resolve([])),
-}))
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 
 import App from '../App.vue'
 import ServerCheckModal from '../components/ServerCheckModal.vue'
@@ -24,6 +10,7 @@ import { WELCOME_KEY } from '../welcome.js'
 import { RELEASE_NOTES } from '../releaseNotes.js'
 import { setLocale } from '../i18n/index.js'
 import { api } from '../api.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -38,14 +25,6 @@ const NEEDED = {
 }
 
 let setupSpy
-
-async function settle() {
-  for (let i = 0; i < 6; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 function welcomeDismissed() {
   localStorage.setItem(WELCOME_KEY, JSON.stringify({ dismissed: true, seenVersion: RELEASE_NOTES[0]?.version || '' }))

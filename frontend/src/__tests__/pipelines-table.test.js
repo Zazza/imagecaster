@@ -1,20 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
 
-vi.mock('../wailsjs/runtime/runtime', () => import('./mocks/runtime'))
-vi.mock('../wailsjs/go/main/App.js', async () => {
-  const base = (await import('./mocks/wails-app')).default
-  return { ...base, SyncPresets: vi.fn() }
-})
+vi.mock('../wailsjs/go/main/App.js', async () => (await import('./mocks/wails-app')).createAppMock({ SyncPresets: vi.fn() }))
 
 import CompoundPresetsPage from '../components/CompoundPresetsPage.vue'
 import {
   ListPresets, ListPresetTypes, SyncPresets, ListCompoundPresets,
   DeleteCompoundPreset, PrepareCompoundPresetsExport, CreateCompoundPreset, OpenImportCompoundFile,
 } from '../wailsjs/go/main/App.js'
-import { t, en, ru } from '../i18n/index.js'
+import { t } from '../i18n/index.js'
+import { settle } from './helpers/async.js'
 
 enableAutoUnmount(afterEach)
 
@@ -38,14 +34,6 @@ const PIPES = () => [
   { id: 104, name: 'delta Broken', description: '', steps: [step(2, 1, 1), step(999, 0.5, 2)] },
 ]
 const PIPE_NAMES = ['Beta Flow', 'alpha Chain', 'Gamma Solo', 'delta Broken', 'Epsilon Hidden']
-
-async function settle() {
-  for (let i = 0; i < 3; i++) {
-    await flushPromises()
-    await new Promise(r => setTimeout(r, 0))
-  }
-  await nextTick()
-}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -285,11 +273,6 @@ describe('pipelines table: other actions', () => {
     await btn.trigger('click')
     await settle()
     expect(OpenImportCompoundFile).toHaveBeenCalledTimes(1)
-  })
-
-  it('compound i18n keys are in parity between ru and en', () => {
-    const keys = (d) => Object.keys(d).filter(k => k.startsWith('compound.')).sort()
-    expect(keys(ru)).toEqual(keys(en))
   })
 })
 
