@@ -368,28 +368,21 @@
       "base": "HiDream-O1",
       "category": "Art / Illustration",
       "category_ru": "Арт / Иллюстрация",
-      "description": "HiDream-O1-Image Dev, fp8 - one file, no separate text encoder or VAE: illustration, concept art, painting, posters with text, product shots; photos of people are softer than photo models. CFG 1. Downloads a set of presets",
-      "description_ru": "HiDream-O1-Image Dev, fp8: один файл, без отдельных энкодера и VAE. Иллюстрация, концепт-арт, живопись, постеры с надписью, предметное фото; фото людей мягче, чем у фотомоделей. CFG 1. Вместе с моделью скачивается набор пресетов",
-      "size_gb": 8.07,
+      "description": "HiDream-O1-Image Dev, bf16 - one file, no separate text encoder or VAE: illustration, concept art, painting, posters with text, product shots; photos of people are softer than photo models. CFG 1. Needs 16 GB of video memory, part of the weights stays in RAM: about 40 s per 1024x1024 image. Downloads a set of presets",
+      "description_ru": "HiDream-O1-Image Dev, bf16: один файл, без отдельных энкодера и VAE. Иллюстрация, концепт-арт, живопись, постеры с надписью, предметное фото; фото людей мягче, чем у фотомоделей. CFG 1. Нужна видеокарта на 16 ГБ, часть весов остаётся в оперативной памяти: около 40 с на картинку 1024×1024. Вместе с моделью скачивается набор пресетов",
+      "size_gb": 16.37,
       "recommended": false,
       "filename": "hidream_o1_image_dev_fp8_scaled.safetensors",
-      "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_fp8_scaled.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_bf16.safetensors",
       "presets": "hidream-o1.json",
       "variants": [
-        {
-          "id": "fp8",
-          "label": "FP8",
-          "filename": "hidream_o1_image_dev_fp8_scaled.safetensors",
-          "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_fp8_scaled.safetensors",
-          "size_gb": 8.07,
-          "default": true
-        },
         {
           "id": "bf16",
           "label": "BF16",
           "filename": "hidream_o1_image_dev_bf16.safetensors",
           "url": "https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_bf16.safetensors",
-          "size_gb": 16.37
+          "size_gb": 16.37,
+          "default": true
         }
       ]
     },
