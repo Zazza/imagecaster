@@ -57,6 +57,23 @@ export function installedVariant(m, sdFiles) {
   return { present: true, variant }
 }
 
+export function localVariant(m, variant, sdFiles) {
+  const stem = modelStem(variant?.filename)
+  if (!stem || stem === modelStem(mainFilename(m))) return null
+  return (sdFiles || []).find(f => modelStem(f.name) === stem) || null
+}
+
+export function serverVersions(m, sdFiles) {
+  const out = []
+  const main = installedVariant(m, sdFiles)
+  if (main.present) out.push({ file: installedFile(m, sdFiles), variant: main.variant, main: true })
+  for (const v of variantsOf(m)) {
+    const file = localVariant(m, v, sdFiles)
+    if (file) out.push({ file, variant: v, main: false })
+  }
+  return out
+}
+
 export function variantSwitchSteps(m, variant, files) {
   const steps = []
   for (const mod of m.modules || []) {

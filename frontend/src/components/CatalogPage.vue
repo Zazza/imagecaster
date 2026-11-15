@@ -10,6 +10,7 @@ import {
 } from '../serverModels.js'
 import {
   mainFilename, fitVariant, variantFits, installedFile, installedVariant, variantSwitchSteps, filterSDModels, modelBases,
+  serverVersions, localVariant,
 } from '../catalogFilters.js'
 import { t, locale } from '../i18n/index.js'
 import DownloadProgress from './DownloadProgress.vue'
@@ -34,7 +35,7 @@ const llmSections = [
 const vramGB = computed(() => Math.round(vramMB.value / 1024 * 10) / 10)
 const sdModels = computed(() => modelCatalog.value?.sd_models || [])
 const bases = computed(() => modelBases(sdModels.value))
-const visibleSDModels = computed(() => filterSDModels(sdModels.value, filters, { isInstalled: isSDModelPresent, vramMB: vramMB.value }))
+const visibleSDModels = computed(() => filterSDModels(sdModels.value, filters, { isInstalled: hasAnyVersion, vramMB: vramMB.value }))
 const visibleNames = computed(() => new Set(visibleSDModels.value.map(m => m.name)))
 const filtersActive = computed(() => !!(filters.query || filters.base || filters.installed !== 'all' || filters.fits))
 
@@ -66,6 +67,25 @@ function isSDModelPresent(m) {
   return !!installedFile(m, serverModels.sd)
 }
 
+function hasAnyVersion(m) {
+  return serverVersions(m, serverModels.sd).length > 0
+}
+
+function versionsOnServer(m) {
+  return serverVersions(m, serverModels.sd)
+}
+
+function selectedLocal(m) {
+  const v = selectedVariant(m)
+  return v ? localVariant(m, v, serverModels.sd) : null
+}
+
+function versionLabel(sv) {
+  const name = sv.variant ? sv.variant.label : sv.file.name
+  const size = sv.file.size ? ` — ${(sv.file.size / 1e9).toFixed(2)} ${t('settings.unit_gb')}` : ''
+  return (sv.main ? `${name} (${t('settings.catalog_version_main')})` : name) + size
+}
+
 function isSDModelInstalled(m) {
   return isSDModelPresent(m) && missingModules(m).length === 0 && unverifiedModules(m).length === 0
 }
@@ -89,12 +109,14 @@ function isOtherVersion(m) {
 function selectedVariant(m) {
   if (!hasVariants(m)) return null
   const id = chosen[m.name]
-  return m.variants.find(v => v.id === id) || currentVariant(m) || fitVariant(m, vramMB.value)
+  return m.variants.find(v => v.id === id) || currentVariant(m)
+    || (isSDModelPresent(m) ? null : m.variants.find(v => localVariant(m, v, serverModels.sd)))
+    || fitVariant(m, vramMB.value)
 }
 
 function needsReplace(m) {
   const v = selectedVariant(m)
-  return !!v && isSDModelPresent(m) && currentVariant(m)?.id !== v.id
+  return !!v && isSDModelPresent(m) && currentVariant(m)?.id !== v.id && !selectedLocal(m)
 }
 
 function selectVariant(m, id) {
@@ -269,6 +291,7 @@ onMounted(async () => {
                 <span v-if="isOtherVersion(m)" class="badge badge-warning" data-testid="catalog-other-version">{{ t('settings.catalog_other_version') }}</span>
                 <span v-else-if="isSDModelInstalled(m)" class="badge badge-success">{{ currentVariant(m) ? t('settings.installed') + ': ' + currentVariant(m).label : t('settings.installed') }}</span>
                 <span v-else-if="isSDModelUnverified(m)" class="badge badge-warning">{{ t('settings.installed_unverified') }}</span>
+                <span v-else-if="!isSDModelPresent(m) && hasAnyVersion(m) && !missingModules(m).length && !unverifiedModules(m).length" class="badge badge-success" data-testid="catalog-installed-local">{{ t('settings.installed') + ': ' + versionsOnServer(m).map(sv => sv.variant.label).join(', ') }}</span>
                 <span v-if="m.recommended" class="badge badge-accent">{{ t('settings.recommended') }}</span>
               </div>
               <div class="cat-desc">{{ catalogText(m, 'category') }} &mdash; {{ catalogText(m, 'description') }} &mdash; {{ modelSize(m) }} {{ t('settings.unit_gb') }}</div>
@@ -278,6 +301,14 @@ onMounted(async () => {
                   <option v-for="v in m.variants" :key="v.id" :value="v.id">{{ variantOption(v) }}</option>
                 </select>
               </div>
+              <div v-if="versionsOnServer(m).length" class="cat-extra" data-testid="catalog-server-versions">
+                <span>{{ t('settings.catalog_on_server') }}</span>
+                <span v-for="sv in versionsOnServer(m)" :key="sv.file.name" class="cat-module have" data-testid="catalog-server-version">
+                  <Check :size="12" />{{ versionLabel(sv) }}
+                  <button v-if="!sv.main" class="btn btn-xs btn-danger-quiet" data-testid="catalog-version-delete" :title="sv.file.name" @click="deleteModel('sd', sv.file.name)">{{ t('settings.btn_delete_model') }}</button>
+                </span>
+              </div>
+              <div v-if="selectedLocal(m)" class="cat-extra" data-testid="catalog-variant-local">{{ t('settings.catalog_variant_local', { file: selectedLocal(m).name }) }}</div>
               <div v-if="m.modules && m.modules.length" class="cat-extra">
                 <span>{{ t('settings.catalog_modules') }}</span>
                 <span v-for="mod in m.modules" :key="mod.filename" class="cat-module" :class="{ have: hasServerFile(mod.type, mod.filename) }">
@@ -294,7 +325,7 @@ onMounted(async () => {
               <template v-else>
                 <button v-if="needsReplace(m) && m.url" class="btn btn-secondary btn-sm" data-testid="catalog-replace" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_replace_version', { label: selectedVariant(m).label }) }}</button>
                 <button v-if="isSDModelPresent(m)" class="btn btn-sm btn-danger-quiet" @click="deleteSDModel(m)">{{ t('settings.btn_delete_model') }}</button>
-                <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
+                <button v-else-if="m.url && !selectedLocal(m)" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
               </template>
             </div>
           </div>

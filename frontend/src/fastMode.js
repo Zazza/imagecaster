@@ -37,6 +37,8 @@ function modelStem(name) {
 export function fastCacheFor(catalog, model) {
   const stem = modelStem(model)
   if (!stem) return ''
-  const m = (catalog?.sd_models || []).find(m => modelStem(m.filename || `${m.name}.safetensors`) === stem || String(m.name || '').toLowerCase() === stem)
+  const models = catalog?.sd_models || []
+  const m = models.find(m => modelStem(m.filename || `${m.name}.safetensors`) === stem || String(m.name || '').toLowerCase() === stem)
+    || models.find(m => (m.variants || []).some(v => modelStem(v.filename) === stem))
   return m?.fast_cache || ''
 }

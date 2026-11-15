@@ -147,6 +147,24 @@ func (c *Catalog) FindSDModel(name string) *CatalogSDModel {
 	return nil
 }
 
+func (c *Catalog) FindSDModelOrVariant(name string) *CatalogSDModel {
+	if m := c.FindSDModel(name); m != nil {
+		return m
+	}
+	stem := modelStem(name)
+	if stem == "" {
+		return nil
+	}
+	for i := range c.SDModels {
+		for _, v := range c.SDModels[i].Variants {
+			if modelStem(v.Filename) == stem {
+				return &c.SDModels[i]
+			}
+		}
+	}
+	return nil
+}
+
 func LoadCatalogPresets(file string) ([]byte, error) {
 	if file == "" || strings.ContainsAny(file, `/\`) || !strings.HasSuffix(file, ".json") {
 		return nil, fmt.Errorf("invalid catalog presets file %q", file)
@@ -242,7 +260,7 @@ var fastCacheByBase = map[string]string{
 }
 
 func (c *Catalog) FastCacheMode(model string) string {
-	m := c.FindSDModel(model)
+	m := c.FindSDModelOrVariant(model)
 	if m == nil {
 		return ""
 	}

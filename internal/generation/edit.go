@@ -57,7 +57,7 @@ func catalogModules(model string, vision bool) []string {
 	if err != nil {
 		return []string{}
 	}
-	m := catalog.FindSDModel(model)
+	m := catalog.FindSDModelOrVariant(model)
 	if m == nil {
 		return []string{}
 	}
