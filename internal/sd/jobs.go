@@ -125,6 +125,7 @@ type Txt2ImgParams struct {
 	ClipSkip       *int         `json:"clip_skip,omitempty"`
 	BatchSize      int          `json:"batch_size"`
 	Hires          *HiresParams `json:"hires,omitempty"`
+	CacheMode      string       `json:"cache_mode,omitempty"`
 }
 
 type Img2ImgParams struct {
@@ -461,6 +462,7 @@ func txt2imgParams(req Txt2ImgRequest) Txt2ImgParams {
 		Seed:           seedOf(req.Seed),
 		ClipSkip:       req.ClipSkip,
 		BatchSize:      batchOf(req.BatchSize, req.BatchCount),
+		CacheMode:      req.CacheMode,
 	}
 	if req.HiresFix != nil && *req.HiresFix {
 		h := &HiresParams{
@@ -497,6 +499,7 @@ func img2imgParams(req Img2ImgRequest) Img2ImgParams {
 			Seed:           seedOf(req.Seed),
 			ClipSkip:       req.ClipSkip,
 			BatchSize:      batchOf(req.BatchSize, req.BatchCount),
+			CacheMode:      req.CacheMode,
 		},
 		Mask: req.Mask,
 	}

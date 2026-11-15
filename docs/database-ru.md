@@ -11,17 +11,17 @@
 
 ## Миграции
 
-Версия схемы хранится в `PRAGMA user_version` (`internal/preset/schema.go`, текущая `schemaVersion` = 33).
+Версия схемы хранится в `PRAGMA user_version` (`internal/preset/schema.go`, текущая `schemaVersion` = 35).
 
 | Состояние базы при открытии | Что происходит |
 |---|---|
-| пустая (нет таблиц) | `latestSchemaDDL` + начальные данные создаются одной транзакцией; версия = 33 |
+| пустая (нет таблиц) | `latestSchemaDDL` + начальные данные создаются одной транзакцией; версия = 35 |
 | есть таблицы, `user_version = 0` (создана старой версией) | один раз выполняется старая цепочка `legacyMigrations` (`internal/preset/db.go`), версия ставится 32, затем `schemaSteps` |
-| `user_version` ≥ 33 | ничего не выполняется; открытие ничего не пишет |
+| `user_version` ≥ 35 | ничего не выполняется; открытие ничего не пишет |
 
 Шаги `schemaSteps` идут по порядку, каждый в транзакции `BEGIN IMMEDIATE` и только если его номер больше `user_version`; версия поднимается в той же транзакции.
 
-**Новая миграция:** добавить в `schemaSteps` шаг со следующим номером (34, 35, …), то же изменение внести в `latestSchemaDDL`, поднять `schemaVersion`. Тесты `TestSchema_FreshEqualsFullLegacyChain` и `TestSchema_OldDBUpgradesToLatest` проверяют, что новая и обновлённая базы получают одинаковую схему.
+**Новая миграция:** добавить в `schemaSteps` шаг со следующим номером (36, 37, …), то же изменение внести в `latestSchemaDDL`, поднять `schemaVersion`. Тесты `TestSchema_FreshEqualsFullLegacyChain` и `TestSchema_OldDBUpgradesToLatest` проверяют, что новая и обновлённая базы получают одинаковую схему.
 
 ## Таблицы
 
@@ -44,6 +44,7 @@
 | cfg_scale | REAL, по умолчанию 7.0 | |
 | model_name | TEXT, по умолчанию `''` | файл чекпоинта |
 | vae | TEXT, по умолчанию `''` | файл VAE |
+| fast_mode | TEXT, по умолчанию `''` | быстрая генерация (кэш шагов sd.cpp): `''` — по настройке `fast_generation`, `on` / `off` — всегда вкл/выкл. Добавлена в v35 |
 | seed | INTEGER | NULL = случайный |
 | denoising_strength | REAL | NULL = не задано |
 | clip_skip | INTEGER | |
@@ -234,6 +235,7 @@
 | `llm_num_ctx`, `llm_generate_num_ctx`, `llm_analyze_num_ctx` | 4096 | уходит как `options.num_ctx`, но сервер его игнорирует: размер контекста llama.cpp задаёт `llm.context_size` сервера (по умолчанию 8192) |
 | `llm_generate_*` / `llm_analyze_*` `top_p`, `num_thread` | 0.9 / 0 | уходят с каждым текстовым (`generate`) или фото-запросом (`analyze`); 0 — не отправляется. Температура задана в коде для каждой операции; старые строки `temperature`/`num_predict` не читаются |
 | `llm_auto_unload` | `true` | защита памяти: выгружать LLM-модели перед заданием SD, если мало свободной VRAM/RAM |
+| `fast_generation` | `false` | быстрая генерация для стилей без своего выбора: задание получает `params.cache_mode` по базе модели из каталога (Moss → spectrum; Flux.1, Qwen-Image → easycache; Chroma → dbcache; SDXL, SD 1.5, Pony → ucache; остальные — без кэша) |
 | `auto_installed_presets` | — | имена встроенных пресетов, уже поставленных `SyncPresets` (удалённые не возвращаются) |
 | `install_id` | случайный | 16 hex-символов; префикс `client_ref` у каждого задания на сервере |
 

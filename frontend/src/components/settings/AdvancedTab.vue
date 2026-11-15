@@ -2,6 +2,7 @@
 import { ref, inject } from 'vue'
 import { X } from 'lucide-vue-next'
 import StatusMessage from '../StatusMessage.vue'
+import ToggleSwitch from '../ToggleSwitch.vue'
 import DownloadProgress from '../DownloadProgress.vue'
 import { api } from '../../api.js'
 import {
@@ -10,7 +11,22 @@ import {
 } from '../../serverModels.js'
 import { t } from '../../i18n/index.js'
 
-const { memoryForm, serverModelDownload, llmPullName } = inject('settingsState')
+const { memoryForm, fastGeneration, serverModelDownload, llmPullName } = inject('settingsState')
+
+const fastError = ref('')
+
+async function onFastToggle(on) {
+  const prev = fastGeneration.value
+  fastGeneration.value = on
+  fastError.value = ''
+  try {
+    await api.updateSettings({ fast_generation: on ? 'true' : 'false' })
+  } catch (e) {
+    console.error('save fast_generation:', e)
+    fastGeneration.value = prev
+    fastError.value = String(e)
+  }
+}
 
 const memorySaved = ref(false)
 const memoryError = ref('')
@@ -43,6 +59,17 @@ async function pullFromForm() {
 
 <template>
   <div>
+    <div class="card mb-4">
+      <h3 class="text-bright mb-3">{{ t('fast.section') }}</h3>
+      <StatusMessage v-if="fastError" class="mb-3" @close="fastError = ''">{{ fastError }}</StatusMessage>
+      <div class="flex gap-3">
+        <ToggleSwitch data-testid="settings-fast-generation" :modelValue="fastGeneration" @update:modelValue="onFastToggle" />
+        <div class="flex-1">
+          <div class="text-bright">{{ fastGeneration ? t('settings.enabled') : t('settings.disabled') }}</div>
+          <div class="form-hint">{{ t('fast.hint') }}</div>
+        </div>
+      </div>
+    </div>
     <div class="card" style="margin-bottom: 16px;">
       <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.section_memory_guard') }}</h3>
       <StatusMessage v-if="memorySaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="memorySaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>

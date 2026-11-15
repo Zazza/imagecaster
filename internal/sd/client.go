@@ -238,6 +238,7 @@ type Txt2ImgRequest struct {
 	HiresResizeX           int
 	HiresResizeY           int
 	HiresSecondPassSteps   int
+	CacheMode              string
 }
 
 type Img2ImgRequest struct {
@@ -257,6 +258,7 @@ type Img2ImgRequest struct {
 	BatchSize         *int
 	BatchCount        *int
 	Mask              string
+	CacheMode         string
 }
 
 type Txt2ImgResponse struct {

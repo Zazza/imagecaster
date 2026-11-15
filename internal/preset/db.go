@@ -191,7 +191,7 @@ func (d *DB) DB() *sql.DB {
 	return d.db
 }
 
-const presetColumns = `id, name, preset_type, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, seed, denoising_strength, clip_skip, batch_size, batch_count, vae, type_id, tags, loras, is_bundled, created_at, updated_at`
+const presetColumns = `id, name, preset_type, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, seed, denoising_strength, clip_skip, batch_size, batch_count, vae, type_id, tags, loras, is_bundled, created_at, updated_at, fast_mode`
 
 func scanPreset(scanner interface{ Scan(...any) error }, p *Preset) error {
 	var seed sql.NullInt64
@@ -208,7 +208,7 @@ func scanPreset(scanner interface{ Scan(...any) error }, p *Preset) error {
 		&denoisingStrength, &clipSkip, &batchSize, &batchCount,
 		&p.VAE,
 		&typeID, &p.Tags, &p.Loras, &p.IsBundled,
-		&p.CreatedAt, &p.UpdatedAt,
+		&p.CreatedAt, &p.UpdatedAt, &p.FastMode,
 	)
 	if err != nil {
 		return err
@@ -301,12 +301,12 @@ func (d *DB) FindExactPreset(p *Preset) (*Preset, error) {
 		WHERE name = ? AND preset_type = ? AND prompt = ? AND negative_prompt = ?
 		AND sampler = ? AND schedule_type = ? AND steps = ? AND cfg_scale = ?
 		AND model_name = ? AND loras = ?
-		AND seed IS ? AND denoising_strength IS ? AND clip_skip IS ? AND vae IS ?
+		AND seed IS ? AND denoising_strength IS ? AND clip_skip IS ? AND vae IS ? AND fast_mode = ?
 		ORDER BY id LIMIT 1`,
 		p.Name, p.PresetType, p.Prompt, p.NegativePrompt,
 		p.Sampler, p.ScheduleType, p.Steps, p.CfgScale,
 		p.ModelName, p.Loras,
-		p.Seed, p.DenoisingStrength, p.ClipSkip, p.VAE), &found)
+		p.Seed, p.DenoisingStrength, p.ClipSkip, p.VAE, NormalizeFastMode(p.FastMode)), &found)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -340,10 +340,10 @@ func trimModelExt(name string) string {
 }
 
 func (d *DB) Create(p *Preset) error {
-	result, err := d.db.Exec(`INSERT INTO presets (name, preset_type, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, seed, denoising_strength, clip_skip, batch_size, batch_count, vae, type_id, tags, loras) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	result, err := d.db.Exec(`INSERT INTO presets (name, preset_type, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, seed, denoising_strength, clip_skip, batch_size, batch_count, vae, type_id, tags, loras, fast_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.Name, p.PresetType, p.Prompt, p.NegativePrompt, p.Sampler, p.ScheduleType, p.Steps, p.CfgScale, p.ModelName, p.Seed,
 		p.DenoisingStrength, p.ClipSkip, p.BatchSize, p.BatchCount, p.VAE,
-		p.TypeID, p.Tags, p.Loras)
+		p.TypeID, p.Tags, p.Loras, NormalizeFastMode(p.FastMode))
 	if err != nil {
 		return err
 	}
@@ -352,10 +352,10 @@ func (d *DB) Create(p *Preset) error {
 }
 
 func (d *DB) Update(p *Preset) error {
-	_, err := d.db.Exec(`UPDATE presets SET name=?, preset_type=?, prompt=?, negative_prompt=?, sampler=?, schedule_type=?, steps=?, cfg_scale=?, model_name=?, seed=?, denoising_strength=?, clip_skip=?, batch_size=?, batch_count=?, vae=?, type_id=?, tags=?, loras=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+	_, err := d.db.Exec(`UPDATE presets SET name=?, preset_type=?, prompt=?, negative_prompt=?, sampler=?, schedule_type=?, steps=?, cfg_scale=?, model_name=?, seed=?, denoising_strength=?, clip_skip=?, batch_size=?, batch_count=?, vae=?, type_id=?, tags=?, loras=?, fast_mode=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
 		p.Name, p.PresetType, p.Prompt, p.NegativePrompt, p.Sampler, p.ScheduleType, p.Steps, p.CfgScale, p.ModelName, p.Seed,
 		p.DenoisingStrength, p.ClipSkip, p.BatchSize, p.BatchCount, p.VAE,
-		p.TypeID, p.Tags, p.Loras, p.ID)
+		p.TypeID, p.Tags, p.Loras, NormalizeFastMode(p.FastMode), p.ID)
 	return err
 }
 
@@ -402,10 +402,10 @@ func (d *DB) CreateBatch(items []Preset) ([]Preset, error) {
 
 	var created []Preset
 	for _, item := range items {
-		result, err := tx.Exec(`INSERT INTO presets (name, preset_type, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, seed, denoising_strength, clip_skip, batch_size, batch_count, vae, type_id, tags, loras) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		result, err := tx.Exec(`INSERT INTO presets (name, preset_type, prompt, negative_prompt, sampler, schedule_type, steps, cfg_scale, model_name, seed, denoising_strength, clip_skip, batch_size, batch_count, vae, type_id, tags, loras, fast_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			item.Name, item.PresetType, item.Prompt, item.NegativePrompt, item.Sampler, item.ScheduleType, item.Steps, item.CfgScale, item.ModelName, item.Seed,
 			item.DenoisingStrength, item.ClipSkip, item.BatchSize, item.BatchCount, item.VAE,
-			item.TypeID, item.Tags, item.Loras)
+			item.TypeID, item.Tags, item.Loras, NormalizeFastMode(item.FastMode))
 		if err != nil {
 			tx.Rollback()
 			return nil, err

@@ -50,6 +50,7 @@ type PresetData struct {
 	VAE               string   `json:"vae"`
 	Tags              string   `json:"tags"`
 	Loras             string   `json:"loras"`
+	FastMode          string   `json:"fast_mode,omitempty"`
 	SourceFile        string   `json:"source_file,omitempty"`
 }
 
@@ -159,6 +160,7 @@ func (s *Service) PrepareExportData(ids []int64) ([]PresetData, error) {
 			VAE:               p.VAE,
 			Tags:              p.Tags,
 			Loras:             p.Loras,
+			FastMode:          p.FastMode,
 		}
 	}
 
@@ -281,6 +283,7 @@ func (s *Service) ImportItems(items []PresetData) ([]preset.Preset, error) {
 			VAE:               item.VAE,
 			Tags:              item.Tags,
 			Loras:             item.Loras,
+			FastMode:          item.FastMode,
 		}
 
 		typeName := item.TypeName
@@ -539,6 +542,7 @@ func (s *Service) PrepareCompoundExportData(ids []int64) ([]CompoundExportData, 
 					VAE:               p.VAE,
 					Tags:              p.Tags,
 					Loras:             p.Loras,
+					FastMode:          p.FastMode,
 				}
 			}
 			var loras string
@@ -672,6 +676,7 @@ func (s *Service) ImportCompoundItems(items []CompoundExportData) ([]preset.Comp
 				VAE:               pd.VAE,
 				Tags:              pd.Tags,
 				Loras:             pd.Loras,
+				FastMode:          pd.FastMode,
 				TypeID:            typeID,
 			}
 			existing, err := s.db.FindExactPreset(&p)

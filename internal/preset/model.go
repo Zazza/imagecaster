@@ -20,6 +20,7 @@ type Preset struct {
 	TypeID            *int64   `json:"type_id"`
 	Tags              string   `json:"tags"`
 	Loras             string   `json:"loras"`
+	FastMode          string   `json:"fast_mode"`
 	IsBundled         bool     `json:"is_bundled"`
 	CreatedAt         string   `json:"created_at"`
 	UpdatedAt         string   `json:"updated_at"`

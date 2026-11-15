@@ -413,6 +413,7 @@ func (s *Service) img2imgRedenoise(base64Img string, req sd.Txt2ImgRequest, targ
 	i2iReq := sd.Img2ImgRequest{
 		Model:             req.Model,
 		InitImages:        []string{base64Img},
+		CacheMode:         req.CacheMode,
 		Prompt:            req.Prompt,
 		NegativePrompt:    req.NegativePrompt,
 		SamplerName:       req.SamplerName,
@@ -905,6 +906,7 @@ func (s *Service) presetTxt2Img(p *preset.Preset, spec sd.ModelSpec, prompt, neg
 		req: sd.Txt2ImgRequest{
 			Model:                  spec,
 			Prompt:                 prompt,
+			CacheMode:              s.cacheModeFor(p, spec.Checkpoint),
 			NegativePrompt:         negativePrompt,
 			SamplerName:            p.Sampler,
 			Scheduler:              p.ScheduleType,

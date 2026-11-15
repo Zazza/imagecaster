@@ -426,6 +426,7 @@ func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImagePar
 	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
 		Model:             refSpec,
 		InitImages:        []string{params.ImageBase64},
+		CacheMode:         s.cacheModeFor(p, refSpec.Checkpoint),
 		Prompt:            prompt,
 		NegativePrompt:    negativePrompt,
 		SamplerName:       p.Sampler,
