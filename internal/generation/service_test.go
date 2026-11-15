@@ -9,8 +9,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -99,7 +97,6 @@ func (m *mockLLM) AnalyzeImageDescribe(model, prompt, imageBase64 string, maxTok
 func (m *mockLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
 func (m *mockLLM) HealthCheck() error                     { return nil }
 func (m *mockLLM) SetURL(baseURL string)                  {}
-func (m *mockLLM) SetBackendConfig(cfg llm.BackendConfig) {}
 func (m *mockLLM) ListLoaded() ([]llm.LoadedModel, error) { return nil, nil }
 func (m *mockLLM) UnloadAll(ctx context.Context) error    { return nil }
 
@@ -231,14 +228,6 @@ func (e *mockEmitter) hasEvent(name string) bool {
 	return false
 }
 
-type mockSettings struct {
-	applied []string
-}
-
-func (m *mockSettings) ApplyLLMConfig(mode string) {
-	m.applied = append(m.applied, mode)
-}
-
 type mockSessions struct {
 	mu    sync.Mutex
 	items []sessionItem
@@ -248,18 +237,16 @@ type sessionItem struct {
 	imageBase64 string
 	info        json.RawMessage
 	source      string
-	isPreview   bool
 	meta        *preset.GenerationMeta
 }
 
-func (m *mockSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+func (m *mockSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.items = append(m.items, sessionItem{
 		imageBase64: imageBase64,
 		info:        info,
 		source:      source,
-		isPreview:   isPreview,
 		meta:        meta,
 	})
 	return int64(len(m.items))
@@ -303,7 +290,6 @@ func makeTestPreset(t *testing.T, db *preset.DB, p *preset.Preset) *preset.Prese
 func newTestService(t *testing.T, db *preset.DB, llmSvc *mockLLM, sdSvc *mockSD) *Service {
 	t.Helper()
 	emitter := &mockEmitter{}
-	settings := &mockSettings{}
 	sessions := &mockSessions{}
 	kidsMgr := kids.NewManager(db)
 	tmpDir := t.TempDir()
@@ -321,8 +307,6 @@ func newTestService(t *testing.T, db *preset.DB, llmSvc *mockLLM, sdSvc *mockSD)
 		emitter,
 		kidsMgr,
 		sessions,
-		settings,
-		nil,
 		log,
 	)
 }
@@ -1211,53 +1195,6 @@ func TestUpscaleImage_SDReturnsEmpty(t *testing.T) {
 	assert.Contains(t, err.Error(), "no image generated during upscale")
 }
 
-func TestGetLastImage_NoFile(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-
-	result, err := svc.GetLastImage()
-	assert.NoError(t, err)
-	assert.Nil(t, result)
-}
-
-func TestGetLastImage_WithFile(t *testing.T) {
-	t.Parallel()
-	tmpDir := t.TempDir()
-	db := openTestDB(t)
-	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-	svc.dataDir = tmpDir
-
-	pngData := []byte("fake png data")
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "last_image.png"), pngData, 0644))
-	meta := lastImageMeta{Info: json.RawMessage(`{"seed": 42}`)}
-	metaBytes, _ := json.Marshal(meta)
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "last_image.json"), metaBytes, 0644))
-
-	result, err := svc.GetLastImage()
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, base64.StdEncoding.EncodeToString(pngData), result.Image)
-}
-
-func TestClearLastImage(t *testing.T) {
-	t.Parallel()
-	tmpDir := t.TempDir()
-	db := openTestDB(t)
-	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-	svc.dataDir = tmpDir
-
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "last_image.png"), []byte("data"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "last_image.json"), []byte("{}"), 0644))
-
-	svc.ClearLastImage()
-
-	_, err := os.Stat(filepath.Join(tmpDir, "last_image.png"))
-	assert.True(t, os.IsNotExist(err))
-	_, err = os.Stat(filepath.Join(tmpDir, "last_image.json"))
-	assert.True(t, os.IsNotExist(err))
-}
-
 func TestAnalyzeImage_EmptyImage(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
@@ -1545,46 +1482,6 @@ func TestTestGenerate_PresetNotFound(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Contains(t, results[0].Error, "preset not found")
-}
-
-func TestTestGenerate_WithInitImage_UsesImg2Img(t *testing.T) {
-	t.Parallel()
-	db := openTestDB(t)
-	makeTestPreset(t, db, nil)
-
-	var calledImg2Img bool
-	sdSvc := &mockSD{
-		img2img: func(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
-			calledImg2Img = true
-			assert.NotEmpty(t, req.InitImages)
-			assert.Contains(t, req.InitImages[0], "data:image/png;base64,")
-			assert.Contains(t, req.Prompt, "1girl, blue hair")
-			assert.NotNil(t, req.DenoisingStrength)
-			assert.InDelta(t, 0.5, *req.DenoisingStrength, 0.01)
-			return &sd.Txt2ImgResponse{
-				Images: []string{"img2img-result"},
-				Info:   json.RawMessage(`{"seed": 99}`),
-			}, nil
-		},
-		txt2img: func(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
-			t.Fatal("Txt2Img should not be called when InitImage is set")
-			return nil, nil
-		},
-	}
-
-	svc := newTestService(t, db, &mockLLM{}, sdSvc)
-	svc.ctx = context.Background()
-
-	results, err := svc.TestGenerate(TestGenerateParams{
-		Mode:        "presets",
-		SelectedIDs: []int64{1},
-		Prompt:      "1girl, blue hair",
-		InitImage:   "iVBORw0KGgo=",
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 1)
-	assert.Equal(t, "img2img-result", results[0].Image)
-	assert.True(t, calledImg2Img)
 }
 
 func TestAppendLorasToPrompt(t *testing.T) {

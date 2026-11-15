@@ -68,10 +68,9 @@ func (m *guardLLM) AnalyzeImageDescribe(model, prompt, imageBase64 string, maxTo
 	return "", fmt.Errorf("not implemented")
 }
 
-func (m *guardLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
-func (m *guardLLM) HealthCheck() error                     { return nil }
-func (m *guardLLM) SetURL(baseURL string)                  {}
-func (m *guardLLM) SetBackendConfig(cfg llm.BackendConfig) {}
+func (m *guardLLM) GetModels() ([]llm.LLMModel, error) { return nil, nil }
+func (m *guardLLM) HealthCheck() error                 { return nil }
+func (m *guardLLM) SetURL(baseURL string)              {}
 
 type guardSD struct {
 	stats           *sd.MemoryStats

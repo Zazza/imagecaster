@@ -190,17 +190,12 @@ func (l *tlLLM) AnalyzeImageDescribe(_, prompt, img string, _ int) (string, erro
 func (l *tlLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
 func (l *tlLLM) HealthCheck() error                     { return nil }
 func (l *tlLLM) SetURL(string)                          {}
-func (l *tlLLM) SetBackendConfig(llm.BackendConfig)     {}
 func (l *tlLLM) ListLoaded() ([]llm.LoadedModel, error) { return nil, nil }
 func (l *tlLLM) UnloadAll(context.Context) error        { return nil }
 
-type tlSettings struct{}
-
-func (tlSettings) ApplyLLMConfig(string) {}
-
 type tlSessions struct{}
 
-func (tlSessions) AddToSession(string, json.RawMessage, string, bool, *preset.GenerationMeta) int64 {
+func (tlSessions) AddToSession(string, json.RawMessage, string, *preset.GenerationMeta) int64 {
 	return 1
 }
 
@@ -223,8 +218,7 @@ func newTLEnv(t *testing.T, llmURL, sdURL string) *tlEnv {
 	fsd := &tlSD{models: []sd.SDModel{{Title: "sdxl.safetensors", Name: "sdxl"}}}
 	fllm := &tlLLM{}
 	cfg := &config.Config{LLMUrl: llmURL, SDUrl: sdURL, SDPromptModel: "prompt-model", VisionModel: "vision-model"}
-	gen := generation.New(db, fllm, fsd, cfg, t.TempDir(), NoopEmitter{}, kids.NewManager(db), tlSessions{}, tlSettings{}, nil, logger.New(nil))
-	gen.SetContext(context.Background())
+	gen := generation.New(db, fllm, fsd, cfg, t.TempDir(), NoopEmitter{}, kids.NewManager(db), tlSessions{}, logger.New(nil))
 	outDir := t.TempDir()
 	srv := NewServer(Deps{DB: db, Gen: gen, SD: fsd, LLM: fllm, Kids: kids.NewManager(db), Cfg: cfg, OutDir: outDir})
 	RegisterTools(srv)

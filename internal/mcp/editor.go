@@ -271,11 +271,11 @@ func editorSave(sessions AppSessions, src photoSource, img string, label string)
 	if src.item != nil {
 		meta.SourceItem = src.item.ID
 		if items, ok := sessions.(AppSessionItems); ok {
-			return items.AddToSessionID(src.item.SessionID, img, nil, editorSource, false, meta)
+			return items.AddToSessionID(src.item.SessionID, img, nil, editorSource, meta)
 		}
 		return 0
 	}
-	return sessions.AddToNamedSession(EditorSessionName, img, nil, editorSource, false, meta)
+	return sessions.AddToNamedSession(EditorSessionName, img, nil, editorSource, meta)
 }
 
 func editorApply(eng EditorEngine, sessions AppSessions, src photoSource, args map[string]any) (string, error) {

@@ -24,7 +24,6 @@ type styIDCall struct {
 	sessionID int64
 	image     string
 	source    string
-	isPreview bool
 	meta      *preset.GenerationMeta
 	returned  int64
 }
@@ -84,7 +83,7 @@ func (f *fakeItemSessions) GetSessionImage(id int64) (string, error) {
 	return img, nil
 }
 
-func (f *fakeItemSessions) AddToSessionID(sessionID int64, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+func (f *fakeItemSessions) AddToSessionID(sessionID int64, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.nextID++
@@ -92,7 +91,7 @@ func (f *fakeItemSessions) AddToSessionID(sessionID int64, imageBase64 string, i
 	if sessionID <= 0 {
 		id = 0
 	}
-	f.adds = append(f.adds, styIDCall{sessionID: sessionID, image: imageBase64, source: source, isPreview: isPreview, meta: meta, returned: id})
+	f.adds = append(f.adds, styIDCall{sessionID: sessionID, image: imageBase64, source: source, meta: meta, returned: id})
 	return id
 }
 

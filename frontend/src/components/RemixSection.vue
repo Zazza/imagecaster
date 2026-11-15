@@ -1,6 +1,7 @@
 <script setup>
 import { X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
+import { b64Url } from '../imageDataUrl.js'
 import FoldBlock from './FoldBlock.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
@@ -100,13 +101,6 @@ const progressLabel = computed(() => {
   if (generationStage.value === 'analyzing') return t('fi.analyzing_image')
   return t('generate.generating_image')
 })
-
-function b64Url(b64) {
-  if (!b64) return ''
-  if (b64.startsWith('data:')) return b64
-  if (b64.startsWith('/9j/')) return 'data:image/jpeg;base64,' + b64
-  return 'data:image/png;base64,' + b64
-}
 
 async function analyzeImage() {
   if (!props.source) return

@@ -232,7 +232,7 @@ Key–value store: `key TEXT PRIMARY KEY`, `value TEXT NOT NULL DEFAULT ''`. The
 | `llm_max_tokens` | 256 in Settings (512 if unset) | answer length limit for LLM calls |
 | `llm_keep_alive` | `5m` | sent as `keep_alive` with every LLM request. The server's llama.cpp layer unloads the model after this idle time; `0` = unload right after the answer. Without it the server uses its own `llm.keep_alive` |
 | `llm_num_ctx`, `llm_generate_num_ctx`, `llm_analyze_num_ctx` | 4096 | sent as `options.num_ctx`, but the server ignores it: llama.cpp context size is the server's `llm.context_size` (default 8192) |
-| `llm_generate_*` / `llm_analyze_*` `temperature`, `top_p`, `num_predict`, `num_thread` | 0.4 / 0.9 / 256 / 0 | stored and shown in Settings, but not sent to the server; temperatures are fixed in code per operation |
+| `llm_generate_*` / `llm_analyze_*` `top_p`, `num_thread` | 0.9 / 0 | sent with every text (`generate`) or photo (`analyze`) request; 0 = not sent. Temperatures are fixed in code per operation; old `temperature`/`num_predict` rows are ignored |
 | `llm_auto_unload` | `true` | memory guard: unload LLM models before an SD job when free VRAM/RAM is low |
 | `auto_installed_presets` | — | names of bundled presets already installed by `SyncPresets` (deleted ones are not reinstalled) |
 | `install_id` | random | 16 hex chars; prefix of every server job `client_ref` |

@@ -288,8 +288,8 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
-	s.StartSDPolling()
-	defer s.StopSDPolling()
+	s.beginProgress()
+	defer s.endProgress()
 
 	s.guard.EnsureHeadroom(kleinLookModel, "repair")
 
@@ -326,7 +326,7 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 		Info:            info,
 		EffectivePrompt: repairPrompt,
 	}
-	s.sessions.AddToSession(finalB64, info, "repair", false, &preset.GenerationMeta{
+	s.sessions.AddToSession(finalB64, info, "repair", &preset.GenerationMeta{
 		Label: repairLabel,
 		Model: kleinLookModel,
 	})

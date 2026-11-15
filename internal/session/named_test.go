@@ -41,7 +41,7 @@ func TestAddToNamedSession_CreatesMissingSession(t *testing.T) {
 	before := activeSession(t, svc)
 	require.Empty(t, namedSessions(t, svc, "Стилист"))
 
-	id := svc.AddToNamedSession("Стилист", makeImageJPEG(t, 64, 64), nil, "stylist", false, &preset.GenerationMeta{Label: "bob"})
+	id := svc.AddToNamedSession("Стилист", makeImageJPEG(t, 64, 64), nil, "stylist", &preset.GenerationMeta{Label: "bob"})
 
 	assert.Greater(t, id, int64(0))
 	named := namedSessions(t, svc, "Стилист")
@@ -60,8 +60,8 @@ func TestAddToNamedSession_ReusesSession(t *testing.T) {
 		svc, _, _ := testService(t)
 		before := activeSession(t, svc)
 
-		id1 := svc.AddToNamedSession("ИИ-агент", makeImageJPEG(t, 64, 64), nil, "sd", false, nil)
-		id2 := svc.AddToNamedSession("ИИ-агент", makeImageJPEG(t, 64, 64), nil, "sd", false, nil)
+		id1 := svc.AddToNamedSession("ИИ-агент", makeImageJPEG(t, 64, 64), nil, "sd", nil)
+		id2 := svc.AddToNamedSession("ИИ-агент", makeImageJPEG(t, 64, 64), nil, "sd", nil)
 
 		assert.Greater(t, id1, int64(0))
 		assert.Greater(t, id2, int64(0))
@@ -82,7 +82,7 @@ func TestAddToNamedSession_ReusesSession(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, svc.SwitchSession(original.ID))
 
-		id := svc.AddToNamedSession("Стилист", makeImageJPEG(t, 64, 64), nil, "stylist", false, nil)
+		id := svc.AddToNamedSession("Стилист", makeImageJPEG(t, 64, 64), nil, "stylist", nil)
 
 		assert.Greater(t, id, int64(0))
 		counts := map[int64]int{}
@@ -100,9 +100,9 @@ func TestAddToSession_StillWritesToActiveSession(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := testService(t)
 	active := activeSession(t, svc)
-	require.Greater(t, svc.AddToNamedSession("ИИ-агент", makeImageJPEG(t, 64, 64), nil, "sd", false, nil), int64(0))
+	require.Greater(t, svc.AddToNamedSession("ИИ-агент", makeImageJPEG(t, 64, 64), nil, "sd", nil), int64(0))
 
-	id := svc.AddToSession(makeImageJPEG(t, 64, 64), nil, "sd", false, nil)
+	id := svc.AddToSession(makeImageJPEG(t, 64, 64), nil, "sd", nil)
 
 	assert.Greater(t, id, int64(0))
 	after := activeSession(t, svc)

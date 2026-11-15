@@ -670,7 +670,6 @@ func TestRepairImage_AddsToSession(t *testing.T) {
 	require.Len(t, sessions.items, 1)
 	item := sessions.items[0]
 	assert.Equal(t, "repair", item.source)
-	assert.False(t, item.isPreview)
 	require.NotNil(t, item.meta)
 	assert.Equal(t, "Ремонт", item.meta.Label)
 	assert.Equal(t, kleinLookModel, item.meta.Model)

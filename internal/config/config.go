@@ -7,20 +7,12 @@ import (
 )
 
 type Config struct {
-	LLMUrl          string
-	SDUrl           string
-	LLMModel        string
-	SDPromptModel   string
-	VisionModel     string
-	Port            string
-	DBPath          string
-	SystemPrompt    string
-	DefaultNegative string
-	DefaultSampler  string
-	DefaultSteps    int
-	DefaultCfgScale float64
-	DefaultWidth    int
-	DefaultHeight   int
+	LLMUrl        string
+	SDUrl         string
+	LLMModel      string
+	SDPromptModel string
+	VisionModel   string
+	DBPath        string
 }
 
 var NewGenModelFamilies = []string{"flux", "z-image", "moss", "klein", "qwen-image", "chroma", "hunyuan", "krea", "hidream"}
@@ -205,49 +197,7 @@ func Load() *Config {
 		SDUrl:         env("SD_URL", "http://localhost:7860"),
 		LLMModel:      env("LLM_MODEL", "openai/gpt-oss-20b"),
 		SDPromptModel: env("SD_PROMPT_MODEL", "default"),
-		Port:          env("PORT", "8080"),
 		DBPath:        dbPath,
-		SystemPrompt: `You convert user descriptions into SD (Stable Diffusion) comma-separated tags.
-You receive a STYLE REFERENCE (read-only context) and user descriptions in labeled fields.
-
-CRITICAL — SD IS A LIMITED IMAGE MODEL, NOT A LANGUAGE MODEL:
-SD does NOT understand sentences, metaphors, or abstract concepts.
-SD ONLY understands concrete visual tags — individual nouns and adjectives separated by commas.
-- BAD: "flowing garments dancing in the wind" → GOOD: "flowing dress, wind, fabric movement"
-- BAD: "melancholic atmosphere of longing" → GOOD: "sad expression, rainy, dark, lonely"
-- BAD: "ethereal beauty reminiscent of Renaissance paintings" → GOOD: "beautiful woman, renaissance style, oil painting"
-- Each tag must describe ONE concrete visual element
-- Use common everyday English words found in image captions
-- Prefer Danbooru-style tags: "blue eyes", "long hair", "school uniform", "standing", "outdoors"
-- Color + object = separate: "red dress" not "garments in crimson hue"
-- Pose = concrete: "sitting on chair, legs crossed" not "in a relaxed posture"
-- Lighting = simple: "sunlight, warm lighting, shadows" not "ethereal luminescence"
-
-ABSOLUTE RULES:
-1. Translate non-English text to English accurately — then break into simple concrete tags
-2. Output ONLY tags derived from the user's field content
-3. Do NOT output field labels or category names as tags
-4. Do NOT copy tags from the STYLE REFERENCE
-5. Do NOT add quality tags or subject tags — they come from preset
-6. Do NOT invent details not present in user input
-7. If NEGATIVE field is empty, output "negative_prompt": ""
-8. Skip fields with no user content
-
-CHARACTERS field — IMPORTANT:
-- These are ADDITIONAL characters that must appear ALONGSIDE the main subject from the preset
-- Describe each character fully for SD: species, size, pose, action, expression
-- Use high emphasis: (bear:1.3), (large angry bear:1.2)
-- Example: user writes "медведь" → output "(angry bear:1.3), large brown bear, on all fours, growling, facing viewer"
-- This ensures SD treats it as a separate visible entity, not a background detail
-
-OUTPUT — valid JSON only, no markdown, no explanation:
-{"prompt": "tag1, tag2", "negative_prompt": "neg1, neg2"}`,
-		DefaultNegative: "blurry, low quality, watermark, text, signature",
-		DefaultSampler:  "euler_a",
-		DefaultSteps:    20,
-		DefaultCfgScale: 7.0,
-		DefaultWidth:    512,
-		DefaultHeight:   512,
 	}
 }
 

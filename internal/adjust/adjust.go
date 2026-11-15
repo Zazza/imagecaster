@@ -69,14 +69,16 @@ func Apply(img image.Image, p Params) *image.RGBA {
 	gainG := 1 + clampF(p.BalanceG, -100, 100)*channelGainStep
 	gainB := 1 + clampF(p.BalanceB, -100, 100)*channelGainStep
 
+	px := pixelSource(img)
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		row := dst.Pix[dst.PixOffset(bounds.Min.X, y):]
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			r16, g16, b16, a16 := img.At(x, y).RGBA()
-			a := uint8(a16 >> 8)
+			r8, g8, b8, a32 := px(x, y)
+			a := uint8(a32)
 			if a == 0 {
 				continue
 			}
-			r, g, b := float64(r16>>8), float64(g16>>8), float64(b16>>8)
+			r, g, b := float64(r8), float64(g8), float64(b8)
 			if a < 255 {
 				r, g, b = r*255/float64(a), g*255/float64(a), b*255/float64(a)
 			}
@@ -113,7 +115,8 @@ func Apply(img image.Image, p Params) *image.RGBA {
 				f := float64(a) / 255
 				cr, cg, cb = toUint8(float64(cr)*f), toUint8(float64(cg)*f), toUint8(float64(cb)*f)
 			}
-			dst.SetRGBA(x, y, color.RGBA{cr, cg, cb, a})
+			o := (x - bounds.Min.X) * 4
+			row[o], row[o+1], row[o+2], row[o+3] = cr, cg, cb, a
 		}
 	}
 

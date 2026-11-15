@@ -5,6 +5,7 @@ import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
+import { b64Url } from '../imageDataUrl.js'
 import { parseLoras } from '../loraOverride.js'
 import { newCustomStep, restoreCustomSteps, persistCustomSteps, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
@@ -233,11 +234,7 @@ function stopIdeasBatch() {
   ideasBatchStopped = true
 }
 
-const imageSrc = computed(() => {
-  if (!generatedImage.value) return ''
-  if (generatedImage.value.startsWith('/api/')) return generatedImage.value
-  return 'data:image/png;base64,' + generatedImage.value
-})
+const imageSrc = computed(() => b64Url(generatedImage.value))
 
 const formattedGenInfo = computed(() => {
   if (!genInfo.value) return ''

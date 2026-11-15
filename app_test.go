@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Zazza/imagecaster/internal/importexport"
+	"github.com/Zazza/imagecaster/internal/postpreview"
 )
 
 func TestSaveProcessedImageOutputDir(t *testing.T) {
@@ -89,7 +90,7 @@ func hugePNGHeaderApp(w, h uint32) []byte {
 }
 
 func TestPreviewAdjustRejectsDecompressionBomb(t *testing.T) {
-	app := &App{}
+	app := &App{preview: postpreview.New(1)}
 	b64 := base64.StdEncoding.EncodeToString(hugePNGHeaderApp(60000, 60000))
 
 	_, err := app.PreviewAdjust(b64, AdjustParams{}, 0)
@@ -98,7 +99,7 @@ func TestPreviewAdjustRejectsDecompressionBomb(t *testing.T) {
 }
 
 func TestPreviewAdjustRejectsUnreadableHeader(t *testing.T) {
-	app := &App{}
+	app := &App{preview: postpreview.New(1)}
 	b64 := base64.StdEncoding.EncodeToString([]byte("not an image at all"))
 
 	_, err := app.PreviewAdjust(b64, AdjustParams{}, 0)

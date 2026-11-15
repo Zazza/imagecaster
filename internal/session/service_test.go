@@ -269,7 +269,7 @@ func TestSetActiveSessionItem_Success(t *testing.T) {
 	svc, emitter, _ := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, itemID > 0)
 
 	err := svc.SetActiveSessionItem(itemID)
@@ -282,7 +282,7 @@ func TestDeleteSessionItem_Success(t *testing.T) {
 	svc, emitter, _ := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, itemID > 0)
 
 	err := svc.DeleteSessionItem(itemID)
@@ -303,7 +303,7 @@ func TestClearSession_Success(t *testing.T) {
 	svc, emitter, _ := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, itemID > 0)
 
 	err := svc.ClearSession()
@@ -328,14 +328,14 @@ func TestAddToSession_Success(t *testing.T) {
 	svc, emitter, dataDir := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	assert.True(t, itemID > 0)
 	assert.True(t, emitter.hasEvent("session:added"))
 	assert.True(t, emitter.hasEvent("session:active"))
 
 	sessions, _ := svc.ListSessions()
 	sessionDir := filepath.Join(dataDir, "sessions", fmt.Sprintf("%d", sessions[0].ID))
-	fileName := fmt.Sprintf("%d.png", itemID)
+	fileName := fmt.Sprintf("%d.jpg", itemID)
 	_, err := os.Stat(filepath.Join(sessionDir, fileName))
 	assert.NoError(t, err)
 }
@@ -358,7 +358,7 @@ func TestAddToSession_WithInfo(t *testing.T) {
 	}
 	infoJSON, _ := json.Marshal(info)
 
-	itemID := svc.AddToSession(img, infoJSON, "sd", false, nil)
+	itemID := svc.AddToSession(img, infoJSON, "sd", nil)
 	assert.True(t, itemID > 0)
 
 	items, err := svc.GetSessionItems()
@@ -383,7 +383,7 @@ func TestAddToSession_TooLarge(t *testing.T) {
 	for i := range largeBase64 {
 		largeBase64[i] = 'A'
 	}
-	itemID := svc.AddToSession(string(largeBase64), nil, "sd", false, nil)
+	itemID := svc.AddToSession(string(largeBase64), nil, "sd", nil)
 	assert.Equal(t, int64(0), itemID)
 }
 
@@ -393,7 +393,7 @@ func TestAddToSession_OversizedReencodedToJPEG(t *testing.T) {
 	largePNG := makeLargeImagePNG(t, 3200, 3200)
 	require.Greater(t, len(largePNG), maxImageBase64)
 
-	itemID := svc.AddToSession(largePNG, nil, "sd", false, nil)
+	itemID := svc.AddToSession(largePNG, nil, "sd", nil)
 	assert.True(t, itemID > 0)
 	assert.True(t, emitter.hasEvent("session:added"))
 
@@ -402,6 +402,12 @@ func TestAddToSession_OversizedReencodedToJPEG(t *testing.T) {
 	require.Len(t, items, 1)
 	assert.Equal(t, 3200, items[0].Width)
 	assert.Equal(t, 3200, items[0].Height)
+	assert.Equal(t, fmt.Sprintf("%d.jpg", itemID), items[0].FileName)
+	data, err := os.ReadFile(filepath.Join(svc.sessionDir(items[0].SessionID), items[0].FileName))
+	require.NoError(t, err)
+	_, format, err := image.DecodeConfig(bytes.NewReader(data))
+	require.NoError(t, err)
+	assert.Equal(t, "jpeg", format)
 }
 
 func TestReencodeJPEG(t *testing.T) {
@@ -437,9 +443,7 @@ func TestReencodeJPEG(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			data, err := base64.StdEncoding.DecodeString(out)
-			require.NoError(t, err)
-			_, format, err := image.Decode(bytes.NewReader(data))
+			_, format, err := image.Decode(bytes.NewReader(out))
 			require.NoError(t, err)
 			assert.Equal(t, "jpeg", format)
 		})
@@ -450,7 +454,7 @@ func TestAddToSession_InvalidBase64(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := testService(t)
 
-	itemID := svc.AddToSession("!!!not-valid-base64!!!", nil, "sd", false, nil)
+	itemID := svc.AddToSession("!!!not-valid-base64!!!", nil, "sd", nil)
 	assert.Equal(t, int64(0), itemID)
 }
 
@@ -458,22 +462,8 @@ func TestAddToSession_InvalidImageData(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := testService(t)
 
-	itemID := svc.AddToSession(base64.StdEncoding.EncodeToString([]byte("not an image")), nil, "sd", false, nil)
+	itemID := svc.AddToSession(base64.StdEncoding.EncodeToString([]byte("not an image")), nil, "sd", nil)
 	assert.Equal(t, int64(0), itemID)
-}
-
-func TestAddToSession_Preview(t *testing.T) {
-	t.Parallel()
-	svc, _, _ := testService(t)
-
-	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", true, nil)
-	assert.True(t, itemID > 0)
-
-	items, err := svc.GetSessionItems()
-	require.NoError(t, err)
-	require.Len(t, items, 1)
-	assert.True(t, items[0].IsPreview)
 }
 
 func TestAddToSession_WithPresetID(t *testing.T) {
@@ -482,7 +472,7 @@ func TestAddToSession_WithPresetID(t *testing.T) {
 
 	img := makeImageJPEG(t, 64, 64)
 	presetID := int64(42)
-	itemID := svc.AddToSession(img, nil, "sd", false, &preset.GenerationMeta{PresetID: &presetID})
+	itemID := svc.AddToSession(img, nil, "sd", &preset.GenerationMeta{PresetID: &presetID})
 	assert.True(t, itemID > 0)
 
 	items, err := svc.GetSessionItems()
@@ -497,7 +487,7 @@ func TestGetSessionImage_Success(t *testing.T) {
 	svc, _, _ := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, itemID > 0)
 
 	imgBase64, err := svc.GetSessionImage(itemID)
@@ -523,7 +513,7 @@ func TestGetSessionThumb_Success(t *testing.T) {
 	svc, _, _ := testService(t)
 
 	img := makeImageJPEG(t, 256, 256)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, itemID > 0)
 
 	thumbBase64, err := svc.GetSessionThumb(itemID)
@@ -549,87 +539,12 @@ func TestGetSessionThumb_SmallImage(t *testing.T) {
 	svc, _, _ := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, itemID > 0)
 
 	thumbBase64, err := svc.GetSessionThumb(itemID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, thumbBase64)
-}
-
-func TestHasSessionItems_Empty(t *testing.T) {
-	t.Parallel()
-	svc, _, _ := testService(t)
-
-	has, err := svc.HasSessionItems()
-	require.NoError(t, err)
-	assert.False(t, has)
-}
-
-func TestHasSessionItems_WithItems(t *testing.T) {
-	t.Parallel()
-	svc, _, _ := testService(t)
-
-	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
-	require.True(t, itemID > 0)
-
-	has, err := svc.HasSessionItems()
-	require.NoError(t, err)
-	assert.True(t, has)
-}
-
-func TestConfirmClose_Discard(t *testing.T) {
-	t.Parallel()
-	svc, _, _ := testService(t)
-
-	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
-	require.True(t, itemID > 0)
-
-	_, err := svc.CreateSession("Extra")
-	require.NoError(t, err)
-
-	svc.ConfirmClose("discard")
-
-	has, err := svc.HasSessionItems()
-	require.NoError(t, err)
-	assert.False(t, has)
-
-	sessions, err := svc.ListSessions()
-	require.NoError(t, err)
-	assert.Len(t, sessions, 1)
-	assert.Equal(t, "Default", sessions[0].Name)
-}
-
-func TestConfirmClose_OtherAction(t *testing.T) {
-	t.Parallel()
-	svc, _, _ := testService(t)
-
-	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
-	require.True(t, itemID > 0)
-
-	svc.ConfirmClose("save")
-
-	has, err := svc.HasSessionItems()
-	require.NoError(t, err)
-	assert.True(t, has)
-}
-
-func TestConfirmClose_EmptyAction(t *testing.T) {
-	t.Parallel()
-	svc, _, _ := testService(t)
-
-	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
-	require.True(t, itemID > 0)
-
-	svc.ConfirmClose("")
-
-	has, err := svc.HasSessionItems()
-	require.NoError(t, err)
-	assert.True(t, has)
 }
 
 func TestGetSessionItems_AfterAdding(t *testing.T) {
@@ -639,9 +554,9 @@ func TestGetSessionItems_AfterAdding(t *testing.T) {
 	img1 := makeImageJPEG(t, 64, 64)
 	img2 := makeImageJPEG(t, 128, 128)
 
-	id1 := svc.AddToSession(img1, nil, "sd", false, nil)
+	id1 := svc.AddToSession(img1, nil, "sd", nil)
 	require.True(t, id1 > 0)
-	id2 := svc.AddToSession(img2, nil, "txt2img", false, nil)
+	id2 := svc.AddToSession(img2, nil, "txt2img", nil)
 	require.True(t, id2 > 0)
 
 	items, err := svc.GetSessionItems()
@@ -668,7 +583,7 @@ func TestGetActiveSessionItem_AfterAdd(t *testing.T) {
 	svc, _, _ := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	itemID := svc.AddToSession(img, nil, "sd", false, nil)
+	itemID := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, itemID > 0)
 
 	active, err := svc.GetActiveSessionItem()
@@ -683,9 +598,9 @@ func TestSetActiveSessionItem_SwitchesActive(t *testing.T) {
 
 	img1 := makeImageJPEG(t, 64, 64)
 	img2 := makeImageJPEG(t, 64, 64)
-	id1 := svc.AddToSession(img1, nil, "sd", false, nil)
+	id1 := svc.AddToSession(img1, nil, "sd", nil)
 	require.True(t, id1 > 0)
-	id2 := svc.AddToSession(img2, nil, "sd", false, nil)
+	id2 := svc.AddToSession(img2, nil, "sd", nil)
 	require.True(t, id2 > 0)
 
 	active, err := svc.GetActiveSessionItem()
@@ -707,13 +622,13 @@ func TestAddToSession_MultipleSessions(t *testing.T) {
 	svc, _, _ := testService(t)
 
 	img := makeImageJPEG(t, 64, 64)
-	id1 := svc.AddToSession(img, nil, "sd", false, nil)
+	id1 := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, id1 > 0)
 
 	_, err := svc.CreateSession("Second Session")
 	require.NoError(t, err)
 
-	id2 := svc.AddToSession(img, nil, "sd", false, nil)
+	id2 := svc.AddToSession(img, nil, "sd", nil)
 	require.True(t, id2 > 0)
 
 	items, err := svc.GetSessionItems()
@@ -753,7 +668,7 @@ func TestAddToSession_InfoFormats_FillsFields(t *testing.T) {
 			t.Parallel()
 			svc, _, _ := testService(t)
 
-			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", false, nil)
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", nil)
 			require.True(t, itemID > 0)
 
 			items, err := svc.GetSessionItems()
@@ -801,7 +716,7 @@ func TestAddToSession_InfoFormats_ModelFromSDInfo(t *testing.T) {
 			t.Parallel()
 			svc, _, _ := testService(t)
 
-			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", false, tt.meta())
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", tt.meta())
 			require.True(t, itemID > 0)
 
 			items, err := svc.GetSessionItems()
@@ -830,7 +745,7 @@ func TestAddToSession_InfoFormats_ZeroSizeKeepsImageSize(t *testing.T) {
 			t.Parallel()
 			svc, _, _ := testService(t)
 
-			itemID := svc.AddToSession(makeImageJPEG(t, 64, 48), tt.info(t), "sd", false, nil)
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 48), tt.info(t), "sd", nil)
 			require.True(t, itemID > 0)
 
 			items, err := svc.GetSessionItems()
@@ -864,7 +779,7 @@ func TestAddToSession_BrokenInfo_SavesItemWithoutGenFields(t *testing.T) {
 			t.Parallel()
 			svc, _, _ := testService(t)
 
-			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", false, nil)
+			itemID := svc.AddToSession(makeImageJPEG(t, 64, 64), tt.info(t), "sd", nil)
 			require.True(t, itemID > 0)
 
 			items, err := svc.GetSessionItems()

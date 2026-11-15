@@ -331,14 +331,6 @@ func argStringSlice(args map[string]any, key string) []string {
 	return out
 }
 
-func optString(args map[string]any, key string) *string {
-	if _, ok := args[key]; !ok {
-		return nil
-	}
-	v := argString(args, key)
-	return &v
-}
-
 func optInt(args map[string]any, key string) *int64 {
 	if _, ok := args[key]; !ok {
 		return nil

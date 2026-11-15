@@ -8,6 +8,7 @@ import { api } from '../api.js'
 import { listAvailablePresets } from '../composables/usePresets.js'
 import { serverModelsKnown, hasServerFile } from '../serverModels.js'
 import { parseSeedInput } from '../seed.js'
+import { b64Url } from '../imageDataUrl.js'
 import { t } from '../i18n/index.js'
 import { MAX_IMAGE_SIZE } from '../constants.js'
 import { parseLoras, sanitizeWeight } from '../loraOverride.js'
@@ -380,7 +381,7 @@ onUnmounted(() => {
 
     <template v-else>
     <div v-if="referenceImage" class="ref-container">
-      <img :src="'data:image/png;base64,' + referenceImage" alt="Reference" class="ref-img" />
+      <img :src="b64Url(referenceImage)" alt="Reference" class="ref-img" />
     </div>
     <div v-if="referenceImage" class="fi-btn-row">
       <button class="btn btn-sm btn-secondary" @click="describeGarment" :disabled="describingGarment">

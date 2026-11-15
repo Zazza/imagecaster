@@ -22,7 +22,6 @@ import (
 	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"
-	"github.com/Zazza/imagecaster/internal/sd"
 	"github.com/Zazza/imagecaster/internal/sdnames"
 )
 
@@ -55,13 +54,9 @@ type PresetData struct {
 }
 
 type ImportPreview struct {
-	Presets []PresetData `json:"presets"`
-	Total   int          `json:"total"`
-}
-
-type ValidationWarning struct {
-	PresetName string   `json:"preset_name"`
-	Warnings   []string `json:"warnings"`
+	Presets []PresetData      `json:"presets"`
+	Total   int               `json:"total"`
+	Errors  []ImportFileError `json:"errors,omitempty"`
 }
 
 type ExportImageParams struct {
@@ -100,6 +95,7 @@ type CompoundStepExportData struct {
 type CompoundImportPreview struct {
 	Pipelines []CompoundExportData `json:"pipelines"`
 	Total     int                  `json:"total"`
+	Errors    []ImportFileError    `json:"errors,omitempty"`
 }
 
 type ProcessedImage struct {
@@ -110,14 +106,12 @@ type ProcessedImage struct {
 
 type Service struct {
 	db  *preset.DB
-	sd  sd.Service
 	log *logger.Logger
 }
 
-func New(db *preset.DB, sdClient sd.Service, log *logger.Logger) *Service {
+func New(db *preset.DB, log *logger.Logger) *Service {
 	return &Service{
 		db:  db,
-		sd:  sdClient,
 		log: log,
 	}
 }
@@ -181,17 +175,9 @@ func (s *Service) BuildExportFile(presets []PresetData) ([]byte, error) {
 }
 
 func (s *Service) ParseImportFile(filePath string) ([]PresetData, error) {
-	info, err := os.Stat(filePath)
+	jsonBytes, err := readImportFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("stat file: %w", err)
-	}
-	if info.Size() > 10*1024*1024 {
-		return nil, fmt.Errorf("file too large (max 10 MB)")
-	}
-
-	jsonBytes, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("read file: %w", err)
+		return nil, err
 	}
 
 	var data ExportFile
@@ -208,51 +194,6 @@ func (s *Service) ParseImportFile(filePath string) ([]PresetData, error) {
 	}
 
 	return data.Presets, nil
-}
-
-func (s *Service) ValidateModels(items []PresetData) ([]ValidationWarning, error) {
-	if len(items) == 0 {
-		return nil, nil
-	}
-
-	var warnings []ValidationWarning
-
-	sdModels, _ := s.sd.GetModels()
-	modelSet := make(map[string]bool)
-	for _, m := range sdModels {
-		modelSet[m.Name] = true
-	}
-
-	loras, _ := s.sd.GetLoRAs()
-	loraSet := make(map[string]bool)
-	for _, l := range loras {
-		loraSet[l.Name] = true
-	}
-
-	for _, item := range items {
-		var w []string
-		if item.ModelName != "" && !modelSet[item.ModelName] {
-			w = append(w, "Model not found: "+item.ModelName)
-		}
-		if item.Loras != "" {
-			var loraEntries []preset.LoRAEntry
-			if err := json.Unmarshal([]byte(item.Loras), &loraEntries); err == nil {
-				for _, l := range loraEntries {
-					if !loraSet[l.Name] {
-						w = append(w, "LoRA not found: "+l.Name)
-					}
-				}
-			}
-		}
-		if len(w) > 0 {
-			warnings = append(warnings, ValidationWarning{
-				PresetName: item.Name,
-				Warnings:   w,
-			})
-		}
-	}
-
-	return warnings, nil
 }
 
 func (s *Service) ImportItems(items []PresetData) ([]preset.Preset, error) {
@@ -300,17 +241,20 @@ func (s *Service) ImportItems(items []PresetData) ([]preset.Preset, error) {
 			continue
 		}
 		existing, err := s.db.ListPresetTypes()
-		if err == nil {
-			for _, t := range existing {
-				if t.Name == typeName {
-					typeCache[typeName] = &t.ID
-					break
-				}
+		if err != nil {
+			s.log.Warn("import: list preset types: %s", err)
+		}
+		for _, t := range existing {
+			if t.Name == typeName {
+				typeCache[typeName] = &t.ID
+				break
 			}
 		}
 		if _, ok := typeCache[typeName]; !ok {
 			pt := &preset.PresetType{Name: typeName}
-			if err := s.db.CreatePresetType(pt); err == nil {
+			if err := s.db.CreatePresetType(pt); err != nil {
+				s.log.Warn("import: create preset type %q: %s", typeName, err)
+			} else {
 				typeCache[typeName] = &pt.ID
 			}
 		}
@@ -628,24 +572,16 @@ func (s *Service) BuildCompoundExportFile(pipelines []CompoundExportData) ([]byt
 }
 
 func (s *Service) ParseCompoundImportFile(filePath string) ([]CompoundExportData, error) {
-	info, err := os.Stat(filePath)
+	jsonBytes, err := readImportFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("stat file: %w", err)
-	}
-	if info.Size() > 10*1024*1024 {
-		return nil, fmt.Errorf("file too large (max 10 MB)")
-	}
-
-	jsonBytes, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("read file: %w", err)
+		return nil, err
 	}
 
 	var data CompoundExportFile
 	if err := json.Unmarshal(jsonBytes, &data); err != nil {
 		return nil, fmt.Errorf("parse json: %w", err)
 	}
-	if data.Version < 1 || data.Version > 1 {
+	if data.Version != 1 {
 		return nil, fmt.Errorf("unsupported version: %d", data.Version)
 	}
 
@@ -694,7 +630,10 @@ func (s *Service) ImportCompoundItems(items []CompoundExportData) ([]preset.Comp
 				if id, ok := typeCache[typeName]; ok {
 					typeID = id
 				} else {
-					existing, _ := s.db.ListPresetTypes()
+					existing, err := s.db.ListPresetTypes()
+					if err != nil {
+						s.log.Warn("import: list preset types: %s", err)
+					}
 					for _, t := range existing {
 						if t.Name == typeName {
 							typeCache[typeName] = &t.ID
@@ -704,7 +643,9 @@ func (s *Service) ImportCompoundItems(items []CompoundExportData) ([]preset.Comp
 					}
 					if typeID == nil {
 						pt := &preset.PresetType{Name: typeName}
-						if err := s.db.CreatePresetType(pt); err == nil {
+						if err := s.db.CreatePresetType(pt); err != nil {
+							s.log.Warn("import: create preset type %q: %s", typeName, err)
+						} else {
 							typeCache[typeName] = &pt.ID
 							typeID = &pt.ID
 						}

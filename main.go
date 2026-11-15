@@ -47,11 +47,6 @@ var assets embed.FS
 //go:embed data/presets/*.json
 var bundledPresets embed.FS
 
-// иконка окна под Linux (Windows/macOS берут её из build/ при сборке)
-//
-//go:embed build/appicon.png
-var appIcon []byte
-
 //go:embed build/appicon-256.png
 var windowIcon []byte
 

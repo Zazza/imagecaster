@@ -206,13 +206,12 @@ func (f *fakeStylist) describeCalls() []styDescribeCall {
 }
 
 type styNamedCall struct {
-	name      string
-	image     string
-	info      json.RawMessage
-	source    string
-	isPreview bool
-	meta      *preset.GenerationMeta
-	returned  int64
+	name     string
+	image    string
+	info     json.RawMessage
+	source   string
+	meta     *preset.GenerationMeta
+	returned int64
 }
 
 type fakeSessions struct {
@@ -222,7 +221,7 @@ type fakeSessions struct {
 	zeroOn map[int]bool
 }
 
-func (f *fakeSessions) AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+func (f *fakeSessions) AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	n := len(f.calls) + 1
@@ -230,7 +229,7 @@ func (f *fakeSessions) AddToNamedSession(name, imageBase64 string, info json.Raw
 	if f.zero || f.zeroOn[n] {
 		id = 0
 	}
-	f.calls = append(f.calls, styNamedCall{name: name, image: imageBase64, info: info, source: source, isPreview: isPreview, meta: meta, returned: id})
+	f.calls = append(f.calls, styNamedCall{name: name, image: imageBase64, info: info, source: source, meta: meta, returned: id})
 	return id
 }
 
@@ -360,7 +359,7 @@ func TestAgentSessions_WritesToAgentSession(t *testing.T) {
 	info := json.RawMessage(`{"seed":42}`)
 	meta := &preset.GenerationMeta{Label: "generate"}
 
-	id := agent.AddToSession("IMGB64", info, "sd", true, meta)
+	id := agent.AddToSession("IMGB64", info, "sd", meta)
 
 	calls := fake.namedCalls()
 	require.Len(t, calls, 1)
@@ -369,7 +368,6 @@ func TestAgentSessions_WritesToAgentSession(t *testing.T) {
 	assert.Equal(t, "IMGB64", c.image)
 	assert.JSONEq(t, string(info), string(c.info))
 	assert.Equal(t, "sd", c.source)
-	assert.True(t, c.isPreview)
 	assert.Same(t, meta, c.meta)
 	assert.Equal(t, c.returned, id)
 }
@@ -451,7 +449,6 @@ func TestStylistTry_ThreeVariants(t *testing.T) {
 	for _, c := range named {
 		assert.Equal(t, "Стилист", c.name)
 		assert.Equal(t, "stylist", c.source)
-		assert.False(t, c.isPreview)
 		assert.NotEmpty(t, c.image)
 		require.NotNil(t, c.meta)
 		assert.NotEmpty(t, c.meta.Label)

@@ -2,7 +2,6 @@ package importexport
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -18,45 +17,9 @@ import (
 	"github.com/Zazza/imagecaster/internal/adjust"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/preset"
-	"github.com/Zazza/imagecaster/internal/sd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type mockSDService struct {
-	models []sd.SDModel
-	loras  []sd.LoRA
-	err    error
-}
-
-func (m *mockSDService) Txt2Img(req sd.Txt2ImgRequest) (*sd.Txt2ImgResponse, error) {
-	return nil, m.err
-}
-func (m *mockSDService) Img2Img(req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
-	return nil, m.err
-}
-func (m *mockSDService) GetModels() ([]sd.SDModel, error) {
-	return m.models, m.err
-}
-func (m *mockSDService) GetSamplers() ([]sd.Sampler, error)     { return nil, nil }
-func (m *mockSDService) GetSchedulers() ([]sd.Scheduler, error) { return nil, nil }
-func (m *mockSDService) GetUpscalers() ([]sd.Upscaler, error)   { return nil, nil }
-func (m *mockSDService) GetVAEs() ([]sd.VAE, error)             { return nil, nil }
-func (m *mockSDService) GetLoRAs() ([]sd.LoRA, error)           { return m.loras, m.err }
-func (m *mockSDService) Interrupt() error                       { return nil }
-func (m *mockSDService) HealthCheck() error                     { return nil }
-
-func (m *mockSDService) State() (*sd.ServerState, error) { return &sd.ServerState{}, nil }
-func (m *mockSDService) ListJobs(ctx context.Context, client string) ([]sd.JobStatus, error) {
-	return nil, nil
-}
-func (m *mockSDService) SetProgressHandler(fn func(sd.JobStatus)) {}
-
-func (m *mockSDService) SetURL(baseURL string) {}
-func (m *mockSDService) UpscaleImage(base64Img string, upscaler string, scale float64) (string, error) {
-	return "", nil
-}
-func (m *mockSDService) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
 
 func openTestDB(t *testing.T) *preset.DB {
 	t.Helper()
@@ -66,11 +29,9 @@ func openTestDB(t *testing.T) *preset.DB {
 	return db
 }
 
-func newTestService(t *testing.T, mockSD sd.Service) *Service {
+func newTestService(t *testing.T) *Service {
 	t.Helper()
-	db := openTestDB(t)
-	log := logger.New(nil)
-	return New(db, mockSD, log)
+	return New(openTestDB(t), logger.New(nil))
 }
 
 func makePreset(name, pType, model string, steps int) PresetData {
@@ -112,7 +73,7 @@ func encodePNG(t *testing.T, w, h int) string {
 
 func TestPrepareExportData_EmptyIDs(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err := svc.PrepareExportData(nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no presets selected")
@@ -121,7 +82,7 @@ func TestPrepareExportData_EmptyIDs(t *testing.T) {
 func TestPrepareExportData_ValidIDs(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	id := createPresetInDB(t, db, "export-me")
 	result, err := svc.PrepareExportData([]int64{id})
@@ -134,7 +95,7 @@ func TestPrepareExportData_ValidIDs(t *testing.T) {
 
 func TestPrepareExportData_NonexistentIDs(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	result, err := svc.PrepareExportData([]int64{9999})
 	require.NoError(t, err)
 	assert.Len(t, result, 0)
@@ -143,7 +104,7 @@ func TestPrepareExportData_NonexistentIDs(t *testing.T) {
 func TestPrepareExportData_WithPresetType(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	pt := &preset.PresetType{Name: "Portrait"}
 	err := db.CreatePresetType(pt)
@@ -169,7 +130,7 @@ func TestPrepareExportData_WithPresetType(t *testing.T) {
 
 func TestBuildExportFile_ValidPresets(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	presets := []PresetData{makePreset("p1", "type1", "model1", 20)}
 	data, err := svc.BuildExportFile(presets)
 	require.NoError(t, err)
@@ -183,7 +144,7 @@ func TestBuildExportFile_ValidPresets(t *testing.T) {
 
 func TestBuildExportFile_EmptyPresets(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	data, err := svc.BuildExportFile([]PresetData{})
 	require.NoError(t, err)
 
@@ -195,7 +156,7 @@ func TestBuildExportFile_EmptyPresets(t *testing.T) {
 
 func TestBuildExportFile_MultiplePresets(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	presets := []PresetData{
 		makePreset("a", "t1", "m1", 20),
 		makePreset("b", "t2", "m2", 30),
@@ -210,7 +171,7 @@ func TestBuildExportFile_MultiplePresets(t *testing.T) {
 
 func TestParseImportFile_ValidV2(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	ef := ExportFile{
 		Version: 2,
@@ -231,7 +192,7 @@ func TestParseImportFile_ValidV2(t *testing.T) {
 
 func TestParseImportFile_ValidV1(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	ef := ExportFile{
 		Version: 1,
@@ -250,7 +211,7 @@ func TestParseImportFile_ValidV1(t *testing.T) {
 
 func TestParseImportFile_UnsupportedVersion(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	ef := ExportFile{Version: 99, Presets: []PresetData{}}
 	raw, err := json.Marshal(ef)
@@ -266,14 +227,14 @@ func TestParseImportFile_UnsupportedVersion(t *testing.T) {
 
 func TestParseImportFile_FileNotFound(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err := svc.ParseImportFile("/nonexistent/file.json")
 	assert.Error(t, err)
 }
 
 func TestParseImportFile_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	path := filepath.Join(t.TempDir(), "invalid.json")
 	require.NoError(t, os.WriteFile(path, []byte("not json"), 0o644))
@@ -285,7 +246,7 @@ func TestParseImportFile_InvalidJSON(t *testing.T) {
 
 func TestParseImportFile_TooLarge(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	path := filepath.Join(t.TempDir(), "big.json")
 	bigData := make([]byte, 11*1024*1024)
@@ -296,78 +257,9 @@ func TestParseImportFile_TooLarge(t *testing.T) {
 	assert.Contains(t, err.Error(), "too large")
 }
 
-func TestValidateModels_AllFound(t *testing.T) {
-	t.Parallel()
-	mock := &mockSDService{
-		models: []sd.SDModel{{Name: "model.safetensors"}},
-		loras:  []sd.LoRA{{Name: "lora1"}},
-	}
-	svc := newTestService(t, mock)
-
-	loras, _ := json.Marshal([]preset.LoRAEntry{{Name: "lora1", Weight: 0.8}})
-	items := []PresetData{
-		{Name: "p1", ModelName: "model.safetensors", Loras: string(loras)},
-	}
-	warnings, err := svc.ValidateModels(items)
-	require.NoError(t, err)
-	assert.Empty(t, warnings)
-}
-
-func TestValidateModels_ModelNotFound(t *testing.T) {
-	t.Parallel()
-	mock := &mockSDService{
-		models: []sd.SDModel{{Name: "existing.safetensors"}},
-	}
-	svc := newTestService(t, mock)
-
-	items := []PresetData{{Name: "p1", ModelName: "missing.safetensors"}}
-	warnings, err := svc.ValidateModels(items)
-	require.NoError(t, err)
-	require.Len(t, warnings, 1)
-	assert.Equal(t, "p1", warnings[0].PresetName)
-	assert.Contains(t, warnings[0].Warnings[0], "Model not found")
-}
-
-func TestValidateModels_LoRANotFound(t *testing.T) {
-	t.Parallel()
-	mock := &mockSDService{
-		models: []sd.SDModel{{Name: "model.safetensors"}},
-		loras:  []sd.LoRA{{Name: "existing-lora"}},
-	}
-	svc := newTestService(t, mock)
-
-	loras, _ := json.Marshal([]preset.LoRAEntry{{Name: "missing-lora", Weight: 1.0}})
-	items := []PresetData{
-		{Name: "p1", ModelName: "model.safetensors", Loras: string(loras)},
-	}
-	warnings, err := svc.ValidateModels(items)
-	require.NoError(t, err)
-	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0].Warnings[0], "LoRA not found")
-}
-
-func TestValidateModels_EmptyItems(t *testing.T) {
-	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
-	warnings, err := svc.ValidateModels(nil)
-	require.NoError(t, err)
-	assert.Nil(t, warnings)
-}
-
-func TestValidateModels_EmptyModelName(t *testing.T) {
-	t.Parallel()
-	mock := &mockSDService{models: []sd.SDModel{}}
-	svc := newTestService(t, mock)
-
-	items := []PresetData{{Name: "p1", ModelName: ""}}
-	warnings, err := svc.ValidateModels(items)
-	require.NoError(t, err)
-	assert.Empty(t, warnings)
-}
-
 func TestImportItems_EmptyItems(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err := svc.ImportItems(nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no presets selected")
@@ -375,7 +267,7 @@ func TestImportItems_EmptyItems(t *testing.T) {
 
 func TestImportItems_TooManyItems(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	items := make([]PresetData, 501)
 	for i := range items {
 		items[i] = makePreset("p", "t", "m", 20)
@@ -387,7 +279,7 @@ func TestImportItems_TooManyItems(t *testing.T) {
 
 func TestImportItems_EmptyName(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	items := []PresetData{{Name: "   ", Steps: 20, CfgScale: 7.0}}
 	_, err := svc.ImportItems(items)
 	assert.Error(t, err)
@@ -396,7 +288,7 @@ func TestImportItems_EmptyName(t *testing.T) {
 
 func TestImportItems_ValidBatch(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	items := []PresetData{
 		makePreset("import-a", "type1", "model1", 20),
 		makePreset("import-b", "type2", "model2", 30),
@@ -412,7 +304,7 @@ func TestImportItems_ValidBatch(t *testing.T) {
 
 func TestImportItems_WithTypeName(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	items := []PresetData{
 		{
 			Name:       "typed",
@@ -462,7 +354,7 @@ func TestImportItems_InvalidSteps_Table(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			svc := newTestService(t, &mockSDService{})
+			svc := newTestService(t)
 			_, err := svc.ImportItems([]PresetData{tt.preset})
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errMsg)
@@ -526,7 +418,7 @@ func TestImportItems_InvalidOptionalFields_Table(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			svc := newTestService(t, &mockSDService{})
+			svc := newTestService(t)
 			p := base()
 			tt.modify(&p)
 			_, err := svc.ImportItems([]PresetData{p})
@@ -538,7 +430,7 @@ func TestImportItems_InvalidOptionalFields_Table(t *testing.T) {
 
 func TestImportItems_ValidOptionalFields(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	ds := 0.7
 	cs := 2
 	bs := 4
@@ -563,7 +455,7 @@ func TestImportItems_ValidOptionalFields(t *testing.T) {
 
 func TestProcessExportImage_NoImage(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err := svc.ProcessExportImage(ExportImageParams{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no image provided")
@@ -571,7 +463,7 @@ func TestProcessExportImage_NoImage(t *testing.T) {
 
 func TestProcessExportImage_UnsupportedFormat(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err := svc.ProcessExportImage(ExportImageParams{
 		ImageBase64: "abc",
 		Format:      "bmp",
@@ -582,7 +474,7 @@ func TestProcessExportImage_UnsupportedFormat(t *testing.T) {
 
 func TestProcessExportImage_UnsupportedInterpolation(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err := svc.ProcessExportImage(ExportImageParams{
 		ImageBase64:   "abc",
 		Format:        "png",
@@ -594,7 +486,7 @@ func TestProcessExportImage_UnsupportedInterpolation(t *testing.T) {
 
 func TestProcessExportImage_InvalidBase64(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err := svc.ProcessExportImage(ExportImageParams{
 		ImageBase64: "!!!not-base64!!!",
 		Format:      "png",
@@ -605,7 +497,7 @@ func TestProcessExportImage_InvalidBase64(t *testing.T) {
 
 func TestProcessExportImage_PNG_NoResize(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -620,7 +512,7 @@ func TestProcessExportImage_PNG_NoResize(t *testing.T) {
 
 func TestProcessExportImage_JPEG_WithResize(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 256, 256)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -640,7 +532,7 @@ func TestProcessExportImage_JPEG_WithResize(t *testing.T) {
 
 func TestProcessExportImage_DefaultFilename(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -654,7 +546,7 @@ func TestProcessExportImage_DefaultFilename(t *testing.T) {
 
 func TestProcessExportImage_LockRatio_WidthOnly(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 100, 200)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -669,7 +561,7 @@ func TestProcessExportImage_LockRatio_WidthOnly(t *testing.T) {
 
 func TestProcessExportImage_LockRatio_HeightOnly(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 200, 100)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -684,7 +576,7 @@ func TestProcessExportImage_LockRatio_HeightOnly(t *testing.T) {
 
 func TestProcessExportImage_LockRatio_BothDimensions(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 512, 512)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -700,7 +592,7 @@ func TestProcessExportImage_LockRatio_BothDimensions(t *testing.T) {
 
 func TestProcessExportImage_NoDimensions(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -726,7 +618,7 @@ func TestProcessExportImage_Interpolation_Table(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			svc := newTestService(t, &mockSDService{})
+			svc := newTestService(t)
 			b64 := encodePNG(t, 64, 64)
 			img, err := svc.ProcessExportImage(ExportImageParams{
 				ImageBase64:   b64,
@@ -743,7 +635,7 @@ func TestProcessExportImage_Interpolation_Table(t *testing.T) {
 
 func TestProcessExportImage_WebpNotSupported(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	_, err := svc.ProcessExportImage(ExportImageParams{
@@ -764,7 +656,7 @@ func encodePNGImage(t *testing.T, img image.Image) string {
 
 func TestProcessExportImage_AdjustNeutral_SameAsWithoutAdjust(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	plain, err := svc.ProcessExportImage(ExportImageParams{
@@ -785,7 +677,7 @@ func TestProcessExportImage_AdjustNeutral_SameAsWithoutAdjust(t *testing.T) {
 
 func TestProcessExportImage_AdjustApplied(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	src := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	for y := 0; y < 8; y++ {
 		for x := 0; x < 8; x++ {
@@ -811,7 +703,7 @@ func TestProcessExportImage_AdjustApplied(t *testing.T) {
 
 func TestProcessExportImage_AdjustWithResize(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 256, 256)
 
 	out, err := svc.ProcessExportImage(ExportImageParams{
@@ -828,7 +720,7 @@ func TestProcessExportImage_AdjustWithResize(t *testing.T) {
 
 func TestProcessExportImage_DefaultQuality(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -842,7 +734,7 @@ func TestProcessExportImage_DefaultQuality(t *testing.T) {
 
 func TestProcessExportImage_FilenameHasNoExtension(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -856,7 +748,7 @@ func TestProcessExportImage_FilenameHasNoExtension(t *testing.T) {
 
 func TestProcessExportImage_FilenameAlreadyHasExtension(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 64, 64)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -870,7 +762,7 @@ func TestProcessExportImage_FilenameAlreadyHasExtension(t *testing.T) {
 
 func TestListExportPresets_DefaultSeeded(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	presets, err := svc.ListExportPresets()
 	require.NoError(t, err)
 	assert.Len(t, presets, 4)
@@ -879,7 +771,7 @@ func TestListExportPresets_DefaultSeeded(t *testing.T) {
 
 func TestSaveExportPreset_New(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	ep := preset.ExportPreset{
 		Name:          "Custom",
 		Format:        "png",
@@ -896,7 +788,7 @@ func TestSaveExportPreset_New(t *testing.T) {
 
 func TestSaveExportPreset_Update(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	ep := preset.ExportPreset{
 		Name:   "Original",
@@ -914,7 +806,7 @@ func TestSaveExportPreset_Update(t *testing.T) {
 
 func TestDeleteExportPreset_Valid(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	ep := preset.ExportPreset{Name: "ToDelete", Format: "png"}
 	created, err := svc.SaveExportPreset(ep)
@@ -931,7 +823,7 @@ func TestDeleteExportPreset_Valid(t *testing.T) {
 
 func TestDeleteExportPreset_Nonexistent(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	err := svc.DeleteExportPreset(99999)
 	assert.NoError(t, err)
 }
@@ -1011,7 +903,7 @@ func hugePNGHeader(w, h uint32) []byte {
 
 func TestProcessExportImage_DecompressionBombRejected(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := base64.StdEncoding.EncodeToString(hugePNGHeader(60000, 60000))
 
 	_, err := svc.ProcessExportImage(ExportImageParams{
@@ -1024,7 +916,7 @@ func TestProcessExportImage_DecompressionBombRejected(t *testing.T) {
 
 func TestProcessExportImage_UnreadableHeaderRejected(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	_, err := svc.ProcessExportImage(ExportImageParams{
 		ImageBase64: base64.StdEncoding.EncodeToString([]byte("definitely not an image")),
@@ -1036,7 +928,7 @@ func TestProcessExportImage_UnreadableHeaderRejected(t *testing.T) {
 
 func TestProcessExportImage_FilenameSanitized(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	b64 := encodePNG(t, 8, 8)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
@@ -1051,7 +943,7 @@ func TestProcessExportImage_FilenameSanitized(t *testing.T) {
 func TestRoundTrip_ExportParseImport(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	p := &preset.Preset{
 		Name:       "roundtrip",
@@ -1133,7 +1025,7 @@ func createExactPreset(t *testing.T, db *preset.DB, pd PresetData) int64 {
 func TestImportCompoundItems_Dedup(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	pd := dedupPresetData("blurry, lowres")
 	existingID := createExactPreset(t, db, pd)
@@ -1164,7 +1056,7 @@ func TestImportCompoundItems_Dedup(t *testing.T) {
 func TestImportCompoundItems_NoDedupWhenModified(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	pd := dedupPresetData("blurry, lowres")
 	existingID := createExactPreset(t, db, pd)
@@ -1202,7 +1094,7 @@ func TestImportCompoundItems_NoDedupWhenModified(t *testing.T) {
 func TestImportCompoundItems_TwoIdenticalStepsShare(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	pd := dedupPresetData("blurry, lowres")
 	before := countPresets(t, db)
@@ -1235,7 +1127,7 @@ func TestImportCompoundItems_TwoIdenticalStepsShare(t *testing.T) {
 func TestImportItems_Dedup(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	pd := dedupPresetData("blurry, lowres")
 	existingID := createExactPreset(t, db, pd)
@@ -1253,7 +1145,7 @@ func TestImportItems_Dedup(t *testing.T) {
 func TestImportItems_ImportNewStillWorks(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	existingID := createExactPreset(t, db, dedupPresetData("blurry, lowres"))
 	before := countPresets(t, db)
@@ -1274,7 +1166,7 @@ func TestImportItems_ImportNewStillWorks(t *testing.T) {
 func TestImportItems_MixedNewHitNew(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	mid := dedupPresetData("shared negative")
 	mid.Name = "mixed-mid"
@@ -1303,7 +1195,7 @@ func TestImportItems_MixedNewHitNew(t *testing.T) {
 func TestImportItems_IntraFileDuplicate(t *testing.T) {
 	t.Parallel()
 	db := openTestDB(t)
-	svc := New(db, &mockSDService{}, logger.New(nil))
+	svc := New(db, logger.New(nil))
 
 	a := dedupPresetData("same negative")
 	a.Name = "intra-dup"

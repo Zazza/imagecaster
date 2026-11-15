@@ -2,7 +2,6 @@ package config
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,19 +31,6 @@ func TestLoad_DefaultValues(t *testing.T) {
 	}
 	require.True(t, filepath.IsAbs(cfg.DBPath))
 	require.Equal(t, filepath.Join("data", "presets.db"), filepath.Join(filepath.Base(filepath.Dir(cfg.DBPath)), filepath.Base(cfg.DBPath)))
-}
-
-func TestLoad_DefaultPromptContent(t *testing.T) {
-	t.Parallel()
-
-	cfg := Load()
-
-	if !strings.Contains(cfg.SystemPrompt, "SD ONLY understands concrete visual tags") {
-		t.Error("SystemPrompt should contain SD tag instructions")
-	}
-	if !strings.Contains(cfg.SystemPrompt, "JSON") {
-		t.Error("SystemPrompt should reference JSON output format")
-	}
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {

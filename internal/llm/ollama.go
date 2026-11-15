@@ -34,7 +34,7 @@ type ollamaUnloadRequest struct {
 }
 
 func (c *Client) getOllamaModels() ([]LLMModel, error) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, c.baseURL+"/api/tags", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, c.url()+"/api/tags", nil)
 	if err != nil {
 		return nil, fmt.Errorf("get ollama models: %w", err)
 	}
@@ -59,7 +59,7 @@ func (c *Client) getOllamaModels() ([]LLMModel, error) {
 func (c *Client) listOllamaLoaded() ([]LoadedModel, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/ps", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url()+"/api/ps", nil)
 	if err != nil {
 		return nil, fmt.Errorf("list loaded models: %w", err)
 	}
@@ -91,7 +91,7 @@ func (c *Client) unloadOllamaAll(ctx context.Context) error {
 			log.Printf("[LLM] unload %q: marshal: %v", m.Name, err)
 			continue
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/generate", bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url()+"/api/generate", bytes.NewReader(body))
 		if err != nil {
 			log.Printf("[LLM] unload %q: %v", m.Name, err)
 			continue

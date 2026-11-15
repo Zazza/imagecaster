@@ -124,11 +124,8 @@ func (e *xrEnv) processorWithLog(t *testing.T, l llm.Service, s sd.Service, sess
 		&mockEmitter{},
 		kids.NewManager(e.pdb),
 		sessions,
-		editFakeSettings{},
-		nil,
 		log,
 	)
-	gen.SetContext(context.Background())
 	return NewProcessor(gen, &xrScoper{svc: s}, e.store, e.dataDir, &mockEmitter{}), log
 }
 

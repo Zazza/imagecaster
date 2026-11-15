@@ -36,7 +36,6 @@ func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 	}
 
 	model := s.getAnalyzeModel()
-	s.settings.ApplyLLMConfig("analyze")
 
 	maxTokens := s.getMaxTokens()
 
@@ -143,8 +142,6 @@ func (s *Service) generateLLMPromptFromTags(p *preset.Preset, tags string, mode,
 	maxTokens := s.getMaxTokens()
 	generateModel := s.getGenerateModel()
 
-	s.settings.ApplyLLMConfig("generate")
-
 	systemPrompt += fmt.Sprintf(`
 
 RESPONSE LENGTH: your response is limited to ~%d tokens. You MUST fit within this limit.`, maxTokens)
@@ -210,9 +207,71 @@ RESPONSE LENGTH: your response is limited to ~%d tokens. You MUST fit within thi
 
 // --- GenerateFromImage ---
 
+type fromImageSource struct {
+	b64  string
+	img  image.Image
+	mask image.Image
+}
+
+func (f *fromImageSource) decode() (image.Image, error) {
+	if f.img == nil {
+		img, err := decodeB64ImageAnySize(f.b64, "image")
+		if err != nil {
+			return nil, err
+		}
+		f.img = img
+	}
+	return f.img, nil
+}
+
+func (f *fromImageSource) size() (int, int) {
+	if f.img != nil {
+		b := f.img.Bounds()
+		return b.Dx(), b.Dy()
+	}
+	return filebrowser.DecodeImageSize(f.b64)
+}
+
 func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateImageResult, error) {
-	s.StartSDPolling()
-	defer s.StopSDPolling()
+	s.beginProgress()
+	defer s.endProgress()
+	src, err := validateFromImage(&params)
+	if err != nil {
+		return nil, err
+	}
+	tags, err := s.filterFromImageInput(&params)
+	if err != nil {
+		return nil, err
+	}
+	if params.GenMode == "compound" {
+		return s.generateFromImageCompound(params, tags)
+	}
+
+	p, err := s.db.Get(params.PresetID)
+	if err != nil {
+		return nil, fmt.Errorf("preset not found: %w", err)
+	}
+	ApplyPresetOverrides(p, params.Overrides)
+	if params.PreserveIdentity && !config.IsFlux2Klein(p.ModelName) && !config.IsQwenImage(p.ModelName) {
+		return nil, fmt.Errorf("preserve identity requires a flux-2-klein or qwen-image model, got %q", p.ModelName)
+	}
+
+	prompt, negativePrompt, err := s.fromImagePrompts(p, params, tags, src)
+	if err != nil {
+		return nil, err
+	}
+	spec := s.prepareSDContext(p, "from-image")
+	seed := p.Seed
+	if params.Seed != nil {
+		seed = params.Seed
+	}
+	if params.Mode == "img2img" {
+		return s.fromImageImg2Img(p, params, src, spec, prompt, negativePrompt, seed)
+	}
+	return s.fromImageTxt2Img(p, params, spec, prompt, negativePrompt, seed)
+}
+
+func validateFromImage(params *GenerateFromImageParams) (*fromImageSource, error) {
 	if params.ImageBase64 == "" {
 		return nil, fmt.Errorf("image is required")
 	}
@@ -234,15 +293,16 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	if params.OutputMode != "" && params.OutputMode != "standard" && params.OutputMode != "quality" {
 		return nil, fmt.Errorf("output_mode must be standard or quality")
 	}
+	presetImg2Img := params.GenMode == "preset" && params.Mode == "img2img"
 	if params.OutputMode == "quality" {
-		if params.GenMode != "preset" || params.Mode != "img2img" {
+		if !presetImg2Img {
 			return nil, fmt.Errorf("quality output mode requires img2img preset mode")
 		}
 		if params.ResolutionID == nil || *params.ResolutionID <= 0 {
 			return nil, fmt.Errorf("quality output mode requires resolution")
 		}
 	}
-	if params.PreserveIdentity && (params.GenMode != "preset" || params.Mode != "img2img") {
+	if params.PreserveIdentity && !presetImg2Img {
 		return nil, fmt.Errorf("preserve identity requires img2img preset mode")
 	}
 	if params.PreserveIdentity && params.DenoisingStrength > 0.9 {
@@ -254,77 +314,55 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	if params.DenoisingStrength > 1.0 {
 		params.DenoisingStrength = 1.0
 	}
-	var effectMask, maskSource image.Image
-	if params.MaskBase64 != "" {
-		if params.GenMode != "preset" || params.Mode != "img2img" || params.OutputMode == "quality" {
-			return nil, fmt.Errorf("mask requires img2img preset mode with standard output")
-		}
-		if len(params.MaskBase64) > MaxImageBase64Len {
-			return nil, config.ImageTooLarge("mask")
-		}
-		var err error
-		if effectMask, err = decodeB64Image(params.MaskBase64, "mask"); err != nil {
-			return nil, err
-		}
-		if !maskcomp.HasPaint(effectMask) {
-			return nil, errors.New("mask is empty — paint over the area")
-		}
-		if maskSource, err = decodeB64Image(params.ImageBase64, "image"); err != nil {
-			return nil, err
-		}
+	src := &fromImageSource{b64: params.ImageBase64}
+	if params.MaskBase64 == "" {
+		return src, nil
 	}
-
-	var filterErr error
-	params.ExtraNegativePrompt, filterErr = s.kids.FilterInput(params.ExtraNegativePrompt)
-	if filterErr != nil {
-		return nil, filterErr
+	if !presetImg2Img || params.OutputMode == "quality" {
+		return nil, fmt.Errorf("mask requires img2img preset mode with standard output")
 	}
-
-	tags := params.Tags
-
-	tags, filterErr = s.kids.FilterInput(tags)
-	if filterErr != nil {
-		return nil, filterErr
+	if len(params.MaskBase64) > MaxImageBase64Len {
+		return nil, config.ImageTooLarge("mask")
 	}
-
-	if params.GenMode == "compound" {
-		return s.generateFromImageCompound(params, tags)
+	var err error
+	if src.mask, err = decodeB64Image(params.MaskBase64, "mask"); err != nil {
+		return nil, err
 	}
+	if !maskcomp.HasPaint(src.mask) {
+		return nil, errors.New("mask is empty — paint over the area")
+	}
+	if src.img, err = decodeB64Image(params.ImageBase64, "image"); err != nil {
+		return nil, err
+	}
+	return src, nil
+}
 
-	p, err := s.db.Get(params.PresetID)
+func (s *Service) filterFromImageInput(params *GenerateFromImageParams) (string, error) {
+	neg, err := s.kids.FilterInput(params.ExtraNegativePrompt)
 	if err != nil {
-		return nil, fmt.Errorf("preset not found: %w", err)
+		return "", err
 	}
-	ApplyPresetOverrides(p, params.Overrides)
-	if params.PreserveIdentity && !config.IsFlux2Klein(p.ModelName) && !config.IsQwenImage(p.ModelName) {
-		return nil, fmt.Errorf("preserve identity requires a flux-2-klein or qwen-image model, got %q", p.ModelName)
-	}
+	params.ExtraNegativePrompt = neg
+	return s.kids.FilterInput(params.Tags)
+}
 
-	seed := p.Seed
-	if params.Seed != nil {
-		seed = params.Seed
-	}
-
+func (s *Service) fromImagePrompts(p *preset.Preset, params GenerateFromImageParams, tags string, src *fromImageSource) (string, string, error) {
 	var prompt, negativePrompt string
 	if tags == "" {
 		bp := s.buildPrompts(p.Prompt, p.NegativePrompt, p.Loras, "", params.ExtraNegativePrompt)
-		prompt = bp.Prompt
-		negativePrompt = bp.NegativePrompt
+		prompt, negativePrompt = bp.Prompt, bp.NegativePrompt
 	} else {
 		promptResult, err := s.generateLLMPromptFromTags(p, tags, params.Mode, params.ExtraNegativePrompt)
 		if err != nil {
-			return nil, err
+			return "", "", err
 		}
-
-		prompt = promptResult.Prompt
-		prompt = appendLorasToPrompt(prompt, p.Loras)
+		prompt = appendLorasToPrompt(promptResult.Prompt, p.Loras)
 		negativePrompt = s.buildPrompts("", promptResult.NegativePrompt, "", "", params.ExtraNegativePrompt).NegativePrompt
 	}
-
-	if effectMask != nil && (p.PresetType == materialPresetType || p.PresetType == patternPresetType) {
-		object, err := s.detectMaskedObject(maskSource, effectMask)
+	if src.mask != nil && (p.PresetType == materialPresetType || p.PresetType == patternPresetType) {
+		object, err := s.detectMaskedObject(src.img, src.mask)
 		if err != nil {
-			return nil, err
+			return "", "", err
 		}
 		template := materialObjectTemplate
 		if p.PresetType == patternPresetType {
@@ -332,213 +370,161 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		}
 		prompt = fmt.Sprintf(template, object, prompt)
 	}
+	return prompt, negativePrompt, nil
+}
 
-	spec := s.prepareSDContext(p, "from-image")
+type fromImageSize struct {
+	w, h           int
+	kleinW, kleinH int
+}
 
-	samplerName := p.Sampler
-
-	clipSkip := 1
-	if p.ClipSkip != nil {
-		clipSkip = *p.ClipSkip
+func (s *Service) fromImageWorkSize(p *preset.Preset, params GenerateFromImageParams, rawW, rawH int) fromImageSize {
+	srcW, srcH := 512, 512
+	if rawW > 0 && rawH > 0 {
+		srcW, srcH = rawW/8*8, rawH/8*8
 	}
-	batchSize := 1
-	batchCount := 1
+	var sz fromImageSize
+	if params.OutputMode == "quality" {
+		sz.w, sz.h = s.fitImageToResolutionDownOnly(srcW, srcH, params.ResolutionID)
+	} else {
+		sz.w, sz.h = s.fitImageToResolution(srcW, srcH, params.ResolutionID)
+	}
+	qwenRef := params.PreserveIdentity && config.IsQwenImage(p.ModelName)
+	if !config.IsFlux2Klein(p.ModelName) && !qwenRef {
+		return sz
+	}
+	if params.ResolutionID == nil || *params.ResolutionID <= 0 {
+		sz.kleinW, sz.kleinH = kleinImg2ImgSize(sz.w, sz.h)
+		if rawW > 0 && rawH > 0 {
+			sz.w, sz.h = refEditWorkSize(p.ModelName, rawW, rawH)
+		} else {
+			sz.w, sz.h = refEditWorkSize(p.ModelName, sz.kleinW, sz.kleinH)
+		}
+		return sz
+	}
+	sz.w, sz.h = alignLookSize(sz.w, sz.h)
+	if qwenRef {
+		sz.w, sz.h = alignTo(sz.w, sz.h, qwenAlign)
+	}
+	return sz
+}
 
-	if params.Mode == "img2img" {
-		refSpec := spec
-		if params.PreserveIdentity {
-			refSpec = withReference(spec)
-		}
-		srcW, srcH := filebrowser.DecodeImageSize(params.ImageBase64)
-		rawW, rawH := srcW, srcH
-		if srcW > 0 && srcH > 0 {
-			srcW = srcW / 8 * 8
-			srcH = srcH / 8 * 8
-		} else {
-			srcW = 512
-			srcH = 512
-		}
-		var imgW, imgH int
-		if params.OutputMode == "quality" {
-			imgW, imgH = s.fitImageToResolutionDownOnly(srcW, srcH, params.ResolutionID)
-		} else {
-			imgW, imgH = s.fitImageToResolution(srcW, srcH, params.ResolutionID)
-		}
-		kleinOutW, kleinOutH := 0, 0
-		qwenRef := params.PreserveIdentity && config.IsQwenImage(p.ModelName)
-		if config.IsFlux2Klein(p.ModelName) || qwenRef {
-			if params.ResolutionID == nil || *params.ResolutionID <= 0 {
-				kleinOutW, kleinOutH = kleinImg2ImgSize(imgW, imgH)
-				if rawW > 0 && rawH > 0 {
-					imgW, imgH = refEditWorkSize(p.ModelName, rawW, rawH)
-				} else {
-					imgW, imgH = refEditWorkSize(p.ModelName, kleinOutW, kleinOutH)
-				}
-			} else {
-				imgW, imgH = alignLookSize(imgW, imgH)
-				if qwenRef {
-					imgW, imgH = alignTo(imgW, imgH, qwenAlign)
-				}
-			}
-		}
-		denoising := params.DenoisingStrength
-		if denoising <= 0 {
-			denoising = 0.5
-		}
-		resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
-			Model:             refSpec,
-			InitImages:        []string{params.ImageBase64},
-			Prompt:            prompt,
-			NegativePrompt:    negativePrompt,
-			SamplerName:       samplerName,
-			Scheduler:         p.ScheduleType,
-			Steps:             p.Steps,
-			CfgScale:          p.CfgScale,
-			Width:             imgW,
-			Height:            imgH,
-			Seed:              seed,
-			DenoisingStrength: &denoising,
-			ClipSkip:          &clipSkip,
-			BatchSize:         &batchSize,
-			BatchCount:        &batchCount,
-		})
-		if err != nil {
+func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImageParams, src *fromImageSource, spec sd.ModelSpec, prompt, negativePrompt string, seed *int64) (*GenerateImageResult, error) {
+	keepColor := params.KeepColor && p.PresetType == materialPresetType && params.OutputMode != "quality"
+	if keepColor {
+		if _, err := src.decode(); err != nil {
 			return nil, err
 		}
-		if len(resp.Images) == 0 {
-			if ierr := s.checkSDInterrupted(); ierr != nil {
-				return nil, ierr
-			}
-			return nil, fmt.Errorf("no image generated (%s)", params.Mode)
-		}
-		finalImage := s.kleinUpscaleTo(resp.Images[0], imgW, kleinOutW, kleinOutH, "from-image klein")
-		finalInfo := resp.Info
-		upscaleSkipped := false
-		redenoiseSkipped := false
-		if params.OutputMode == "quality" {
-			{
-				qualityReq := sd.Txt2ImgRequest{
-					Model:          spec,
-					Prompt:         prompt,
-					NegativePrompt: negativePrompt,
-					SamplerName:    samplerName,
-					Scheduler:      p.ScheduleType,
-					Steps:          p.Steps,
-					CfgScale:       p.CfgScale,
-					Width:          imgW,
-					Height:         imgH,
-					Seed:           seed,
-					ClipSkip:       &clipSkip,
-					BatchSize:      &batchSize,
-					BatchCount:     &batchCount,
-				}
-				qImg, qInfo, qUpscaleSkipped, qRedenoiseSkipped, qErr := s.qualityPostProcess(finalImage, qualityReq, imgW, imgH, params.ResolutionID)
-				if qErr != nil {
-					return nil, qErr
-				}
-				finalImage = qImg
-				if qInfo != nil {
-					finalInfo = qInfo
-				}
-				upscaleSkipped = qUpscaleSkipped
-				redenoiseSkipped = qRedenoiseSkipped
-			}
-		}
-		keepColor := params.KeepColor && p.PresetType == materialPresetType && params.OutputMode != "quality"
-		if effectMask != nil || keepColor {
-			source := maskSource
-			if source == nil {
-				if source, err = decodeB64ImageAnySize(params.ImageBase64, "image"); err != nil {
-					return nil, err
-				}
-			}
-			edited, err := decodeB64ImageAnySize(finalImage, "result")
-			if err != nil {
-				return nil, err
-			}
-			out := image.Image(edited)
-			if keepColor {
-				out = maskcomp.KeepColor(source, out, materialKeepColorSigma)
-			}
-			if effectMask != nil {
-				out = maskcomp.Blend(source, out, effectMask)
-			}
-			if finalImage, err = encodePNGBase64(out); err != nil {
-				return nil, err
-			}
-		}
-		genMeta := &preset.GenerationMeta{
-			PresetID: &params.PresetID,
-			Label:    p.Name,
-			Model:    p.ModelName,
-		}
-		if params.OutputMode == "quality" {
-			genMeta.Chain = buildQualityChain(preset.StepMeta{
-				Preset:  p.Name,
-				Model:   p.ModelName,
-				Loras:   p.Loras,
-				Op:      "base",
-				Denoise: &denoising,
-			}, upscaleSkipped, redenoiseSkipped)
-		}
-		result := &GenerateImageResult{
-			Image:                   finalImage,
-			Info:                    finalInfo,
-			QualityUpscaleSkipped:   upscaleSkipped,
-			QualityRedenoiseSkipped: redenoiseSkipped,
-			EffectivePrompt:         prompt,
-			EffectiveNegativePrompt: negativePrompt,
-		}
-		s.sessions.AddToSession(finalImage, finalInfo, "from-image", false, genMeta)
-		return result, nil
 	}
-
-	width, height := s.resolveResolution(p, params.ResolutionID)
-
-	hiresEnabled, hiresUpscale, hiresDenoising, hiresUpscaler := s.resolveHires(params.HiresProfileID)
-	var hiresFix *bool
-	if hiresEnabled {
-		hiresFix = &hiresEnabled
+	refSpec := spec
+	if params.PreserveIdentity {
+		refSpec = withReference(spec)
 	}
-
-	result, err := s.sd.Txt2Img(sd.Txt2ImgRequest{
-		Model:                  spec,
-		Prompt:                 prompt,
-		NegativePrompt:         negativePrompt,
-		SamplerName:            samplerName,
-		Scheduler:              p.ScheduleType,
-		Steps:                  p.Steps,
-		CfgScale:               p.CfgScale,
-		Width:                  width,
-		Height:                 height,
-		Seed:                   seed,
-		DenoisingStrength:      hiresDenoising,
-		ClipSkip:               &clipSkip,
-		BatchSize:              &batchSize,
-		BatchCount:             &batchCount,
-		HiresFix:               hiresFix,
-		HiresUpscale:           hiresUpscale,
-		HiresDenoisingStrength: hiresDenoising,
-		HiresUpscaler:          hiresUpscaler,
+	rawW, rawH := src.size()
+	sz := s.fromImageWorkSize(p, params, rawW, rawH)
+	denoising := params.DenoisingStrength
+	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+		Model:             refSpec,
+		InitImages:        []string{params.ImageBase64},
+		Prompt:            prompt,
+		NegativePrompt:    negativePrompt,
+		SamplerName:       p.Sampler,
+		Scheduler:         p.ScheduleType,
+		Steps:             p.Steps,
+		CfgScale:          p.CfgScale,
+		Width:             sz.w,
+		Height:            sz.h,
+		Seed:              seed,
+		DenoisingStrength: &denoising,
+		ClipSkip:          presetClipSkip(p),
+		BatchSize:         intPtr(1),
+		BatchCount:        intPtr(1),
 	})
 	if err != nil {
 		return nil, err
 	}
-	if len(result.Images) == 0 {
+	if len(resp.Images) == 0 {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return nil, ierr
 		}
-		return nil, fmt.Errorf("no image generated (txt2img)")
+		return nil, fmt.Errorf("no image generated (%s)", params.Mode)
 	}
-
-	img := &GenerateImageResult{
-		Image:                   result.Images[0],
-		Parameters:              result.Parameters,
-		Info:                    result.Info,
+	result := &GenerateImageResult{
+		Image:                   s.kleinUpscaleTo(resp.Images[0], sz.w, sz.kleinW, sz.kleinH, "from-image klein"),
+		Info:                    resp.Info,
 		EffectivePrompt:         prompt,
 		EffectiveNegativePrompt: negativePrompt,
 	}
-	img.SessionItemID = s.sessions.AddToSession(result.Images[0], result.Info, "generate", false, &preset.GenerationMeta{
+	if params.OutputMode == "quality" {
+		qualityReq := s.presetTxt2Img(p, spec, prompt, negativePrompt, sz.w, sz.h, seed, nil, false).req
+		qualityReq.DenoisingStrength = nil
+		qImg, qInfo, upscaleSkipped, redenoiseSkipped, err := s.qualityPostProcess(result.Image, qualityReq, sz.w, sz.h, params.ResolutionID)
+		if err != nil {
+			return nil, err
+		}
+		result.Image = qImg
+		if qInfo != nil {
+			result.Info = qInfo
+		}
+		result.QualityUpscaleSkipped = upscaleSkipped
+		result.QualityRedenoiseSkipped = redenoiseSkipped
+	}
+	if src.mask != nil || keepColor {
+		if result.Image, err = blendFromImageResult(src.img, result.Image, src.mask, keepColor); err != nil {
+			return nil, err
+		}
+	}
+	genMeta := &preset.GenerationMeta{
+		PresetID: &params.PresetID,
+		Label:    p.Name,
+		Model:    p.ModelName,
+	}
+	if params.OutputMode == "quality" {
+		genMeta.Chain = buildQualityChain(preset.StepMeta{
+			Preset:  p.Name,
+			Model:   p.ModelName,
+			Loras:   p.Loras,
+			Op:      "base",
+			Denoise: &denoising,
+		}, result.QualityUpscaleSkipped, result.QualityRedenoiseSkipped)
+	}
+	result.SessionItemID = s.sessions.AddToSession(result.Image, result.Info, "from-image", genMeta)
+	return result, nil
+}
+
+func blendFromImageResult(source image.Image, resultB64 string, mask image.Image, keepColor bool) (string, error) {
+	edited, err := decodeB64ImageAnySize(resultB64, "result")
+	if err != nil {
+		return "", err
+	}
+	out := edited
+	if keepColor {
+		out = maskcomp.KeepColor(source, out, materialKeepColorSigma)
+	}
+	if mask != nil {
+		out = maskcomp.Blend(source, out, mask)
+	}
+	return encodePNGBase64(out)
+}
+
+func (s *Service) fromImageTxt2Img(p *preset.Preset, params GenerateFromImageParams, spec sd.ModelSpec, prompt, negativePrompt string, seed *int64) (*GenerateImageResult, error) {
+	width, height := s.resolveResolution(p, params.ResolutionID)
+	run := s.presetTxt2Img(p, spec, prompt, negativePrompt, width, height, seed, params.HiresProfileID, false)
+	run.logPrefix = "from-image"
+	out, err := s.runPresetTxt2Img(run)
+	if err != nil {
+		return nil, err
+	}
+	img := &GenerateImageResult{
+		Image:                   out.result.Images[0],
+		Parameters:              out.result.Parameters,
+		Info:                    out.result.Info,
+		HiresFixSkipped:         out.hiresSkipped,
+		HiresFixManual:          out.hiresManual,
+		EffectivePrompt:         prompt,
+		EffectiveNegativePrompt: negativePrompt,
+	}
+	img.SessionItemID = s.sessions.AddToSession(img.Image, img.Info, "generate", &preset.GenerationMeta{
 		PresetID: &params.PresetID,
 		Label:    p.Name,
 		Model:    p.ModelName,
@@ -604,10 +590,7 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 		samplerName := p.Sampler
 		width, height := s.resolveStepResolution(step, p, params.ResolutionID)
 
-		clipSkip := 1
-		if p.ClipSkip != nil {
-			clipSkip = *p.ClipSkip
-		}
+		clipSkip := *presetClipSkip(p)
 
 		if stepIdx == 0 {
 			w, h := imgW, imgH
@@ -652,7 +635,7 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 		EffectivePrompt:         promptResult.Prompt,
 		EffectiveNegativePrompt: promptResult.NegativePrompt,
 	}
-	s.sessions.AddToSession(lastImage, lastInfo, "compound-from-image", false, &preset.GenerationMeta{
+	s.sessions.AddToSession(lastImage, lastInfo, "compound-from-image", &preset.GenerationMeta{
 		Label: cp.Name,
 		Model: lastModel,
 		Chain: chain,
@@ -703,8 +686,8 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 	if err := ValidateIdea(params.Idea, params.IdeaNegative); err != nil {
 		return nil, err
 	}
-	s.StartSDPolling()
-	defer s.StopSDPolling()
+	s.beginProgress()
+	defer s.endProgress()
 	if strings.TrimSpace(params.Idea) != "" {
 		prompt, negative, err := s.resolveIdea(steps[0].PresetID, nil, params.Idea, params.IdeaNegative)
 		if err != nil {
@@ -765,10 +748,7 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		samplerName := p.Sampler
 		width, height := s.resolveStepResolution(step, p, params.ResolutionID)
 
-		clipSkip := 1
-		if p.ClipSkip != nil {
-			clipSkip = *p.ClipSkip
-		}
+		clipSkip := *presetClipSkip(p)
 
 		if stepIdx == 0 {
 			lastImage, lastInfo, err = s.runCompoundFirstStep(step, p, prompt, negativePrompt, samplerName, width, height, clipSkip, isLastStep, params.HiresProfileID, stepIdx+1)
@@ -799,7 +779,7 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		EffectivePrompt:         "",
 		EffectiveNegativePrompt: "",
 	}
-	img.SessionItemID = s.sessions.AddToSession(lastImage, lastInfo, "compound", false, &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(lastImage, lastInfo, "compound", &preset.GenerationMeta{
 		Label: label,
 		Model: lastModel,
 		Chain: chain,

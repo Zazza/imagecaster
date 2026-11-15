@@ -555,7 +555,6 @@ func TestApplyLookDirect_HappyPath(t *testing.T) {
 	require.Len(t, sessions.items, 1)
 	item := sessions.items[0]
 	assert.Equal(t, "look", item.source)
-	assert.False(t, item.isPreview)
 	require.NotNil(t, item.meta)
 	assert.Equal(t, "Look: neon night look", item.meta.Label)
 	assert.Equal(t, kleinLookModel, item.meta.Model)

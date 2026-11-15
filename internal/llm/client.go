@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Zazza/imagecaster/internal/promptutil"
@@ -18,8 +19,9 @@ import (
 const maxLLMResponseBodySize = 10 * 1024 * 1024
 
 type Client struct {
+	mu         sync.RWMutex
 	baseURL    string
-	backendCfg BackendConfig
+	cfgSource  ConfigSource
 	httpClient *http.Client
 }
 
@@ -50,14 +52,17 @@ type ImageURLPart struct {
 }
 
 type ChatOptions struct {
-	NumCtx int `json:"num_ctx,omitempty"`
+	NumCtx    int     `json:"num_ctx,omitempty"`
+	TopP      float64 `json:"top_p,omitempty"`
+	NumThread int     `json:"num_thread,omitempty"`
 }
 
 type ChatRequest struct {
 	Model            string       `json:"model"`
 	Messages         []Message    `json:"messages"`
 	Temperature      float64      `json:"temperature"`
-	MaxTokens        int          `json:"max_tokens"`
+	MaxTokens        int          `json:"max_tokens,omitempty"`
+	TopP             float64      `json:"top_p,omitempty"`
 	FrequencyPenalty float64      `json:"frequency_penalty,omitempty"`
 	PresencePenalty  float64      `json:"presence_penalty,omitempty"`
 	Stream           bool         `json:"stream"`
@@ -74,25 +79,46 @@ type ChatResponse struct {
 }
 
 func (c *Client) Chat(model, systemPrompt, userMessage string, temperature float64, maxTokens int) (string, error) {
-	reqBody := ChatRequest{
-		Model: model,
-		Messages: []Message{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: userMessage},
-		},
+	messages := []Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userMessage},
+	}
+	reqBody, base := c.chatRequest(model, messages, temperature, maxTokens)
+	logPrefix := fmt.Sprintf("[LLM] POST %s/v1/chat/completions model=%s max_tokens=%d temperature=%.1f prompt_len=%d", base, model, reqBody.MaxTokens, temperature, len(userMessage))
+	return c.doChatRequest(base, reqBody, logPrefix)
+}
+
+func (c *Client) chatRequest(model string, messages []Message, temperature float64, maxTokens int) (ChatRequest, string) {
+	base, cfg := c.snapshot(ModeGenerate)
+	req := ChatRequest{
+		Model:       model,
+		Messages:    messages,
 		Temperature: temperature,
 		MaxTokens:   maxTokens,
-		Stream:      false,
+		TopP:        cfg.TopP,
+		KeepAlive:   cfg.KeepAlive,
 	}
-
-	reqBody.KeepAlive = c.backendCfg.KeepAlive
-	reqBody.Options = &ChatOptions{
-		NumCtx: c.backendCfg.NumCtx,
+	if cfg.NumCtx > 0 || cfg.TopP > 0 || cfg.NumThread > 0 {
+		req.Options = &ChatOptions{NumCtx: cfg.NumCtx, TopP: cfg.TopP, NumThread: cfg.NumThread}
 	}
+	return req, base
+}
 
-	url := c.baseURL + "/v1/chat/completions"
-	logPrefix := fmt.Sprintf("[LLM] POST %s model=%s max_tokens=%d temperature=%.1f prompt_len=%d", url, model, maxTokens, temperature, len(userMessage))
-	return c.doChatRequest(reqBody, logPrefix)
+func (c *Client) snapshot(mode string) (string, BackendConfig) {
+	c.mu.RLock()
+	base, src := c.baseURL, c.cfgSource
+	c.mu.RUnlock()
+	var cfg BackendConfig
+	if src != nil {
+		cfg = src(mode)
+	}
+	return base, cfg
+}
+
+func (c *Client) url() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.baseURL
 }
 
 func (c *Client) ChatVision(model, systemPrompt, userText, imageBase64 string, temperature float64, maxTokens int) (string, error) {
@@ -128,24 +154,25 @@ func (c *Client) chatVisionOllama(model, systemPrompt, userText, imageBase64 str
 		Content: userText,
 		Images:  []string{imageBase64},
 	})
-	opts := map[string]any{
-		"temperature": temperature,
-		"num_predict": maxTokens,
+	base, cfg := c.snapshot(ModeAnalyze)
+	if cfg.NumCtx < 8192 {
+		cfg.NumCtx = 8192
 	}
-	// vision requests are token-heavy (images use ~4000+ tokens) — ensure enough context
-	numCtx := c.backendCfg.NumCtx
-	if numCtx < 8192 {
-		numCtx = 8192
+	opts := cfg.ollamaOptions(map[string]any{"temperature": temperature})
+	if maxTokens > 0 {
+		opts["num_predict"] = maxTokens
 	}
-	opts["num_ctx"] = numCtx
 	body := ollamaVisionRequest{
 		Model:    model,
 		Messages: msgs,
 		Stream:   false,
 		Options:  opts,
 	}
-	raw, _ := json.Marshal(body)
-	req, err := http.NewRequest("POST", c.baseURL+"/api/chat", bytes.NewReader(raw))
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return "", fmt.Errorf("vision request: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, base+"/api/chat", bytes.NewReader(raw))
 	if err != nil {
 		return "", fmt.Errorf("vision request: %w", err)
 	}
@@ -261,25 +288,12 @@ func (c *Client) GenerateSDPrompt(systemPrompt, description, presetType, model s
 }
 
 func (c *Client) ChatWithMessages(model string, messages []Message, temperature float64, maxTokens int) (string, error) {
-	reqBody := ChatRequest{
-		Model:       model,
-		Messages:    messages,
-		Temperature: temperature,
-		MaxTokens:   maxTokens,
-		Stream:      false,
-	}
-
-	reqBody.KeepAlive = c.backendCfg.KeepAlive
-	reqBody.Options = &ChatOptions{
-		NumCtx: c.backendCfg.NumCtx,
-	}
-
-	url := c.baseURL + "/v1/chat/completions"
-	logPrefix := fmt.Sprintf("[LLM] POST %s model=%s msgs=%d", url, model, len(messages))
-	return c.doChatRequest(reqBody, logPrefix)
+	reqBody, base := c.chatRequest(model, messages, temperature, maxTokens)
+	logPrefix := fmt.Sprintf("[LLM] POST %s/v1/chat/completions model=%s msgs=%d", base, model, len(messages))
+	return c.doChatRequest(base, reqBody, logPrefix)
 }
 
-func (c *Client) doChatRequest(reqBody ChatRequest, logMsg string) (string, error) {
+func (c *Client) doChatRequest(base string, reqBody ChatRequest, logMsg string) (string, error) {
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", fmt.Errorf("marshal request: %w", err)
@@ -287,7 +301,7 @@ func (c *Client) doChatRequest(reqBody ChatRequest, logMsg string) (string, erro
 
 	log.Printf("%s", logMsg)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.baseURL+"/v1/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, base+"/v1/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
 	}
@@ -334,7 +348,7 @@ func CleanTags(s string) string {
 func (c *Client) HealthCheck() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/v1/models", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url()+"/v1/models", nil)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
@@ -353,11 +367,15 @@ func (c *Client) SetURL(baseURL string) {
 	if baseURL != "" && !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		return
 	}
+	c.mu.Lock()
 	c.baseURL = baseURL
+	c.mu.Unlock()
 }
 
-func (c *Client) SetBackendConfig(cfg BackendConfig) {
-	c.backendCfg = cfg
+func (c *Client) SetConfigSource(src ConfigSource) {
+	c.mu.Lock()
+	c.cfgSource = src
+	c.mu.Unlock()
 }
 
 func (c *Client) ListLoaded() ([]LoadedModel, error) {

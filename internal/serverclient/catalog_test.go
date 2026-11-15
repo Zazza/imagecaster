@@ -112,3 +112,30 @@ func walk(v any, fn func(string)) {
 		}
 	}
 }
+
+func TestLoadCatalog_ReturnsIndependentCopies(t *testing.T) {
+	first, err := LoadCatalog()
+	require.NoError(t, err)
+	require.NotEmpty(t, first.SDModels)
+	require.NotEmpty(t, first.LoRA)
+
+	name := first.SDModels[0].Name
+	lora := first.LoRA[0].Name
+	first.SDModels[0].Name = "mutated"
+	first.LoRA[0].Name = "mutated"
+	for i := range first.SDModels {
+		if len(first.SDModels[i].Variants) > 0 {
+			first.SDModels[i].Variants[0].URL = "mutated"
+		}
+	}
+
+	second, err := LoadCatalog()
+	require.NoError(t, err)
+	require.Equal(t, name, second.SDModels[0].Name)
+	require.Equal(t, lora, second.LoRA[0].Name)
+	for i := range second.SDModels {
+		if len(second.SDModels[i].Variants) > 0 {
+			require.NotEqual(t, "mutated", second.SDModels[i].Variants[0].URL)
+		}
+	}
+}

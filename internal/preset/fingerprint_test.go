@@ -34,7 +34,8 @@ func TestSessionFingerprint(t *testing.T) {
 	assert.Equal(t, count2, count3)
 
 	name := fmt.Sprintf("%d.png", itemID)
-	require.NoError(t, db.UpdateSessionItemPaths(itemID, name, name))
+	_, err = db.db.Exec(`UPDATE session_items SET file_name = ?, thumb_name = ? WHERE id = ?`, name, name, itemID)
+	require.NoError(t, err)
 	maxID4, count4, err := db.SessionFingerprint()
 	require.NoError(t, err)
 	assert.Equal(t, itemID, maxID4, "item with thumb_name is counted")

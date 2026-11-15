@@ -38,7 +38,7 @@ func ieLargeNoisePNGBase64(t *testing.T) string {
 }
 
 func TestProcessExportImage_LargePNGPassesSizeCheck(t *testing.T) {
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	img, err := svc.ProcessExportImage(ExportImageParams{
 		ImageBase64: ieLargeNoisePNGBase64(t),
@@ -53,7 +53,7 @@ func TestProcessExportImage_LargePNGPassesSizeCheck(t *testing.T) {
 }
 
 func TestProcessExportImage_OverLimitRejected(t *testing.T) {
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 
 	_, err := svc.ProcessExportImage(ExportImageParams{
 		ImageBase64: strings.Repeat("A", config.MaxImageBase64Len+1),
@@ -70,7 +70,7 @@ func TestPixelLimitUnchanged(t *testing.T) {
 	err := CheckImageDataSize(hugePNGHeader(8193, 8193))
 	require.Error(t, err)
 
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	_, err = svc.ProcessExportImage(ExportImageParams{
 		ImageBase64: base64.StdEncoding.EncodeToString(hugePNGHeader(8193, 8193)),
 		Format:      "png",

@@ -230,7 +230,7 @@ func TestDownloadPlanVariants_OtherModelOnServerDoesNotCount(t *testing.T) {
 	assert.Len(t, sdItems(plan), 1, itemKeys(plan))
 }
 
-func TestDownloadCatalogSDModelVariants(t *testing.T) {
+func TestInstallPresetDepsVariants(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -248,7 +248,7 @@ func TestDownloadCatalogSDModelVariants(t *testing.T) {
 				m := catalogModel(t, name)
 				want := expectedVariant(t, m, tt.vramMB)
 				svc, rec := variantService(t, tt.statusMB, emptyVariantServer())
-				require.NoError(t, svc.DownloadCatalogSDModel(m.Name))
+				require.NoError(t, svc.InstallPresetDeps(dbPreset(t, svc, m.Name, "[]")))
 				got := rec.recorded()
 				require.NotEmpty(t, got)
 				last := got[len(got)-1]
@@ -268,14 +268,14 @@ func TestDownloadCatalogSDModelVariants(t *testing.T) {
 	}
 }
 
-func TestDownloadCatalogSDModelVariants_PresentModelNotDownloaded(t *testing.T) {
+func TestInstallPresetDepsVariants_PresentModelNotDownloaded(t *testing.T) {
 	t.Parallel()
 	m := catalogModel(t, "qwen_image_2.1-Q8_0")
 	stem := strings.TrimSuffix(m.MainFilename(), filepath.Ext(m.MainFilename()))
 	srv := emptyVariantServer()
 	srv["sd"] = []serverclient.ModelInfo{{Name: stem + ".safetensors", Size: 5, Extension: ".safetensors"}}
 	svc, rec := variantService(t, 16376, srv)
-	require.NoError(t, svc.DownloadCatalogSDModel(m.Name))
+	require.NoError(t, svc.InstallPresetDeps(dbPreset(t, svc, m.Name, "[]")))
 	for _, d := range rec.recorded() {
 		assert.NotEqual(t, "sd", d.Type, d)
 	}

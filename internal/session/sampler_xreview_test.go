@@ -25,7 +25,7 @@ func TestAddToSession_SamplerFieldXReview(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			svc, _, _ := testService(t)
-			id := svc.AddToSession(makeImageJPEG(t, 32, 32), json.RawMessage(tt.info), "sd", false, nil)
+			id := svc.AddToSession(makeImageJPEG(t, 32, 32), json.RawMessage(tt.info), "sd", nil)
 			require.Greater(t, id, int64(0))
 			item, err := svc.SessionItem(id)
 			require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestAddToSession_SamplerFieldWrappedInfoXReview(t *testing.T) {
 	svc, _, _ := testService(t)
 	raw, err := json.Marshal(`{"prompt":"p","sampler":"lcm"}`)
 	require.NoError(t, err)
-	id := svc.AddToSession(makeImageJPEG(t, 32, 32), raw, "sd", false, nil)
+	id := svc.AddToSession(makeImageJPEG(t, 32, 32), raw, "sd", nil)
 	require.Greater(t, id, int64(0))
 	item, err := svc.SessionItem(id)
 	require.NoError(t, err)

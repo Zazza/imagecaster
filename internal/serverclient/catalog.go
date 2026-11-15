@@ -7,7 +7,9 @@ import (
 	"math"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 )
 
 //go:embed catalog.json
@@ -77,7 +79,7 @@ type Catalog struct {
 	LoRA        []CatalogLoRA    `json:"lora"`
 }
 
-func LoadCatalog() (*Catalog, error) {
+var parsedCatalog = sync.OnceValues(func() (*Catalog, error) {
 	var catalog Catalog
 	if err := json.Unmarshal(catalogData, &catalog); err != nil {
 		return nil, fmt.Errorf("parse catalog: %w", err)
@@ -86,6 +88,28 @@ func LoadCatalog() (*Catalog, error) {
 		catalog.SDModels[i].fillVariants()
 	}
 	return &catalog, nil
+})
+
+func LoadCatalog() (*Catalog, error) {
+	c, err := parsedCatalog()
+	if err != nil {
+		return nil, err
+	}
+	return c.clone(), nil
+}
+
+func (c *Catalog) clone() *Catalog {
+	out := &Catalog{
+		LLMGenerate: slices.Clone(c.LLMGenerate),
+		LLMVision:   slices.Clone(c.LLMVision),
+		SDModels:    slices.Clone(c.SDModels),
+		LoRA:        slices.Clone(c.LoRA),
+	}
+	for i := range out.SDModels {
+		out.SDModels[i].Modules = slices.Clone(out.SDModels[i].Modules)
+		out.SDModels[i].Variants = slices.Clone(out.SDModels[i].Variants)
+	}
+	return out
 }
 
 func (m CatalogSDModel) MainFilename() string {

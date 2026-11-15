@@ -1,6 +1,7 @@
 package preset
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -193,31 +194,6 @@ func TestPreset_ListEmpty(t *testing.T) {
 	assert.Nil(t, list)
 }
 
-func TestPreset_ListByType(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	require.NoError(t, db.Create(&Preset{Name: "p1", PresetType: "portrait"}))
-	require.NoError(t, db.Create(&Preset{Name: "p2", PresetType: "landscape"}))
-	require.NoError(t, db.Create(&Preset{Name: "p3", PresetType: "portrait"}))
-
-	portraits, err := db.ListByType("portrait")
-	require.NoError(t, err)
-	assert.Len(t, portraits, 2)
-	for _, p := range portraits {
-		assert.Equal(t, "portrait", p.PresetType)
-	}
-
-	landscapes, err := db.ListByType("landscape")
-	require.NoError(t, err)
-	assert.Len(t, landscapes, 1)
-	assert.Equal(t, "p2", landscapes[0].Name)
-
-	empty, err := db.ListByType("nonexistent")
-	require.NoError(t, err)
-	assert.Nil(t, empty)
-}
-
 func TestPreset_GetByIDs(t *testing.T) {
 	t.Parallel()
 	db := testDB(t)
@@ -276,40 +252,6 @@ func TestPreset_CreateBatch(t *testing.T) {
 	assert.Len(t, all, 2)
 }
 
-func TestPresetType_CRUD(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	pt := &PresetType{Name: "Character", Description: "Character presets", SortOrder: 1}
-	err := db.CreatePresetType(pt)
-	require.NoError(t, err)
-	assert.Greater(t, pt.ID, int64(0))
-
-	got, err := db.GetPresetType(pt.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "Character", got.Name)
-	assert.Equal(t, "Character presets", got.Description)
-	assert.Equal(t, 1, got.SortOrder)
-
-	pt.Name = "Portrait"
-	pt.Description = "Portrait presets"
-	pt.SortOrder = 2
-	err = db.UpdatePresetType(pt)
-	require.NoError(t, err)
-
-	got, err = db.GetPresetType(pt.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "Portrait", got.Name)
-	assert.Equal(t, "Portrait presets", got.Description)
-	assert.Equal(t, 2, got.SortOrder)
-
-	err = db.DeletePresetType(pt.ID)
-	require.NoError(t, err)
-
-	_, err = db.GetPresetType(pt.ID)
-	assert.Error(t, err)
-}
-
 func TestPresetType_GetNonexistent(t *testing.T) {
 	t.Parallel()
 	db := testDB(t)
@@ -332,14 +274,6 @@ func TestPresetType_List(t *testing.T) {
 	assert.Equal(t, "Alpha", list[0].Name)
 	assert.Equal(t, "Middle", list[1].Name)
 	assert.Equal(t, "Zebra", list[2].Name)
-}
-
-func TestPresetType_DeleteNonexistent(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	err := db.DeletePresetType(99999)
-	assert.NoError(t, err)
 }
 
 func TestSetting_SetAndGet(t *testing.T) {
@@ -400,29 +334,6 @@ func TestSetting_GetAllSettingsEmpty(t *testing.T) {
 	require.NoError(t, err)
 	delete(settings, migrationV20DoneKey)
 	assert.Empty(t, settings)
-}
-
-func TestSavedDescription_CRUD(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	created, err := db.CreateDescription("a beautiful sunset")
-	require.NoError(t, err)
-	assert.Greater(t, created.ID, int64(0))
-	assert.Equal(t, "a beautiful sunset", created.Text)
-
-	items, err := db.ListDescriptions()
-	require.NoError(t, err)
-	assert.Len(t, items, 1)
-	assert.Equal(t, created.ID, items[0].ID)
-	assert.Equal(t, "a beautiful sunset", items[0].Text)
-
-	err = db.DeleteDescription(created.ID)
-	require.NoError(t, err)
-
-	items, err = db.ListDescriptions()
-	require.NoError(t, err)
-	assert.Nil(t, items)
 }
 
 func TestSavedDescription_CreateFull(t *testing.T) {
@@ -493,46 +404,6 @@ func TestSavedDescription_ListEmpty(t *testing.T) {
 	db := testDB(t)
 
 	items, err := db.ListDescriptions()
-	require.NoError(t, err)
-	assert.Nil(t, items)
-}
-
-func TestSavedPrompt_CreateListDelete(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	created, err := db.CreatePrompt("masterpiece, best quality")
-	require.NoError(t, err)
-	assert.Greater(t, created.ID, int64(0))
-	assert.Equal(t, "masterpiece, best quality", created.Text)
-
-	items, err := db.ListPrompts()
-	require.NoError(t, err)
-	assert.Len(t, items, 1)
-	assert.Equal(t, created.ID, items[0].ID)
-	assert.Equal(t, "masterpiece, best quality", items[0].Text)
-
-	err = db.DeletePrompt(created.ID)
-	require.NoError(t, err)
-
-	items, err = db.ListPrompts()
-	require.NoError(t, err)
-	assert.Nil(t, items)
-}
-
-func TestSavedPrompt_DeleteNonexistent(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	err := db.DeletePrompt(99999)
-	assert.NoError(t, err)
-}
-
-func TestSavedPrompt_ListEmpty(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	items, err := db.ListPrompts()
 	require.NoError(t, err)
 	assert.Nil(t, items)
 }
@@ -785,64 +656,56 @@ func TestSession_ClearItems(t *testing.T) {
 	assert.Nil(t, items)
 }
 
-func TestSession_HasAnyItems(t *testing.T) {
+func TestSession_AddSessionItemWithFiles(t *testing.T) {
 	t.Parallel()
-	db := testDB(t)
+	tests := []struct {
+		name      string
+		placeErr  error
+		wantNames []string
+	}{
+		{"placed files are recorded", nil, []string{"x.png", "x.jpg"}},
+		{"place failure leaves no row", errors.New("disk full"), nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db := testDB(t)
+			sess, err := db.CreateSession("files")
+			require.NoError(t, err)
+			prev, err := db.AddSessionItem(&SessionItem{SessionID: sess.ID, FileName: "prev.png", ThumbName: "prev.png", Source: "sd"})
+			require.NoError(t, err)
 
-	has, err := db.HasAnyItems()
-	require.NoError(t, err)
-	assert.False(t, has)
-
-	sess, err := db.CreateSession("Has Items")
-	require.NoError(t, err)
-
-	_, err = db.AddSessionItem(&SessionItem{SessionID: sess.ID, FileName: "img.png", Source: "txt2img", Prompt: "p"})
-	require.NoError(t, err)
-
-	has, err = db.HasAnyItems()
-	require.NoError(t, err)
-	assert.True(t, has)
-}
-
-func TestSession_DeleteAllSessions(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	_, err := db.CreateSession("Extra 1")
-	require.NoError(t, err)
-	_, err = db.CreateSession("Extra 2")
-	require.NoError(t, err)
-
-	err = db.DeleteAllSessions()
-	require.NoError(t, err)
-
-	sessions, err := db.ListSessions()
-	require.NoError(t, err)
-	assert.Len(t, sessions, 1)
-	assert.Equal(t, "Default", sessions[0].Name)
-
-	activeID, err := db.GetActiveSessionID()
-	require.NoError(t, err)
-	assert.Equal(t, sessions[0].ID, activeID)
-}
-
-func TestSession_UpdateSessionItemPaths(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	sess, err := db.CreateSession("Paths")
-	require.NoError(t, err)
-
-	itemID, err := db.AddSessionItem(&SessionItem{SessionID: sess.ID, FileName: "old.png", ThumbName: "old_thumb.png", Source: "txt2img", Prompt: "p"})
-	require.NoError(t, err)
-
-	err = db.UpdateSessionItemPaths(itemID, "new.png", "new_thumb.png")
-	require.NoError(t, err)
-
-	got, err := db.GetSessionItem(itemID)
-	require.NoError(t, err)
-	assert.Equal(t, "new.png", got.FileName)
-	assert.Equal(t, "new_thumb.png", got.ThumbName)
+			var placedID int64
+			id, err := db.AddSessionItemWithFiles(&SessionItem{SessionID: sess.ID, Source: "sd"}, func(id int64) (string, string, error) {
+				placedID = id
+				if tt.placeErr != nil {
+					return "", "", tt.placeErr
+				}
+				return "x.png", "x.jpg", nil
+			})
+			items, lerr := db.GetSessionItems(sess.ID)
+			require.NoError(t, lerr)
+			active, aerr := db.GetActiveItem(sess.ID)
+			require.NoError(t, aerr)
+			if tt.placeErr != nil {
+				require.ErrorIs(t, err, tt.placeErr)
+				assert.Zero(t, id)
+				assert.NotZero(t, placedID)
+				require.Len(t, items, 1)
+				require.NotNil(t, active)
+				assert.Equal(t, prev, active.ID)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, placedID, id)
+			require.Len(t, items, 2)
+			got, gerr := db.GetSessionItem(id)
+			require.NoError(t, gerr)
+			assert.Equal(t, tt.wantNames, []string{got.FileName, got.ThumbName})
+			require.NotNil(t, active)
+			assert.Equal(t, id, active.ID)
+		})
+	}
 }
 
 func TestSession_ItemCount(t *testing.T) {
@@ -1021,31 +884,6 @@ func TestExportPreset_GetNonexistent(t *testing.T) {
 
 	_, err := db.GetExportPreset(99999)
 	assert.Error(t, err)
-}
-
-func TestGetAllTags(t *testing.T) {
-	t.Parallel()
-	db := testDB(t)
-
-	tags, err := db.GetAllTags()
-	require.NoError(t, err)
-	assert.Nil(t, tags)
-
-	require.NoError(t, db.Create(&Preset{Name: "p1", Tags: "landscape, nature"}))
-	require.NoError(t, db.Create(&Preset{Name: "p2", Tags: "portrait, nature"}))
-	require.NoError(t, db.Create(&Preset{Name: "p3", Tags: ""}))
-	require.NoError(t, db.Create(&Preset{Name: "p4", Tags: "landscape"}))
-
-	tags, err = db.GetAllTags()
-	require.NoError(t, err)
-	tagSet := map[string]bool{}
-	for _, tag := range tags {
-		tagSet[tag] = true
-	}
-	assert.True(t, tagSet["landscape"])
-	assert.True(t, tagSet["nature"])
-	assert.True(t, tagSet["portrait"])
-	assert.Len(t, tags, 3)
 }
 
 func TestResolution_BuiltinDefaults(t *testing.T) {

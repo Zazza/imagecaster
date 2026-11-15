@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"math"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/llm"
@@ -17,17 +15,6 @@ import (
 	"github.com/Zazza/imagecaster/internal/sd"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 )
-
-type ServiceInfo struct {
-	Available   bool   `json:"available"`
-	Model       string `json:"model"`
-	VisionModel string `json:"vision_model,omitempty"`
-}
-
-type ServiceStatus struct {
-	LLM ServiceInfo `json:"llm"`
-	SD  ServiceInfo `json:"sd"`
-}
 
 type Service struct {
 	db           *preset.DB
@@ -39,60 +26,16 @@ type Service struct {
 	bundledFS    fs.FS
 }
 
-func New(db *preset.DB, llmSvc llm.Service, sdSvc sd.Service, cfg *config.Config, log *logger.Logger, srvClient *serverclient.Client) *Service {
-	return &Service{db: db, llm: llmSvc, sd: sdSvc, cfg: cfg, log: log, serverClient: srvClient}
+type llmConfigSink interface {
+	SetConfigSource(src llm.ConfigSource)
 }
 
-func (s *Service) CheckServices() ServiceStatus {
-	var status ServiceStatus
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		var info ServiceInfo
-		if err := s.llm.HealthCheck(); err != nil {
-			info.Available = false
-			s.log.Warn("LLM unavailable: %s", err)
-		} else {
-			info.Available = true
-			if v, err := s.db.GetSetting("llm_generate_model"); err == nil && v != "" {
-				info.Model = v
-			} else {
-				info.Model = s.cfg.SDPromptModel
-			}
-			if v, err := s.db.GetSetting("llm_analyze_model"); err == nil && v != "" {
-				info.VisionModel = v
-			} else {
-				info.VisionModel = s.cfg.VisionModel
-			}
-		}
-		mu.Lock()
-		status.LLM = info
-		mu.Unlock()
-	}()
-
-	go func() {
-		defer wg.Done()
-		var info ServiceInfo
-		if err := s.sd.HealthCheck(); err != nil {
-			info.Available = false
-			s.log.Warn("SD unavailable: %s", err)
-		} else {
-			info.Available = true
-			if st, err := s.sd.State(); err == nil {
-				info.Model = st.LoadedCheckpoint
-			}
-		}
-		mu.Lock()
-		status.SD = info
-		mu.Unlock()
-	}()
-
-	wg.Wait()
-	s.log.Debug("Service check: LLM=%v SD=%v", status.LLM.Available, status.SD.Available)
-	return status
+func New(db *preset.DB, llmSvc llm.Service, sdSvc sd.Service, cfg *config.Config, log *logger.Logger, srvClient *serverclient.Client) *Service {
+	s := &Service{db: db, llm: llmSvc, sd: sdSvc, cfg: cfg, log: log, serverClient: srvClient}
+	if sink, ok := llmSvc.(llmConfigSink); ok {
+		sink.SetConfigSource(s.LLMConfig)
+	}
+	return s
 }
 
 func (s *Service) GetSettings() (map[string]string, error) {
@@ -106,18 +49,13 @@ func (s *Service) GetSettings() (map[string]string, error) {
 		"sd_prompt_model":             s.cfg.SDPromptModel,
 		"vision_model":                s.cfg.VisionModel,
 		"llm_keep_alive":              "5m",
-		"llm_num_ctx":                 "4096",
 		"llm_max_tokens":              "256",
 		"llm_generate_model":          s.cfg.SDPromptModel,
 		"llm_analyze_model":           s.cfg.VisionModel,
-		"llm_generate_temperature":    "0.4",
 		"llm_generate_num_ctx":        "4096",
-		"llm_generate_num_predict":    "256",
 		"llm_generate_top_p":          "0.9",
 		"llm_generate_num_thread":     "0",
-		"llm_analyze_temperature":     "0.4",
 		"llm_analyze_num_ctx":         "4096",
-		"llm_analyze_num_predict":     "256",
 		"llm_analyze_top_p":           "0.9",
 		"llm_analyze_num_thread":      "0",
 		"sd_prompt_instruction_prose": config.DefaultSDPromptInstructionProse,
@@ -160,7 +98,7 @@ func (s *Service) UpdateSettings(data map[string]string) error {
 	}
 
 	numericFields := map[string]bool{
-		"llm_num_ctx": true, "llm_max_tokens": true,
+		"llm_max_tokens": true,
 	}
 	for k, v := range data {
 		if numericFields[k] {
@@ -212,9 +150,9 @@ func (s *Service) UpdateSettings(data map[string]string) error {
 	return nil
 }
 
-func (s *Service) ApplyLLMConfig(mode string) {
+func (s *Service) LLMConfig(mode string) llm.BackendConfig {
 	prefix := "llm_generate_"
-	if mode == "analyze" {
+	if mode == llm.ModeAnalyze {
 		prefix = "llm_analyze_"
 	}
 
@@ -227,11 +165,6 @@ func (s *Service) ApplyLLMConfig(mode string) {
 			cfg.NumCtx = n
 		}
 	}
-	if v, err := s.db.GetSetting(prefix + "num_predict"); err == nil && v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			cfg.NumPredict = n
-		}
-	}
 	if v, err := s.db.GetSetting(prefix + "top_p"); err == nil && v != "" {
 		if n, err := strconv.ParseFloat(v, 64); err == nil {
 			cfg.TopP = n
@@ -242,7 +175,7 @@ func (s *Service) ApplyLLMConfig(mode string) {
 			cfg.NumThread = n
 		}
 	}
-	s.llm.SetBackendConfig(cfg)
+	return cfg
 }
 
 // --- Server mode methods ---
@@ -373,158 +306,4 @@ func (s *Service) DeleteServerLLMModel(name string) error {
 
 func (s *Service) GetModelCatalog() (*serverclient.Catalog, error) {
 	return serverclient.LoadCatalog()
-}
-
-type DownloadItem struct {
-	Type     string  `json:"type"`
-	Filename string  `json:"filename"`
-	URL      string  `json:"url"`
-	SizeGB   float64 `json:"size_gb"`
-	Model    string  `json:"model"`
-}
-
-type DownloadPlan struct {
-	Items   []DownloadItem `json:"items"`
-	TotalGB float64        `json:"total_gb"`
-}
-
-func (s *Service) GetDefaultDownloadPlan() (*DownloadPlan, error) {
-	catalog, err := serverclient.LoadCatalog()
-	if err != nil {
-		return nil, err
-	}
-	bundled, err := s.bundledSources()
-	if err != nil {
-		return nil, err
-	}
-	models, loras, err := preset.SourceDependencies(bundled)
-	if err != nil {
-		return nil, err
-	}
-	present := map[string]map[string]bool{}
-	unlisted := map[string]bool{}
-	listed := func(modelType string) map[string]bool {
-		if present[modelType] == nil {
-			present[modelType] = map[string]bool{}
-			if items, err := s.GetServerModels(modelType); err == nil {
-				for _, it := range items {
-					present[modelType][it.Name] = true
-				}
-			} else {
-				unlisted[modelType] = true
-				s.log.Warn("list server %s models: %s", modelType, err)
-			}
-		}
-		return present[modelType]
-	}
-	has := func(modelType, filename string) bool {
-		return listed(modelType)[filename]
-	}
-	plan := &DownloadPlan{Items: []DownloadItem{}}
-	queued := map[string]bool{}
-	add := func(item DownloadItem) {
-		key := item.Type + "/" + item.Filename
-		if queued[key] || has(item.Type, item.Filename) || unlisted[item.Type] {
-			return
-		}
-		queued[key] = true
-		plan.Items = append(plan.Items, item)
-		plan.TotalGB += item.SizeGB
-	}
-	addLoRA := func(name string) {
-		for _, l := range catalog.LoRA {
-			if l.Name != name || l.URL == "" {
-				continue
-			}
-			add(DownloadItem{Type: "lora", Filename: name + ".safetensors", URL: l.URL, SizeGB: l.SizeMB / 1024, Model: name})
-			return
-		}
-	}
-	vramMB := s.serverVRAMMB()
-	for _, name := range models {
-		m := catalog.FindSDModel(name)
-		if m == nil || m.URL == "" {
-			continue
-		}
-		for _, mod := range m.Modules {
-			add(DownloadItem{Type: mod.Type, Filename: mod.Filename, URL: mod.URL, SizeGB: mod.SizeGB, Model: m.Name})
-		}
-		if _, ok := m.InstalledFile(sdFiles(listed("sd"))); ok {
-			continue
-		}
-		filename, url, size := mainDownload(*m, vramMB)
-		add(DownloadItem{Type: "sd", Filename: filename, URL: url, SizeGB: size, Model: m.Name})
-	}
-	for _, name := range loras {
-		addLoRA(name)
-	}
-	plan.TotalGB = math.Round(plan.TotalGB*100) / 100
-	return plan, nil
-}
-
-func (s *Service) DownloadCatalogSDModel(modelName string) error {
-	catalog, err := serverclient.LoadCatalog()
-	if err != nil {
-		return err
-	}
-	m := catalog.FindSDModel(modelName)
-	if m == nil || m.URL == "" {
-		return fmt.Errorf("model %q has no download link in the catalog", modelName)
-	}
-	present := map[string]map[string]bool{}
-	listed := func(modelType string) map[string]bool {
-		if present[modelType] == nil {
-			present[modelType] = map[string]bool{}
-			if items, err := s.GetServerModels(modelType); err == nil {
-				for _, it := range items {
-					present[modelType][it.Name] = true
-				}
-			} else {
-				s.log.Warn("list server %s models: %s", modelType, err)
-			}
-		}
-		return present[modelType]
-	}
-	has := func(modelType, filename string) bool {
-		return listed(modelType)[filename]
-	}
-	for _, mod := range m.Modules {
-		if has(mod.Type, mod.Filename) {
-			continue
-		}
-		if err := s.DownloadServerModel(mod.Type, mod.URL, mod.Filename); err != nil {
-			return fmt.Errorf("download %s %s: %w", mod.Type, mod.Filename, err)
-		}
-	}
-	if _, ok := m.InstalledFile(sdFiles(listed("sd"))); !ok {
-		filename, url, _ := mainDownload(*m, s.serverVRAMMB())
-		if err := s.DownloadServerModel("sd", url, filename); err != nil {
-			return fmt.Errorf("download SD model %s: %w", m.Name, err)
-		}
-	}
-	return nil
-}
-
-func sdFiles(names map[string]bool) []serverclient.ModelInfo {
-	files := make([]serverclient.ModelInfo, 0, len(names))
-	for n := range names {
-		files = append(files, serverclient.ModelInfo{Name: n})
-	}
-	return files
-}
-
-func mainDownload(m serverclient.CatalogSDModel, vramMB int) (filename, url string, sizeGB float64) {
-	if v := m.FitVariant(vramMB); v != nil {
-		return v.SaveAs, v.URL, v.SizeGB
-	}
-	return m.MainFilename(), m.URL, m.SizeGB
-}
-
-func (s *Service) serverVRAMMB() int {
-	status, err := s.GetServerStatus()
-	if err != nil {
-		s.log.Warn("server status for VRAM: %s", err)
-		return 0
-	}
-	return status.GPU.MemoryTotal
 }

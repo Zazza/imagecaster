@@ -333,8 +333,8 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
-	s.StartSDPolling()
-	defer s.StopSDPolling()
+	s.beginProgress()
+	defer s.endProgress()
 
 	s.guard.EnsureHeadroom(prof.model, "edit")
 
@@ -450,7 +450,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		QualityUpscaleSkipped:   upscaleSkipped,
 		QualityRedenoiseSkipped: redenoiseSkipped,
 	}
-	s.sessions.AddToSession(finalImage, finalInfo, "edit", false, genMeta)
+	s.sessions.AddToSession(finalImage, finalInfo, "edit", genMeta)
 	return result, nil
 }
 

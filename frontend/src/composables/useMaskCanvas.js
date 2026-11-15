@@ -1,13 +1,7 @@
 import { ref, computed } from 'vue'
+import { b64Url } from '../imageDataUrl.js'
 
 const HISTORY_LIMIT = 30
-
-function b64Url(b64) {
-  if (!b64) return ''
-  if (b64.startsWith('data:')) return b64
-  if (b64.startsWith('/9j/')) return 'data:image/jpeg;base64,' + b64
-  return 'data:image/png;base64,' + b64
-}
 
 export function useMaskCanvas() {
   const brushSize = ref(40)

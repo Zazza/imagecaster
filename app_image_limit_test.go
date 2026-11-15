@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/postpreview"
 )
 
 var (
@@ -47,7 +48,7 @@ func appOverLimitBase64() string {
 }
 
 func TestPreviewAdjust_LargePNGPassesSizeCheck(t *testing.T) {
-	app := &App{}
+	app := &App{preview: postpreview.New(1)}
 	b64 := appLargeNoisePNGBase64(t)
 
 	_, err := app.PreviewAdjust(b64, AdjustParams{}, 512)
@@ -58,7 +59,7 @@ func TestPreviewAdjust_LargePNGPassesSizeCheck(t *testing.T) {
 }
 
 func TestAutoAdjust_LargePNGPassesSizeCheck(t *testing.T) {
-	app := &App{}
+	app := &App{preview: postpreview.New(1)}
 	b64 := appLargeNoisePNGBase64(t)
 
 	_, err := app.AutoAdjust(b64)
@@ -69,7 +70,7 @@ func TestAutoAdjust_LargePNGPassesSizeCheck(t *testing.T) {
 }
 
 func TestPreviewAdjust_OverLimitRejected(t *testing.T) {
-	app := &App{}
+	app := &App{preview: postpreview.New(1)}
 
 	_, err := app.PreviewAdjust(appOverLimitBase64(), AdjustParams{}, 512)
 	require.Error(t, err)
@@ -78,7 +79,7 @@ func TestPreviewAdjust_OverLimitRejected(t *testing.T) {
 }
 
 func TestAutoAdjust_OverLimitRejected(t *testing.T) {
-	app := &App{}
+	app := &App{preview: postpreview.New(1)}
 
 	_, err := app.AutoAdjust(appOverLimitBase64())
 	require.Error(t, err)
@@ -87,7 +88,7 @@ func TestAutoAdjust_OverLimitRejected(t *testing.T) {
 }
 
 func TestPreviewAdjust_PixelLimitUnchanged(t *testing.T) {
-	app := &App{}
+	app := &App{preview: postpreview.New(1)}
 	b64 := base64.StdEncoding.EncodeToString(hugePNGHeaderApp(8193, 8193))
 
 	_, err := app.PreviewAdjust(b64, AdjustParams{}, 512)

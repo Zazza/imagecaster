@@ -65,7 +65,7 @@ func main() {
 	gen := generation.New(
 		db, llmClient, sdClient, cfg,
 		dataDir,
-		mcp.NoopEmitter{}, kidsMgr, mcp.AgentSessions{Svc: appSessions}, settingsSvc, nil, logSvc,
+		mcp.NoopEmitter{}, kidsMgr, mcp.AgentSessions{Svc: appSessions}, logSvc,
 	)
 
 	outDir := env("OUT")

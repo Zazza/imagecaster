@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/url"
@@ -39,18 +38,6 @@ func Restore(db *preset.DB, cfg *config.Config, llmSvc llm.Service, sdSvc sd.Ser
 		cfg.VisionModel = v
 	}
 
-	var backendCfg llm.BackendConfig
-	if v, _ := db.GetSetting("llm_keep_alive"); v != "" {
-		backendCfg.KeepAlive = v
-	} else {
-		backendCfg.KeepAlive = "5m"
-	}
-	if v, _ := db.GetSetting("llm_num_ctx"); v != "" {
-		fmt.Sscanf(v, "%d", &backendCfg.NumCtx)
-	} else {
-		backendCfg.NumCtx = 4096
-	}
-	llmSvc.SetBackendConfig(backendCfg)
 }
 
 func ApplyServerURL(serverURL string, cfg *config.Config, llmSvc llm.Service, sdSvc sd.Service, srvClient *serverclient.Client) {

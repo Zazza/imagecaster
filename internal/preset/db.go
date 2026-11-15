@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/Zazza/imagecaster/internal/sdnames"
 	_ "modernc.org/sqlite"
@@ -18,6 +19,9 @@ import (
 
 type DB struct {
 	db *sql.DB
+
+	historyMu    sync.Mutex
+	historyCache *historyRowsCache
 }
 
 func Open(dbPath string) (*DB, error) {
@@ -236,24 +240,6 @@ func scanPreset(scanner interface{ Scan(...any) error }, p *Preset) error {
 
 func (d *DB) List() ([]Preset, error) {
 	rows, err := d.db.Query(`SELECT ` + presetColumns + ` FROM presets ORDER BY created_at DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var presets []Preset
-	for rows.Next() {
-		var p Preset
-		if err := scanPreset(rows, &p); err != nil {
-			return nil, err
-		}
-		presets = append(presets, p)
-	}
-	return presets, rows.Err()
-}
-
-func (d *DB) ListByType(presetType string) ([]Preset, error) {
-	rows, err := d.db.Query(`SELECT `+presetColumns+` FROM presets WHERE preset_type = ? ORDER BY created_at DESC`, presetType)
 	if err != nil {
 		return nil, err
 	}
@@ -501,15 +487,6 @@ func (d *DB) ListDescriptions() ([]SavedDescription, error) {
 	return items, rows.Err()
 }
 
-func (d *DB) CreateDescription(text string) (*SavedDescription, error) {
-	result, err := d.db.Exec(`INSERT INTO saved_descriptions (text) VALUES (?)`, text)
-	if err != nil {
-		return nil, err
-	}
-	id, _ := result.LastInsertId()
-	return &SavedDescription{ID: id, Text: text}, nil
-}
-
 func (d *DB) CreateDescriptionFull(s *SavedDescription) (*SavedDescription, error) {
 	result, err := d.db.Exec(`INSERT INTO saved_descriptions (text, name, negative_prompt, type) VALUES (?, ?, ?, ?)`,
 		s.Text, s.Name, s.NegativePrompt, s.Type)
@@ -528,38 +505,6 @@ func (d *DB) UpdateDescription(s *SavedDescription) error {
 
 func (d *DB) DeleteDescription(id int64) error {
 	_, err := d.db.Exec(`DELETE FROM saved_descriptions WHERE id = ?`, id)
-	return err
-}
-
-func (d *DB) ListPrompts() ([]SavedPrompt, error) {
-	rows, err := d.db.Query(`SELECT id, text, created_at FROM saved_prompts ORDER BY created_at DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var items []SavedPrompt
-	for rows.Next() {
-		var s SavedPrompt
-		if err := rows.Scan(&s.ID, &s.Text, &s.CreatedAt); err != nil {
-			return nil, err
-		}
-		items = append(items, s)
-	}
-	return items, rows.Err()
-}
-
-func (d *DB) CreatePrompt(text string) (*SavedPrompt, error) {
-	result, err := d.db.Exec(`INSERT INTO saved_prompts (text) VALUES (?)`, text)
-	if err != nil {
-		return nil, err
-	}
-	id, _ := result.LastInsertId()
-	return &SavedPrompt{ID: id, Text: text}, nil
-}
-
-func (d *DB) DeletePrompt(id int64) error {
-	_, err := d.db.Exec(`DELETE FROM saved_prompts WHERE id = ?`, id)
 	return err
 }
 
@@ -631,45 +576,6 @@ func (d *DB) CreatePresetType(pt *PresetType) error {
 	return nil
 }
 
-func (d *DB) UpdatePresetType(pt *PresetType) error {
-	_, err := d.db.Exec(`UPDATE preset_types SET name=?, description=?, sort_order=? WHERE id=?`,
-		pt.Name, pt.Description, pt.SortOrder, pt.ID)
-	return err
-}
-
-func (d *DB) DeletePresetType(id int64) error {
-	_, err := d.db.Exec(`DELETE FROM preset_types WHERE id = ?`, id)
-	return err
-}
-
-func (d *DB) GetAllTags() ([]string, error) {
-	rows, err := d.db.Query(`SELECT DISTINCT tags FROM presets WHERE tags != ''`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	tagSet := make(map[string]bool)
-	for rows.Next() {
-		var tagsStr string
-		if err := rows.Scan(&tagsStr); err != nil {
-			return nil, err
-		}
-		for _, t := range strings.Split(tagsStr, ",") {
-			t = strings.TrimSpace(t)
-			if t != "" {
-				tagSet[t] = true
-			}
-		}
-	}
-
-	var tags []string
-	for t := range tagSet {
-		tags = append(tags, t)
-	}
-	return tags, rows.Err()
-}
-
 func migrateV6(db *sql.DB) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS compound_presets (
@@ -695,30 +601,49 @@ func migrateV6(db *sql.DB) error {
 }
 
 func (d *DB) ListCompoundPresets() ([]CompoundPreset, error) {
-	rows, err := d.db.Query(`SELECT id, name, description, created_at, updated_at FROM compound_presets ORDER BY created_at DESC`)
+	return d.listCompoundPresets("", nil)
+}
+
+func inPlaceholders(n int) string {
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
+}
+
+func (d *DB) listCompoundPresets(where string, args []any) ([]CompoundPreset, error) {
+	rows, err := d.db.Query(`SELECT id, name, description, created_at, updated_at FROM compound_presets`+where+` ORDER BY created_at DESC`, args...)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
 	var items []CompoundPreset
 	for rows.Next() {
 		var cp CompoundPreset
 		if err := rows.Scan(&cp.ID, &cp.Name, &cp.Description, &cp.CreatedAt, &cp.UpdatedAt); err != nil {
+			rows.Close()
 			return nil, err
 		}
 		items = append(items, cp)
 	}
-	if err := rows.Err(); err != nil {
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
 		return nil, err
 	}
-
+	if len(items) == 0 {
+		return items, nil
+	}
+	ids := make([]any, len(items))
+	index := make(map[int64]int, len(items))
 	for i := range items {
-		steps, err := d.getCompoundSteps(items[i].ID)
-		if err != nil {
-			return nil, err
+		ids[i] = items[i].ID
+		index[items[i].ID] = i
+	}
+	steps, err := d.queryCompoundSteps(`compound_preset_id IN (`+inPlaceholders(len(ids))+`)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, st := range steps {
+		if i, ok := index[st.CompoundPresetID]; ok {
+			items[i].Steps = append(items[i].Steps, st)
 		}
-		items[i].Steps = steps
 	}
 	return items, nil
 }
@@ -744,8 +669,14 @@ func (d *DB) ListCompoundPresetsFull() ([]CompoundPreset, error) {
 	if err != nil {
 		return nil, err
 	}
+	var steps []*CompoundPresetStep
 	for i := range items {
-		d.enrichCompoundSteps(items[i].Steps)
+		for j := range items[i].Steps {
+			steps = append(steps, &items[i].Steps[j])
+		}
+	}
+	if err := d.enrichCompoundSteps(steps); err != nil {
+		return nil, err
 	}
 	return items, nil
 }
@@ -755,17 +686,56 @@ func (d *DB) GetCompoundPresetFull(id int64) (*CompoundPreset, error) {
 	if err != nil {
 		return nil, err
 	}
-	d.enrichCompoundSteps(cp.Steps)
+	steps := make([]*CompoundPresetStep, len(cp.Steps))
+	for i := range cp.Steps {
+		steps[i] = &cp.Steps[i]
+	}
+	if err := d.enrichCompoundSteps(steps); err != nil {
+		return nil, err
+	}
 	return cp, nil
 }
 
-func (d *DB) enrichCompoundSteps(steps []CompoundPresetStep) {
-	for i := range steps {
-		p, err := d.Get(steps[i].PresetID)
-		if err == nil {
-			steps[i].Preset = p
+func (d *DB) enrichCompoundSteps(steps []*CompoundPresetStep) error {
+	if len(steps) == 0 {
+		return nil
+	}
+	seen := map[int64]bool{}
+	var ids []any
+	for _, st := range steps {
+		if !seen[st.PresetID] {
+			seen[st.PresetID] = true
+			ids = append(ids, st.PresetID)
 		}
 	}
+	rows, err := d.db.Query(`SELECT `+presetColumns+` FROM presets WHERE id IN (`+inPlaceholders(len(ids))+`)`, ids...)
+	if err != nil {
+		return err
+	}
+	byID := make(map[int64]*Preset, len(ids))
+	for rows.Next() {
+		var p Preset
+		if err := scanPreset(rows, &p); err != nil {
+			rows.Close()
+			return err
+		}
+		byID[p.ID] = &p
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, st := range steps {
+		p, ok := byID[st.PresetID]
+		if !ok {
+			log.Printf("[preset] compound %d step %d: preset %d not found", st.CompoundPresetID, st.StepOrder, st.PresetID)
+			continue
+		}
+		cp := *p
+		st.Preset = &cp
+	}
+	return nil
 }
 
 func stepLorasValue(loras *string) string {
@@ -776,9 +746,13 @@ func stepLorasValue(loras *string) string {
 }
 
 func (d *DB) getCompoundSteps(compoundPresetID int64) ([]CompoundPresetStep, error) {
+	return d.queryCompoundSteps(`compound_preset_id = ?`, []any{compoundPresetID})
+}
+
+func (d *DB) queryCompoundSteps(where string, args []any) ([]CompoundPresetStep, error) {
 	rows, err := d.db.Query(
-		`SELECT id, compound_preset_id, step_order, preset_id, denoising_strength, resolution_id, loras FROM compound_preset_steps WHERE compound_preset_id = ? ORDER BY step_order`,
-		compoundPresetID,
+		`SELECT id, compound_preset_id, step_order, preset_id, denoising_strength, resolution_id, loras FROM compound_preset_steps WHERE `+where+` ORDER BY compound_preset_id, step_order`,
+		args...,
 	)
 	if err != nil {
 		return nil, err
@@ -886,39 +860,13 @@ func (d *DB) GetCompoundPresetsByIDs(ids []int64) ([]CompoundPreset, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	placeholders := ""
 	args := make([]any, len(ids))
 	for i, id := range ids {
-		if i > 0 {
-			placeholders += ","
-		}
-		placeholders += "?"
 		args[i] = id
 	}
-	rows, err := d.db.Query(`SELECT id, name, description, created_at, updated_at FROM compound_presets WHERE id IN (`+placeholders+`) ORDER BY created_at DESC`, args...)
-	if err != nil {
+	items, err := d.listCompoundPresets(` WHERE id IN (`+inPlaceholders(len(ids))+`)`, args)
+	if err != nil || len(items) == 0 {
 		return nil, err
-	}
-	defer rows.Close()
-
-	var items []CompoundPreset
-	for rows.Next() {
-		var cp CompoundPreset
-		if err := rows.Scan(&cp.ID, &cp.Name, &cp.Description, &cp.CreatedAt, &cp.UpdatedAt); err != nil {
-			return nil, err
-		}
-		items = append(items, cp)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	for i := range items {
-		steps, err := d.getCompoundSteps(items[i].ID)
-		if err != nil {
-			return nil, err
-		}
-		items[i].Steps = steps
 	}
 	return items, nil
 }

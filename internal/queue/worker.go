@@ -138,13 +138,13 @@ func (w *Worker) loop(ctx context.Context) {
 }
 
 func (w *Worker) checkMoreJobs() {
-	if jobs, _ := w.store.ListActive(); len(jobs) > 0 {
-		for _, j := range jobs {
-			if j.Status == StatusPending {
-				w.Notify()
-				break
-			}
-		}
+	more, err := w.store.HasClaimable()
+	if err != nil {
+		log.Printf("[queue] check pending jobs: %v", err)
+		return
+	}
+	if more {
+		w.Notify()
 	}
 }
 
@@ -153,7 +153,11 @@ func (w *Worker) processNext(parentCtx context.Context) {
 		return
 	}
 	job, err := w.store.ClaimNext()
-	if err != nil || job == nil {
+	if err != nil {
+		log.Printf("[queue] claim next job: %v", err)
+		return
+	}
+	if job == nil {
 		return
 	}
 
@@ -166,7 +170,7 @@ func (w *Worker) processNext(parentCtx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[queue] panic in processNext: %v", r)
-			w.store.UpdateStatus(job.ID, StatusFailed, fmt.Sprintf("panic: %v", r))
+			w.setStatus(job.ID, StatusFailed, fmt.Sprintf("panic: %v", r))
 			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: fmt.Sprintf("panic: %v", r)})
 			w.emit.Emit(EventQueueChanged)
 			w.runCleanup(job.ID)
@@ -181,12 +185,7 @@ func (w *Worker) processNext(parentCtx context.Context) {
 	w.emit.Emit(EventQueueStarted, EventPayload{JobID: job.ID, Type: job.Type})
 	w.emit.Emit(EventQueueChanged)
 
-	progressCh := make(chan progressUpdate, 16)
-	go w.watchProgress(jobCtx, job.ID, progressCh)
-
 	result, procErr := w.processor.ProcessJob(jobCtx, job)
-
-	close(progressCh)
 
 	if procErr != nil && parentCtx.Err() != nil {
 		if err := w.store.RequeueInterrupted(job.ID); err != nil {
@@ -195,15 +194,21 @@ func (w *Worker) processNext(parentCtx context.Context) {
 		return
 	}
 	if jobCtx.Err() != nil && parentCtx.Err() == nil {
-		if current, _ := w.store.Get(job.ID); current != nil && current.Status == StatusRunning {
-			w.store.UpdateStatus(job.ID, StatusFailed, "cancelled")
+		current, err := w.store.Get(job.ID)
+		if err != nil {
+			log.Printf("[queue] job %d: read status after cancel: %v", job.ID, err)
+		}
+		if current != nil && current.Status == StatusRunning {
+			w.setStatus(job.ID, StatusFailed, "cancelled")
 		}
 		w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: "cancelled"})
 		w.runCleanup(job.ID)
 	} else if procErr != nil {
 		errMsg := procErr.Error()
 		if IsRetryableError(procErr) && job.RetryCount < job.MaxRetries {
-			w.store.IncrementRetry(job.ID, job.RetryCount, job.MaxRetries)
+			if err := w.store.IncrementRetry(job.ID, job.RetryCount, job.MaxRetries); err != nil {
+				log.Printf("[queue] job %d: schedule retry: %v", job.ID, err)
+			}
 			w.emit.Emit(EventQueuePaused, EventPayload{
 				JobID:      job.ID,
 				Error:      errMsg,
@@ -212,35 +217,39 @@ func (w *Worker) processNext(parentCtx context.Context) {
 			})
 			w.Notify()
 		} else {
-			w.store.UpdateStatus(job.ID, StatusFailed, errMsg)
+			w.setStatus(job.ID, StatusFailed, errMsg)
 			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: errMsg})
 			w.runCleanup(job.ID)
 		}
 	} else {
-		resultJSON, _ := json.Marshal(result)
-		w.store.UpdateCompleted(job.ID, string(resultJSON))
-		w.emit.Emit(EventQueueCompleted, EventPayload{JobID: job.ID, Result: result})
-		w.runCleanup(job.ID)
+		w.complete(job.ID, result)
 	}
 	w.emit.Emit(EventQueueChanged)
 }
 
-type progressUpdate struct {
-	progress float64
-	detail   string
+func (w *Worker) setStatus(id int64, status JobStatus, errMsg string) {
+	if err := w.store.UpdateStatus(id, status, errMsg); err != nil {
+		log.Printf("[queue] job %d: set status %s: %v", id, status, err)
+	}
 }
 
-func (w *Worker) watchProgress(ctx context.Context, jobID int64, ch chan progressUpdate) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case upd, ok := <-ch:
-			if !ok {
-				return
-			}
-			w.store.UpdateProgress(jobID, upd.progress, upd.detail)
-			w.emit.Emit(EventQueueProgress, EventPayload{JobID: jobID, Progress: upd.progress, Detail: upd.detail})
-		}
+func (w *Worker) complete(id int64, result *JobResult) {
+	defer w.runCleanup(id)
+	stored := JobResult{}
+	if result != nil {
+		stored = *result
+		stored.ImageBase64 = ""
 	}
+	resultJSON, err := json.Marshal(stored)
+	if err == nil {
+		err = w.store.UpdateCompleted(id, string(resultJSON))
+	}
+	if err != nil {
+		log.Printf("[queue] job %d: save result: %v", id, err)
+		msg := "save result: " + err.Error()
+		w.setStatus(id, StatusFailed, msg)
+		w.emit.Emit(EventQueueFailed, EventPayload{JobID: id, Error: msg})
+		return
+	}
+	w.emit.Emit(EventQueueCompleted, EventPayload{JobID: id, Result: result})
 }

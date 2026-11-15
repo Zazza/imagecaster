@@ -258,5 +258,5 @@ func TestSchemaV33_PresetsSamplerDefaultKeepsData(t *testing.T) {
 	assert.Equal(t, []string{"6|euler_a"}, queryStrings(t, db.DB(), `SELECT id, sampler FROM presets WHERE name = 'default sampler'`))
 	v, err := userVersion(db.DB())
 	require.NoError(t, err)
-	assert.Equal(t, 33, v)
+	assert.Equal(t, schemaVersion, v)
 }

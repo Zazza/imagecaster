@@ -105,7 +105,7 @@ func TestProcessExportImage_Finish(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			svc := newTestService(t, &mockSDService{})
+			svc := newTestService(t)
 			p := tt.params
 			p.ImageBase64 = efPNGBase64(t, 1000, 1000, dark)
 
@@ -121,7 +121,7 @@ func TestProcessExportImage_Finish(t *testing.T) {
 
 func TestProcessExportImage_FinishFrameKeepsResizedPhoto(t *testing.T) {
 	t.Parallel()
-	svc := newTestService(t, &mockSDService{})
+	svc := newTestService(t)
 	dark := color.NRGBA{R: 60, G: 60, B: 60, A: 255}
 
 	out, err := svc.ProcessExportImage(ExportImageParams{
@@ -158,7 +158,7 @@ func TestProcessExportImage_InvalidFinish(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			svc := newTestService(t, &mockSDService{})
+			svc := newTestService(t)
 			p := tt.p
 
 			_, err := svc.ProcessExportImage(ExportImageParams{

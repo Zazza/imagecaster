@@ -28,14 +28,14 @@ type StylistEngine interface {
 }
 
 type AppSessions interface {
-	AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64
+	AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64
 }
 
 type AppSessionItems interface {
 	GetActiveSessionItem() (*preset.SessionItem, error)
 	SessionItem(id int64) (*preset.SessionItem, error)
 	GetSessionImage(id int64) (string, error)
-	AddToSessionID(sessionID int64, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64
+	AddToSessionID(sessionID int64, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64
 }
 
 type AppSessionFolders interface {
@@ -52,8 +52,8 @@ type AgentSessions struct {
 	Svc AppSessions
 }
 
-func (a AgentSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
-	return a.Svc.AddToNamedSession(AgentSessionName, imageBase64, info, source, isPreview, meta)
+func (a AgentSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
+	return a.Svc.AddToNamedSession(AgentSessionName, imageBase64, info, source, meta)
 }
 
 type Look struct {
@@ -473,11 +473,11 @@ func stylistOut(src photoSource) map[string]any {
 func saveVariant(sessions AppSessions, src photoSource, img string, info json.RawMessage, meta *preset.GenerationMeta) int64 {
 	if src.item != nil {
 		if items, ok := sessions.(AppSessionItems); ok {
-			return items.AddToSessionID(src.item.SessionID, img, info, "stylist", false, meta)
+			return items.AddToSessionID(src.item.SessionID, img, info, "stylist", meta)
 		}
 		return 0
 	}
-	return sessions.AddToNamedSession(StylistSessionName, img, info, "stylist", false, meta)
+	return sessions.AddToNamedSession(StylistSessionName, img, info, "stylist", meta)
 }
 
 func applyRetouch(eng StylistEngine, img string, pts []faceguard.Point, r faceguard.Retouch) (string, string) {

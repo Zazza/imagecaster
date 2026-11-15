@@ -175,14 +175,9 @@ func TestGenerateImage_IgnoresLeftoverPreviewMode(t *testing.T) {
 
 	t.Run("with resolution: full size of the resolution", func(t *testing.T) {
 		t.Parallel()
-		w, h, sessions := sizeFor(t, true, true)
+		w, h, _ := sizeFor(t, true, true)
 		assert.Equal(t, 832, w)
 		assert.Equal(t, 1216, h)
-		sessions.mu.Lock()
-		defer sessions.mu.Unlock()
-		for _, it := range sessions.items {
-			assert.False(t, it.isPreview, "session item must not be marked as preview")
-		}
 	})
 
 	t.Run("without resolution: same size as when preview was never set", func(t *testing.T) {

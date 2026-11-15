@@ -32,9 +32,9 @@ func TestDeleteSessionItems_RemovesRowsFilesOneEvent(t *testing.T) {
 	other, err := svc.CreateSession("Другая")
 	require.NoError(t, err)
 
-	a := svc.AddToSession(makeImageJPEG(t, 64, 64), nil, "generate", false, nil)
-	b := svc.AddToSessionID(other.ID, makeImageJPEG(t, 64, 64), nil, "edit", false, nil)
-	keep := svc.AddToSession(makeImageJPEG(t, 64, 64), nil, "generate", false, nil)
+	a := svc.AddToSession(makeImageJPEG(t, 64, 64), nil, "generate", nil)
+	b := svc.AddToSessionID(other.ID, makeImageJPEG(t, 64, 64), nil, "edit", nil)
+	keep := svc.AddToSession(makeImageJPEG(t, 64, 64), nil, "generate", nil)
 	require.Greater(t, a, int64(0))
 	require.Greater(t, b, int64(0))
 	require.Greater(t, keep, int64(0))
@@ -76,7 +76,7 @@ func TestDeleteSessionItems_EdgeCases(t *testing.T) {
 	t.Run("empty list", func(t *testing.T) {
 		t.Parallel()
 		svc, emitter, _ := testService(t)
-		keep := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", false, nil)
+		keep := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", nil)
 		n, err := svc.DeleteSessionItems(nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, n)
@@ -87,7 +87,7 @@ func TestDeleteSessionItems_EdgeCases(t *testing.T) {
 	t.Run("unknown ids are skipped", func(t *testing.T) {
 		t.Parallel()
 		svc, _, _ := testService(t)
-		a := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", false, nil)
+		a := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", nil)
 		n, err := svc.DeleteSessionItems([]int64{a, 99999})
 		require.NoError(t, err)
 		assert.Equal(t, 1, n)
@@ -97,7 +97,7 @@ func TestDeleteSessionItems_EdgeCases(t *testing.T) {
 	t.Run("duplicate ids counted once", func(t *testing.T) {
 		t.Parallel()
 		svc, emitter, _ := testService(t)
-		a := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", false, nil)
+		a := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", nil)
 		n, err := svc.DeleteSessionItems([]int64{a, a})
 		require.NoError(t, err)
 		assert.Equal(t, 1, n)
@@ -113,8 +113,8 @@ func TestOpenInHistory_SwitchesSessionAndActivatesItem(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, svc.SwitchSession(original.ID))
 
-	target := svc.AddToSessionID(other.ID, makeImageJPEG(t, 32, 32), nil, "generate", false, nil)
-	newer := svc.AddToSessionID(other.ID, makeImageJPEG(t, 32, 32), nil, "generate", false, nil)
+	target := svc.AddToSessionID(other.ID, makeImageJPEG(t, 32, 32), nil, "generate", nil)
+	newer := svc.AddToSessionID(other.ID, makeImageJPEG(t, 32, 32), nil, "generate", nil)
 	require.Greater(t, target, int64(0))
 	require.Greater(t, newer, int64(0))
 	require.Equal(t, original.ID, activeSession(t, svc).ID)
@@ -132,8 +132,8 @@ func TestOpenInHistory_SwitchesSessionAndActivatesItem(t *testing.T) {
 func TestOpenInHistory_ItemInActiveSession(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := testService(t)
-	first := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", false, nil)
-	svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", false, nil)
+	first := svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", nil)
+	svc.AddToSession(makeImageJPEG(t, 32, 32), nil, "generate", nil)
 	sess := activeSession(t, svc)
 
 	require.NoError(t, svc.OpenInHistory(first))

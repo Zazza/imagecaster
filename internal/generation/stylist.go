@@ -24,8 +24,8 @@ func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
-	s.StartSDPolling()
-	defer s.StopSDPolling()
+	s.beginProgress()
+	defer s.endProgress()
 	if onStart != nil {
 		onStart()
 	}
@@ -131,7 +131,6 @@ func (s *Service) DescribeImage(imageBase64, prompt string) (string, error) {
 		return "", config.ImageTooLarge("image")
 	}
 	model := s.getAnalyzeModel()
-	s.settings.ApplyLLMConfig("analyze")
 	s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
 	text, err := s.llm.AnalyzeImageDescribe(model, prompt, imageBase64, s.getMaxTokens())
 	s.emitter.Emit("llm:status", map[string]string{"status": "done"})

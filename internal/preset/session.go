@@ -3,6 +3,7 @@ package preset
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 )
 
 func (d *DB) CreateSession(name string) (*SessionInfo, error) {
@@ -98,21 +99,51 @@ func unmarshalSessionMeta(v sql.NullString) *GenerationMeta {
 }
 
 func (d *DB) AddSessionItem(item *SessionItem) (int64, error) {
-	_, err := d.db.Exec(`UPDATE session_items SET is_active = 0 WHERE session_id = ?`, item.SessionID)
+	return d.AddSessionItemWithFiles(item, func(int64) (string, string, error) {
+		return item.FileName, item.ThumbName, nil
+	})
+}
+
+func rollbackLogged(tx *sql.Tx) {
+	if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+		log.Printf("[preset] rollback: %v", err)
+	}
+}
+
+func (d *DB) AddSessionItemWithFiles(item *SessionItem, place func(id int64) (fileName, thumbName string, err error)) (int64, error) {
+	tx, err := d.db.Begin()
 	if err != nil {
 		return 0, err
 	}
-	result, err := d.db.Exec(`
+	defer rollbackLogged(tx)
+	if _, err := tx.Exec(`UPDATE session_items SET is_active = 0 WHERE session_id = ?`, item.SessionID); err != nil {
+		return 0, err
+	}
+	result, err := tx.Exec(`
 		INSERT INTO session_items (session_id, file_name, thumb_name, source, prompt, negative_prompt, sampler, steps, cfg_scale, seed, denoising, width, height, is_preview, preset_id, is_active, meta)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-		item.SessionID, item.FileName, item.ThumbName, item.Source,
+		VALUES (?, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+		item.SessionID, item.Source,
 		item.Prompt, item.NegativePrompt, item.Sampler, item.Steps, item.CfgScale,
 		item.Seed, item.Denoising, item.Width, item.Height, item.IsPreview, item.PresetID,
 		marshalSessionMeta(item.Meta))
 	if err != nil {
 		return 0, err
 	}
-	return result.LastInsertId()
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	fileName, thumbName, err := place(id)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(`UPDATE session_items SET file_name = ?, thumb_name = ? WHERE id = ?`, fileName, thumbName, id); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 func (d *DB) GetSessionItems(sessionID int64) ([]SessionItem, error) {
@@ -178,46 +209,6 @@ func (d *DB) DeleteSessionItem(id int64) error {
 
 func (d *DB) ClearSessionItems(sessionID int64) error {
 	_, err := d.db.Exec(`DELETE FROM session_items WHERE session_id = ?`, sessionID)
-	return err
-}
-
-func (d *DB) HasAnyItems() (bool, error) {
-	var count int
-	err := d.db.QueryRow(`SELECT COUNT(*) FROM session_items`).Scan(&count)
-	return count > 0, err
-}
-
-func (d *DB) DeleteAllSessions() error {
-	tx, err := d.db.Begin()
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(`DELETE FROM session_items`)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	_, err = tx.Exec(`DELETE FROM sessions`)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	result, err := tx.Exec(`INSERT INTO sessions (name) VALUES ('Default')`)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	id, _ := result.LastInsertId()
-	_, err = tx.Exec(`UPDATE session_active SET session_id = ? WHERE id = 1`, id)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	return tx.Commit()
-}
-
-func (d *DB) UpdateSessionItemPaths(id int64, fileName string, thumbName string) error {
-	_, err := d.db.Exec(`UPDATE session_items SET file_name = ?, thumb_name = ? WHERE id = ?`, fileName, thumbName, id)
 	return err
 }
 

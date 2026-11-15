@@ -25,7 +25,7 @@ func TestImportItems_ConvertsForgeNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			db := openTestDB(t)
-			svc := New(db, &mockSDService{}, logger.New(nil))
+			svc := New(db, logger.New(nil))
 			pd := dedupPresetData("n")
 			pd.Name = "forge-" + tt.name
 			pd.Sampler = tt.sampler

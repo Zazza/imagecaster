@@ -68,7 +68,8 @@ func TestChatVision(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			c, req, path := visionServer(t, tt.status, tt.body)
-			c.SetBackendConfig(BackendConfig{NumCtx: tt.numCtx})
+			numCtx := tt.numCtx
+			c.SetConfigSource(func(string) BackendConfig { return BackendConfig{NumCtx: numCtx} })
 			got, err := c.ChatVision("llava", tt.system, "describe", "AAAA", 0.3, 256)
 
 			assert.Equal(t, "POST /api/chat", *path)

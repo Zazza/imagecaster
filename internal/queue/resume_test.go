@@ -149,7 +149,7 @@ func TestWorker_ShutdownAfterSuccessCompletesJob(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	proc := &mockProcessor{processFn: func(context.Context, *Job) (*JobResult, error) {
 		cancel()
-		return &JobResult{ImageBase64: "img"}, nil
+		return &JobResult{ImageBase64: "img", SessionItemID: 7}, nil
 	}}
 	w := NewWorker(store, proc, &mockEmitter{})
 	var cleaned atomic.Int64
@@ -159,7 +159,7 @@ func TestWorker_ShutdownAfterSuccessCompletesJob(t *testing.T) {
 	job, err := store.Get(id)
 	require.NoError(t, err)
 	assert.Equal(t, StatusCompleted, job.Status)
-	assert.Contains(t, job.Result, "img")
+	assert.JSONEq(t, `{"session_item_id":7}`, job.Result)
 	assert.Equal(t, id, cleaned.Load())
 }
 

@@ -156,19 +156,14 @@ func (editFakeLLM) AnalyzeImageDescribe(string, string, string, int) (string, er
 func (editFakeLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
 func (editFakeLLM) HealthCheck() error                     { return nil }
 func (editFakeLLM) SetURL(string)                          {}
-func (editFakeLLM) SetBackendConfig(llm.BackendConfig)     {}
 func (editFakeLLM) ListLoaded() ([]llm.LoadedModel, error) { return nil, nil }
 func (editFakeLLM) UnloadAll(ctx context.Context) error    { return nil }
 
 type editFakeSessions struct{}
 
-func (editFakeSessions) AddToSession(string, json.RawMessage, string, bool, *preset.GenerationMeta) int64 {
+func (editFakeSessions) AddToSession(string, json.RawMessage, string, *preset.GenerationMeta) int64 {
 	return 1
 }
-
-type editFakeSettings struct{}
-
-func (editFakeSettings) ApplyLLMConfig(string) {}
 
 func TestProcessJob_EditCallsEditImageWithJobParams(t *testing.T) {
 	pdb, err := preset.Open(":memory:")
@@ -188,8 +183,6 @@ func TestProcessJob_EditCallsEditImageWithJobParams(t *testing.T) {
 		emitter,
 		kids.NewManager(pdb),
 		editFakeSessions{},
-		editFakeSettings{},
-		nil,
 		logger.New(nil),
 	)
 

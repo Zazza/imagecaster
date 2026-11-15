@@ -1,9 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/Zazza/imagecaster/internal/config"
@@ -26,38 +23,9 @@ func newTestApp(t *testing.T) (*App, *preset.DB) {
 	return app, db
 }
 
-func TestCheckServices_LLMModelField(t *testing.T) {
-	llmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"})
-	}))
-	defer llmSrv.Close()
-
-	sdSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/state" {
-			json.NewEncoder(w).Encode(map[string]interface{}{"loaded_checkpoint": "sd-1.5", "running_job": ""})
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer sdSrv.Close()
-
-	db, err := preset.Open(":memory:")
-	require.NoError(t, err)
-	defer db.Close()
-
-	cfg := &config.Config{LLMModel: "my-llm-model", SDPromptModel: "my-sd-model"}
-	app := NewApp(db, llm.New(llmSrv.URL), sd.New(sdSrv.URL), serverclient.NewClient(), cfg)
-
-	status := app.CheckServices()
-	assert.True(t, status.LLM.Available)
-	assert.Equal(t, "my-sd-model", status.LLM.Model, "LLM model should use SDPromptModel from config as fallback")
-	assert.True(t, status.SD.Available)
-	assert.Equal(t, "sd-1.5", status.SD.Model)
-}
-
 func TestApp_ResolutionCRUD(t *testing.T) {
 	t.Parallel()
-	app, _ := newTestApp(t)
+	app, db := newTestApp(t)
 
 	r := preset.Resolution{Name: "Test Res", Width: 512, Height: 512}
 	created, err := app.CreateResolution(r)
@@ -65,7 +33,7 @@ func TestApp_ResolutionCRUD(t *testing.T) {
 	assert.Greater(t, created.ID, int64(0))
 	assert.Equal(t, "Test Res", created.Name)
 
-	got, err := app.GetResolution(created.ID)
+	got, err := db.GetResolution(created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Test Res", got.Name)
 
@@ -80,7 +48,7 @@ func TestApp_ResolutionCRUD(t *testing.T) {
 	err = app.DeleteResolution(created.ID)
 	require.NoError(t, err)
 
-	_, err = app.GetResolution(created.ID)
+	_, err = db.GetResolution(created.ID)
 	assert.Error(t, err)
 }
 
@@ -147,7 +115,7 @@ func TestApp_ListResolutionsEmptyNotNil(t *testing.T) {
 
 func TestApp_HiresProfileCRUD(t *testing.T) {
 	t.Parallel()
-	app, _ := newTestApp(t)
+	app, db := newTestApp(t)
 
 	h := preset.HiresProfile{Name: "Test Profile", Upscale: 2.0, DenoisingStrength: 0.5, Upscaler: "R-ESRGAN 4x+"}
 	created, err := app.CreateHiresProfile(h)
@@ -155,7 +123,7 @@ func TestApp_HiresProfileCRUD(t *testing.T) {
 	assert.Greater(t, created.ID, int64(0))
 	assert.Equal(t, "Test Profile", created.Name)
 
-	got, err := app.GetHiresProfile(created.ID)
+	got, err := db.GetHiresProfile(created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Test Profile", got.Name)
 
@@ -170,7 +138,7 @@ func TestApp_HiresProfileCRUD(t *testing.T) {
 	err = app.DeleteHiresProfile(created.ID)
 	require.NoError(t, err)
 
-	_, err = app.GetHiresProfile(created.ID)
+	_, err = db.GetHiresProfile(created.ID)
 	assert.Error(t, err)
 }
 

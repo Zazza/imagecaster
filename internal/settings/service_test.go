@@ -2,7 +2,6 @@ package settings
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/Zazza/imagecaster/internal/serverclient"
@@ -18,11 +17,9 @@ import (
 )
 
 type mockLLMService struct {
-	healthErr      error
-	setURLCalled   bool
-	setURLVal      string
-	setBackendCfg  llm.BackendConfig
-	setBackendCfgV bool
+	healthErr    error
+	setURLCalled bool
+	setURLVal    string
 }
 
 func (m *mockLLMService) Chat(string, string, string, float64, int) (string, error) {
@@ -52,10 +49,6 @@ func (m *mockLLMService) HealthCheck() error {
 func (m *mockLLMService) SetURL(baseURL string) {
 	m.setURLCalled = true
 	m.setURLVal = baseURL
-}
-func (m *mockLLMService) SetBackendConfig(cfg llm.BackendConfig) {
-	m.setBackendCfg = cfg
-	m.setBackendCfgV = true
 }
 func (m *mockLLMService) ListLoaded() ([]llm.LoadedModel, error) {
 	return nil, nil
@@ -148,106 +141,6 @@ func testService(t *testing.T, llmSvc *mockLLMService, sdSvc *mockSDService) (*S
 	return svc, db
 }
 
-func TestCheckServices_BothAvailable(t *testing.T) {
-	t.Parallel()
-	sdSvc := &mockSDService{
-		options: map[string]interface{}{
-			"sd_model_checkpoint": "test-model.safetensors",
-		},
-	}
-	llmSvc := &mockLLMService{healthErr: nil}
-	svc, db := testService(t, llmSvc, sdSvc)
-
-	require.NoError(t, db.SetSetting("llm_generate_model", "custom-gen-model"))
-	require.NoError(t, db.SetSetting("llm_analyze_model", "custom-vision-model"))
-
-	status := svc.CheckServices()
-
-	assert.True(t, status.LLM.Available)
-	assert.Equal(t, "custom-gen-model", status.LLM.Model)
-	assert.Equal(t, "custom-vision-model", status.LLM.VisionModel)
-	assert.True(t, status.SD.Available)
-	assert.Equal(t, "test-model.safetensors", status.SD.Model)
-}
-
-func TestCheckServices_LLMUnhealthy(t *testing.T) {
-	t.Parallel()
-	llmSvc := &mockLLMService{healthErr: fmt.Errorf("connection refused")}
-	sdSvc := &mockSDService{}
-	svc, _ := testService(t, llmSvc, sdSvc)
-
-	status := svc.CheckServices()
-
-	assert.False(t, status.LLM.Available)
-	assert.Empty(t, status.LLM.Model)
-	assert.True(t, status.SD.Available)
-}
-
-func TestCheckServices_SDUnhealthy(t *testing.T) {
-	t.Parallel()
-	llmSvc := &mockLLMService{}
-	sdSvc := &mockSDService{healthErr: fmt.Errorf("sd down")}
-	svc, _ := testService(t, llmSvc, sdSvc)
-
-	status := svc.CheckServices()
-
-	assert.True(t, status.LLM.Available)
-	assert.False(t, status.SD.Available)
-}
-
-func TestCheckServices_BothUnhealthy(t *testing.T) {
-	t.Parallel()
-	llmSvc := &mockLLMService{healthErr: fmt.Errorf("llm error")}
-	sdSvc := &mockSDService{healthErr: fmt.Errorf("sd error")}
-	svc, _ := testService(t, llmSvc, sdSvc)
-
-	status := svc.CheckServices()
-
-	assert.False(t, status.LLM.Available)
-	assert.False(t, status.SD.Available)
-}
-
-func TestCheckServices_SDOptionsError(t *testing.T) {
-	t.Parallel()
-	llmSvc := &mockLLMService{}
-	sdSvc := &mockSDService{optionsErr: fmt.Errorf("options error")}
-	svc, _ := testService(t, llmSvc, sdSvc)
-
-	status := svc.CheckServices()
-
-	assert.True(t, status.SD.Available)
-	assert.Empty(t, status.SD.Model)
-}
-
-func TestCheckServices_SDModelNotString(t *testing.T) {
-	t.Parallel()
-	sdSvc := &mockSDService{
-		options: map[string]interface{}{
-			"sd_model_checkpoint": 42,
-		},
-	}
-	llmSvc := &mockLLMService{}
-	svc, _ := testService(t, llmSvc, sdSvc)
-
-	status := svc.CheckServices()
-
-	assert.True(t, status.SD.Available)
-	assert.Empty(t, status.SD.Model)
-}
-
-func TestCheckServices_LLMFallbackModels(t *testing.T) {
-	t.Parallel()
-	llmSvc := &mockLLMService{}
-	sdSvc := &mockSDService{}
-	svc, _ := testService(t, llmSvc, sdSvc)
-
-	status := svc.CheckServices()
-
-	assert.True(t, status.LLM.Available)
-	assert.Equal(t, "default", status.LLM.Model)
-	assert.Equal(t, "vision-model", status.LLM.VisionModel)
-}
-
 func TestGetSettings_ReturnsDefaults(t *testing.T) {
 	t.Parallel()
 	svc, _ := testService(t, nil, nil)
@@ -270,14 +163,14 @@ func TestGetSettings_OverridesWithStoredValues(t *testing.T) {
 
 	require.NoError(t, db.SetSetting("llm_url", "http://custom-llm:9999"))
 	require.NoError(t, db.SetSetting("kids_mode", "true"))
-	require.NoError(t, db.SetSetting("llm_num_ctx", "1024"))
+	require.NoError(t, db.SetSetting("llm_max_tokens", "1024"))
 
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://custom-llm:9999", settings["llm_url"])
 	assert.Equal(t, "true", settings["kids_mode"])
-	assert.Equal(t, "1024", settings["llm_num_ctx"])
+	assert.Equal(t, "1024", settings["llm_max_tokens"])
 }
 
 func TestGetSettings_AllDefaultKeysPresent(t *testing.T) {
@@ -289,12 +182,11 @@ func TestGetSettings_AllDefaultKeysPresent(t *testing.T) {
 
 	expectedKeys := []string{
 		"server_url", "llm_model", "sd_prompt_model", "vision_model",
-		"llm_keep_alive", "llm_num_ctx",
+		"llm_keep_alive",
 		"llm_max_tokens", "llm_generate_model", "llm_analyze_model",
-		"llm_generate_temperature", "llm_generate_num_ctx",
-		"llm_generate_num_predict", "llm_generate_top_p",
-		"llm_generate_num_thread", "llm_analyze_temperature",
-		"llm_analyze_num_ctx", "llm_analyze_num_predict",
+		"llm_generate_num_ctx", "llm_generate_top_p",
+		"llm_generate_num_thread",
+		"llm_analyze_num_ctx",
 		"llm_analyze_top_p", "llm_analyze_num_thread",
 		"kids_mode", "kids_cat_violence", "kids_cat_horror",
 		"kids_cat_weapons", "kids_cat_substances", "kids_cat_mature",
@@ -361,7 +253,6 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 
 	data := map[string]string{
-		"llm_num_ctx":    "8192",
 		"llm_max_tokens": "512",
 	}
 
@@ -370,7 +261,6 @@ func TestUpdateSettings_NumericFieldsValid(t *testing.T) {
 
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
-	assert.Equal(t, "8192", settings["llm_num_ctx"])
 	assert.Equal(t, "512", settings["llm_max_tokens"])
 }
 
@@ -380,7 +270,7 @@ func TestUpdateSettings_NumericFieldsZeroOnInvalid(t *testing.T) {
 		key   string
 		value string
 	}{
-		{"llm_num_ctx", "abc"},
+		{"llm_max_tokens", "abc"},
 		{"llm_max_tokens", "-1"},
 	}
 	for _, tt := range tests {
@@ -402,7 +292,7 @@ func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
 	svc, _ := testService(t, nil, nil)
 
 	data := map[string]string{
-		"llm_num_ctx": "",
+		"llm_max_tokens": "",
 	}
 
 	err := svc.UpdateSettings(data)
@@ -410,7 +300,7 @@ func TestUpdateSettings_NumericFieldsEmptyBecomesZero(t *testing.T) {
 
 	settings, err := svc.GetSettings()
 	require.NoError(t, err)
-	assert.Equal(t, "0", settings["llm_num_ctx"])
+	assert.Equal(t, "0", settings["llm_max_tokens"])
 }
 
 func TestUpdateSettings_DisallowedSettingIgnored(t *testing.T) {
@@ -477,49 +367,43 @@ func TestUpdateSettings_LLMAnalyzeModelOverridesVisionModel(t *testing.T) {
 	assert.Equal(t, "analyze-vision-v2", svc.cfg.VisionModel)
 }
 
-func TestApplyLLMConfig_GenerateMode(t *testing.T) {
+func TestLLMConfig_GenerateMode(t *testing.T) {
 	t.Parallel()
 	llmSvc := &mockLLMService{}
 	svc, db := testService(t, llmSvc, nil)
 
 	require.NoError(t, db.SetSetting("llm_keep_alive", "10m"))
 	require.NoError(t, db.SetSetting("llm_generate_num_ctx", "2048"))
-	require.NoError(t, db.SetSetting("llm_generate_num_predict", "128"))
 	require.NoError(t, db.SetSetting("llm_generate_top_p", "0.8"))
 	require.NoError(t, db.SetSetting("llm_generate_num_thread", "4"))
 
-	svc.ApplyLLMConfig("generate")
+	got := svc.LLMConfig("generate")
 
-	assert.True(t, llmSvc.setBackendCfgV)
-	assert.Equal(t, "10m", llmSvc.setBackendCfg.KeepAlive)
-	assert.Equal(t, 2048, llmSvc.setBackendCfg.NumCtx)
-	assert.Equal(t, 128, llmSvc.setBackendCfg.NumPredict)
-	assert.Equal(t, 0.8, llmSvc.setBackendCfg.TopP)
-	assert.Equal(t, 4, llmSvc.setBackendCfg.NumThread)
+	assert.Equal(t, "10m", got.KeepAlive)
+	assert.Equal(t, 2048, got.NumCtx)
+	assert.Equal(t, 0.8, got.TopP)
+	assert.Equal(t, 4, got.NumThread)
 }
 
-func TestApplyLLMConfig_AnalyzeMode(t *testing.T) {
+func TestLLMConfig_AnalyzeMode(t *testing.T) {
 	t.Parallel()
 	llmSvc := &mockLLMService{}
 	svc, db := testService(t, llmSvc, nil)
 
 	require.NoError(t, db.SetSetting("llm_keep_alive", "15m"))
 	require.NoError(t, db.SetSetting("llm_analyze_num_ctx", "8192"))
-	require.NoError(t, db.SetSetting("llm_analyze_num_predict", "512"))
 	require.NoError(t, db.SetSetting("llm_analyze_top_p", "0.95"))
 	require.NoError(t, db.SetSetting("llm_analyze_num_thread", "8"))
 
-	svc.ApplyLLMConfig("analyze")
+	got := svc.LLMConfig("analyze")
 
-	assert.True(t, llmSvc.setBackendCfgV)
-	assert.Equal(t, "15m", llmSvc.setBackendCfg.KeepAlive)
-	assert.Equal(t, 8192, llmSvc.setBackendCfg.NumCtx)
-	assert.Equal(t, 512, llmSvc.setBackendCfg.NumPredict)
-	assert.Equal(t, 0.95, llmSvc.setBackendCfg.TopP)
-	assert.Equal(t, 8, llmSvc.setBackendCfg.NumThread)
+	assert.Equal(t, "15m", got.KeepAlive)
+	assert.Equal(t, 8192, got.NumCtx)
+	assert.Equal(t, 0.95, got.TopP)
+	assert.Equal(t, 8, got.NumThread)
 }
 
-func TestApplyLLMConfig_DefaultIsGenerate(t *testing.T) {
+func TestLLMConfig_DefaultIsGenerate(t *testing.T) {
 	t.Parallel()
 	llmSvc := &mockLLMService{}
 	svc, db := testService(t, llmSvc, nil)
@@ -527,30 +411,27 @@ func TestApplyLLMConfig_DefaultIsGenerate(t *testing.T) {
 	require.NoError(t, db.SetSetting("llm_generate_num_ctx", "4096"))
 	require.NoError(t, db.SetSetting("llm_analyze_num_ctx", "8192"))
 
-	svc.ApplyLLMConfig("")
+	got := svc.LLMConfig("")
 
-	assert.True(t, llmSvc.setBackendCfgV)
-	assert.Equal(t, 4096, llmSvc.setBackendCfg.NumCtx)
+	assert.Equal(t, 4096, got.NumCtx)
 }
 
-func TestApplyLLMConfig_EmptySettingsIgnored(t *testing.T) {
+func TestLLMConfig_EmptySettingsIgnored(t *testing.T) {
 	t.Parallel()
 	llmSvc := &mockLLMService{}
 	svc, db := testService(t, llmSvc, nil)
 
 	require.NoError(t, db.SetSetting("llm_keep_alive", "5m"))
 
-	svc.ApplyLLMConfig("generate")
+	got := svc.LLMConfig("generate")
 
-	assert.True(t, llmSvc.setBackendCfgV)
-	assert.Equal(t, "5m", llmSvc.setBackendCfg.KeepAlive)
-	assert.Equal(t, 0, llmSvc.setBackendCfg.NumCtx)
-	assert.Equal(t, 0, llmSvc.setBackendCfg.NumPredict)
-	assert.Equal(t, 0.0, llmSvc.setBackendCfg.TopP)
-	assert.Equal(t, 0, llmSvc.setBackendCfg.NumThread)
+	assert.Equal(t, "5m", got.KeepAlive)
+	assert.Equal(t, 0, got.NumCtx)
+	assert.Equal(t, 0.0, got.TopP)
+	assert.Equal(t, 0, got.NumThread)
 }
 
-func TestApplyLLMConfig_InvalidNumbersIgnored(t *testing.T) {
+func TestLLMConfig_InvalidNumbersIgnored(t *testing.T) {
 	t.Parallel()
 	llmSvc := &mockLLMService{}
 	svc, db := testService(t, llmSvc, nil)
@@ -558,11 +439,10 @@ func TestApplyLLMConfig_InvalidNumbersIgnored(t *testing.T) {
 	require.NoError(t, db.SetSetting("llm_generate_num_ctx", "not-a-number"))
 	require.NoError(t, db.SetSetting("llm_generate_top_p", "bad-float"))
 
-	svc.ApplyLLMConfig("generate")
+	got := svc.LLMConfig("generate")
 
-	assert.True(t, llmSvc.setBackendCfgV)
-	assert.Equal(t, 0, llmSvc.setBackendCfg.NumCtx)
-	assert.Equal(t, 0.0, llmSvc.setBackendCfg.TopP)
+	assert.Equal(t, 0, got.NumCtx)
+	assert.Equal(t, 0.0, got.TopP)
 }
 
 func TestGetModelCatalog_LoadsEmbeddedData(t *testing.T) {

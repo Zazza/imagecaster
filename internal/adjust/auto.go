@@ -47,14 +47,15 @@ func AnalyzeAuto(img image.Image) AutoStats {
 	var hist [256]int
 	var sumR, sumB float64
 	total := 0
+	px := pixelSource(img)
 	for y := bounds.Min.Y; y < bounds.Max.Y; y += stride {
 		for x := bounds.Min.X; x < bounds.Max.X; x += stride {
-			r16, g16, b16, a16 := img.At(x, y).RGBA()
-			a := uint8(a16 >> 8)
+			r8, g8, b8, a32 := px(x, y)
+			a := uint8(a32)
 			if a == 0 {
 				continue
 			}
-			r, g, b := float64(r16>>8), float64(g16>>8), float64(b16>>8)
+			r, g, b := float64(r8), float64(g8), float64(b8)
 			if a < 255 {
 				scale := 255 / float64(a)
 				r, g, b = r*scale, g*scale, b*scale

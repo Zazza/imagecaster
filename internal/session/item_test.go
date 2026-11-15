@@ -17,7 +17,7 @@ func TestAddToSessionID_WritesToGivenSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, svc.SwitchSession(original.ID))
 
-	id := svc.AddToSessionID(other.ID, makeImageJPEG(t, 64, 64), nil, "stylist", false, &preset.GenerationMeta{Label: "bob", SourceItem: 77})
+	id := svc.AddToSessionID(other.ID, makeImageJPEG(t, 64, 64), nil, "stylist", &preset.GenerationMeta{Label: "bob", SourceItem: 77})
 
 	require.Greater(t, id, int64(0))
 	after := activeSession(t, svc)
@@ -51,7 +51,7 @@ func TestAddToSessionID_EdgeCases(t *testing.T) {
 	}{
 		{name: "session id 0 returns 0", run: func(t *testing.T, svc *Service) {
 			before := activeSession(t, svc)
-			assert.Equal(t, int64(0), svc.AddToSessionID(0, makeImageJPEG(t, 64, 64), nil, "stylist", false, nil))
+			assert.Equal(t, int64(0), svc.AddToSessionID(0, makeImageJPEG(t, 64, 64), nil, "stylist", nil))
 			assert.Equal(t, before.ItemCount, activeSession(t, svc).ItemCount)
 		}},
 		{name: "missing item is nil without error", run: func(t *testing.T, svc *Service) {

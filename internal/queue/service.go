@@ -122,7 +122,9 @@ func (s *Service) CancelJob(id int64) error {
 			s.interruptFn()
 		}
 		s.worker.CancelCurrent()
-		_ = s.store.UpdateStatus(id, StatusFailed, "cancelled by user")
+		if err := s.store.UpdateStatus(id, StatusFailed, "cancelled by user"); err != nil {
+			log.Printf("[queue] job %d: mark cancelled: %v", id, err)
+		}
 		s.emit.Emit(EventQueueChanged)
 		return nil
 	}
@@ -157,7 +159,9 @@ func (s *Service) CancelQueue() error {
 	}
 	s.worker.CancelCurrent()
 	if cur := s.worker.CurrentJob(); cur != nil {
-		_ = s.store.UpdateStatus(cur.ID, StatusFailed, "cancelled by user")
+		if err := s.store.UpdateStatus(cur.ID, StatusFailed, "cancelled by user"); err != nil {
+			log.Printf("[queue] job %d: mark cancelled: %v", cur.ID, err)
+		}
 	}
 	if err := s.store.CancelPending(); err != nil {
 		return err
@@ -170,6 +174,10 @@ const panelFinishedLimit = 100
 
 func (s *Service) GetQueue() ([]*Job, error) {
 	return s.store.ListForPanel(panelFinishedLimit)
+}
+
+func (s *Service) ActiveCount() (int, error) {
+	return s.store.ActiveCount()
 }
 
 func (s *Service) ClearCompleted() error {

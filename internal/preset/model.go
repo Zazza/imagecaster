@@ -55,12 +55,6 @@ type SavedDescription struct {
 	CreatedAt      string `json:"created_at"`
 }
 
-type SavedPrompt struct {
-	ID        int64  `json:"id"`
-	Text      string `json:"text"`
-	CreatedAt string `json:"created_at"`
-}
-
 type CompoundPreset struct {
 	ID          int64                `json:"id"`
 	Name        string               `json:"name"`

@@ -8,7 +8,6 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
-	"io"
 	"log"
 	"math"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	"github.com/Zazza/imagecaster/internal/imgformat"
 	"github.com/Zazza/imagecaster/internal/preset"
 
 	xdraw "golang.org/x/image/draw"
@@ -139,15 +139,20 @@ func normalizeMeta(meta *preset.GenerationMeta, sdModel string) *preset.Generati
 	return nil
 }
 
-func (s *Service) AddToSession(imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+func (s *Service) AddToSession(imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
 	sessionID, err := s.db.GetActiveSessionID()
-	if err != nil || sessionID == 0 {
+	if err != nil {
+		log.Printf("[session] read active session: %v", err)
 		return 0
 	}
-	return s.addItem(sessionID, imageBase64, info, source, isPreview, meta)
+	if sessionID == 0 {
+		log.Printf("[session] no active session, %s image not saved", source)
+		return 0
+	}
+	return s.addItem(sessionID, imageBase64, info, source, meta)
 }
 
-func (s *Service) AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+func (s *Service) AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
 	sessionID, err := s.db.FindSessionByName(name)
 	if err != nil {
 		log.Printf("[session] find session %q: %v", name, err)
@@ -162,14 +167,15 @@ func (s *Service) AddToNamedSession(name, imageBase64 string, info json.RawMessa
 		sessionID = si.ID
 		s.emit.Emit("session:created", map[string]any{"session_id": si.ID, "name": si.Name})
 	}
-	return s.addItem(sessionID, imageBase64, info, source, isPreview, meta)
+	return s.addItem(sessionID, imageBase64, info, source, meta)
 }
 
-func (s *Service) AddToSessionID(sessionID int64, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+func (s *Service) AddToSessionID(sessionID int64, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
 	if sessionID == 0 {
+		log.Printf("[session] no session id, %s image not saved", source)
 		return 0
 	}
-	return s.addItem(sessionID, imageBase64, info, source, isPreview, meta)
+	return s.addItem(sessionID, imageBase64, info, source, meta)
 }
 
 func (s *Service) SessionItems(sessionID int64) ([]preset.SessionItem, error) {
@@ -180,38 +186,157 @@ func (s *Service) SessionItem(id int64) (*preset.SessionItem, error) {
 	return s.db.GetSessionItem(id)
 }
 
-func (s *Service) addItem(sessionID int64, imageBase64 string, info json.RawMessage, source string, isPreview bool, meta *preset.GenerationMeta) int64 {
+func (s *Service) sessionDir(sessionID int64) string {
+	return filepath.Join(s.dataDir, "sessions", strconv.FormatInt(sessionID, 10))
+}
+
+func (s *Service) thumbDir(sessionID int64) string {
+	return filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(sessionID, 10))
+}
+
+func (s *Service) addItem(sessionID int64, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
+	itemID, err := s.storeItem(sessionID, imageBase64, info, source, meta)
+	if err != nil {
+		log.Printf("[session] %s image not saved to session %d: %v", source, sessionID, err)
+		return 0
+	}
+	s.emit.Emit("session:added", map[string]int64{"id": itemID})
+	s.emit.Emit("session:active", map[string]int64{"id": itemID})
+	return itemID
+}
+
+type encodedImage struct {
+	data   []byte
+	ext    string
+	width  int
+	height int
+}
+
+func decodeStoredImage(imageBase64 string) (*encodedImage, error) {
 	if len(imageBase64) > maxImageBase64 {
-		reencoded, err := reencodeJPEG(imageBase64)
+		data, err := reencodeJPEG(imageBase64)
 		if err != nil {
-			log.Printf("[session] warn: dropped oversized image: base64=%d bytes, cap=%d bytes, jpeg reencode failed: %v", len(imageBase64), maxImageBase64, err)
-			return 0
+			return nil, fmt.Errorf("oversized image: base64=%d bytes, cap=%d bytes, jpeg reencode failed: %w", len(imageBase64), maxImageBase64, err)
 		}
-		if len(reencoded) > maxImageBase64 {
-			log.Printf("[session] warn: dropped oversized image: base64=%d bytes, jpeg=%d bytes still over cap=%d bytes", len(imageBase64), len(reencoded), maxImageBase64)
-			return 0
+		if base64.StdEncoding.EncodedLen(len(data)) > maxImageBase64 {
+			return nil, fmt.Errorf("oversized image: base64=%d bytes, jpeg=%d bytes still over cap=%d bytes", len(imageBase64), base64.StdEncoding.EncodedLen(len(data)), maxImageBase64)
 		}
-		imageBase64 = reencoded
+		return describeImage(data)
 	}
-
-	imgData, err := base64.StdEncoding.DecodeString(imageBase64)
+	data, err := base64.StdEncoding.DecodeString(imageBase64)
 	if err != nil {
-		return 0
+		return nil, fmt.Errorf("decode base64: %w", err)
 	}
+	return describeImage(data)
+}
 
-	img, _, err := image.Decode(bytes.NewReader(imgData))
+func describeImage(data []byte) (*encodedImage, error) {
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		return 0
+		return nil, fmt.Errorf("decode image header: %w", err)
+	}
+	switch format {
+	case "png":
+		return &encodedImage{data: data, ext: ".png", width: cfg.Width, height: cfg.Height}, nil
+	case "jpeg":
+		if o := imgformat.JPEGOrientation(data); o != 1 {
+			return uprightJPEG(data, o)
+		}
+		return &encodedImage{data: data, ext: ".jpg", width: cfg.Width, height: cfg.Height}, nil
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("decode %s image: %w", format, err)
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, fmt.Errorf("encode %s image as png: %w", format, err)
+	}
+	return &encodedImage{data: buf.Bytes(), ext: ".png", width: img.Bounds().Dx(), height: img.Bounds().Dy()}, nil
+}
+
+func uprightJPEG(data []byte, orientation int) (*encodedImage, error) {
+	img, err := jpeg.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("decode jpeg image: %w", err)
+	}
+	img = imgformat.ApplyOrientation(img, orientation)
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+		return nil, fmt.Errorf("encode upright jpeg: %w", err)
+	}
+	return &encodedImage{data: buf.Bytes(), ext: ".jpg", width: img.Bounds().Dx(), height: img.Bounds().Dy()}, nil
+}
+
+const thumbSize = 128
+
+func makeThumb(img *encodedImage) ([]byte, string, error) {
+	if img.width <= thumbSize && img.height <= thumbSize {
+		return img.data, img.ext, nil
+	}
+	src, _, err := image.Decode(bytes.NewReader(img.data))
+	if err != nil {
+		return nil, "", fmt.Errorf("decode image: %w", err)
+	}
+	origW := src.Bounds().Dx()
+	origH := src.Bounds().Dy()
+	ratio := math.Min(float64(thumbSize)/float64(origW), float64(thumbSize)/float64(origH))
+	tw := max(int(float64(origW)*ratio), 1)
+	th := max(int(float64(origH)*ratio), 1)
+	dst := image.NewRGBA(image.Rect(0, 0, tw, th))
+	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), xdraw.Over, nil)
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 80}); err != nil {
+		return nil, "", fmt.Errorf("encode thumbnail: %w", err)
+	}
+	return buf.Bytes(), ".jpg", nil
+}
+
+func writeTemp(dir string, data []byte) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	f, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return "", err
+	}
+	_, werr := f.Write(data)
+	cerr := f.Close()
+	if werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		removeQuiet(f.Name())
+		return "", werr
+	}
+	return f.Name(), nil
+}
+
+func removeQuiet(path string) {
+	if path == "" {
+		return
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		log.Printf("[session] remove %s: %v", path, err)
+	}
+}
+
+func (s *Service) storeItem(sessionID int64, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) (int64, error) {
+	img, err := decodeStoredImage(imageBase64)
+	if err != nil {
+		return 0, err
+	}
+	thumbData, thumbExt, err := makeThumb(img)
+	if err != nil {
+		return 0, err
 	}
 
 	item := &preset.SessionItem{
 		SessionID: sessionID,
 		Source:    source,
-		IsPreview: isPreview,
-		Width:     img.Bounds().Dx(),
-		Height:    img.Bounds().Dy(),
+		Width:     img.width,
+		Height:    img.height,
 	}
-
 	var sd SDInfo
 	if raw := unwrapInfo(info); raw != nil {
 		if json.Unmarshal(raw, &sd) == nil {
@@ -233,90 +358,64 @@ func (s *Service) addItem(sessionID int64, imageBase64 string, info json.RawMess
 			}
 		}
 	}
-
 	item.Meta = normalizeMeta(meta, sd.SDModelName)
 	if meta != nil {
 		item.PresetID = meta.PresetID
 	}
 
-	itemID, err := s.db.AddSessionItem(item)
+	sessionDir := s.sessionDir(sessionID)
+	thumbDir := s.thumbDir(sessionID)
+	tmpFile, err := writeTemp(sessionDir, img.data)
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("write image: %w", err)
 	}
-
-	sessionDir := filepath.Join(s.dataDir, "sessions", strconv.FormatInt(sessionID, 10))
-	thumbDir := filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(sessionID, 10))
-	os.MkdirAll(sessionDir, 0o755)
-	os.MkdirAll(thumbDir, 0o755)
-
-	fileName := strconv.FormatInt(itemID, 10) + ".png"
-	filePath := filepath.Join(sessionDir, fileName)
-
-	f, err := os.Create(filePath)
-	if err == nil {
-		png.Encode(f, img)
-		f.Close()
+	defer removeQuiet(tmpFile)
+	tmpThumb, err := writeTemp(thumbDir, thumbData)
+	if err != nil {
+		return 0, fmt.Errorf("write thumbnail: %w", err)
 	}
+	defer removeQuiet(tmpThumb)
 
-	thumbName := fileName
-	thumbPath := filepath.Join(thumbDir, thumbName)
-	const thumbSize = 128
-	origW := img.Bounds().Dx()
-	origH := img.Bounds().Dy()
-	if origW > thumbSize || origH > thumbSize {
-		ratio := math.Min(float64(thumbSize)/float64(origW), float64(thumbSize)/float64(origH))
-		tw := int(float64(origW) * ratio)
-		th := int(float64(origH) * ratio)
-		if tw < 1 {
-			tw = 1
+	var placed []string
+	itemID, err := s.db.AddSessionItemWithFiles(item, func(id int64) (string, string, error) {
+		fileName := strconv.FormatInt(id, 10) + img.ext
+		thumbName := strconv.FormatInt(id, 10) + thumbExt
+		filePath := filepath.Join(sessionDir, fileName)
+		if err := os.Rename(tmpFile, filePath); err != nil {
+			return "", "", fmt.Errorf("place image: %w", err)
 		}
-		if th < 1 {
-			th = 1
+		placed = append(placed, filePath)
+		thumbPath := filepath.Join(thumbDir, thumbName)
+		if err := os.Rename(tmpThumb, thumbPath); err != nil {
+			return "", "", fmt.Errorf("place thumbnail: %w", err)
 		}
-		dst := image.NewRGBA(image.Rect(0, 0, tw, th))
-		xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, img.Bounds(), xdraw.Over, nil)
-		tf, err := os.Create(thumbPath)
-		if err == nil {
-			jpeg.Encode(tf, dst, &jpeg.Options{Quality: 80})
-			tf.Close()
+		placed = append(placed, thumbPath)
+		return fileName, thumbName, nil
+	})
+	if err != nil {
+		for _, p := range placed {
+			removeQuiet(p)
 		}
-	} else {
-		srcF, _ := os.Open(filePath)
-		dstF, _ := os.Create(thumbPath)
-		if srcF != nil && dstF != nil {
-			io.Copy(dstF, srcF)
-		}
-		if srcF != nil {
-			srcF.Close()
-		}
-		if dstF != nil {
-			dstF.Close()
-		}
+		return 0, err
 	}
-
-	s.db.UpdateSessionItemPaths(itemID, fileName, thumbName)
-	s.db.SetActiveItem(itemID, sessionID)
-
-	s.emit.Emit("session:added", map[string]int64{"id": itemID})
-	s.emit.Emit("session:active", map[string]int64{"id": itemID})
-
-	return itemID
+	return itemID, nil
 }
 
-func reencodeJPEG(imageBase64 string) (string, error) {
+func reencodeJPEG(imageBase64 string) ([]byte, error) {
 	data, err := base64.StdEncoding.DecodeString(imageBase64)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	img = imgformat.ApplyOrientation(img, imgformat.JPEGOrientation(data))
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
-		return "", err
+		return nil, err
 	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	return buf.Bytes(), nil
 }
 
 func (s *Service) CreateSession(name string) (*preset.SessionInfo, error) {
@@ -386,27 +485,35 @@ func (s *Service) DeleteSession(id int64) error {
 		return fmt.Errorf("cannot delete the last session")
 	}
 
-	activeID, _ := s.db.GetActiveSessionID()
-	if err := s.db.DeleteSession(id); err != nil {
+	activeID, err := s.db.GetActiveSessionID()
+	if err != nil {
 		return err
 	}
-
-	sessionDir := filepath.Join(s.dataDir, "sessions", strconv.FormatInt(id, 10))
-	thumbDir := filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(id, 10))
-	os.RemoveAll(sessionDir)
-	os.RemoveAll(thumbDir)
-
 	if activeID == id {
 		for _, si := range sessions {
 			if si.ID != id {
-				s.db.SetActiveSession(si.ID)
+				if err := s.db.SetActiveSession(si.ID); err != nil {
+					return fmt.Errorf("switch active session: %w", err)
+				}
 				break
 			}
 		}
 	}
+	if err := s.db.DeleteSession(id); err != nil {
+		return err
+	}
+	s.removeSessionFiles(id)
 
 	s.emit.Emit("session:deleted", map[string]int64{"session_id": id})
 	return nil
+}
+
+func (s *Service) removeSessionFiles(sessionID int64) {
+	for _, dir := range []string{s.sessionDir(sessionID), s.thumbDir(sessionID)} {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Printf("[session] remove %s: %v", dir, err)
+		}
+	}
 }
 
 func (s *Service) GetSessionItems() ([]preset.SessionItem, error) {
@@ -483,16 +590,14 @@ func (s *Service) removeSessionItem(id int64) (bool, error) {
 	if item == nil {
 		return false, nil
 	}
-	sessionDir := filepath.Join(s.dataDir, "sessions", strconv.FormatInt(item.SessionID, 10))
-	thumbDir := filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(item.SessionID, 10))
-	if item.FileName != "" {
-		os.Remove(filepath.Join(sessionDir, item.FileName))
-	}
-	if item.ThumbName != "" {
-		os.Remove(filepath.Join(thumbDir, item.ThumbName))
-	}
 	if err := s.db.DeleteSessionItem(id); err != nil {
 		return false, err
+	}
+	if item.FileName != "" {
+		removeQuiet(filepath.Join(s.sessionDir(item.SessionID), item.FileName))
+	}
+	if item.ThumbName != "" {
+		removeQuiet(filepath.Join(s.thumbDir(item.SessionID), item.ThumbName))
 	}
 	return true, nil
 }
@@ -505,26 +610,23 @@ func (s *Service) ClearSession() error {
 	if sessionID == 0 {
 		return nil
 	}
-	sessionDir := filepath.Join(s.dataDir, "sessions", strconv.FormatInt(sessionID, 10))
-	thumbDir := filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(sessionID, 10))
-	os.RemoveAll(sessionDir)
-	os.RemoveAll(thumbDir)
-	os.MkdirAll(sessionDir, 0o755)
-	os.MkdirAll(thumbDir, 0o755)
 	if err := s.db.ClearSessionItems(sessionID); err != nil {
 		return err
 	}
+	s.removeSessionFiles(sessionID)
 	s.emit.Emit("session:cleared")
 	return nil
 }
 
 func (s *Service) GetSessionImage(id int64) (string, error) {
 	item, err := s.db.GetSessionItem(id)
-	if err != nil || item == nil {
+	if err != nil {
+		return "", fmt.Errorf("read session item: %w", err)
+	}
+	if item == nil {
 		return "", fmt.Errorf("session item not found")
 	}
-	sessionDir := filepath.Join(s.dataDir, "sessions", strconv.FormatInt(item.SessionID, 10))
-	data, err := os.ReadFile(filepath.Join(sessionDir, item.FileName))
+	data, err := os.ReadFile(filepath.Join(s.sessionDir(item.SessionID), item.FileName))
 	if err != nil {
 		return "", fmt.Errorf("read image: %w", err)
 	}
@@ -533,30 +635,15 @@ func (s *Service) GetSessionImage(id int64) (string, error) {
 
 func (s *Service) GetSessionThumb(id int64) (string, error) {
 	item, err := s.db.GetSessionItem(id)
-	if err != nil || item == nil {
+	if err != nil {
+		return "", fmt.Errorf("read session item: %w", err)
+	}
+	if item == nil {
 		return "", fmt.Errorf("session item not found")
 	}
-	thumbDir := filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(item.SessionID, 10))
-	data, err := os.ReadFile(filepath.Join(thumbDir, item.ThumbName))
+	data, err := os.ReadFile(filepath.Join(s.thumbDir(item.SessionID), item.ThumbName))
 	if err != nil {
 		return "", fmt.Errorf("read thumbnail: %w", err)
 	}
 	return base64.StdEncoding.EncodeToString(data), nil
-}
-
-func (s *Service) HasSessionItems() (bool, error) {
-	return s.db.HasAnyItems()
-}
-
-func (s *Service) ConfirmClose(action string) {
-	if action == "discard" {
-		sessions, _ := s.db.ListSessions()
-		for _, si := range sessions {
-			sessionDir := filepath.Join(s.dataDir, "sessions", strconv.FormatInt(si.ID, 10))
-			thumbDir := filepath.Join(s.dataDir, "thumbs", strconv.FormatInt(si.ID, 10))
-			os.RemoveAll(sessionDir)
-			os.RemoveAll(thumbDir)
-		}
-		s.db.DeleteAllSessions()
-	}
 }

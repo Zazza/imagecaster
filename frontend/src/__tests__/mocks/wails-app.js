@@ -4,7 +4,6 @@ const actual = await vi.importActual('../../wailsjs/go/main/App.js')
 
 export const appDefaults = {
   ListPresets: () => [],
-  ListPresetsByType: () => [],
   GetDefaultEditGarmentPrompt: () => '',
   GetSettings: () => ({}),
   ListDescriptions: () => [],
@@ -32,7 +31,6 @@ export const appDefaults = {
   SyncPresets: () => ({ statuses: [], added: 0 }),
   GetSDModels: () => [],
   GetSDLoRAs: () => [],
-  GetLLMModels: () => [],
   DiscoverServers: () => [],
   CheckServer: () => ({ state: 'ok', url: 'http://s:1', version: '2', missing: [], error: '' }),
 }

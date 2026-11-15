@@ -15,11 +15,11 @@ func TestSessionItems_OnlyOwnSessionOldestFirst(t *testing.T) {
 	second, err := svc.CreateSession("Вторая")
 	require.NoError(t, err)
 
-	older := svc.AddToSessionID(first.ID, makeImageJPEG(t, 64, 64), nil, "sd", false, nil)
+	older := svc.AddToSessionID(first.ID, makeImageJPEG(t, 64, 64), nil, "sd", nil)
 	require.Greater(t, older, int64(0))
-	other := svc.AddToSessionID(second.ID, makeImageJPEG(t, 64, 64), nil, "sd", false, nil)
+	other := svc.AddToSessionID(second.ID, makeImageJPEG(t, 64, 64), nil, "sd", nil)
 	require.Greater(t, other, int64(0))
-	newer := svc.AddToSessionID(first.ID, makeImageJPEG(t, 64, 64), nil, "sd", false, nil)
+	newer := svc.AddToSessionID(first.ID, makeImageJPEG(t, 64, 64), nil, "sd", nil)
 	require.Greater(t, newer, int64(0))
 
 	items, err := svc.SessionItems(first.ID)

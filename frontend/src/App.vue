@@ -172,7 +172,6 @@ async function resetAll() {
       test_resolution_id: '',
       test_hires_profile_id: '',
     })
-    await api.clearLastImage()
     resetKey.value++
     await nextTick()
   } catch (e) {

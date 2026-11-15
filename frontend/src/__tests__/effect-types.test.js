@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 
 import GeneratePage from '../components/GeneratePage.vue'
-import { ListPresetTypes, ListPresets, ListPresetsByType } from '../wailsjs/go/main/App.js'
+import { ListPresetTypes, ListPresets } from '../wailsjs/go/main/App.js'
 import { isEffectType, effectTypeLabel } from '../effectTypes.js'
 import { t, setLocale } from '../i18n/index.js'
 
@@ -53,7 +53,6 @@ describe('GeneratePage hides effect types (ET3)', () => {
     localStorage.clear()
     ListPresetTypes.mockResolvedValue(types)
     ListPresets.mockResolvedValue(presets)
-    ListPresetsByType.mockImplementation(name => Promise.resolve(presets.filter(p => p.preset_type === name)))
   })
 
   it('shows only non-effect types and presets with "all types"', async () => {

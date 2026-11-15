@@ -1,7 +1,6 @@
 package batch
 
 import (
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -11,11 +10,7 @@ import (
 	"sync"
 
 	"github.com/Zazza/imagecaster/internal/config"
-)
-
-var (
-	pngMagic  = []byte("\x89PNG\r\n\x1a\n")
-	jpegMagic = []byte{0xFF, 0xD8, 0xFF}
+	"github.com/Zazza/imagecaster/internal/imgformat"
 )
 
 type Store struct {
@@ -60,15 +55,11 @@ func (s *Store) Save(imageBase64 string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decode image: %w", err)
 	}
-	var ext string
-	switch {
-	case bytes.HasPrefix(data, pngMagic):
-		ext = ".png"
-	case bytes.HasPrefix(data, jpegMagic):
-		ext = ".jpg"
-	default:
+	format, ok := imgformat.Detect(data)
+	if !ok || (format != imgformat.PNG && format != imgformat.JPEG) {
 		return "", errors.New("unsupported image format")
 	}
+	ext := format.Ext
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

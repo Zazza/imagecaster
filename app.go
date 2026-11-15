@@ -1,21 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"image"
-	"image/jpeg"
 	_ "image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	xdraw "golang.org/x/image/draw"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -26,10 +22,12 @@ import (
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/imgformat"
 	"github.com/Zazza/imagecaster/internal/importexport"
 	"github.com/Zazza/imagecaster/internal/kids"
 	"github.com/Zazza/imagecaster/internal/llm"
 	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/postpreview"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/queue"
 	"github.com/Zazza/imagecaster/internal/sd"
@@ -65,6 +63,7 @@ type App struct {
 	gen         *generation.Service
 	queueSvc    *queue.Service
 	batch       *batch.Store
+	preview     *postpreview.Service
 	emitter     appEmitter
 }
 
@@ -93,11 +92,11 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	a.emitter = appEmitter{ctx: &a.ctx}
 	a.sessions = session.New(presets, a.dataDir, &a.emitter)
 	a.settingsSvc = settings.New(presets, llmClient, sdClient, cfg, a.log, srvClient)
-	a.ieSvc = importexport.New(presets, sdClient, a.log)
+	a.ieSvc = importexport.New(presets, a.log)
 	a.gen = generation.New(
 		presets, llmClient, sdClient, cfg,
 		a.dataDir,
-		&a.emitter, a.kidsMgr, a.sessions, a.settingsSvc, a.settingsSvc, a.log,
+		&a.emitter, a.kidsMgr, a.sessions, a.log,
 	)
 	queueStore := queue.NewStore(presets.DB())
 	scoper, _ := sdClient.(sd.QueueScoper)
@@ -117,6 +116,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 		})
 	}
 	a.batch = batch.New(filepath.Join(a.dataDir, "batch"))
+	a.preview = postpreview.New(postpreview.DefaultCacheSize)
 	return a
 }
 
@@ -129,7 +129,6 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.log.SetContext(ctx)
 	a.log.InstallBridge()
-	a.gen.SetContext(ctx)
 	if err := a.queueSvc.ClearCompleted(); err != nil {
 		a.log.Warn("queue: clear completed: %s", err)
 	}
@@ -220,15 +219,6 @@ func (a *App) SetKidsCategory(name string, enabled bool, pin string) error {
 	return a.kidsMgr.SetCategory(name, enabled, pin)
 }
 
-// --- Service Status ---
-
-type ServiceInfo = settings.ServiceInfo
-type ServiceStatus = settings.ServiceStatus
-
-func (a *App) CheckServices() ServiceStatus {
-	return a.settingsSvc.CheckServices()
-}
-
 // --- Presets ---
 
 func (a *App) ListPresets() ([]preset.Preset, error) {
@@ -240,21 +230,6 @@ func (a *App) ListPresets() ([]preset.Preset, error) {
 		presets = []preset.Preset{}
 	}
 	return presets, nil
-}
-
-func (a *App) ListPresetsByType(presetType string) ([]preset.Preset, error) {
-	presets, err := a.presets.ListByType(presetType)
-	if err != nil {
-		return nil, err
-	}
-	if presets == nil {
-		presets = []preset.Preset{}
-	}
-	return presets, nil
-}
-
-func (a *App) GetPreset(id int64) (*preset.Preset, error) {
-	return a.presets.Get(id)
 }
 
 func (a *App) CreatePreset(p preset.Preset) (*preset.Preset, error) {
@@ -284,39 +259,6 @@ func (a *App) ListPresetTypes() ([]preset.PresetType, error) {
 		items = []preset.PresetType{}
 	}
 	return items, nil
-}
-
-func (a *App) GetPresetType(id int64) (*preset.PresetType, error) {
-	return a.presets.GetPresetType(id)
-}
-
-func (a *App) CreatePresetType(pt preset.PresetType) (*preset.PresetType, error) {
-	if err := a.presets.CreatePresetType(&pt); err != nil {
-		return nil, err
-	}
-	return &pt, nil
-}
-
-func (a *App) UpdatePresetType(pt preset.PresetType) (*preset.PresetType, error) {
-	if err := a.presets.UpdatePresetType(&pt); err != nil {
-		return nil, err
-	}
-	return &pt, nil
-}
-
-func (a *App) DeletePresetType(id int64) error {
-	return a.presets.DeletePresetType(id)
-}
-
-func (a *App) GetAllTags() ([]string, error) {
-	tags, err := a.presets.GetAllTags()
-	if err != nil {
-		return nil, err
-	}
-	if tags == nil {
-		tags = []string{}
-	}
-	return tags, nil
 }
 
 // --- Generation (delegates) ---
@@ -368,24 +310,12 @@ func (a *App) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult, err
 	return a.gen.UpscaleImage(params)
 }
 
-func (a *App) GetLastImage() (*GenerateImageResult, error) {
-	return a.gen.GetLastImage()
-}
-
-func (a *App) ClearLastImage() {
-	a.gen.ClearLastImage()
-}
-
 func (a *App) InterruptGeneration() error {
 	return a.gen.InterruptGeneration()
 }
 
 func (a *App) GenerateCompoundImage(params GenerateCompoundImageParams) (*GenerateImageResult, error) {
 	return a.gen.GenerateCompoundImage(params)
-}
-
-func (a *App) GenerateFromImage(params GenerateFromImageParams) (*GenerateImageResult, error) {
-	return a.gen.GenerateFromImage(params)
 }
 
 func (a *App) EditImage(params EditImageParams) (*GenerateImageResult, error) {
@@ -436,26 +366,23 @@ func (a *App) SaveImage(base64Data, defaultName string) (string, error) {
 	if base64Data == "" {
 		return "", nil
 	}
-
-	if defaultName == "" {
-		defaultName = "imagecaster-image.png"
+	if i := strings.Index(base64Data, ","); i >= 0 && strings.HasPrefix(base64Data, "data:") {
+		base64Data = base64Data[i+1:]
 	}
-	if !strings.HasSuffix(strings.ToLower(defaultName), ".png") {
-		defaultName += ".png"
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return "", err
+	}
+	format, ok := imgformat.Detect(data)
+	if !ok {
+		return "", errors.New("unsupported image format")
 	}
 
 	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		DefaultFilename: defaultName,
-		Filters: []runtime.FileFilter{
-			{DisplayName: "PNG Image", Pattern: "*.png"},
-		},
+		DefaultFilename: saveImageName(defaultName, format),
+		Filters:         []runtime.FileFilter{saveImageFilter(format)},
 	})
 	if err != nil || path == "" {
-		return "", err
-	}
-
-	data, err := base64.StdEncoding.DecodeString(base64Data)
-	if err != nil {
 		return "", err
 	}
 
@@ -469,6 +396,28 @@ func (a *App) SaveImage(base64Data, defaultName string) (string, error) {
 
 	a.log.UserAction("Image saved: %s", path)
 	return path, nil
+}
+
+var imageNameExts = []string{".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+func saveImageName(defaultName string, format imgformat.Format) string {
+	name := strings.TrimSpace(defaultName)
+	if name == "" {
+		name = "imagecaster-image"
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	if slices.Contains(imageNameExts, ext) {
+		name = strings.TrimSuffix(name, filepath.Ext(name))
+	}
+	return name + format.Ext
+}
+
+func saveImageFilter(format imgformat.Format) runtime.FileFilter {
+	patterns := make([]string, 0, 2)
+	for _, e := range format.Exts() {
+		patterns = append(patterns, "*"+e)
+	}
+	return runtime.FileFilter{DisplayName: format.Name + " Image", Pattern: strings.Join(patterns, ";")}
 }
 
 // --- SD Info ---
@@ -499,10 +448,6 @@ func (a *App) GetSDLoRAs() ([]sd.LoRA, error) {
 
 // --- LLM Info ---
 
-func (a *App) GetLLMModels() ([]llm.LLMModel, error) {
-	return a.llm.GetModels()
-}
-
 // --- Settings ---
 
 func (a *App) GetSettings() (map[string]string, error) {
@@ -526,14 +471,6 @@ func (a *App) ListDescriptions() ([]preset.SavedDescription, error) {
 	return items, nil
 }
 
-func (a *App) CreateDescription(text string) (*preset.SavedDescription, error) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return nil, nil
-	}
-	return a.presets.CreateDescription(text)
-}
-
 func (a *App) CreateDescriptionFull(s preset.SavedDescription) (*preset.SavedDescription, error) {
 	s.Text = strings.TrimSpace(s.Text)
 	if s.Text == "" {
@@ -552,56 +489,11 @@ func (a *App) DeleteDescription(id int64) error {
 
 // --- Saved Prompts ---
 
-func (a *App) ListPrompts() ([]preset.SavedPrompt, error) {
-	items, err := a.presets.ListPrompts()
-	if err != nil {
-		return nil, err
-	}
-	if items == nil {
-		items = []preset.SavedPrompt{}
-	}
-	return items, nil
-}
-
-func (a *App) CreatePrompt(text string) (*preset.SavedPrompt, error) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return nil, nil
-	}
-	return a.presets.CreatePrompt(text)
-}
-
-func (a *App) DeletePrompt(id int64) error {
-	return a.presets.DeletePrompt(id)
-}
-
 // --- Preset Export/Import ---
 
 type PresetExportFile = importexport.ExportFile
 type PresetData = importexport.PresetData
 type ImportPreview = importexport.ImportPreview
-type ValidationWarning = importexport.ValidationWarning
-
-func (a *App) ExportPresets(ids []int64) (string, error) {
-	presets, err := a.ieSvc.PrepareExportData(ids)
-	if err != nil {
-		return "", err
-	}
-	jsonBytes, err := a.ieSvc.BuildExportFile(presets)
-	if err != nil {
-		return "", err
-	}
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		DefaultFilename: "imagecaster-presets.json",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "JSON Files", Pattern: "*.json"},
-		},
-	})
-	if err != nil || path == "" {
-		return "", err
-	}
-	return path, os.WriteFile(path, jsonBytes, 0o644)
-}
 
 func (a *App) PreparePresetsExport(ids []int64) (string, error) {
 	presets, err := a.ieSvc.PrepareExportData(ids)
@@ -616,30 +508,19 @@ func (a *App) PreparePresetsExport(ids []int64) (string, error) {
 }
 
 func (a *App) OpenImportFile() (*ImportPreview, error) {
-	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
+	paths, err := a.openJSONFiles()
+	if err != nil || len(paths) == 0 {
+		return nil, err
+	}
+	return a.ieSvc.PreviewImportFiles(paths)
+}
+
+func (a *App) openJSONFiles() ([]string, error) {
+	return runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
 		Filters: []runtime.FileFilter{
 			{DisplayName: "JSON Files", Pattern: "*.json"},
 		},
 	})
-	if err != nil || len(paths) == 0 {
-		return nil, err
-	}
-	var allPresets []PresetData
-	for _, p := range paths {
-		parsed, err := a.ieSvc.ParseImportFile(p)
-		if err != nil {
-			continue
-		}
-		allPresets = append(allPresets, parsed...)
-	}
-	if len(allPresets) == 0 {
-		return nil, fmt.Errorf("no presets found in selected files")
-	}
-	return &ImportPreview{Presets: allPresets, Total: len(allPresets)}, nil
-}
-
-func (a *App) ValidateImportModels(items []PresetData) ([]ValidationWarning, error) {
-	return a.ieSvc.ValidateModels(items)
 }
 
 func (a *App) ImportPresets(items []PresetData) ([]preset.Preset, error) {
@@ -650,27 +531,6 @@ func (a *App) ImportPresets(items []PresetData) ([]preset.Preset, error) {
 
 type CompoundExportData = importexport.CompoundExportData
 type CompoundImportPreview = importexport.CompoundImportPreview
-
-func (a *App) ExportCompoundPresets(ids []int64) (string, error) {
-	pipelines, err := a.ieSvc.PrepareCompoundExportData(ids)
-	if err != nil {
-		return "", err
-	}
-	jsonBytes, err := a.ieSvc.BuildCompoundExportFile(pipelines)
-	if err != nil {
-		return "", err
-	}
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		DefaultFilename: "imagecaster-pipelines.json",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "JSON Files", Pattern: "*.json"},
-		},
-	})
-	if err != nil || path == "" {
-		return "", err
-	}
-	return path, os.WriteFile(path, jsonBytes, 0o644)
-}
 
 func (a *App) PrepareCompoundPresetsExport(ids []int64) (string, error) {
 	pipelines, err := a.ieSvc.PrepareCompoundExportData(ids)
@@ -685,26 +545,11 @@ func (a *App) PrepareCompoundPresetsExport(ids []int64) (string, error) {
 }
 
 func (a *App) OpenImportCompoundFile() (*CompoundImportPreview, error) {
-	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
-		Filters: []runtime.FileFilter{
-			{DisplayName: "JSON Files", Pattern: "*.json"},
-		},
-	})
+	paths, err := a.openJSONFiles()
 	if err != nil || len(paths) == 0 {
 		return nil, err
 	}
-	var all []CompoundExportData
-	for _, p := range paths {
-		parsed, err := a.ieSvc.ParseCompoundImportFile(p)
-		if err != nil {
-			continue
-		}
-		all = append(all, parsed...)
-	}
-	if len(all) == 0 {
-		return nil, fmt.Errorf("no pipelines found in selected files")
-	}
-	return &CompoundImportPreview{Pipelines: all, Total: len(all)}, nil
+	return a.ieSvc.PreviewCompoundImportFiles(paths)
 }
 
 func (a *App) ImportCompoundPresets(items []CompoundExportData) ([]preset.CompoundPreset, error) {
@@ -717,10 +562,6 @@ func (a *App) ListCompoundPresets() ([]preset.CompoundPreset, error) {
 	return a.presets.ListCompoundPresetsFull()
 }
 
-func (a *App) GetCompoundPreset(id int64) (*preset.CompoundPreset, error) {
-	return a.presets.GetCompoundPresetFull(id)
-}
-
 func (a *App) CreateCompoundPreset(cp preset.CompoundPreset) (*preset.CompoundPreset, error) {
 	if cp.Name == "" {
 		return nil, fmt.Errorf("name is required")
@@ -731,7 +572,7 @@ func (a *App) CreateCompoundPreset(cp preset.CompoundPreset) (*preset.CompoundPr
 	if err := a.presets.CreateCompoundPreset(&cp); err != nil {
 		return nil, err
 	}
-	return a.GetCompoundPreset(cp.ID)
+	return a.presets.GetCompoundPresetFull(cp.ID)
 }
 
 func (a *App) UpdateCompoundPreset(cp preset.CompoundPreset) (*preset.CompoundPreset, error) {
@@ -747,7 +588,7 @@ func (a *App) UpdateCompoundPreset(cp preset.CompoundPreset) (*preset.CompoundPr
 	if err := a.presets.UpdateCompoundPreset(&cp); err != nil {
 		return nil, err
 	}
-	return a.GetCompoundPreset(cp.ID)
+	return a.presets.GetCompoundPresetFull(cp.ID)
 }
 
 func (a *App) DeleteCompoundPreset(id int64) error {
@@ -795,106 +636,17 @@ func (a *App) saveProcessedImage(processed *importexport.ProcessedImage, outputD
 type AdjustParams = adjust.Params
 
 func (a *App) PreviewAdjust(imageBase64 string, p AdjustParams, maxW int) (string, error) {
-	if imageBase64 == "" {
-		return "", fmt.Errorf("no image provided")
-	}
-	if len(imageBase64) > generation.MaxImageBase64Len {
-		return "", config.ImageTooLarge("image")
-	}
-
-	data, err := base64.StdEncoding.DecodeString(imageBase64)
-	if err != nil {
-		return "", fmt.Errorf("decode base64: %w", err)
-	}
-
-	if err := importexport.CheckImageDataSize(data); err != nil {
-		return "", err
-	}
-
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return "", fmt.Errorf("decode image: %w", err)
-	}
-
-	bounds := img.Bounds()
-	if maxW > 0 && bounds.Dx() > maxW {
-		targetW := maxW
-		targetH := int(float64(bounds.Dy()) * float64(maxW) / float64(bounds.Dx()))
-		if targetH < 1 {
-			targetH = 1
-		}
-		dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
-		xdraw.BiLinear.Scale(dst, dst.Bounds(), img, bounds, xdraw.Over, nil)
-		img = dst
-	}
-
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, adjust.Apply(img, p), &jpeg.Options{Quality: 85}); err != nil {
-		return "", fmt.Errorf("encode jpeg: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	return a.preview.Adjust(imageBase64, p, maxW)
 }
 
 type FinishParams = finish.Params
 
 func (a *App) PreviewPost(imageBase64 string, p AdjustParams, f FinishParams, maxW int) (string, error) {
-	if imageBase64 == "" {
-		return "", fmt.Errorf("no image provided")
-	}
-	if len(imageBase64) > generation.MaxImageBase64Len {
-		return "", config.ImageTooLarge("image")
-	}
-	data, err := base64.StdEncoding.DecodeString(imageBase64)
-	if err != nil {
-		return "", fmt.Errorf("decode base64: %w", err)
-	}
-	if err := importexport.CheckImageDataSize(data); err != nil {
-		return "", err
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return "", fmt.Errorf("decode image: %w", err)
-	}
-	if b := img.Bounds(); maxW > 0 && b.Dx() > maxW {
-		h := max(1, int(float64(b.Dy())*float64(maxW)/float64(b.Dx())))
-		dst := image.NewRGBA(image.Rect(0, 0, maxW, h))
-		xdraw.BiLinear.Scale(dst, dst.Bounds(), img, b, xdraw.Over, nil)
-		img = dst
-	}
-	out, err := finish.Apply(adjust.Apply(img, p), f)
-	if err != nil {
-		return "", err
-	}
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, out, &jpeg.Options{Quality: 85}); err != nil {
-		return "", fmt.Errorf("encode jpeg: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	return a.preview.Post(imageBase64, p, f, maxW)
 }
 
 func (a *App) AutoAdjust(imageBase64 string) (adjust.AutoStats, error) {
-	if imageBase64 == "" {
-		return adjust.AutoStats{}, fmt.Errorf("no image provided")
-	}
-	if len(imageBase64) > generation.MaxImageBase64Len {
-		return adjust.AutoStats{}, config.ImageTooLarge("image")
-	}
-
-	data, err := base64.StdEncoding.DecodeString(imageBase64)
-	if err != nil {
-		return adjust.AutoStats{}, fmt.Errorf("decode base64: %w", err)
-	}
-
-	if err := importexport.CheckImageDataSize(data); err != nil {
-		return adjust.AutoStats{}, err
-	}
-
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return adjust.AutoStats{}, fmt.Errorf("decode image: %w", err)
-	}
-
-	return adjust.AnalyzeAuto(img), nil
+	return a.preview.Auto(imageBase64)
 }
 
 func (a *App) ListExportPresets() ([]preset.ExportPreset, error) {
@@ -944,7 +696,7 @@ func (a *App) ReadFileAsBase64(filePath string) (string, error) {
 }
 
 func (a *App) ReadThumbnail(filePath string) (string, error) {
-	return filebrowser.ReadThumbnail(filePath)
+	return filebrowser.NewThumbCache(filepath.Join(a.dataDir, "browser-thumbs")).Read(filePath)
 }
 
 func (a *App) BatchSaveImage(imageBase64 string) (string, error) {
@@ -975,7 +727,7 @@ func (a *App) SetLastImage(base64Data string) error {
 	if len(base64Data) > generation.MaxImageBase64Len {
 		return config.ImageTooLarge("image")
 	}
-	itemID := a.sessions.AddToSession(base64Data, nil, "file-browser", false, nil)
+	itemID := a.sessions.AddToSession(base64Data, nil, "file-browser", nil)
 	if itemID != 0 {
 		a.emitter.Emit("session:selected", map[string]int64{"id": itemID})
 	}
@@ -1042,17 +794,6 @@ func (a *App) GetSessionImage(id int64) (string, error) {
 
 func (a *App) GetSessionThumb(id int64) (string, error) {
 	return a.sessions.GetSessionThumb(id)
-}
-
-func (a *App) HasSessionItems() (bool, error) {
-	return a.sessions.HasSessionItems()
-}
-
-func (a *App) ConfirmClose(action string) {
-	a.sessions.ConfirmClose(action)
-	if a.ctx != nil {
-		runtime.Quit(a.ctx)
-	}
 }
 
 // --- Server Mode ---
@@ -1156,51 +897,7 @@ func (a *App) GetModelPresets() (map[string][]string, error) {
 }
 
 func (a *App) InstallPresetDeps(presetID int64) error {
-	p, err := a.presets.Get(presetID)
-	if err != nil {
-		return fmt.Errorf("preset not found: %w", err)
-	}
-
-	catalog, err := serverclient.LoadCatalog()
-	if err != nil {
-		return fmt.Errorf("load catalog: %w", err)
-	}
-
-	loraModels, _ := a.settingsSvc.GetServerModels("lora")
-
-	loraSet := make(map[string]bool)
-	for _, m := range loraModels {
-		loraSet[m.Name] = true
-	}
-
-	if p.ModelName != "" {
-		if cm := catalog.FindSDModel(p.ModelName); cm != nil && cm.URL != "" {
-			if err := a.settingsSvc.DownloadCatalogSDModel(cm.Name); err != nil {
-				return err
-			}
-		}
-	}
-
-	if p.Loras != "" && p.Loras != "[]" {
-		var loras []preset.LoRAEntry
-		if json.Unmarshal([]byte(p.Loras), &loras) == nil {
-			for _, l := range loras {
-				if loraSet[l.Name+".safetensors"] {
-					continue
-				}
-				for _, cl := range catalog.LoRA {
-					if cl.Name == l.Name && cl.URL != "" {
-						if err := a.settingsSvc.DownloadServerModel("lora", cl.URL, l.Name+".safetensors"); err != nil {
-							return fmt.Errorf("download LoRA %s: %w", l.Name, err)
-						}
-						break
-					}
-				}
-			}
-		}
-	}
-
-	return nil
+	return a.settingsSvc.InstallPresetDeps(presetID)
 }
 
 // --- Resolutions ---
@@ -1214,10 +911,6 @@ func (a *App) ListResolutions() ([]preset.Resolution, error) {
 		items = []preset.Resolution{}
 	}
 	return items, nil
-}
-
-func (a *App) GetResolution(id int64) (*preset.Resolution, error) {
-	return a.presets.GetResolution(id)
 }
 
 func (a *App) CreateResolution(r preset.Resolution) (*preset.Resolution, error) {
@@ -1264,10 +957,6 @@ func (a *App) ListHiresProfiles() ([]preset.HiresProfile, error) {
 		items = []preset.HiresProfile{}
 	}
 	return items, nil
-}
-
-func (a *App) GetHiresProfile(id int64) (*preset.HiresProfile, error) {
-	return a.presets.GetHiresProfile(id)
 }
 
 func (a *App) CreateHiresProfile(h preset.HiresProfile) (*preset.HiresProfile, error) {
@@ -1333,6 +1022,10 @@ func (a *App) EnqueueCompound(params GenerateCompoundImageParams) (int64, error)
 	return a.queueSvc.Enqueue(queue.JobCompound, params, "compound")
 }
 
+func (a *App) GetQueueActiveCount() (int, error) {
+	return a.queueSvc.ActiveCount()
+}
+
 func (a *App) GetQueue() ([]*QueueJob, error) {
 	jobs, err := a.queueSvc.GetQueue()
 	if err != nil {
@@ -1370,10 +1063,6 @@ func (a *App) CancelQueue() error {
 
 func (a *App) IsQueuePaused() bool {
 	return a.queueSvc.IsPaused()
-}
-
-func (a *App) ClearCompletedQueueJobs() error {
-	return a.queueSvc.ClearCompleted()
 }
 
 func (a *App) ResumePausedQueueJobs() (int, error) {

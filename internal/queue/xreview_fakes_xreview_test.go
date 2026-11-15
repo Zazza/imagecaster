@@ -125,7 +125,6 @@ func (l *xrLLM) AnalyzeImageDescribe(string, string, string, int) (string, error
 func (l *xrLLM) GetModels() ([]llm.LLMModel, error)     { return nil, nil }
 func (l *xrLLM) HealthCheck() error                     { return nil }
 func (l *xrLLM) SetURL(string)                          {}
-func (l *xrLLM) SetBackendConfig(llm.BackendConfig)     {}
 func (l *xrLLM) ListLoaded() ([]llm.LoadedModel, error) { return nil, nil }
 func (l *xrLLM) UnloadAll(context.Context) error        { return nil }
 
@@ -134,7 +133,7 @@ type xrSessions struct {
 	saved []string
 }
 
-func (s *xrSessions) AddToSession(img string, _ json.RawMessage, _ string, _ bool, _ *preset.GenerationMeta) int64 {
+func (s *xrSessions) AddToSession(img string, _ json.RawMessage, _ string, _ *preset.GenerationMeta) int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.saved = append(s.saved, img)
@@ -181,11 +180,8 @@ func (e *xrEnv) processor(t *testing.T, l llm.Service, s *xrSD, sessions *xrSess
 		&mockEmitter{},
 		kids.NewManager(e.pdb),
 		sessions,
-		editFakeSettings{},
-		nil,
 		logger.New(nil),
 	)
-	gen.SetContext(context.Background())
 	scoper := &xrScoper{svc: s}
 	return NewProcessor(gen, scoper, e.store, e.dataDir, &mockEmitter{}), scoper
 }

@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
+import { b64Url } from '../imageDataUrl.js'
 
 export function useGenerationProgress() {
   const llmStatus = ref('')
@@ -14,7 +15,7 @@ export function useGenerationProgress() {
   function onSDProgress(data) {
     sdProgress.value = data ? { ...data, etaRelative: data.eta_relative ?? data.etaRelative } : data
     if (data?.preview) {
-      preview.value = data.preview.startsWith('data:') ? data.preview : 'data:image/png;base64,' + data.preview
+      preview.value = b64Url(data.preview)
     }
   }
 

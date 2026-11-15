@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 33
+const schemaVersion = 34
 
 const legacySchemaVersion = 32
 
@@ -18,6 +18,7 @@ type schemaStep struct {
 
 var schemaSteps = []schemaStep{
 	{33, migrateV33PresetsSamplerDefault},
+	{34, migrateV34QueryIndexes},
 }
 
 const presetsTableDDL = `
@@ -136,6 +137,7 @@ CREATE TABLE session_items (
 	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	meta TEXT
 );
+CREATE INDEX idx_session_items_session_created ON session_items(session_id, created_at);
 CREATE TABLE session_active (
 	id INTEGER PRIMARY KEY CHECK (id = 1),
 	session_id INTEGER REFERENCES sessions(id)
@@ -166,7 +168,7 @@ CREATE TABLE job_queue (
 	max_retries INTEGER NOT NULL DEFAULT 3,
 	next_retry_at DATETIME
 );
-CREATE INDEX idx_job_queue_status ON job_queue(status);
+CREATE INDEX idx_job_queue_status_created ON job_queue(status, created_at);
 CREATE INDEX idx_job_queue_next_retry ON job_queue(next_retry_at) WHERE status = 'pending' AND next_retry_at IS NOT NULL;
 CREATE TABLE post_recipes (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -401,6 +403,19 @@ func migrateV33PresetsSamplerDefault(ctx context.Context, conn *sql.Conn) error 
 		}
 	}
 	for _, q := range extras {
+		if _, err := conn.ExecContext(ctx, q); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateV34QueryIndexes(ctx context.Context, conn *sql.Conn) error {
+	for _, q := range []string{
+		`CREATE INDEX IF NOT EXISTS idx_session_items_session_created ON session_items(session_id, created_at)`,
+		`DROP INDEX IF EXISTS idx_job_queue_status`,
+		`CREATE INDEX IF NOT EXISTS idx_job_queue_status_created ON job_queue(status, created_at)`,
+	} {
 		if _, err := conn.ExecContext(ctx, q); err != nil {
 			return err
 		}

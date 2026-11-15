@@ -152,7 +152,6 @@ func (s *Service) detectMaskedObject(img, mask image.Image) (string, error) {
 		return "", fmt.Errorf("encode overlay: %w", err)
 	}
 	model := s.getAnalyzeModel()
-	s.settings.ApplyLLMConfig("analyze")
 	s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
 	answer, err := s.llm.ChatVision(model, objectVisionSystem, objectVisionUser, overlayB64, objectVisionTemp, objectVisionMaxTokens)
 	s.emitter.Emit("llm:status", map[string]string{"status": "done"})
@@ -235,7 +234,7 @@ func (s *Service) EditObject(params ObjectEditParams) (*GenerateImageResult, err
 		EffectivePrompt: instruction,
 		DetectedObject:  object,
 	}
-	s.sessions.AddToSession(finalB64, info, "object", false, &preset.GenerationMeta{
+	s.sessions.AddToSession(finalB64, info, "object", &preset.GenerationMeta{
 		Label: label,
 		Model: kleinLookModel,
 	})

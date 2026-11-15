@@ -265,26 +265,7 @@ func (d *DB) ListHistory(f HistoryFilter) (*HistoryPage, error) {
 			periodStarts[k] = norm
 		}
 	}
-	where, args := historyScanWhere(f)
-	rows, err := d.db.Query(historyBase+` SELECT id, session_id, session_name, created_at, kind, model_name, label, shape FROM h`+where+
-		` ORDER BY created_at DESC, id DESC`, args...)
-	if err != nil {
-		return nil, err
-	}
-	var all []historyRow
-	for rows.Next() {
-		var r historyRow
-		if err := rows.Scan(&r.id, &r.sessionID, &r.sessionName, &r.createdAt, &r.kind, &r.model, &r.label, &r.shape); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if norm, err := normalizeHistoryTime(r.createdAt); err == nil {
-			r.createdAt = norm
-		}
-		all = append(all, r)
-	}
-	err = rows.Err()
-	rows.Close()
+	all, err := d.historyRows(historyScanWhere(f))
 	if err != nil {
 		return nil, err
 	}
@@ -312,6 +293,71 @@ func (d *DB) ListHistory(f HistoryFilter) (*HistoryPage, error) {
 		return nil, err
 	}
 	return page, nil
+}
+
+type historyRowsCache struct {
+	stamp historyStamp
+	query string
+	rows  []historyRow
+	scans int
+}
+
+type historyStamp struct {
+	dataVersion  int64
+	totalChanges int64
+}
+
+func (d *DB) historyStamp() (historyStamp, error) {
+	var st historyStamp
+	err := d.db.QueryRow(`SELECT (SELECT data_version FROM pragma_data_version), total_changes()`).Scan(&st.dataVersion, &st.totalChanges)
+	return st, err
+}
+
+func (d *DB) historyRows(where string, args []any) ([]historyRow, error) {
+	stamp, err := d.historyStamp()
+	if err != nil {
+		return nil, err
+	}
+	query := where + "\x00" + fmt.Sprint(args...)
+	d.historyMu.Lock()
+	if c := d.historyCache; c != nil && c.stamp == stamp && c.query == query {
+		rows := c.rows
+		d.historyMu.Unlock()
+		return rows, nil
+	}
+	d.historyMu.Unlock()
+
+	rows, err := d.db.Query(historyBase+` SELECT id, session_id, session_name, created_at, kind, model_name, label, shape FROM h`+where+
+		` ORDER BY created_at DESC, id DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	var all []historyRow
+	for rows.Next() {
+		var r historyRow
+		if err := rows.Scan(&r.id, &r.sessionID, &r.sessionName, &r.createdAt, &r.kind, &r.model, &r.label, &r.shape); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if norm, err := normalizeHistoryTime(r.createdAt); err == nil {
+			r.createdAt = norm
+		}
+		all = append(all, r)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	d.historyMu.Lock()
+	scans := 1
+	if d.historyCache != nil {
+		scans = d.historyCache.scans + 1
+	}
+	d.historyCache = &historyRowsCache{stamp: stamp, query: query, rows: all, scans: scans}
+	d.historyMu.Unlock()
+	return all, nil
 }
 
 func (d *DB) historyItems(ids []int64) ([]HistoryItem, error) {

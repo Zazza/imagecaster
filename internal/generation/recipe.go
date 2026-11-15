@@ -251,7 +251,6 @@ func (s *Service) CompilePostStyle(text string) (*CompiledRecipe, error) {
 
 	maxTokens := s.getMaxTokens()
 	generateModel := s.getGenerateModel()
-	s.settings.ApplyLLMConfig("generate")
 
 	s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
 	var lastErr error
@@ -282,7 +281,6 @@ func (s *Service) DescribeForStyle(imageBase64 string) (string, error) {
 	}
 
 	model := s.getAnalyzeModel()
-	s.settings.ApplyLLMConfig("analyze")
 	maxTokens := s.getMaxTokens()
 
 	prompt := describeForStylePrompt
@@ -404,7 +402,6 @@ func alignLookSize(w, h int) (int, int) {
 func (s *Service) buildLookPrompt(text string) (string, error) {
 	maxTokens := s.getMaxTokens()
 	generateModel := s.getGenerateModel()
-	s.settings.ApplyLLMConfig("generate")
 
 	userMessage := "LOOK DESCRIPTION:\n" + text
 
@@ -444,8 +441,8 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
-	s.StartSDPolling()
-	defer s.StopSDPolling()
+	s.beginProgress()
+	defer s.endProgress()
 
 	s.guard.EnsureHeadroom(kleinLookModel, "look")
 
@@ -493,7 +490,7 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 		Info:            resp.Info,
 		EffectivePrompt: lookPrompt,
 	}
-	s.sessions.AddToSession(finalImage, resp.Info, "look", false, &preset.GenerationMeta{
+	s.sessions.AddToSession(finalImage, resp.Info, "look", &preset.GenerationMeta{
 		Label: "Look: " + truncateRunes(text, kleinLookLabelMax),
 		Model: kleinLookModel,
 	})

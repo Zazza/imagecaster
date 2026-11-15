@@ -91,7 +91,7 @@ Styles whose model or LoRA is missing on the server are hidden (`presetAvailabil
 
 ### Settings
 `SettingsPage.vue`, tabs:
-- Connection (`settings.tab_connection`) — server address and network search, server processes (start / stop / restart / logs), GPU memory, prompt and photo model choice, LLM parameters (temperature, context, max tokens, top-p, threads);
+- Connection (`settings.tab_connection`) — server address and network search, server processes (start / stop / restart / logs), GPU memory, prompt and photo model choice, LLM parameters (context, max tokens, top-p, threads);
 - Prompts (`settings.tab_prompts`) — editable prompts with defaults from the backend;
 - Safety (`settings.tab_safety`) — safe mode (`settings.section_kids`) with PIN (`PinModal.vue`) and categories;
 - Advanced (`settings.tab_advanced`) — video memory (`settings.section_memory_guard`, auto-unload LLM), SD/LoRA and LLM model lists on the server.

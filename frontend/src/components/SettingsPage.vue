@@ -49,17 +49,13 @@ const generateModel = ref('')
 const analyzeModel = ref('')
 
 const generateParams = reactive({
-  temperature: 0.4,
   num_ctx: 4096,
-  num_predict: 256,
   top_p: 0.9,
   num_thread: 0,
 })
 
 const analyzeParams = reactive({
-  temperature: 0.4,
   num_ctx: 4096,
-  num_predict: 256,
   top_p: 0.9,
   num_thread: 0,
 })
@@ -121,14 +117,10 @@ async function loadSettings() {
     connectionForm.llm_max_tokens = settings.llm_max_tokens || '256'
     generateModel.value = settings.llm_generate_model || settings.sd_prompt_model || ''
     analyzeModel.value = settings.llm_analyze_model || settings.vision_model || ''
-    generateParams.temperature = parseFloat(settings.llm_generate_temperature) || 0.4
     generateParams.num_ctx = parseInt(settings.llm_generate_num_ctx) || 4096
-    generateParams.num_predict = parseInt(settings.llm_generate_num_predict) || 256
     generateParams.top_p = parseFloat(settings.llm_generate_top_p) || 0.9
     generateParams.num_thread = parseInt(settings.llm_generate_num_thread) || 0
-    analyzeParams.temperature = parseFloat(settings.llm_analyze_temperature) || 0.4
     analyzeParams.num_ctx = parseInt(settings.llm_analyze_num_ctx) || 4096
-    analyzeParams.num_predict = parseInt(settings.llm_analyze_num_predict) || 256
     analyzeParams.top_p = parseFloat(settings.llm_analyze_top_p) || 0.9
     analyzeParams.num_thread = parseInt(settings.llm_analyze_num_thread) || 0
     kidsMode.value = await api.isKidsModeActive()
@@ -345,14 +337,10 @@ async function saveLLMParams() {
   llmParamsError.value = ''
   try {
     await api.updateSettings({
-      llm_generate_temperature: String(generateParams.temperature),
       llm_generate_num_ctx: String(generateParams.num_ctx),
-      llm_generate_num_predict: String(generateParams.num_predict),
       llm_generate_top_p: String(generateParams.top_p),
       llm_generate_num_thread: String(generateParams.num_thread),
-      llm_analyze_temperature: String(analyzeParams.temperature),
       llm_analyze_num_ctx: String(analyzeParams.num_ctx),
-      llm_analyze_num_predict: String(analyzeParams.num_predict),
       llm_analyze_top_p: String(analyzeParams.top_p),
       llm_analyze_num_thread: String(analyzeParams.num_thread),
     })
@@ -621,18 +609,8 @@ onMounted(loadSettings)
         <h4 style="color: var(--text-bright); margin: 16px 0 8px; font-size: 14px;">{{ t('settings.generate_params') }}</h4>
         <div class="form-row-2">
           <div class="form-group">
-            <label class="form-label">{{ t('settings.label_temperature') }}</label>
-            <input class="form-input" type="number" v-model.number="generateParams.temperature" step="0.1" min="0" max="2" />
-          </div>
-          <div class="form-group">
             <label class="form-label">{{ t('settings.label_context_size') }}</label>
             <input class="form-input" type="number" v-model.number="generateParams.num_ctx" step="512" min="512" max="32768" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_max_predict') }}</label>
-            <input class="form-input" type="number" v-model.number="generateParams.num_predict" min="32" max="8192" />
           </div>
           <div class="form-group">
             <label class="form-label">{{ t('settings.label_top_p') }}</label>
@@ -649,18 +627,8 @@ onMounted(loadSettings)
         <h4 style="color: var(--text-bright); margin: 16px 0 8px; font-size: 14px;">{{ t('settings.analyze_params') }}</h4>
         <div class="form-row-2">
           <div class="form-group">
-            <label class="form-label">{{ t('settings.label_temperature') }}</label>
-            <input class="form-input" type="number" v-model.number="analyzeParams.temperature" step="0.1" min="0" max="2" />
-          </div>
-          <div class="form-group">
             <label class="form-label">{{ t('settings.label_context_size') }}</label>
             <input class="form-input" type="number" v-model.number="analyzeParams.num_ctx" step="512" min="512" max="32768" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_max_predict') }}</label>
-            <input class="form-input" type="number" v-model.number="analyzeParams.num_predict" min="32" max="8192" />
           </div>
           <div class="form-group">
             <label class="form-label">{{ t('settings.label_top_p') }}</label>

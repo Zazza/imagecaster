@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { t } from '../i18n/index.js'
+import { b64Url } from '../imageDataUrl.js'
 import { parseLoras } from '../loraOverride.js'
 import { ChevronLeft, ChevronRight, Info, X } from 'lucide-vue-next'
 
@@ -38,10 +39,7 @@ let dragMovedDist = 0
 let suppressDbl = false
 let suppressDblTimer = null
 
-const imgSrc = computed(() => {
-  if (props.imageBase64.startsWith('/api/')) return props.imageBase64
-  return 'data:image/png;base64,' + props.imageBase64
-})
+const imgSrc = computed(() => b64Url(props.imageBase64))
 
 const chain = computed(() => {
   const c = props.item?.meta?.chain

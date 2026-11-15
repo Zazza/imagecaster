@@ -24,7 +24,7 @@ func TestWithSD_SwapsClientSharesProgressState(t *testing.T) {
 
 	_ = svc.InterruptGeneration()
 	assert.Error(t, c.checkSDInterrupted())
-	c.StartSDPolling()
+	c.beginProgress()
 	assert.NoError(t, svc.checkSDInterrupted())
 }
 
@@ -58,9 +58,9 @@ func TestOnSDProgress_EmitsOnlyWhileActive(t *testing.T) {
 
 	st := sd.JobStatus{ID: "j", Status: sd.JobRunning, Progress: sd.JobProgress{Step: 1, Steps: 4}}
 	svc.onSDProgress(st)
-	svc.StartSDPolling()
+	svc.beginProgress()
 	sdSvc.progressFn(st)
-	svc.StopSDPolling()
+	svc.endProgress()
 	svc.onSDProgress(st)
 
 	em.mu.Lock()

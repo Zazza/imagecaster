@@ -33,7 +33,7 @@ func newFaceTestService(t *testing.T, sdSvc sd.Service) *Service {
 	t.Helper()
 	db := openTestDB(t)
 	return New(db, &mockLLM{}, sdSvc, &config.Config{SDPromptModel: "test-model", VisionModel: "test-vision"},
-		t.TempDir(), &mockEmitter{}, kids.NewManager(db), &mockSessions{}, &mockSettings{}, nil, logger.New(nil))
+		t.TempDir(), &mockEmitter{}, kids.NewManager(db), &mockSessions{}, logger.New(nil))
 }
 
 func TestFaceLandmarks_ConvertsPointsOneToOne(t *testing.T) {

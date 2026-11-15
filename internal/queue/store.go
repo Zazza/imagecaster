@@ -18,11 +18,31 @@ func NewStore(db *sql.DB) *Store {
 
 const jobColumns = `id, type, status, params, progress, progress_detail, result, error, source, created_at, started_at, completed_at, retry_count, max_retries, next_retry_at`
 
+const panelColumns = `id, type, status, progress, progress_detail, error, source, created_at, started_at, completed_at, retry_count, max_retries, next_retry_at`
+
+const stripImageParams = `CASE WHEN json_valid(params) THEN json_remove(params, '$.image_base64', '$.mask_base64', '$.reference_image_base64') ELSE params END`
+
 func scanJob(scanner interface{ Scan(...any) error }, j *Job) error {
 	var nextRetry sql.NullString
 	err := scanner.Scan(
 		&j.ID, &j.Type, &j.Status, &j.Params, &j.Progress, &j.ProgressDetail,
 		&j.Result, &j.Error, &j.Source, &j.CreatedAt, &j.StartedAt, &j.CompletedAt,
+		&j.RetryCount, &j.MaxRetries, &nextRetry,
+	)
+	if err != nil {
+		return err
+	}
+	if nextRetry.Valid {
+		j.NextRetry = &nextRetry.String
+	}
+	return nil
+}
+
+func scanPanelJob(scanner interface{ Scan(...any) error }, j *Job) error {
+	var nextRetry sql.NullString
+	err := scanner.Scan(
+		&j.ID, &j.Type, &j.Status, &j.Progress, &j.ProgressDetail,
+		&j.Error, &j.Source, &j.CreatedAt, &j.StartedAt, &j.CompletedAt,
 		&j.RetryCount, &j.MaxRetries, &nextRetry,
 	)
 	if err != nil {
@@ -85,15 +105,19 @@ func (s *Store) ClaimNext() (*Job, error) {
 }
 
 func (s *Store) UpdateStatus(id int64, status JobStatus, errMsg string) error {
+	params := "params"
+	if status == StatusCancelled {
+		params = stripImageParams
+	}
 	if errMsg != "" {
 		_, err := s.db.Exec(
-			`UPDATE job_queue SET status = ?, error = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
+			`UPDATE job_queue SET status = ?, error = ?, params = `+params+`, completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
 			status, errMsg, id,
 		)
 		return err
 	}
 	_, err := s.db.Exec(
-		`UPDATE job_queue SET status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		`UPDATE job_queue SET status = ?, params = `+params+`, completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		status, id,
 	)
 	return err
@@ -101,38 +125,24 @@ func (s *Store) UpdateStatus(id int64, status JobStatus, errMsg string) error {
 
 func (s *Store) UpdateCompleted(id int64, result string) error {
 	_, err := s.db.Exec(
-		`UPDATE job_queue SET status = 'completed', result = ?, progress = 1, completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		`UPDATE job_queue SET status = 'completed', result = ?, params = `+stripImageParams+`, progress = 1, completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		result, id,
 	)
 	return err
 }
 
-func (s *Store) UpdateProgress(id int64, progress float64, detail string) error {
-	_, err := s.db.Exec(
-		`UPDATE job_queue SET progress = ?, progress_detail = ? WHERE id = ?`,
-		progress, detail, id,
-	)
-	return err
+func (s *Store) HasClaimable() (bool, error) {
+	var ok bool
+	err := s.db.QueryRow(
+		`SELECT EXISTS (SELECT 1 FROM job_queue WHERE status = 'pending' AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP))`,
+	).Scan(&ok)
+	return ok, err
 }
 
-func (s *Store) ListActive() ([]*Job, error) {
-	rows, err := s.db.Query(
-		fmt.Sprintf(`SELECT %s FROM job_queue WHERE status IN ('pending', 'running', 'paused') ORDER BY created_at ASC`, jobColumns),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var jobs []*Job
-	for rows.Next() {
-		var j Job
-		if err := scanJob(rows, &j); err != nil {
-			return nil, err
-		}
-		jobs = append(jobs, &j)
-	}
-	return jobs, rows.Err()
+func (s *Store) ActiveCount() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM job_queue WHERE status IN ('pending', 'running')`).Scan(&n)
+	return n, err
 }
 
 func (s *Store) ListForPanel(finishedLimit int) ([]*Job, error) {
@@ -140,7 +150,7 @@ func (s *Store) ListForPanel(finishedLimit int) ([]*Job, error) {
 		fmt.Sprintf(`SELECT %[1]s FROM job_queue WHERE status IN (?, ?, ?)
 			UNION ALL
 			SELECT %[1]s FROM (SELECT %[1]s FROM job_queue WHERE status NOT IN (?, ?, ?) ORDER BY created_at DESC, id DESC LIMIT ?)
-			ORDER BY created_at DESC, id DESC`, jobColumns),
+			ORDER BY created_at DESC, id DESC`, panelColumns),
 		StatusPending, StatusRunning, StatusPaused,
 		StatusPending, StatusRunning, StatusPaused, finishedLimit,
 	)
@@ -152,7 +162,7 @@ func (s *Store) ListForPanel(finishedLimit int) ([]*Job, error) {
 	var jobs []*Job
 	for rows.Next() {
 		var j Job
-		if err := scanJob(rows, &j); err != nil {
+		if err := scanPanelJob(rows, &j); err != nil {
 			return nil, err
 		}
 		jobs = append(jobs, &j)
@@ -192,7 +202,7 @@ func (s *Store) Delete(id int64) (bool, error) {
 
 func (s *Store) CancelPending() error {
 	_, err := s.db.Exec(
-		`UPDATE job_queue SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP WHERE status = 'pending'`,
+		`UPDATE job_queue SET status = 'cancelled', params = ` + stripImageParams + `, completed_at = CURRENT_TIMESTAMP WHERE status = 'pending'`,
 	)
 	return err
 }
