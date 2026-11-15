@@ -490,7 +490,7 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 		Info:            resp.Info,
 		EffectivePrompt: lookPrompt,
 	}
-	s.sessions.AddToSession(finalImage, resp.Info, "look", &preset.GenerationMeta{
+	result.SessionItemID = s.sessions.AddToSession(finalImage, resp.Info, "look", &preset.GenerationMeta{
 		Label: "Look: " + truncateRunes(text, kleinLookLabelMax),
 		Model: kleinLookModel,
 	})

@@ -9,7 +9,6 @@ import { settle } from './helpers/index.js'
 beforeEach(() => {
   vi.clearAllMocks()
   clearEventMocks()
-  vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
   GetSettings.mockImplementation(() => Promise.resolve({}))
   GetServerStatus.mockImplementation(() => Promise.resolve({ health: {}, models: {} }))
   GetLogEntries.mockImplementation(() => Promise.resolve([]))

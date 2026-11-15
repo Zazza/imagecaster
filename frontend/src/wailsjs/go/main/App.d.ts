@@ -8,7 +8,6 @@ import {preset} from '../models';
 import {serverclient} from '../models';
 import {importexport} from '../models';
 import {kids} from '../models';
-import {llm} from '../models';
 import {logger} from '../models';
 import {queue} from '../models';
 import {sd} from '../models';
@@ -32,31 +31,17 @@ export function CancelQueueJob(arg1:number):Promise<void>;
 
 export function CheckServer():Promise<settings.ServerCheck>;
 
-export function CheckServices():Promise<settings.ServiceStatus>;
-
-export function ClearCompletedQueueJobs():Promise<void>;
-
-export function ClearLastImage():Promise<void>;
-
 export function ClearSession():Promise<void>;
 
 export function CompilePostStyle(arg1:string):Promise<generation.CompiledRecipe>;
 
-export function ConfirmClose(arg1:string):Promise<void>;
-
 export function CreateCompoundPreset(arg1:preset.CompoundPreset):Promise<preset.CompoundPreset>;
-
-export function CreateDescription(arg1:string):Promise<preset.SavedDescription>;
 
 export function CreateDescriptionFull(arg1:preset.SavedDescription):Promise<preset.SavedDescription>;
 
 export function CreateHiresProfile(arg1:preset.HiresProfile):Promise<preset.HiresProfile>;
 
 export function CreatePreset(arg1:preset.Preset):Promise<preset.Preset>;
-
-export function CreatePresetType(arg1:preset.PresetType):Promise<preset.PresetType>;
-
-export function CreatePrompt(arg1:string):Promise<preset.SavedPrompt>;
 
 export function CreateResolution(arg1:preset.Resolution):Promise<preset.Resolution>;
 
@@ -75,10 +60,6 @@ export function DeleteHistoryItems(arg1:Array<number>):Promise<number>;
 export function DeletePostRecipe(arg1:number):Promise<void>;
 
 export function DeletePreset(arg1:number):Promise<void>;
-
-export function DeletePresetType(arg1:number):Promise<void>;
-
-export function DeletePrompt(arg1:number):Promise<void>;
 
 export function DeleteResolution(arg1:number):Promise<void>;
 
@@ -112,25 +93,15 @@ export function EnqueueLook(arg1:generation.ApplyLookParams):Promise<number>;
 
 export function EnqueueTxt2Img(arg1:generation.GenerateImageParams):Promise<number>;
 
-export function ExportCompoundPresets(arg1:Array<number>):Promise<string>;
-
 export function ExportImage(arg1:importexport.ExportImageParams):Promise<string>;
 
-export function ExportPresets(arg1:Array<number>):Promise<string>;
-
 export function GenerateCompoundImage(arg1:generation.GenerateCompoundImageParams):Promise<generation.GenerateImageResult>;
-
-export function GenerateFromImage(arg1:generation.GenerateFromImageParams):Promise<generation.GenerateImageResult>;
 
 export function GenerateImage(arg1:generation.GenerateImageParams):Promise<generation.GenerateImageResult>;
 
 export function GenerateSDPrompt(arg1:generation.GenerateSDPromptParams):Promise<generation.GenerateSDPromptResult>;
 
 export function GetActiveSessionItem():Promise<preset.SessionItem>;
-
-export function GetAllTags():Promise<Array<string>>;
-
-export function GetCompoundPreset(arg1:number):Promise<preset.CompoundPreset>;
 
 export function GetDefaultAnalyzePrompts():Promise<generation.AnalyzePrompts>;
 
@@ -144,15 +115,9 @@ export function GetDefaultPromptInstructionProse():Promise<string>;
 
 export function GetFooterHeight():Promise<number>;
 
-export function GetHiresProfile(arg1:number):Promise<preset.HiresProfile>;
-
 export function GetKidsCategories():Promise<Array<kids.CategoryInfo>>;
 
-export function GetLLMModels():Promise<Array<llm.LLMModel>>;
-
 export function GetLLMSetup():Promise<settings.LLMSetup>;
-
-export function GetLastImage():Promise<generation.GenerateImageResult>;
 
 export function GetLogEntries():Promise<Array<logger.Entry>>;
 
@@ -160,13 +125,9 @@ export function GetModelCatalog():Promise<serverclient.Catalog>;
 
 export function GetModelPresets():Promise<Record<string, Array<string>>>;
 
-export function GetPreset(arg1:number):Promise<preset.Preset>;
-
-export function GetPresetType(arg1:number):Promise<preset.PresetType>;
-
 export function GetQueue():Promise<Array<queue.Job>>;
 
-export function GetResolution(arg1:number):Promise<preset.Resolution>;
+export function GetQueueActiveCount():Promise<number>;
 
 export function GetSDLoRAs():Promise<Array<sd.LoRA>>;
 
@@ -196,8 +157,6 @@ export function GetSessionThumb(arg1:number):Promise<string>;
 
 export function GetSettings():Promise<Record<string, string>>;
 
-export function HasSessionItems():Promise<boolean>;
-
 export function ImportCompoundPresets(arg1:Array<importexport.CompoundExportData>):Promise<Array<preset.CompoundPreset>>;
 
 export function ImportPresets(arg1:Array<importexport.PresetData>):Promise<Array<preset.Preset>>;
@@ -225,10 +184,6 @@ export function ListPostRecipes():Promise<Array<preset.PostRecipe>>;
 export function ListPresetTypes():Promise<Array<preset.PresetType>>;
 
 export function ListPresets():Promise<Array<preset.Preset>>;
-
-export function ListPresetsByType(arg1:string):Promise<Array<preset.Preset>>;
-
-export function ListPrompts():Promise<Array<preset.SavedPrompt>>;
 
 export function ListResolutions():Promise<Array<preset.Resolution>>;
 
@@ -312,14 +267,10 @@ export function UpdateHiresProfile(arg1:preset.HiresProfile):Promise<preset.Hire
 
 export function UpdatePreset(arg1:preset.Preset):Promise<preset.Preset>;
 
-export function UpdatePresetType(arg1:preset.PresetType):Promise<preset.PresetType>;
-
 export function UpdateResolution(arg1:preset.Resolution):Promise<preset.Resolution>;
 
 export function UpdateSettings(arg1:Record<string, string>):Promise<void>;
 
 export function UpscaleImage(arg1:generation.UpscaleImageParams):Promise<generation.GenerateImageResult>;
-
-export function ValidateImportModels(arg1:Array<importexport.PresetData>):Promise<Array<importexport.ValidationWarning>>;
 
 export function Version():Promise<string>;

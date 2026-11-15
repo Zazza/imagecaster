@@ -679,7 +679,9 @@ export const ru = {
   'post.recipe_steps_adjust': '+ коррекции',
   'post.recipe_steps_only_adjust': 'только коррекции',
   'post.recipe_progress': 'Рецепт: шаг {i} из {n}',
-  'post.recipe_aborted': 'Рецепт прерван на шаге {i}',
+  'post.recipe_aborted': 'Рецепт прерван на шаге {i}: {reason}',
+  'post.recipe_reason_cancelled': 'задание отменено',
+  'post.recipe_reason_no_image': 'нет изображения в результате',
   'post.recipe_log': 'Журнал: {n}',
   'post.recipe_log_clear': 'Очистить журнал',
   'post.recipe_prompt_step': 'Промпт',
@@ -809,6 +811,7 @@ export const ru = {
 
   'preset.edit_title': 'Редактирование стиля',
   'preset.new_title': 'Новый стиль',
+  'preset.error_load_lists': 'Не удалось загрузить списки моделей, сэмплеров или LoRA: {error}',
   'preset.label_name': 'Название',
   'preset.label_type': 'Тип',
   'preset.placeholder_type': 'weapon, character, scene...',

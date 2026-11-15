@@ -19,7 +19,8 @@ export function parseLoras(jsonStr) {
   if (!jsonStr) return []
   try {
     return normRows(JSON.parse(jsonStr))
-  } catch {
+  } catch (e) {
+    console.warn('loraOverride.parseLoras:', e)
     return []
   }
 }

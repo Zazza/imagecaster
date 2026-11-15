@@ -553,6 +553,7 @@ func TestApplyLookDirect_HappyPath(t *testing.T) {
 	assert.Equal(t, "cold blue neon dusk, wet asphalt reflections", result.EffectivePrompt)
 
 	require.Len(t, sessions.items, 1)
+	assert.Equal(t, int64(1), result.SessionItemID)
 	item := sessions.items[0]
 	assert.Equal(t, "look", item.source)
 	require.NotNil(t, item.meta)

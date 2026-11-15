@@ -1,18 +1,18 @@
 package generation
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	"image/draw"
+	"image/png"
 	"math/rand/v2"
 
 	xdraw "golang.org/x/image/draw"
 
 	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/maskcomp"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/sd"
@@ -44,25 +44,6 @@ type RepairParams struct {
 type repairTileBox struct {
 	core image.Rectangle
 	tile image.Rectangle
-}
-
-func decodeRepairImage(b64, what string) (image.Image, error) {
-	data, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, fmt.Errorf("decode %s: %w", what, err)
-	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", what, err)
-	}
-	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > repairMaxDim || cfg.Height > repairMaxDim {
-		return nil, fmt.Errorf("%s too large: %dx%d (max %d per side)", what, cfg.Width, cfg.Height, repairMaxDim)
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", what, err)
-	}
-	return img, nil
 }
 
 func repairMaskAlpha(mask image.Image, w, h int) []uint8 {
@@ -177,11 +158,11 @@ func (s *Service) validateRepairParams(p RepairParams) (image.Image, image.Image
 	if strength < repairMinStrength || strength > repairMaxStrength {
 		return nil, nil, 0, fmt.Errorf("strength must be between %.1f and %.1f", repairMinStrength, repairMaxStrength)
 	}
-	img, err := decodeRepairImage(p.ImageBase64, "image")
+	img, err := imgcodec.Decode(p.ImageBase64, imgcodec.Options{Name: "image", MaxDim: repairMaxDim})
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	mask, err := decodeRepairImage(p.MaskBase64, "mask")
+	mask, err := imgcodec.Decode(p.MaskBase64, imgcodec.Options{Name: "mask", MaxDim: repairMaxDim})
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -202,7 +183,7 @@ func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength f
 		xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), crop, crop.Bounds(), xdraw.Src, nil)
 		in = scaled
 	}
-	b64, err := encodePNGBase64(in)
+	b64, err := imgcodec.EncodePNG(in, png.DefaultCompression)
 	if err != nil {
 		return nil, nil, fmt.Errorf("encode tile: %w", err)
 	}
@@ -235,13 +216,9 @@ func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength f
 		}
 		return nil, nil, errors.New("no image generated (repair)")
 	}
-	data, err := base64.StdEncoding.DecodeString(resp.Images[0])
+	fixed, err := imgcodec.Decode(resp.Images[0], imgcodec.Options{Name: "repair tile"})
 	if err != nil {
-		return nil, nil, fmt.Errorf("decode repair tile: %w", err)
-	}
-	fixed, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse repair tile: %w", err)
+		return nil, nil, err
 	}
 	out := image.NewRGBA(image.Rect(0, 0, cw, ch))
 	fb := fixed.Bounds()
@@ -316,7 +293,7 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 	}
 	s.emitter.Emit("repair:progress", map[string]int{"done": len(tiles), "total": len(tiles)})
 
-	finalB64, err := encodePNGBase64(out)
+	finalB64, err := imgcodec.EncodePNG(out, png.DefaultCompression)
 	if err != nil {
 		return nil, fmt.Errorf("encode result: %w", err)
 	}
@@ -326,7 +303,7 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 		Info:            info,
 		EffectivePrompt: repairPrompt,
 	}
-	s.sessions.AddToSession(finalB64, info, "repair", &preset.GenerationMeta{
+	result.SessionItemID = s.sessions.AddToSession(finalB64, info, "repair", &preset.GenerationMeta{
 		Label: repairLabel,
 		Model: kleinLookModel,
 	})

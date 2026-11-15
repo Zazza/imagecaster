@@ -391,7 +391,7 @@ func TestAddToSession_OversizedReencodedToJPEG(t *testing.T) {
 	svc, emitter, _ := testService(t)
 
 	largePNG := makeLargeImagePNG(t, 3200, 3200)
-	require.Greater(t, len(largePNG), maxImageBase64)
+	require.Greater(t, len(largePNG), MaxStoredImageBase64)
 
 	itemID := svc.AddToSession(largePNG, nil, "sd", nil)
 	assert.True(t, itemID > 0)

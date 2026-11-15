@@ -1858,6 +1858,8 @@ func TestGenerateFromImage_CompoundHires(t *testing.T) {
 			assert.Equal(t, tt.expectUpscale, upscaleCalls)
 			assert.NotEmpty(t, result.Info)
 			assert.Equal(t, tt.expectedInfo, string(result.Info))
+			assert.Equal(t, int64(1), result.SessionItemID)
+			assert.Equal(t, 1, sessionItemCount(svc))
 		})
 	}
 }

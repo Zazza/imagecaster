@@ -8,9 +8,9 @@ import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
 import { parseLoras } from '../loraOverride.js'
 import { t } from '../i18n/index.js'
-import { EventsOn } from '../wailsjs/runtime/runtime'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
+import { useJobTracker, resultImageBase64 } from '../composables/useJobTracker.js'
 import { usePresets } from '../composables/usePresets.js'
 import PresetOverridesPanel from './PresetOverridesPanel.vue'
 import ResolutionSelector from './ResolutionSelector.vue'
@@ -58,10 +58,15 @@ watch(generatingImage, v => emit('busy', v))
 const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 const generationStage = ref('')
 const error = ref('')
-const enqueuedJobIds = ref(new Set())
 const genCount = ref(1)
 const batchTotal = ref(0)
-const batchDone = ref(0)
+const jobs = useJobTracker({
+  onCompleted: onQueueCompleted,
+  onFailed: onQueueFailed,
+  onCancelled: stopIfIdle,
+})
+const enqueuedJobIds = jobs.pending
+const batchDone = jobs.done
 
 const { kidsModeActive, loadKidsMode } = useKidsMode()
 
@@ -190,9 +195,8 @@ async function generate() {
   qualityRedenoiseSkipped.value = false
   error.value = ''
   resetProgress()
-  enqueuedJobIds.value = new Set()
+  jobs.reset()
   batchTotal.value = 0
-  batchDone.value = 0
   try {
     const params = { ...remixParams(), image_base64: props.source }
     const seedVal = parseSeedInput(seedInput.value)
@@ -200,7 +204,7 @@ async function generate() {
     batchTotal.value = count
     for (let i = 0; i < count; i++) {
       const jobId = await api.enqueueFromImage({ ...params, seed: seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null })
-      if (jobId) enqueuedJobIds.value.add(jobId)
+      if (jobId) jobs.track(jobId)
     }
     error.value = ''
   } catch (e) {
@@ -212,83 +216,48 @@ async function generate() {
   }
 }
 
-async function onQueueCompleted(data) {
-  if (!data?.job_id || !enqueuedJobIds.value.has(data.job_id)) return
-
-  enqueuedJobIds.value.delete(data.job_id)
-  batchDone.value++
-
-  let gotResult = false
-  if (data.result) {
-    try {
-      const r = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
-      if (r.image_base64) {
-        gotResult = true
-        lastEmittedSource = r.image_base64
-        emit('result', r.image_base64)
-        let info = null
-        if (r.info) {
-          try { info = typeof r.info === 'string' ? JSON.parse(r.info) : r.info } catch { info = r.info }
-        }
-        genInfo.value = info
-        qualityUpscaleSkipped.value = r.quality_upscale_skipped || false
-        qualityRedenoiseSkipped.value = r.quality_redenoise_skipped || false
-      }
-    } catch {}
-  }
-  if (!gotResult) {
-    try {
-      const item = await api.getActiveSessionItem()
-      if (item) {
-        const b64 = await api.getSessionImage(item.id)
-        if (b64) {
-          lastEmittedSource = b64
-          emit('result', b64)
-        }
-        genInfo.value = item.info || null
-      }
-    } catch {}
-  }
-
+function stopIfIdle() {
   if (enqueuedJobIds.value.size === 0) {
     generatingImage.value = false
     generationStage.value = ''
   }
 }
 
-function onQueueFailed(data) {
-  if (!data?.job_id || !enqueuedJobIds.value.has(data.job_id)) return
-
-  enqueuedJobIds.value.delete(data.job_id)
-  batchDone.value++
-  if (data.error) error.value = data.error
-
-  if (enqueuedJobIds.value.size === 0) {
-    generatingImage.value = false
-    generationStage.value = ''
+async function onQueueCompleted(data, result, tracked) {
+  if (!tracked) return
+  if (result?.hasImage) {
+    try {
+      const b64 = await resultImageBase64(result)
+      if (b64) {
+        lastEmittedSource = b64
+        emit('result', b64)
+      }
+    } catch (e) {
+      error.value = String(e)
+    }
+    genInfo.value = result.info
+    qualityUpscaleSkipped.value = result.qualityUpscaleSkipped
+    qualityRedenoiseSkipped.value = result.qualityRedenoiseSkipped
   }
+  stopIfIdle()
 }
 
-function onQueuePaused(data) {
-  if (!data?.job_id || !enqueuedJobIds.value.has(data.job_id)) return
-  if ((data.retry_count || 0) < (data.max_retries || 0)) return
-
-  enqueuedJobIds.value.delete(data.job_id)
-  batchDone.value++
+function onQueueFailed(data, { tracked }) {
+  if (!tracked) return
   if (data.error) error.value = data.error
-
-  if (enqueuedJobIds.value.size === 0) {
-    generatingImage.value = false
-    generationStage.value = ''
-  }
+  stopIfIdle()
 }
 
 async function interruptBatch() {
   if (enqueuedJobIds.value.size > 0) {
     const ids = [...enqueuedJobIds.value]
-    enqueuedJobIds.value = new Set()
+    jobs.clear()
     for (const id of ids) {
-      try { await api.cancelQueueJob(id) } catch {}
+      try {
+        await api.cancelQueueJob(id)
+      } catch (e) {
+        error.value = String(e)
+      }
     }
     generatingImage.value = false
     generationStage.value = ''
@@ -297,22 +266,17 @@ async function interruptBatch() {
   await interruptGeneration()
 }
 
-let offCompleted = () => {}
-let offFailed = () => {}
-let offPaused = () => {}
 let settingsRestored = false
 
 onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
-  offCompleted = EventsOn('queue:completed', onQueueCompleted)
-  offFailed = EventsOn('queue:failed', onQueueFailed)
-  offPaused = EventsOn('queue:paused', onQueuePaused)
 
   await loadPresets()
   loadKidsMode()
   try {
     hiresProfiles.value = await api.listHiresProfiles() || []
-  } catch {
+  } catch (e) {
+    console.warn('RemixSection.onMounted:', e)
     loadHiresFailed.value = true
   }
   try {
@@ -343,14 +307,13 @@ onMounted(async () => {
     if (s.fi_analyze_mode) analyzeMode.value = s.fi_analyze_mode === 'describe' ? 'describe' : 'quick'
     if (s.fi_count) genCount.value = Math.max(1, Math.min(100, Number(s.fi_count) || 1))
     settingsRestored = true
-  } catch {}
+  } catch (e) {
+    console.warn('RemixSection.onMounted:', e)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
-  offCompleted()
-  offFailed()
-  offPaused()
   saveFIState()
 })
 
@@ -370,7 +333,7 @@ function saveFIState() {
   if (!loadHiresFailed.value) {
     state.fi_hires_profile_id = selectedHiresProfileId.value ? String(selectedHiresProfileId.value) : ''
   }
-  api.updateSettings(state).catch(() => {})
+  api.updateSettings(state).catch(e => console.warn('RemixSection.saveFIState:', e))
 }
 
 function onKeydown(e) {

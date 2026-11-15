@@ -58,7 +58,7 @@ function onServerCheckClose() {
 }
 
 function readWelcome() {
-  try { return JSON.parse(localStorage.getItem(WELCOME_KEY) || 'null') } catch { return null }
+  try { return JSON.parse(localStorage.getItem(WELCOME_KEY) || 'null') } catch (e) { console.warn('App.readWelcome:', e); return null }
 }
 
 function closeWelcome(dontShow) {
@@ -79,7 +79,8 @@ async function checkFreshInstall() {
   try {
     const models = await api.getServerModels('sd')
     if ((models || []).length !== 0) return false
-  } catch {
+  } catch (e) {
+    console.warn('App.checkFreshInstall:', e)
     return false
   }
   return isFreshInstall(await loadDefaultPlan(), 0)
@@ -115,7 +116,7 @@ function toggleSidebar() {
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
   document.documentElement.setAttribute('data-theme', theme.value)
-  api.updateSettings({ theme: theme.value }).catch(() => {})
+  api.updateSettings({ theme: theme.value }).catch(e => console.warn('App.toggleTheme:', e))
 }
 
 async function resetAll() {
@@ -220,10 +221,12 @@ onMounted(async () => {
       theme.value = s.theme
       document.documentElement.setAttribute('data-theme', s.theme)
     }
-  } catch {}
+  } catch (e) {
+    console.warn('App.onMounted:', e)
+  }
   startup()
   window.addEventListener('beforeunload', () => {
-    api.saveWindowLayout(0).catch(() => {})
+    api.saveWindowLayout(0).catch(e => console.warn('App.onMounted:', e))
   })
 })
 

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime'
+import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { Image, Trash2, X, Plus, Pencil, Check } from 'lucide-vue-next'
@@ -26,7 +26,6 @@ const filterLevel = ref('all')
 const sessions = ref([])
 const activeSessionId = ref(0)
 const items = ref([])
-const thumbnails = ref({})
 const brokenThumbs = ref({})
 
 const itemContainer = ref(null)
@@ -77,9 +76,7 @@ const appVersion = ref('')
 const viewerIndex = ref(-1)
 
 const queuePendingCount = ref(0)
-let queueSubscribed = false
-
-let observer = null
+let eventOffs = []
 
 const services = reactive({
   llm: { available: false, label: 'footer.ai_assistant', model: '', visionModel: '', tab: 'connection' },
@@ -190,7 +187,9 @@ function addLog(raw) {
         }
       })
     }
-  } catch {}
+  } catch (e) {
+    console.warn('log entry parse error:', e)
+  }
 }
 
 function togglePanel(p) {
@@ -210,12 +209,11 @@ function togglePanel(p) {
   if (p === 'session') {
     loadSessions().then(() => loadItems()).then(() => {
       nextTick(() => {
-        observeItems()
         if (itemContainer.value) {
           itemContainer.value.scrollTop = itemContainer.value.scrollHeight
         }
       })
-    }).catch(() => {})
+    }).catch(e => { footerError.value = String(e) })
   }
 }
 
@@ -229,10 +227,10 @@ function levelClass(level) {
   }
 }
 
-const filteredLogs = () => {
+const filteredLogs = computed(() => {
   if (filterLevel.value === 'all') return logs
   return logs.filter(l => l.level === filterLevel.value)
-}
+})
 
 function goToService(key) {
   const svc = services[key]
@@ -253,35 +251,11 @@ async function checkServices() {
     services.llm.visionModel = visModel && visModel !== 'default' ? visModel : ''
     services.sd.available = health.sd?.healthy || false
     services.sd.model = models.sd_checkpoint || ''
-  } catch {
+  } catch (e) {
+    console.warn('AppFooter.checkServices:', e)
     services.llm.available = false
     services.sd.available = false
   }
-}
-
-function setupObserver() {
-  observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        const id = Number(entry.target.dataset.itemId)
-        if (id) {
-          loadThumb(id)
-        }
-        observer.unobserve(entry.target)
-      }
-    }
-  }, { rootMargin: '100px' })
-}
-
-function observeItems() {
-  if (!observer || !itemContainer.value) return
-  const els = itemContainer.value.querySelectorAll('.si-card[data-item-id]')
-  els.forEach(el => observer.observe(el))
-}
-
-function loadThumb(id) {
-  if (thumbnails.value[id]) return
-  thumbnails.value[id] = api.sessionThumbUrl(id)
 }
 
 const footerError = ref('')
@@ -303,7 +277,6 @@ async function loadItems() {
   try {
     const result = await api.getSessionItems()
     items.value = result || []
-    nextTick(() => observeItems())
   } catch (e) {
     footerError.value = 'loadItems: ' + String(e)
     items.value = []
@@ -314,10 +287,11 @@ async function selectSession(id) {
   if (id === activeSessionId.value) return
   try {
     await api.switchSession(id)
-    thumbnails.value = {}
     await loadSessions()
     await loadItems()
-  } catch {}
+  } catch (e) {
+    footerError.value = String(e)
+  }
 }
 
 async function doCreateSession() {
@@ -328,9 +302,10 @@ async function doCreateSession() {
     newSessionName.value = ''
     showNewSession.value = false
     await loadSessions()
-    thumbnails.value = {}
     await loadItems()
-  } catch {}
+  } catch (e) {
+    footerError.value = String(e)
+  }
 }
 
 function startRename(s) {
@@ -344,7 +319,9 @@ async function doRename() {
     await api.renameSession(renamingId.value, renameName.value.trim())
     renamingId.value = 0
     await loadSessions()
-  } catch {}
+  } catch (e) {
+    footerError.value = String(e)
+  }
 }
 
 async function doDeleteSession() {
@@ -359,18 +336,20 @@ async function doDeleteSession() {
   try {
     await api.deleteSession(activeSessionId.value)
     await loadSessions()
-    thumbnails.value = {}
     await loadItems()
-  } catch {}
+  } catch (e) {
+    footerError.value = String(e)
+  }
 }
 
 async function doClearSession() {
   try {
     await api.clearSession()
     items.value = []
-    thumbnails.value = {}
     await loadSessions()
-  } catch {}
+  } catch (e) {
+    footerError.value = String(e)
+  }
 }
 
 async function activateItem(item, target) {
@@ -378,16 +357,19 @@ async function activateItem(item, target) {
     await api.setActiveSessionItem(item.id)
     items.value.forEach(i => { i.is_active = i.id === item.id })
     emit('navigate', target)
-  } catch {}
+  } catch (e) {
+    footerError.value = String(e)
+  }
 }
 
 async function deleteItem(id) {
   try {
     await api.deleteSessionItem(id)
     items.value = items.value.filter(i => i.id !== id)
-    delete thumbnails.value[id]
     await loadSessions()
-  } catch {}
+  } catch (e) {
+    footerError.value = String(e)
+  }
 }
 
 const viewerItem = computed(() => viewerIndex.value >= 0 ? items.value[viewerIndex.value] : null)
@@ -455,69 +437,55 @@ function formatTime(ts) {
 
 async function refreshQueueCount() {
   try {
-    const jobs = await api.getQueue()
-    queuePendingCount.value = (jobs || []).filter(j => j.status === 'pending' || j.status === 'running').length
-  } catch {}
+    queuePendingCount.value = (await api.getQueueActiveCount()) || 0
+  } catch (e) {
+    console.error('queue active count error:', e)
+  }
 }
 
 let checkServicesInterval = null
 
 onUnmounted(() => {
-  EventsOff('log:entry')
   clearInterval(checkServicesInterval)
-  EventsOff('session:added')
-  EventsOff('session:removed')
-  EventsOff('session:cleared')
-  EventsOff('session:switched')
-  EventsOff('session:active')
-  EventsOff('session:deleted')
-  EventsOff('session:created')
-  if (observer) observer.disconnect()
-  thumbnails.value = {}
+  eventOffs.forEach(off => off?.())
+  eventOffs = []
 })
 
 onMounted(async () => {
-  EventsOn('log:entry', addLog)
+  eventOffs.push(EventsOn('log:entry', addLog))
   loadLogHistory()
   checkServices()
   checkServicesInterval = setInterval(checkServices, 30000)
-  setupObserver()
 
-  EventsOn('session:added', () => {
-    loadSessions()
-    loadItems().then(() => {
-      nextTick(() => {
-        if (expanded.value && panel.value === 'session' && itemContainer.value) {
-          itemContainer.value.scrollTop = itemContainer.value.scrollHeight
-        }
+  eventOffs.push(
+    EventsOn('session:added', () => {
+      loadSessions()
+      loadItems().then(() => {
+        nextTick(() => {
+          if (expanded.value && panel.value === 'session' && itemContainer.value) {
+            itemContainer.value.scrollTop = itemContainer.value.scrollHeight
+          }
+        })
       })
-    })
-  })
-  EventsOn('session:removed', () => { loadItems(); loadSessions() })
-  EventsOn('session:cleared', () => { loadItems(); loadSessions() })
-  EventsOn('session:switched', () => {
-    thumbnails.value = {}
-    loadItems()
-    loadSessions()
-  })
-  EventsOn('session:active', (data) => {
-    const id = data?.id
-    if (id) items.value.forEach(i => { i.is_active = i.id === id })
-  })
-  EventsOn('session:deleted', () => { loadSessions(); loadItems() })
-  EventsOn('session:created', () => { loadSessions(); loadItems() })
-
-  if (!queueSubscribed) {
-    queueSubscribed = true
-    EventsOn('queue:changed', refreshQueueCount)
-    EventsOn('queue:started', refreshQueueCount)
-    EventsOn('queue:completed', refreshQueueCount)
-    EventsOn('queue:failed', refreshQueueCount)
-    refreshQueueCount()
-  }
+    }),
+    EventsOn('session:removed', () => { loadItems(); loadSessions() }),
+    EventsOn('session:cleared', () => { loadItems(); loadSessions() }),
+    EventsOn('session:switched', () => { loadItems(); loadSessions() }),
+    EventsOn('session:active', (data) => {
+      const id = data?.id
+      if (id) items.value.forEach(i => { i.is_active = i.id === id })
+    }),
+    EventsOn('session:deleted', () => { loadSessions(); loadItems() }),
+    EventsOn('session:created', () => { loadSessions(); loadItems() }),
+    EventsOn('queue:changed', refreshQueueCount),
+    EventsOn('queue:started', refreshQueueCount),
+    EventsOn('queue:completed', refreshQueueCount),
+    EventsOn('queue:failed', refreshQueueCount),
+  )
+  refreshQueueCount()
 
   await loadSessions()
-  api.version().then(v => { appVersion.value = v }).catch(() => {})
+  api.version().then(v => { appVersion.value = v }).catch(e => console.warn('version:', e))
   await loadItems()
 })
 
@@ -558,19 +526,21 @@ function onDragEnd() {
 function scheduleSave() {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
-    api.saveWindowLayout(panelHeight.value).catch(() => {})
+    api.saveWindowLayout(panelHeight.value).catch(e => console.warn('saveWindowLayout:', e))
   }, 500)
 }
 
 function saveBeforeClose() {
-  api.saveWindowLayout(panelHeight.value).catch(() => {})
+  api.saveWindowLayout(panelHeight.value).catch(e => console.warn('saveWindowLayout:', e))
 }
 
 onMounted(async () => {
   try {
     const h = await api.getFooterHeight()
     if (h > 0) panelHeight.value = h
-  } catch {}
+  } catch (e) {
+    console.warn('getFooterHeight:', e)
+  }
   window.addEventListener('beforeunload', saveBeforeClose)
 })
 
@@ -667,7 +637,7 @@ onUnmounted(() => {
           <div v-if="selectMode && selectedIds.includes(item.id)" class="si-check"><Check :size="12" /></div>
           <span v-if="chainSteps(item) > 1" class="si-steps-badge" aria-hidden="true">{{ chainSteps(item) }}</span>
           <div class="si-thumb">
-            <img v-if="thumbnails[item.id] && !brokenThumbs[item.id]" :src="thumbnails[item.id]" alt="" @error="brokenThumbs[item.id] = true" />
+            <img v-if="!brokenThumbs[item.id]" :src="api.sessionThumbUrl(item.id)" alt="" loading="lazy" @error="brokenThumbs[item.id] = true" />
             <Image v-else :size="24" class="si-placeholder" />
           </div>
           <div class="si-meta">
@@ -701,7 +671,7 @@ onUnmounted(() => {
         <button class="filter-btn" @click.stop="logs.splice(0, logs.length)">{{ t('footer.btn_clear_logs') }}</button>
       </div>
       <div class="log-entries" ref="logContainer">
-        <div v-for="(entry, i) in filteredLogs()" :key="i" class="log-entry" :class="levelClass(entry.level)">
+        <div v-for="entry in filteredLogs" :key="entry.id" class="log-entry" :class="levelClass(entry.level)">
           <span class="log-time">{{ entry.timestamp }}</span>
           <span class="log-level">{{ entry.level.toUpperCase() }}</span>
           <span class="log-msg">{{ entry.message }}</span>

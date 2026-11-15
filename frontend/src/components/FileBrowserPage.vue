@@ -28,7 +28,8 @@ function loadSort() {
   try {
     const saved = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || 'null')
     return normalizeSort(saved?.key, saved?.dir)
-  } catch {
+  } catch (e) {
+    console.warn('FileBrowserPage.loadSort:', e)
     return normalizeSort()
   }
 }
@@ -40,7 +41,9 @@ const sortDir = ref(initialSort.dir)
 function saveSort() {
   try {
     localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ key: sortKey.value, dir: sortDir.value }))
-  } catch {}
+  } catch (e) {
+    console.warn('FileBrowserPage.saveSort:', e)
+  }
 }
 
 function setSortKey(key) {
@@ -97,7 +100,9 @@ async function loadSingleThumbnail(path) {
   try {
     const b64 = await api.readThumbnail(path)
     if (b64) thumbnails.value[path] = b64
-  } catch {}
+  } catch (e) {
+    console.warn('FileBrowserPage.loadSingleThumbnail:', e)
+  }
 }
 
 async function loadPath() {
@@ -120,7 +125,7 @@ async function loadPath() {
     entries.value = []
   } finally {
     loading.value = false
-    api.updateSettings({ file_browser_path: currentPath.value }).catch(() => {})
+    api.updateSettings({ file_browser_path: currentPath.value }).catch(e => console.warn('FileBrowserPage.loadPath:', e))
   }
 }
 
@@ -176,7 +181,9 @@ async function loadFullImage(entry) {
   try {
     const b64 = await api.readFileAsBase64(entry.path)
     if (b64) fullImages.value[entry.path] = b64
-  } catch {}
+  } catch (e) {
+    console.warn('FileBrowserPage.loadFullImage:', e)
+  }
   fullLoading.value.delete(entry.path)
 }
 
@@ -260,7 +267,9 @@ onMounted(async () => {
       currentPath.value = settings.file_browser_path
       await loadPath()
     }
-  } catch {}
+  } catch (e) {
+    console.warn('FileBrowserPage.onMounted:', e)
+  }
 })
 
 onUnmounted(() => {

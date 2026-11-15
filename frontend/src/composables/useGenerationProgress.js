@@ -22,7 +22,9 @@ export function useGenerationProgress() {
   async function interrupt() {
     try {
       await api.interruptGeneration()
-    } catch {}
+    } catch (e) {
+      console.warn('useGenerationProgress.interrupt:', e)
+    }
   }
 
   function reset() {

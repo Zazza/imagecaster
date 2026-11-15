@@ -379,6 +379,7 @@ func TestEditObject_Instruction(t *testing.T) {
 			sessions.mu.Lock()
 			defer sessions.mu.Unlock()
 			require.Len(t, sessions.items, 1)
+			assert.Equal(t, int64(1), result.SessionItemID)
 			require.NotNil(t, sessions.items[0].meta)
 			assert.True(t, strings.HasPrefix(sessions.items[0].meta.Label, tt.labelPrefix), "label %q", sessions.items[0].meta.Label)
 			assert.Equal(t, kleinLookModel, sessions.items[0].meta.Model)

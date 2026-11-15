@@ -1,7 +1,6 @@
 package faceguard
 
 import (
-	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 
 	_ "image/jpeg"
 
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/math/f64"
 	"golang.org/x/image/vector"
@@ -290,11 +290,11 @@ func pearson(a, b []float64) float64 {
 }
 
 func TextureMatchBase64(origB64, editedB64 string, origPts, editPts []Point) (float64, error) {
-	o, err := decode(origB64, "original")
+	o, err := imgcodec.Decode(origB64, imgcodec.Options{Name: "original", DataURL: true})
 	if err != nil {
 		return 0, err
 	}
-	e, err := decode(editedB64, "edited")
+	e, err := imgcodec.Decode(editedB64, imgcodec.Options{Name: "edited", DataURL: true})
 	if err != nil {
 		return 0, err
 	}
@@ -405,25 +405,8 @@ func pick(px []fpt, idx []int) []fpt {
 	return out
 }
 
-func decode(b64, name string) (image.Image, error) {
-	if i := strings.Index(b64, ","); i >= 0 && strings.HasPrefix(b64, "data:") {
-		b64 = b64[i+1:]
-	}
-	raw, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, fmt.Errorf("decode %s: %w", name, err)
-	}
-	img, _, err := image.Decode(bytes.NewReader(raw))
-	if err != nil {
-		return nil, fmt.Errorf("decode %s: %w", name, err)
-	}
-	return img, nil
-}
-
 func MeasureBase64(editedB64 string, origPts, editPts []Point) (Fit, error) {
-	if i := strings.Index(editedB64, ","); i >= 0 && strings.HasPrefix(editedB64, "data:") {
-		editedB64 = editedB64[i+1:]
-	}
+	editedB64 = imgcodec.StripDataURL(editedB64)
 	cfg, _, err := image.DecodeConfig(base64.NewDecoder(base64.StdEncoding, strings.NewReader(editedB64)))
 	if err != nil {
 		return Fit{}, fmt.Errorf("decode edited: %w", err)
@@ -432,11 +415,11 @@ func MeasureBase64(editedB64 string, origPts, editPts []Point) (Fit, error) {
 }
 
 func ApplyBase64(origB64, editedB64 string, origPts, editPts []Point) (string, error) {
-	o, err := decode(origB64, "original")
+	o, err := imgcodec.Decode(origB64, imgcodec.Options{Name: "original", DataURL: true})
 	if err != nil {
 		return "", err
 	}
-	e, err := decode(editedB64, "edited")
+	e, err := imgcodec.Decode(editedB64, imgcodec.Options{Name: "edited", DataURL: true})
 	if err != nil {
 		return "", err
 	}
@@ -448,13 +431,5 @@ func ApplyBase64(origB64, editedB64 string, origPts, editPts []Point) (string, e
 	if err != nil {
 		return "", err
 	}
-	return encode(res)
-}
-
-func encode(img image.Image) (string, error) {
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return "", fmt.Errorf("encode: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	return imgcodec.EncodePNG(res, png.DefaultCompression)
 }

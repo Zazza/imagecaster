@@ -22,6 +22,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/imgformat"
 	"github.com/Zazza/imagecaster/internal/importexport"
 	"github.com/Zazza/imagecaster/internal/kids"
@@ -366,10 +367,7 @@ func (a *App) SaveImage(base64Data, defaultName string) (string, error) {
 	if base64Data == "" {
 		return "", nil
 	}
-	if i := strings.Index(base64Data, ","); i >= 0 && strings.HasPrefix(base64Data, "data:") {
-		base64Data = base64Data[i+1:]
-	}
-	data, err := base64.StdEncoding.DecodeString(base64Data)
+	data, err := base64.StdEncoding.DecodeString(imgcodec.StripDataURL(base64Data))
 	if err != nil {
 		return "", err
 	}

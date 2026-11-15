@@ -26,13 +26,15 @@ async function refreshPlan() {
   try {
     const settings = await api.getSettings()
     serverURL.value = (settings && settings.server_url) || ''
-  } catch {
+  } catch (e) {
+    console.warn('WelcomeModal.refreshPlan:', e)
     serverURL.value = ''
   }
   try {
     await api.getServerModels('sd')
     serverOk.value = true
-  } catch {
+  } catch (e) {
+    console.warn('WelcomeModal.refreshPlan:', e)
     serverOk.value = false
   }
   if (serverOk.value) await loadDefaultPlan()

@@ -17,14 +17,14 @@ const hasActiveJobs = computed(() => jobs.value.some(j => j.status === 'pending'
 const hasPausedJobs = computed(() => pausedJobs.value.length > 0)
 
 let subscribers = 0
-let offChanged, offStarted, offProgress, offCompleted, offFailed, offPaused
+let offChanged, offStarted, offCompleted, offFailed, offPaused
 
 async function refresh() {
   try {
     loading.value = true
     const result = await api.getQueue()
     jobs.value = result || []
-    paused.value = await api.isQueuePaused().catch(() => false)
+    paused.value = await api.isQueuePaused().catch(e => { console.warn('useQueue.refresh:', e); return false })
   } catch (e) {
     console.error('queue refresh error:', e)
   } finally {
@@ -35,7 +35,6 @@ async function refresh() {
 function subscribe() {
   offChanged = EventsOn('queue:changed', refresh)
   offStarted = EventsOn('queue:started', refresh)
-  offProgress = EventsOn('queue:progress', refresh)
   offCompleted = EventsOn('queue:completed', refresh)
   offFailed = EventsOn('queue:failed', refresh)
   offPaused = EventsOn('queue:paused', refresh)
@@ -44,7 +43,6 @@ function subscribe() {
 function unsubscribe() {
   offChanged?.()
   offStarted?.()
-  offProgress?.()
   offCompleted?.()
   offFailed?.()
   offPaused?.()
@@ -52,7 +50,7 @@ function unsubscribe() {
 
 export function resetQueueState() {
   unsubscribe()
-  offChanged = offStarted = offProgress = offCompleted = offFailed = offPaused = undefined
+  offChanged = offStarted = offCompleted = offFailed = offPaused = undefined
   subscribers = 0
   jobs.value = []
   paused.value = false

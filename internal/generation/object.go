@@ -1,8 +1,6 @@
 package generation
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 	xdraw "golang.org/x/image/draw"
 
 	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/maskcomp"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/sd"
@@ -53,33 +52,6 @@ type objectInput struct {
 	op          string
 	replacement string
 	object      string
-}
-
-func decodeB64Image(b64, what string) (image.Image, error) {
-	data, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, fmt.Errorf("decode %s: %w", what, err)
-	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", what, err)
-	}
-	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > objectMaxDim || cfg.Height > objectMaxDim {
-		return nil, fmt.Errorf("%s too large: %dx%d (max %d per side)", what, cfg.Width, cfg.Height, objectMaxDim)
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", what, err)
-	}
-	return img, nil
-}
-
-func encodePNGBase64(img image.Image) (string, error) {
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 func (s *Service) validateObjectParams(p ObjectEditParams) (*objectInput, error) {
@@ -124,11 +96,11 @@ func (s *Service) validateObjectParams(p ObjectEditParams) (*objectInput, error)
 			return nil, err
 		}
 	}
-	img, err := decodeB64Image(p.ImageBase64, "image")
+	img, err := imgcodec.Decode(p.ImageBase64, imgcodec.Options{Name: "image", MaxDim: objectMaxDim})
 	if err != nil {
 		return nil, err
 	}
-	mask, err := decodeB64Image(p.MaskBase64, "mask")
+	mask, err := imgcodec.Decode(p.MaskBase64, imgcodec.Options{Name: "mask", MaxDim: objectMaxDim})
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +119,7 @@ func (s *Service) detectMaskedObject(img, mask image.Image) (string, error) {
 		xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), overlay, b, xdraw.Src, nil)
 		overlay = scaled
 	}
-	overlayB64, err := encodePNGBase64(overlay)
+	overlayB64, err := imgcodec.EncodePNG(overlay, png.DefaultCompression)
 	if err != nil {
 		return "", fmt.Errorf("encode overlay: %w", err)
 	}
@@ -214,11 +186,11 @@ func (s *Service) EditObject(params ObjectEditParams) (*GenerateImageResult, err
 	if err != nil {
 		return nil, err
 	}
-	edited, err := decodeB64Image(resp.Images[0], "result")
+	edited, err := imgcodec.Decode(resp.Images[0], imgcodec.Options{Name: "result", MaxDim: objectMaxDim})
 	if err != nil {
 		return nil, err
 	}
-	finalB64, err := encodePNGBase64(maskcomp.Composite(in.img, edited, in.mask))
+	finalB64, err := imgcodec.EncodePNG(maskcomp.Composite(in.img, edited, in.mask), png.DefaultCompression)
 	if err != nil {
 		return nil, fmt.Errorf("encode result: %w", err)
 	}
@@ -234,7 +206,7 @@ func (s *Service) EditObject(params ObjectEditParams) (*GenerateImageResult, err
 		EffectivePrompt: instruction,
 		DetectedObject:  object,
 	}
-	s.sessions.AddToSession(finalB64, info, "object", &preset.GenerationMeta{
+	result.SessionItemID = s.sessions.AddToSession(finalB64, info, "object", &preset.GenerationMeta{
 		Label: label,
 		Model: kleinLookModel,
 	})

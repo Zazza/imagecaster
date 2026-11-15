@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/kids"
 	"github.com/Zazza/imagecaster/internal/llm"
 	"github.com/Zazza/imagecaster/internal/logger"
@@ -399,12 +400,10 @@ func (s *Service) upscaleWithFallback(base64Img string, scale float64, targetW, 
 		}
 		dst := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
 		xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, img.Bounds(), xdraw.Over, nil)
-		var buf bytes.Buffer
-		enc := png.Encoder{CompressionLevel: png.BestSpeed}
-		if err := enc.Encode(&buf, dst); err != nil {
-			return "", fmt.Errorf("encode png: %w", err)
+		upscaledB64, err = imgcodec.EncodePNG(dst, png.BestSpeed)
+		if err != nil {
+			return "", err
 		}
-		upscaledB64 = base64.StdEncoding.EncodeToString(buf.Bytes())
 	}
 
 	return upscaledB64, nil

@@ -130,7 +130,7 @@ async function loadSettings() {
     promptInstructionProse.value = settings.sd_prompt_instruction_prose || ''
     serverURL.value = settings.server_url || ''
     if (serverURL.value) {
-      loadServerStatus()
+      refreshServerStatus()
     }
   } catch (e) {
     console.error('loadSettings:', e)
@@ -209,18 +209,27 @@ async function discoverServers() {
 async function selectServer(server) {
   const url = `http://${server.ip_address}:${server.port}`
   serverURL.value = url
-  await loadServerStatus()
+  try {
+    await saveServerURL()
+  } catch (e) {
+    connectionError.value = String(e)
+    return
+  }
+  await refreshServerStatus()
 }
 
-async function loadServerStatus() {
+async function saveServerURL() {
+  await api.updateSettings({ server_url: serverURL.value })
+}
+
+async function refreshServerStatus() {
   if (!serverURL.value) return
+  checkServer()
   try {
-    await api.updateSettings({ server_url: serverURL.value })
-    checkServer()
     serverStatus.value = await api.getServerStatus()
     loadServerModels()
   } catch (e) {
-    console.error('loadServerStatus:', e)
+    console.error('refreshServerStatus:', e)
   }
 }
 
@@ -231,7 +240,7 @@ async function startProcess(name) {
     pollServerStatus()
   } catch (e) {
     alert(t('settings.err_start', { error: String(e) }))
-    await loadServerStatus()
+    await refreshServerStatus()
   } finally {
     delete processActionLoading[name]
   }
@@ -244,7 +253,7 @@ async function stopProcess(name) {
     pollServerStatus()
   } catch (e) {
     alert(t('settings.err_stop', { error: String(e) }))
-    await loadServerStatus()
+    await refreshServerStatus()
   } finally {
     delete processActionLoading[name]
   }
@@ -257,20 +266,30 @@ async function restartProcess(name) {
     pollServerStatus()
   } catch (e) {
     alert(t('settings.err_restart', { error: String(e) }))
-    await loadServerStatus()
+    await refreshServerStatus()
   } finally {
     delete processActionLoading[name]
   }
 }
 
+let pollTimer = null
+
+function stopServerPoll() {
+  clearInterval(pollTimer)
+  pollTimer = null
+}
+
 function pollServerStatus(interval = 2000, count = 10) {
+  stopServerPoll()
   let i = 0
-  const timer = setInterval(async () => {
+  pollTimer = setInterval(() => {
     i++
-    try { await loadServerStatus() } catch {}
-    if (i >= count) clearInterval(timer)
+    if (i >= count) stopServerPoll()
+    refreshServerStatus()
   }, interval)
 }
+
+onUnmounted(stopServerPoll)
 
 const logTimers = {}
 
@@ -318,7 +337,7 @@ async function saveServerConnection() {
       llm_analyze_model: analyzeModel.value,
     })
     connectionSaved.value = true
-    await loadServerStatus()
+    await refreshServerStatus()
   } catch (e) {
     connectionError.value = String(e)
   }
@@ -390,7 +409,9 @@ function onPinCancel() {
 async function loadKidsCategories() {
   try {
     kidsCategories.value = await api.getKidsCategories()
-  } catch {}
+  } catch (e) {
+    console.warn('SettingsPage.loadKidsCategories:', e)
+  }
 }
 
 function onKidsCatToggle(cat) {

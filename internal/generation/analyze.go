@@ -1,16 +1,16 @@
 package generation
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
+	"image/png"
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/maskcomp"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/promptutil"
@@ -215,7 +215,7 @@ type fromImageSource struct {
 
 func (f *fromImageSource) decode() (image.Image, error) {
 	if f.img == nil {
-		img, err := decodeB64ImageAnySize(f.b64, "image")
+		img, err := imgcodec.Decode(f.b64, imgcodec.Options{Name: "image"})
 		if err != nil {
 			return nil, err
 		}
@@ -325,13 +325,13 @@ func validateFromImage(params *GenerateFromImageParams) (*fromImageSource, error
 		return nil, config.ImageTooLarge("mask")
 	}
 	var err error
-	if src.mask, err = decodeB64Image(params.MaskBase64, "mask"); err != nil {
+	if src.mask, err = imgcodec.Decode(params.MaskBase64, imgcodec.Options{Name: "mask", MaxDim: objectMaxDim}); err != nil {
 		return nil, err
 	}
 	if !maskcomp.HasPaint(src.mask) {
 		return nil, errors.New("mask is empty — paint over the area")
 	}
-	if src.img, err = decodeB64Image(params.ImageBase64, "image"); err != nil {
+	if src.img, err = imgcodec.Decode(params.ImageBase64, imgcodec.Options{Name: "image", MaxDim: objectMaxDim}); err != nil {
 		return nil, err
 	}
 	return src, nil
@@ -493,7 +493,7 @@ func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImagePar
 }
 
 func blendFromImageResult(source image.Image, resultB64 string, mask image.Image, keepColor bool) (string, error) {
-	edited, err := decodeB64ImageAnySize(resultB64, "result")
+	edited, err := imgcodec.Decode(resultB64, imgcodec.Options{Name: "result"})
 	if err != nil {
 		return "", err
 	}
@@ -504,7 +504,7 @@ func blendFromImageResult(source image.Image, resultB64 string, mask image.Image
 	if mask != nil {
 		out = maskcomp.Blend(source, out, mask)
 	}
-	return encodePNGBase64(out)
+	return imgcodec.EncodePNG(out, png.DefaultCompression)
 }
 
 func (s *Service) fromImageTxt2Img(p *preset.Preset, params GenerateFromImageParams, spec sd.ModelSpec, prompt, negativePrompt string, seed *int64) (*GenerateImageResult, error) {
@@ -635,7 +635,7 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 		EffectivePrompt:         promptResult.Prompt,
 		EffectiveNegativePrompt: promptResult.NegativePrompt,
 	}
-	s.sessions.AddToSession(lastImage, lastInfo, "compound-from-image", &preset.GenerationMeta{
+	img.SessionItemID = s.sessions.AddToSession(lastImage, lastInfo, "compound-from-image", &preset.GenerationMeta{
 		Label: cp.Name,
 		Model: lastModel,
 		Chain: chain,
@@ -784,17 +784,5 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		Model: lastModel,
 		Chain: chain,
 	})
-	return img, nil
-}
-
-func decodeB64ImageAnySize(b64, what string) (image.Image, error) {
-	data, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, fmt.Errorf("decode %s: %w", what, err)
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", what, err)
-	}
 	return img, nil
 }

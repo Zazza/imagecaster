@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
-	"image/jpeg"
 	_ "image/png"
 	"sync"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/adjust"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/finish"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/importexport"
 )
 
@@ -57,11 +57,7 @@ func (s *Service) Post(imageBase64 string, p adjust.Params, f finish.Params, max
 	if err != nil {
 		return "", err
 	}
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, out, &jpeg.Options{Quality: jpegQuality}); err != nil {
-		return "", fmt.Errorf("encode jpeg: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	return imgcodec.EncodeJPEG(out, jpegQuality)
 }
 
 func (s *Service) Auto(imageBase64 string) (adjust.AutoStats, error) {

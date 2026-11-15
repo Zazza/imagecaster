@@ -695,7 +695,9 @@ export const en = {
   'post.recipe_steps_adjust': '+ adjustments',
   'post.recipe_steps_only_adjust': 'adjustments only',
   'post.recipe_progress': 'Recipe: step {i} of {n}',
-  'post.recipe_aborted': 'Recipe aborted at step {i}',
+  'post.recipe_aborted': 'Recipe aborted at step {i}: {reason}',
+  'post.recipe_reason_cancelled': 'job cancelled',
+  'post.recipe_reason_no_image': 'no image in the result',
   'post.recipe_log': 'Log: {n}',
   'post.recipe_log_clear': 'Clear log',
   'post.recipe_prompt_step': 'Prompt',
@@ -830,6 +832,7 @@ export const en = {
   // PresetForm.vue
   'preset.edit_title': 'Edit Style',
   'preset.new_title': 'New Style',
+  'preset.error_load_lists': 'Failed to load model, sampler or LoRA lists: {error}',
   'preset.label_name': 'Name',
   'preset.label_type': 'Type',
   'preset.placeholder_type': 'weapon, character, scene...',

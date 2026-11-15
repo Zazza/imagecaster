@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Zazza/imagecaster/internal/sd"
+	"github.com/Zazza/imagecaster/internal/session"
 )
 
 type Worker struct {
@@ -251,5 +252,14 @@ func (w *Worker) complete(id int64, result *JobResult) {
 		w.emit.Emit(EventQueueFailed, EventPayload{JobID: id, Error: msg})
 		return
 	}
-	w.emit.Emit(EventQueueCompleted, EventPayload{JobID: id, Result: result})
+	w.emit.Emit(EventQueueCompleted, EventPayload{JobID: id, Result: eventResult(result)})
+}
+
+func eventResult(result *JobResult) *JobResult {
+	if result == nil || result.SessionItemID == 0 || len(result.ImageBase64) > session.MaxStoredImageBase64 {
+		return result
+	}
+	out := *result
+	out.ImageBase64 = ""
+	return &out
 }

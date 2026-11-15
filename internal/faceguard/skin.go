@@ -3,8 +3,11 @@ package faceguard
 import (
 	"errors"
 	"image"
+	"image/png"
 	"math"
 	"sort"
+
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 )
 
 const (
@@ -102,11 +105,11 @@ func ToneSkin(result, orig image.Image, resultPts, origPts []Point, matchOrigina
 }
 
 func ToneSkinBase64(resultB64, origB64 string, resultPts, origPts []Point, matchOriginal bool, lightness float64) (string, error) {
-	r, err := decode(resultB64, "result")
+	r, err := imgcodec.Decode(resultB64, imgcodec.Options{Name: "result", DataURL: true})
 	if err != nil {
 		return "", err
 	}
-	o, err := decode(origB64, "original")
+	o, err := imgcodec.Decode(origB64, imgcodec.Options{Name: "original", DataURL: true})
 	if err != nil {
 		return "", err
 	}
@@ -114,15 +117,15 @@ func ToneSkinBase64(resultB64, origB64 string, resultPts, origPts []Point, match
 	if err != nil {
 		return "", err
 	}
-	return encode(out)
+	return imgcodec.EncodePNG(out, png.DefaultCompression)
 }
 
 func SkinLiftBase64(origB64, editedB64 string, origPts, editPts []Point) (float64, error) {
-	o, err := decode(origB64, "original")
+	o, err := imgcodec.Decode(origB64, imgcodec.Options{Name: "original", DataURL: true})
 	if err != nil {
 		return 0, err
 	}
-	e, err := decode(editedB64, "edited")
+	e, err := imgcodec.Decode(editedB64, imgcodec.Options{Name: "edited", DataURL: true})
 	if err != nil {
 		return 0, err
 	}
@@ -245,11 +248,11 @@ func BackgroundShift(orig, edited image.Image, origPts []Point) (float64, bool) 
 }
 
 func BackgroundShiftBase64(origB64, editedB64 string, origPts []Point) (float64, bool) {
-	o, err := decode(origB64, "original")
+	o, err := imgcodec.Decode(origB64, imgcodec.Options{Name: "original", DataURL: true})
 	if err != nil {
 		return 0, false
 	}
-	e, err := decode(editedB64, "edited")
+	e, err := imgcodec.Decode(editedB64, imgcodec.Options{Name: "edited", DataURL: true})
 	if err != nil {
 		return 0, false
 	}

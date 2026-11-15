@@ -3,6 +3,7 @@ import { X } from 'lucide-vue-next'
 import { ref, onMounted, reactive } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
+import StatusMessage from './StatusMessage.vue'
 
 const props = defineProps({
   preset: Object,
@@ -23,7 +24,9 @@ const presetLoras = ref([])
 try {
   const raw = props.preset?.loras
   if (raw) presetLoras.value = JSON.parse(raw)
-} catch {}
+} catch (e) {
+  console.warn('PresetForm:', e)
+}
 
 const form = reactive({
   name: props.preset?.name || '',
@@ -46,33 +49,43 @@ const form = reactive({
 })
 
 const saving = ref(false)
+const loadError = ref('')
 
-async function loadModels() {
-  try { models.value = await api.getModels() } catch {}
+async function loadList(target, load) {
+  try {
+    target.value = await load()
+  } catch (e) {
+    console.error('preset form list load error:', e)
+    loadError.value = t('preset.error_load_lists', { error: String(e) })
+  }
 }
 
-async function loadSamplers() {
-  try { samplers.value = await api.getSamplers() } catch {}
+function loadModels() {
+  return loadList(models, api.getModels)
 }
 
-async function loadSchedulers() {
-  try { schedulers.value = await api.getSchedulers() } catch {}
+function loadSamplers() {
+  return loadList(samplers, api.getSamplers)
 }
 
-async function loadUpscalers() {
-  try { upscalers.value = await api.getUpscalers() } catch {}
+function loadSchedulers() {
+  return loadList(schedulers, api.getSchedulers)
 }
 
-async function loadVAEs() {
-  try { vaes.value = await api.getVAEs() } catch {}
+function loadUpscalers() {
+  return loadList(upscalers, api.getUpscalers)
 }
 
-async function loadLoRAs() {
-  try { loras.value = await api.getLoRAs() } catch {}
+function loadVAEs() {
+  return loadList(vaes, api.getVAEs)
 }
 
-async function loadPresetTypes() {
-  try { presetTypes.value = await api.listPresetTypes() } catch {}
+function loadLoRAs() {
+  return loadList(loras, api.getLoRAs)
+}
+
+function loadPresetTypes() {
+  return loadList(presetTypes, api.listPresetTypes)
 }
 
 function addLoRA() {
@@ -130,6 +143,8 @@ onMounted(() => {
         <h2 class="modal-title">{{ preset ? t('preset.edit_title') : t('preset.new_title') }}</h2>
         <button class="modal-close" @click="$emit('close')"><X :size="16" /></button>
       </div>
+
+      <StatusMessage v-if="loadError" :text="loadError" @close="loadError = ''" />
 
       <form @submit.prevent="save">
         <div class="form-group">

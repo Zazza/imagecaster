@@ -120,14 +120,16 @@ onMounted(async () => {
     if (s?.object_op === 'replace' || s?.object_op === 'remove') op.value = s.object_op
     if (s?.object_brush) brushSize.value = Math.max(5, Math.min(150, Number(s.object_brush) || 40))
     settingsRestored = true
-  } catch {}
+  } catch (e) {
+    console.warn('ObjectSection.onMounted:', e)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
   offStage()
   if (settingsRestored) {
-    api.updateSettings({ object_op: op.value, object_brush: String(brushSize.value) }).catch(() => {})
+    api.updateSettings({ object_op: op.value, object_brush: String(brushSize.value) }).catch(e => console.warn('ObjectSection.onUnmounted:', e))
   }
 })
 

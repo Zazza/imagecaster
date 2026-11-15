@@ -1,12 +1,9 @@
 package mcp
 
 import (
-	"bytes"
 	_ "embed"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/Zazza/imagecaster/internal/config"
 	"image"
 	"image/png"
 	"math"
@@ -15,9 +12,11 @@ import (
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/preset"
 )
 
@@ -87,23 +86,11 @@ func (s *Server) editorDeps() (EditorEngine, AppSessions, error) {
 }
 
 func decodeImage(b64 string) (image.Image, error) {
-	data, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, errors.New("фото не декодируется")
-	}
-	img, _, err := image.Decode(bytes.NewReader(data))
+	img, err := imgcodec.Decode(b64, imgcodec.Options{})
 	if err != nil {
 		return nil, errors.New("фото не декодируется")
 	}
 	return img, nil
-}
-
-func encodePNG(img image.Image) (string, error) {
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 func photoMeasures(img image.Image) map[string]any {
@@ -352,7 +339,7 @@ func editorApply(eng EditorEngine, sessions AppSessions, src photoSource, args m
 	if !fin.Params.IsNeutral() {
 		fp := fin.Params
 		if fp.Ratio != "" && (fp.Fit == "" || fp.Fit == "crop") && fin.Focus == "face" {
-			b64, err := encodePNG(img)
+			b64, err := imgcodec.EncodePNG(img, png.DefaultCompression)
 			if err != nil {
 				return "", err
 			}
@@ -381,7 +368,7 @@ func editorApply(eng EditorEngine, sessions AppSessions, src photoSource, args m
 		}
 	}
 
-	final, err := encodePNG(img)
+	final, err := imgcodec.EncodePNG(img, png.DefaultCompression)
 	if err != nil {
 		return "", err
 	}

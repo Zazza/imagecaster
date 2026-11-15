@@ -14,6 +14,7 @@ import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
 import { usePresets } from '../composables/usePresets.js'
 import { useZoomPan, ZOOM_MIN, ZOOM_MAX, ZOOM_PRESETS } from '../composables/useZoomPan.js'
+import { useJobTracker, resultImageUrl } from '../composables/useJobTracker.js'
 import { runIdeasBatch } from '../ideasBatch.js'
 import SavedDescriptionsModal from './SavedDescriptionsModal.vue'
 import ImageViewer from './ImageViewer.vue'
@@ -68,9 +69,17 @@ const shared = inject('sharedGenState', null)
 
 const genCount = ref(1)
 const seedInput = ref('')
-const enqueuedJobIds = ref(new Set())
 const batchTotal = ref(0)
-const batchDone = ref(0)
+const jobs = useJobTracker({
+  onCompleted: onQueueCompleted,
+  onFailed: onQueueFailed,
+  onIdle: () => {
+    generatingImage.value = false
+    generationStage.value = ''
+  },
+})
+const enqueuedJobIds = jobs.pending
+const batchDone = jobs.done
 
 const savedDescs = ref([])
 const showSavedDescs = ref(false)
@@ -196,7 +205,7 @@ async function runIdeasBatchFromModal({ ids, perIdea }) {
         else if (mode === 'custom') jobId = await api.enqueueCompound({ steps: customPayload, ...common, seed: null })
         else jobId = await api.enqueueTxt2Img({ preset_id: presetId, ...common, overrides: ov, seed: null })
         if (jobId) {
-          enqueuedJobIds.value.add(jobId)
+          jobs.track(jobId)
           batchTotal.value++
           generatingImage.value = true
           generationStage.value = 'image'
@@ -241,7 +250,8 @@ const formattedGenInfo = computed(() => {
   try {
     const parsed = typeof genInfo.value === 'string' ? JSON.parse(genInfo.value) : genInfo.value
     return JSON.stringify(parsed, null, 2)
-  } catch {
+  } catch (e) {
+    console.warn('GeneratePage.formattedGenInfo:', e)
     return String(genInfo.value)
   }
 })
@@ -264,7 +274,7 @@ watch(selectedTypeId, () => {
   if (selectedPresetId.value && !filtered.find(p => p.id === selectedPresetId.value)) {
     selectedPresetId.value = null
   }
-  api.updateSettings({ gen_type_id: String(selectedTypeId.value || '') }).catch(() => {})
+  api.updateSettings({ gen_type_id: String(selectedTypeId.value || '') }).catch(e => console.warn('GeneratePage.watch:', e))
 })
 
 watch(selectedPresetId, () => {
@@ -281,7 +291,7 @@ watch([selectedResolutionId, selectedHiresProfileId], () => {
   api.updateSettings({
     gen_resolution_id: String(selectedResolutionId.value || ''),
     gen_hires_profile_id: String(selectedHiresProfileId.value || ''),
-  }).catch(() => {})
+  }).catch(e => console.warn('GeneratePage.watch:', e))
 })
 
 function onResize() {
@@ -303,7 +313,7 @@ function saveGenState() {
     gen_resolution_id: String(selectedResolutionId.value || ''),
     gen_hires_profile_id: String(selectedHiresProfileId.value || ''),
     gen_count: String(genCount.value || 1),
-  }).catch(() => {})
+  }).catch(e => console.warn('GeneratePage.saveGenState:', e))
 }
 
 async function sendToSD() {
@@ -395,9 +405,8 @@ async function generateImage() {
   hiresSkipped.value = false
   effectivePrompt.value = ''
   effectiveNegative.value = ''
-  enqueuedJobIds.value = new Set()
+  jobs.reset()
   batchTotal.value = 0
-  batchDone.value = 0
 
   const mode = genMode.value
   const presetId = selectedPresetId.value
@@ -487,7 +496,7 @@ async function generateImage() {
           seed: seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null,
         })
       }
-      if (jobId) enqueuedJobIds.value.add(jobId)
+      if (jobId) jobs.track(jobId)
     }
     error.value = ''
   } catch (e) {
@@ -604,7 +613,7 @@ async function resolveImageBase64() {
   if (!generatedImage.value.startsWith('/api/')) return generatedImage.value
   const match = generatedImage.value.match(/\/api\/img\/(\d+)\.jpg/)
   if (match) {
-    try { return await api.getSessionImage(Number(match[1])) } catch { return null }
+    try { return await api.getSessionImage(Number(match[1])) } catch (e) { console.warn('GeneratePage.resolveImageBase64:', e); return null }
   }
   return generatedImage.value
 }
@@ -624,73 +633,30 @@ async function toPostProcess() {
   }
 }
 
-function onQueueCompleted(data) {
-  if (!data) return
-
-  if (data.job_id && enqueuedJobIds.value.has(data.job_id)) {
-    enqueuedJobIds.value.delete(data.job_id)
-    batchDone.value++
-  }
-
-  if (data.result) {
-    try {
-      const r = typeof data.result === 'string' ? JSON.parse(data.result) : data.result
-      if (r.image_base64) {
-        generatedImage.value = r.image_base64
-        shownItemId.value = r.session_item_id || null
-        sourceImage.value = r.image_base64
-        let info = null
-        if (r.info) {
-          try { info = typeof r.info === 'string' ? JSON.parse(r.info) : r.info } catch { info = r.info }
-        }
-        genInfo.value = info
-        sourceGenInfo.value = info
-        hiresSkipped.value = false
-      }
-    } catch {}
-  }
-
-  if (enqueuedJobIds.value.size === 0) {
-    generatingImage.value = false
-    generationStage.value = ''
-  }
+function onQueueCompleted(data, result) {
+  if (!result?.hasImage) return
+  generatedImage.value = resultImageUrl(result)
+  shownItemId.value = result.sessionItemId
+  sourceImage.value = generatedImage.value
+  genInfo.value = result.info
+  sourceGenInfo.value = result.info
+  hiresSkipped.value = false
 }
 
-function onQueueFailed(data) {
-  if (!data) return
-
-  if (data.job_id && enqueuedJobIds.value.has(data.job_id)) {
-    enqueuedJobIds.value.delete(data.job_id)
-    batchDone.value++
-  }
-
+function onQueueFailed(data, { tracked, paused }) {
+  if (paused && !tracked) return
   if (data.error) error.value = data.error
-
-  if (enqueuedJobIds.value.size === 0) {
-    generatingImage.value = false
-    generationStage.value = ''
-  }
-}
-
-function onQueuePaused(data) {
-  if (!data?.job_id || !enqueuedJobIds.value.has(data.job_id)) return
-  if ((data.retry_count || 0) < (data.max_retries || 0)) return
-
-  enqueuedJobIds.value.delete(data.job_id)
-  batchDone.value++
-  if (data.error) error.value = data.error
-
-  if (enqueuedJobIds.value.size === 0) {
-    generatingImage.value = false
-    generationStage.value = ''
-  }
 }
 
 async function interruptBatch() {
   ideasBatchStopped = true
   if (enqueuedJobIds.value.size > 0) {
-    try { await api.cancelQueue() } catch {}
-    enqueuedJobIds.value = new Set()
+    try {
+      await api.cancelQueue()
+    } catch (e) {
+      error.value = String(e)
+    }
+    jobs.clear()
     generatingImage.value = false
     generationStage.value = ''
     return
@@ -712,7 +678,9 @@ async function onSessionAdded() {
       generatingImage.value = false
       generationStage.value = ''
     }
-  } catch {}
+  } catch (e) {
+    console.warn('GeneratePage.onSessionAdded:', e)
+  }
 }
 
 async function openGeneratedViewer() {
@@ -756,10 +724,7 @@ async function confirmSavePipeline() {
   }
 }
 
-let offCompleted = () => {}
-let offFailed = () => {}
 let offSessionAdded = () => {}
-let offPaused = () => {}
 
 onMounted(async () => {
   const isReset = props.resetting
@@ -804,7 +769,9 @@ onMounted(async () => {
     if (s.gen_custom_steps) {
       try {
         customSteps.value = restoreCustomSteps(JSON.parse(s.gen_custom_steps), presets.value)
-      } catch {}
+      } catch (e) {
+        console.warn('GeneratePage.onMounted:', e)
+      }
     }
     if (s.gen_resolution_id) {
       selectedResolutionId.value = Number(s.gen_resolution_id)
@@ -812,7 +779,9 @@ onMounted(async () => {
     }
     if (s.gen_hires_profile_id) selectedHiresProfileId.value = Number(s.gen_hires_profile_id)
     if (s.gen_count) genCount.value = Math.max(1, Math.min(100, Number(s.gen_count) || 1))
-  } catch {}
+  } catch (e) {
+    console.warn('GeneratePage.onMounted:', e)
+  }
   if (shared) {
     if (shared.selectedPresetId) {
       const pid = Number(shared.selectedPresetId)
@@ -839,7 +808,9 @@ onMounted(async () => {
     try {
       const resolutions = await api.listResolutions()
       if (resolutions && resolutions.length > 0) selectedResolutionId.value = resolutions[0].id
-    } catch {}
+    } catch (e) {
+      console.warn('GeneratePage.onMounted:', e)
+    }
   }
   if (!isReset) {
     try {
@@ -852,7 +823,9 @@ onMounted(async () => {
         sourceImage.value = generatedImage.value
         sourceGenInfo.value = item.info || null
       }
-    } catch {}
+    } catch (e) {
+      console.warn('GeneratePage.onMounted:', e)
+    }
   }
 
   try {
@@ -861,26 +834,22 @@ onMounted(async () => {
     if (activeJobs.length > 0) {
       generatingImage.value = true
       generationStage.value = 'image'
-      enqueuedJobIds.value = new Set(activeJobs.map(j => j.id))
+      jobs.reset()
+      activeJobs.forEach(j => jobs.track(j.id))
       batchTotal.value = activeJobs.length
-      batchDone.value = 0
     }
-  } catch {}
+  } catch (e) {
+    console.warn('GeneratePage.onMounted queue:', e)
+  }
 
-  offCompleted = EventsOn('queue:completed', onQueueCompleted)
-  offFailed = EventsOn('queue:failed', onQueueFailed)
   offSessionAdded = EventsOn('session:added', onSessionAdded)
-  offPaused = EventsOn('queue:paused', onQueuePaused)
   document.addEventListener('keydown', onKeydown)
   window.addEventListener('resize', onResize)
 })
 
 onUnmounted(() => {
   ideasBatchStopped = true
-  offCompleted()
-  offFailed()
   offSessionAdded()
-  offPaused()
   document.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
   saveGenState()

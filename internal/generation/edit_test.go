@@ -470,6 +470,7 @@ func TestEditImage_QualityPipeline(t *testing.T) {
 	assert.Contains(t, result.EffectivePrompt, " <lora:Detail_Boost_Moss:0.8>Change only")
 
 	require.Len(t, sessions.items, 1)
+	assert.Equal(t, int64(1), result.SessionItemID)
 	item := sessions.items[0]
 	assert.Equal(t, "edit", item.source)
 	meta := item.meta

@@ -18,7 +18,8 @@ function parseJSON(data) {
     if (total <= 0) return { percent: null, text: `${formatBytes(p.downloaded)} / ???` }
     const pct = Number.isFinite(p.percent) ? p.percent : (p.downloaded / total) * 100
     return { percent: clamp(pct), text: `${formatBytes(p.downloaded)} / ${formatBytes(total)}` }
-  } catch {
+  } catch (e) {
+    console.warn('downloadProgress.parseJSON:', e)
     return null
   }
 }

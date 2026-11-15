@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/Zazza/imagecaster/internal/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,8 +72,48 @@ func TestWorker_CompletedResultWithoutBase64(t *testing.T) {
 	p, ok := emit.payload(EventQueueCompleted)
 	require.True(t, ok)
 	require.NotNil(t, p.Result)
-	assert.Equal(t, "UkVTVUxU", p.Result.ImageBase64)
+	assert.Empty(t, p.Result.ImageBase64)
 	assert.Equal(t, int64(5), p.Result.SessionItemID)
+	assert.Equal(t, "info", p.Result.Info)
+}
+
+func TestWorker_CompletedEventImageOnlyWithoutSessionItem(t *testing.T) {
+	t.Parallel()
+	atCap := strings.Repeat("A", session.MaxStoredImageBase64)
+	overCap := atCap + "AAAA"
+	tests := []struct {
+		name      string
+		itemID    int64
+		image     string
+		wantImage string
+	}{
+		{name: "saved to session: image fetched by id", itemID: 7, image: "UkVTVUxU", wantImage: ""},
+		{name: "not saved to session: image in event", itemID: 0, image: "UkVTVUxU", wantImage: "UkVTVUxU"},
+		{name: "saved at the history size cap: fetched by id", itemID: 8, image: atCap, wantImage: ""},
+		{name: "over the history size cap: history keeps JPEG, original in event", itemID: 9, image: overCap, wantImage: overCap},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store := NewStore(openTestDB(t))
+			_, err := store.Create(JobLook, bigParams, "test")
+			require.NoError(t, err)
+			emit := &payloadEmitter{}
+			res := &JobResult{ImageBase64: tc.image, SessionItemID: tc.itemID}
+			proc := &mockProcessor{processFn: func(context.Context, *Job) (*JobResult, error) {
+				return res, nil
+			}}
+			NewWorker(store, proc, emit).processNext(context.Background())
+
+			p, ok := emit.payload(EventQueueCompleted)
+			require.True(t, ok)
+			require.NotNil(t, p.Result)
+			assert.Equal(t, len(tc.wantImage), len(p.Result.ImageBase64))
+			assert.True(t, tc.wantImage == p.Result.ImageBase64)
+			assert.Equal(t, tc.itemID, p.Result.SessionItemID)
+			assert.Equal(t, len(tc.image), len(res.ImageBase64))
+		})
+	}
 }
 
 func TestWorker_FailedKeepsParamsForRetry(t *testing.T) {

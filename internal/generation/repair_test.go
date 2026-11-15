@@ -668,6 +668,7 @@ func TestRepairImage_AddsToSession(t *testing.T) {
 	sessions.mu.Lock()
 	defer sessions.mu.Unlock()
 	require.Len(t, sessions.items, 1)
+	assert.Equal(t, int64(1), result.SessionItemID)
 	item := sessions.items[0]
 	assert.Equal(t, "repair", item.source)
 	require.NotNil(t, item.meta)

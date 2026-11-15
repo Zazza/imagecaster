@@ -38,18 +38,6 @@ export function CheckServer() {
   return window['go']['main']['App']['CheckServer']();
 }
 
-export function CheckServices() {
-  return window['go']['main']['App']['CheckServices']();
-}
-
-export function ClearCompletedQueueJobs() {
-  return window['go']['main']['App']['ClearCompletedQueueJobs']();
-}
-
-export function ClearLastImage() {
-  return window['go']['main']['App']['ClearLastImage']();
-}
-
 export function ClearSession() {
   return window['go']['main']['App']['ClearSession']();
 }
@@ -58,16 +46,8 @@ export function CompilePostStyle(arg1) {
   return window['go']['main']['App']['CompilePostStyle'](arg1);
 }
 
-export function ConfirmClose(arg1) {
-  return window['go']['main']['App']['ConfirmClose'](arg1);
-}
-
 export function CreateCompoundPreset(arg1) {
   return window['go']['main']['App']['CreateCompoundPreset'](arg1);
-}
-
-export function CreateDescription(arg1) {
-  return window['go']['main']['App']['CreateDescription'](arg1);
 }
 
 export function CreateDescriptionFull(arg1) {
@@ -80,14 +60,6 @@ export function CreateHiresProfile(arg1) {
 
 export function CreatePreset(arg1) {
   return window['go']['main']['App']['CreatePreset'](arg1);
-}
-
-export function CreatePresetType(arg1) {
-  return window['go']['main']['App']['CreatePresetType'](arg1);
-}
-
-export function CreatePrompt(arg1) {
-  return window['go']['main']['App']['CreatePrompt'](arg1);
 }
 
 export function CreateResolution(arg1) {
@@ -124,14 +96,6 @@ export function DeletePostRecipe(arg1) {
 
 export function DeletePreset(arg1) {
   return window['go']['main']['App']['DeletePreset'](arg1);
-}
-
-export function DeletePresetType(arg1) {
-  return window['go']['main']['App']['DeletePresetType'](arg1);
-}
-
-export function DeletePrompt(arg1) {
-  return window['go']['main']['App']['DeletePrompt'](arg1);
 }
 
 export function DeleteResolution(arg1) {
@@ -198,24 +162,12 @@ export function EnqueueTxt2Img(arg1) {
   return window['go']['main']['App']['EnqueueTxt2Img'](arg1);
 }
 
-export function ExportCompoundPresets(arg1) {
-  return window['go']['main']['App']['ExportCompoundPresets'](arg1);
-}
-
 export function ExportImage(arg1) {
   return window['go']['main']['App']['ExportImage'](arg1);
 }
 
-export function ExportPresets(arg1) {
-  return window['go']['main']['App']['ExportPresets'](arg1);
-}
-
 export function GenerateCompoundImage(arg1) {
   return window['go']['main']['App']['GenerateCompoundImage'](arg1);
-}
-
-export function GenerateFromImage(arg1) {
-  return window['go']['main']['App']['GenerateFromImage'](arg1);
 }
 
 export function GenerateImage(arg1) {
@@ -228,14 +180,6 @@ export function GenerateSDPrompt(arg1) {
 
 export function GetActiveSessionItem() {
   return window['go']['main']['App']['GetActiveSessionItem']();
-}
-
-export function GetAllTags() {
-  return window['go']['main']['App']['GetAllTags']();
-}
-
-export function GetCompoundPreset(arg1) {
-  return window['go']['main']['App']['GetCompoundPreset'](arg1);
 }
 
 export function GetDefaultAnalyzePrompts() {
@@ -262,24 +206,12 @@ export function GetFooterHeight() {
   return window['go']['main']['App']['GetFooterHeight']();
 }
 
-export function GetHiresProfile(arg1) {
-  return window['go']['main']['App']['GetHiresProfile'](arg1);
-}
-
 export function GetKidsCategories() {
   return window['go']['main']['App']['GetKidsCategories']();
 }
 
-export function GetLLMModels() {
-  return window['go']['main']['App']['GetLLMModels']();
-}
-
 export function GetLLMSetup() {
   return window['go']['main']['App']['GetLLMSetup']();
-}
-
-export function GetLastImage() {
-  return window['go']['main']['App']['GetLastImage']();
 }
 
 export function GetLogEntries() {
@@ -294,20 +226,12 @@ export function GetModelPresets() {
   return window['go']['main']['App']['GetModelPresets']();
 }
 
-export function GetPreset(arg1) {
-  return window['go']['main']['App']['GetPreset'](arg1);
-}
-
-export function GetPresetType(arg1) {
-  return window['go']['main']['App']['GetPresetType'](arg1);
-}
-
 export function GetQueue() {
   return window['go']['main']['App']['GetQueue']();
 }
 
-export function GetResolution(arg1) {
-  return window['go']['main']['App']['GetResolution'](arg1);
+export function GetQueueActiveCount() {
+  return window['go']['main']['App']['GetQueueActiveCount']();
 }
 
 export function GetSDLoRAs() {
@@ -366,10 +290,6 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
-export function HasSessionItems() {
-  return window['go']['main']['App']['HasSessionItems']();
-}
-
 export function ImportCompoundPresets(arg1) {
   return window['go']['main']['App']['ImportCompoundPresets'](arg1);
 }
@@ -424,14 +344,6 @@ export function ListPresetTypes() {
 
 export function ListPresets() {
   return window['go']['main']['App']['ListPresets']();
-}
-
-export function ListPresetsByType(arg1) {
-  return window['go']['main']['App']['ListPresetsByType'](arg1);
-}
-
-export function ListPrompts() {
-  return window['go']['main']['App']['ListPrompts']();
 }
 
 export function ListResolutions() {
@@ -598,10 +510,6 @@ export function UpdatePreset(arg1) {
   return window['go']['main']['App']['UpdatePreset'](arg1);
 }
 
-export function UpdatePresetType(arg1) {
-  return window['go']['main']['App']['UpdatePresetType'](arg1);
-}
-
 export function UpdateResolution(arg1) {
   return window['go']['main']['App']['UpdateResolution'](arg1);
 }
@@ -612,10 +520,6 @@ export function UpdateSettings(arg1) {
 
 export function UpscaleImage(arg1) {
   return window['go']['main']['App']['UpscaleImage'](arg1);
-}
-
-export function ValidateImportModels(arg1) {
-  return window['go']['main']['App']['ValidateImportModels'](arg1);
 }
 
 export function Version() {

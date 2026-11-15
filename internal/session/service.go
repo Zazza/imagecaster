@@ -49,7 +49,7 @@ type SDInfo struct {
 	SDModelName    string  `json:"sd_model_name"`
 }
 
-const maxImageBase64 = 50 * 1024 * 1024
+const MaxStoredImageBase64 = 50 * 1024 * 1024
 
 func unwrapInfo(info json.RawMessage) []byte {
 	if len(info) == 0 {
@@ -213,13 +213,13 @@ type encodedImage struct {
 }
 
 func decodeStoredImage(imageBase64 string) (*encodedImage, error) {
-	if len(imageBase64) > maxImageBase64 {
+	if len(imageBase64) > MaxStoredImageBase64 {
 		data, err := reencodeJPEG(imageBase64)
 		if err != nil {
-			return nil, fmt.Errorf("oversized image: base64=%d bytes, cap=%d bytes, jpeg reencode failed: %w", len(imageBase64), maxImageBase64, err)
+			return nil, fmt.Errorf("oversized image: base64=%d bytes, cap=%d bytes, jpeg reencode failed: %w", len(imageBase64), MaxStoredImageBase64, err)
 		}
-		if base64.StdEncoding.EncodedLen(len(data)) > maxImageBase64 {
-			return nil, fmt.Errorf("oversized image: base64=%d bytes, jpeg=%d bytes still over cap=%d bytes", len(imageBase64), base64.StdEncoding.EncodedLen(len(data)), maxImageBase64)
+		if base64.StdEncoding.EncodedLen(len(data)) > MaxStoredImageBase64 {
+			return nil, fmt.Errorf("oversized image: base64=%d bytes, jpeg=%d bytes still over cap=%d bytes", len(imageBase64), base64.StdEncoding.EncodedLen(len(data)), MaxStoredImageBase64)
 		}
 		return describeImage(data)
 	}

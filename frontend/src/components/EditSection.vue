@@ -10,7 +10,7 @@ import { serverModelsKnown, hasServerFile } from '../serverModels.js'
 import { parseSeedInput } from '../seed.js'
 import { b64Url } from '../imageDataUrl.js'
 import { t } from '../i18n/index.js'
-import { MAX_IMAGE_SIZE } from '../constants.js'
+import { readImageFile } from '../imageFile.js'
 import { parseLoras, sanitizeWeight } from '../loraOverride.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import ResolutionSelector from './ResolutionSelector.vue'
@@ -197,17 +197,9 @@ function onRefDrop(e) {
   isRefDragOver.value = false
   const file = e.dataTransfer?.files?.[0]
   if (!file) return
-  if (!file.type.startsWith('image/')) return
-  if (file.size > MAX_IMAGE_SIZE) {
-    error.value = t('fi.error_image_too_large')
-    return
-  }
-  const reader = new FileReader()
-  reader.onload = () => {
-    const base64 = reader.result.split(',')[1]
-    if (base64) setReference(base64)
-  }
-  reader.readAsDataURL(file)
+  readImageFile(file)
+    .then(setReference)
+    .catch(err => { error.value = err.message })
 }
 
 function clearReference() {
@@ -275,7 +267,7 @@ async function generate() {
 }
 
 function copyEffectivePrompt() {
-  if (effectivePrompt.value) navigator.clipboard.writeText(effectivePrompt.value).catch(() => {})
+  if (effectivePrompt.value) navigator.clipboard.writeText(effectivePrompt.value).catch(e => { error.value = String(e) })
 }
 
 let settingsRestored = false
@@ -301,12 +293,12 @@ onMounted(() => {
     if (s?.edit_style_preset_id) {
       const spid = Number(s.edit_style_preset_id)
       if (Number.isFinite(spid) && spid > 0) {
-        await presetsReq.catch(() => {})
+        await presetsReq.catch(e => console.warn('EditSection.onMounted:', e))
         if (stylePresets.value.find(p => p.id === spid)) stylePresetId.value = spid
       }
     }
     settingsRestored = true
-  }).catch(() => {})
+  }).catch(e => console.warn('EditSection.onMounted:', e))
 })
 
 onUnmounted(() => {
@@ -325,7 +317,7 @@ onUnmounted(() => {
     edit_style_preset_id: stylePresetId.value ? String(stylePresetId.value) : '',
     edit_style_tags: styleTags.value ? 'true' : 'false',
     edit_look_mode: lookWay.value,
-  }).catch(() => {})
+  }).catch(e => console.warn('EditSection.onUnmounted:', e))
 })
 </script>
 

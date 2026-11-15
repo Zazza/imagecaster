@@ -25,7 +25,8 @@ export function createBatch(items, deps) {
         let path = ''
         try {
           if (res) path = await deps.saveImage(res)
-        } catch {
+        } catch (e) {
+          console.warn('postBatch.settle:', e)
           path = ''
         }
         const item = this.items[i]
@@ -52,7 +53,8 @@ export function createBatch(items, deps) {
         try {
           const b64 = await deps.readImage(this.currentPath(i))
           res = b64 ? await op(b64, i) : ''
-        } catch {
+        } catch (e) {
+          console.warn('postBatch.applyStep:', e)
           res = ''
         }
         if (typeof res === 'function') {
@@ -61,7 +63,8 @@ export function createBatch(items, deps) {
             let out = ''
             try {
               out = await wait()
-            } catch {
+            } catch (e) {
+              console.warn('postBatch.applyStep:', e)
               out = ''
             }
             await settle(i, out)
@@ -102,7 +105,8 @@ export function createBatch(items, deps) {
           const b64 = await deps.readImage(this.currentPath(i))
           if (b64 && await fn(b64, this.items[i], i)) saved++
           else skipped++
-        } catch {
+        } catch (e) {
+          console.warn('postBatch.exportAll:', e)
           skipped++
         }
         opts.onProgress?.(i + 1, total)

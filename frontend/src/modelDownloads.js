@@ -16,7 +16,8 @@ export const defaultDownloads = reactive({
 export async function loadDefaultPlan() {
   try {
     defaultDownloads.plan = await api.getDefaultDownloadPlan()
-  } catch {
+  } catch (e) {
+    console.warn('modelDownloads.loadDefaultPlan:', e)
     defaultDownloads.plan = null
   }
   return defaultDownloads.plan

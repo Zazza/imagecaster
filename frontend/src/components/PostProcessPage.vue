@@ -9,10 +9,11 @@ import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { parseSeedInput } from '../seed.js'
 import { useRemixQueue } from '../remixQueue.js'
-import { MAX_IMAGE_SIZE } from '../constants.js'
+import { readImageFile } from '../imageFile.js'
 import { usePresets } from '../composables/usePresets.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
+import { useJobTracker, resultImageBase64 } from '../composables/useJobTracker.js'
 import EditSection from './EditSection.vue'
 import { EFFECT_TYPE_GROUPS } from '../effectTypes.js'
 import { effectLabel } from '../effectNames.js'
@@ -97,7 +98,7 @@ function readBatchThumb(path) {
 
 async function startBatch(items) {
   if (batch.value) exitBatch(false)
-  try { await api.batchReset() } catch {}
+  try { await api.batchReset() } catch (e) { console.warn('PostProcessPage.startBatch:', e) }
   batch.value = createBatch(items, {
     readImage: readBatchImage,
     saveImage: (b64) => api.batchSaveImage(b64),
@@ -141,7 +142,7 @@ function loadBatchThumbs() {
     if (batchThumbs[path]) return
     readBatchThumb(path).then(t => {
       if (t) batchThumbs[path] = t
-    }).catch(() => {})
+    }).catch(e => console.warn('PostProcessPage.loadBatchThumbs:', e))
   })
 }
 
@@ -186,12 +187,7 @@ function stopBatch() {
 
 async function interruptBatch() {
   batchCancelled = true
-  for (const [id, resolve] of [...recipeJobResolvers]) {
-    recipeJobResolvers.delete(id)
-    journalPending.delete(id)
-    try { await api.cancelQueueJob(id) } catch {}
-    resolve('')
-  }
+  await dropChainJobs(true)
 }
 
 async function removeBatchItem(i) {
@@ -235,7 +231,7 @@ function exitBatch(keepCurrent) {
   batch.value = null
   batchMsg.value = ''
   for (const k of Object.keys(batchThumbs)) delete batchThumbs[k]
-  api.batchReset().catch(() => {})
+  api.batchReset().catch(e => console.warn('PostProcessPage.exitBatch:', e))
   if (keepCurrent && cur) setSource(cur, name)
 }
 
@@ -743,11 +739,11 @@ watch(presets, list => {
   if (selectedEffectId.value && !list.some(p => p.id === selectedEffectId.value)) selectedEffectId.value = null
 })
 const EFFECT_GROUP_KEY = 'pp.effectGroup'
-const effectGroupKey = ref((() => { try { return localStorage.getItem(EFFECT_GROUP_KEY) || '' } catch { return '' } })())
+const effectGroupKey = ref((() => { try { return localStorage.getItem(EFFECT_GROUP_KEY) || '' } catch (e) { console.warn('PostProcessPage.effectGroupKey:', e); return '' } })())
 const shownEffectGroup = computed(() => effectGroups.value.find(g => g.labelKey === effectGroupKey.value) || effectGroups.value[0] || null)
 function pickEffectGroup(key) {
   effectGroupKey.value = key
-  try { localStorage.setItem(EFFECT_GROUP_KEY, key) } catch {}
+  try { localStorage.setItem(EFFECT_GROUP_KEY, key) } catch (e) { console.warn('PostProcessPage.pickEffectGroup:', e) }
 }
 const selectedEffectName = computed(() => {
   const id = selectedEffectId.value
@@ -778,7 +774,54 @@ const effectSeedInput = ref('')
 const applyingEffect = ref(false)
 const effectJobIds = ref(new Set())
 const appliedEffects = ref([])
-const journalPending = new Map()
+const queueJobs = useJobTracker()
+const chainJobIds = new Set()
+
+async function jobImage(outcome) {
+  if (outcome.status !== 'completed') return ''
+  try {
+    return await resultImageBase64(outcome.result)
+  } catch (e) {
+    console.error('job image load error:', e)
+    return ''
+  }
+}
+
+async function waitForChainJob(jobId) {
+  chainJobIds.add(jobId)
+  const outcome = await queueJobs.track(jobId)
+  chainJobIds.delete(jobId)
+  return outcome
+}
+
+async function dropChainJobs(cancel) {
+  for (const id of [...chainJobIds]) {
+    chainJobIds.delete(id)
+    queueJobs.untrack(id)
+    if (!cancel) continue
+    try {
+      await api.cancelQueueJob(id)
+    } catch (e) {
+      console.error('cancel queue job error:', e)
+    }
+  }
+}
+
+async function onEffectJobDone(jobId, outcome, entry) {
+  if (!effectJobIds.value.has(jobId)) return
+  const b64 = await jobImage(outcome)
+  if (!effectJobIds.value.has(jobId)) return
+  effectJobIds.value.delete(jobId)
+  if (b64) {
+    appliedEffects.value.push(entry)
+    pushLayerHistory()
+    currentB64.value = b64
+    loadImageDimensions(b64)
+  } else if (outcome.error) {
+    error.value = outcome.error
+  }
+  if (effectJobIds.value.size === 0) applyingEffect.value = false
+}
 
 const effectLoras = ref([])
 const effectLoraChoices = ref([])
@@ -797,7 +840,8 @@ function parseLoraList(raw) {
   try {
     const list = JSON.parse(raw || '[]')
     return Array.isArray(list) ? cleanLoras(list) : []
-  } catch {
+  } catch (e) {
+    console.warn('PostProcessPage.parseLoraList:', e)
     return []
   }
 }
@@ -904,7 +948,7 @@ async function applyEffect() {
     const jobId = await api.enqueueFromImage({ ...effectJobParams(currentB64.value, seedVal), ...effectMaskParam() })
     if (jobId) {
       effectJobIds.value.add(jobId)
-      journalPending.set(jobId, { preset_id: presetId, strength })
+      queueJobs.track(jobId).then(outcome => onEffectJobDone(jobId, outcome, { preset_id: presetId, strength }))
     } else {
       applyingEffect.value = false
     }
@@ -919,8 +963,12 @@ async function interruptEffect() {
     const ids = [...effectJobIds.value]
     effectJobIds.value = new Set()
     for (const id of ids) {
-      journalPending.delete(id)
-      try { await api.cancelQueueJob(id) } catch {}
+      queueJobs.untrack(id)
+      try {
+        await api.cancelQueueJob(id)
+      } catch (e) {
+        console.error('cancel queue job error:', e)
+      }
     }
   }
   applyingEffect.value = false
@@ -1190,14 +1238,18 @@ async function loadLastImage() {
         return
       }
     }
-  } catch {}
+  } catch (e) {
+    console.warn('PostProcessPage.loadLastImage:', e)
+  }
 }
 
 async function uploadImage() {
   try {
     const result = await api.readImageFile()
     if (result) setSource(result, 'uploaded_image')
-  } catch {}
+  } catch (e) {
+    error.value = String(e)
+  }
 }
 
 async function pasteFromClipboard() {
@@ -1217,16 +1269,9 @@ function handlePaste(e) {
       e.preventDefault()
       const file = item.getAsFile()
       if (!file) continue
-      if (file.size > MAX_IMAGE_SIZE) {
-        error.value = t('fi.error_image_too_large')
-        return
-      }
-      const reader = new FileReader()
-      reader.onload = () => {
-        const base64 = reader.result.split(',')[1]
-        if (base64) setSource(base64, 'pasted_image')
-      }
-      reader.readAsDataURL(file)
+      readImageFile(file)
+        .then(base64 => setSource(base64, 'pasted_image'))
+        .catch(err => { error.value = err.message })
       return
     }
   }
@@ -1260,20 +1305,9 @@ function onDrop(e) {
   isDragOver.value = false
   const file = e.dataTransfer?.files?.[0]
   if (!file) return
-  if (!file.type.startsWith('image/')) {
-    error.value = t('fi.error_drop_image')
-    return
-  }
-  if (file.size > MAX_IMAGE_SIZE) {
-    error.value = t('fi.error_image_too_large')
-    return
-  }
-  const reader = new FileReader()
-  reader.onload = () => {
-    const base64 = reader.result.split(',')[1]
-    if (base64) setSource(base64, file.name)
-  }
-  reader.readAsDataURL(file)
+  readImageFile(file)
+    .then(base64 => setSource(base64, file.name))
+    .catch(err => { error.value = err.message })
 }
 
 function applyPreset(preset) {
@@ -1347,7 +1381,9 @@ async function deletePreset(id) {
 async function loadExportPresets() {
   try {
     exportPresets.value = await api.listExportPresets()
-  } catch {}
+  } catch (e) {
+    console.warn('PostProcessPage.loadExportPresets:', e)
+  }
 }
 
 const recipes = ref([])
@@ -1360,20 +1396,20 @@ const recipeName = ref('')
 const pendingDeleteRecipeId = ref(null)
 let recipeDeleteTimer = null
 let recipeCancelled = false
-const recipeJobResolvers = new Map()
 
 function recipeSteps(r) {
   try {
     const steps = JSON.parse(r.steps || '[]')
     return Array.isArray(steps) ? steps : []
-  } catch {
+  } catch (e) {
+    console.warn('PostProcessPage.recipeSteps:', e)
     return []
   }
 }
 
 function recipeAdjustActive(r) {
   let a = null
-  try { a = JSON.parse(r.adjust || '{}') } catch { return false }
+  try { a = JSON.parse(r.adjust || '{}') } catch (e) { console.warn('PostProcessPage.recipeAdjustActive:', e); return false }
   if (!a || typeof a !== 'object') return false
   return Object.keys(sliderMeta).some(k => {
     if (a[k] === undefined) return false
@@ -1393,7 +1429,8 @@ function recipeMeta(r) {
 async function loadRecipes() {
   try {
     recipes.value = await api.listPostRecipes() || []
-  } catch {
+  } catch (e) {
+    console.warn('PostProcessPage.loadRecipes:', e)
     recipes.value = []
   }
 }
@@ -1457,9 +1494,6 @@ function recipeJobParams(presetId, strength, b64) {
   }
 }
 
-function waitForRecipeJob(jobId) {
-  return new Promise(resolve => { recipeJobResolvers.set(jobId, resolve) })
-}
 
 function enqueueRecipeStep(step, img) {
   if (step.prompt && !step.preset_id) {
@@ -1473,10 +1507,14 @@ async function trackBatchJob(enqueued) {
   const jobId = await enqueued
   if (!jobId) return null
   if (batchCancelled) {
-    try { await api.cancelQueueJob(jobId) } catch {}
+    try {
+      await api.cancelQueueJob(jobId)
+    } catch (e) {
+      console.error('cancel queue job error:', e)
+    }
     return null
   }
-  return { wait: waitForRecipeJob(jobId) }
+  return { wait: waitForChainJob(jobId).then(jobImage) }
 }
 
 async function runRecipeChain(img, steps) {
@@ -1500,7 +1538,9 @@ async function applyRecipe(r) {
   let adjustObj = {}
   try {
     adjustObj = JSON.parse(r.adjust || '{}') || {}
-  } catch {}
+  } catch (e) {
+    console.warn('PostProcessPage.applyRecipe:', e)
+  }
   if (steps.length === 0) {
     Object.assign(adjust, adjustObj)
     return
@@ -1524,6 +1564,7 @@ async function applyRecipe(r) {
   successMsg.value = ''
   let img = currentB64.value
   let aborted = 0
+  let abortReason = ''
   try {
     for (let i = 0; i < steps.length; i++) {
       if (recipeCancelled) break
@@ -1534,7 +1575,9 @@ async function applyRecipe(r) {
         let res = null
         try {
           res = await api.applyLookDirect(img, step.prompt, stepStrength, null)
-        } catch {}
+        } catch (e) {
+          abortReason = String(e)
+        }
         if (!res?.image) {
           aborted = i + 1
           break
@@ -1547,28 +1590,35 @@ async function applyRecipe(r) {
       let jobId = 0
       try {
         jobId = await api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img))
-      } catch {}
+      } catch (e) {
+        abortReason = String(e)
+      }
       if (!jobId) {
         aborted = i + 1
         break
       }
       if (recipeCancelled) {
-        journalPending.delete(jobId)
-        try { await api.cancelQueueJob(jobId) } catch {}
+        try {
+          await api.cancelQueueJob(jobId)
+        } catch (e) {
+          console.error('cancel queue job error:', e)
+        }
         break
       }
-      journalPending.set(jobId, { preset_id: step.preset_id, strength: step.strength })
-      const res = await waitForRecipeJob(jobId)
+      const outcome = await waitForChainJob(jobId)
       if (recipeCancelled) break
+      const res = await jobImage(outcome)
       if (!res) {
         aborted = i + 1
+        abortReason = outcome.error || t(outcome.status === 'cancelled' ? 'post.recipe_reason_cancelled' : 'post.recipe_reason_no_image')
         break
       }
+      appliedEffects.value.push({ preset_id: step.preset_id, strength: step.strength })
       onToolResult(res)
       img = res
     }
   } finally {
-    if (aborted) error.value = t('post.recipe_aborted', { i: aborted })
+    if (aborted) error.value = t('post.recipe_aborted', { i: aborted, reason: abortReason || t('post.recipe_reason_no_image') })
     else if (!recipeCancelled) Object.assign(adjust, adjustObj)
     recipeRunning.value = false
     recipeCurrentId.value = null
@@ -1577,12 +1627,7 @@ async function applyRecipe(r) {
 
 async function interruptRecipe() {
   recipeCancelled = true
-  for (const [id, resolve] of [...recipeJobResolvers]) {
-    recipeJobResolvers.delete(id)
-    journalPending.delete(id)
-    try { await api.cancelQueueJob(id) } catch {}
-    resolve('')
-  }
+  await dropChainJobs(true)
 }
 
 function resetSize() {
@@ -1622,11 +1667,15 @@ async function resolveBatchFolder() {
       batchFolder.value = p
       return p
     }
-  } catch {}
+  } catch (e) {
+    console.warn('PostProcessPage.resolveBatchFolder:', e)
+  }
   try {
     const picked = await api.selectBrowserFolder()
     if (picked) batchFolder.value = picked
-  } catch {}
+  } catch (e) {
+    error.value = String(e)
+  }
   return batchFolder.value
 }
 
@@ -1634,7 +1683,9 @@ async function changeBatchFolder() {
   try {
     const picked = await api.selectBrowserFolder()
     if (picked) batchFolder.value = picked
-  } catch {}
+  } catch (e) {
+    error.value = String(e)
+  }
 }
 
 async function doExport() {
@@ -1674,88 +1725,6 @@ watch(genBusy, (busy) => {
     genPreview.value = ''
   }
 })
-function parseQueueResult(result) {
-  try {
-    return typeof result === 'string' ? JSON.parse(result) : result
-  } catch {
-    return null
-  }
-}
-
-function onQueueCompleted(data) {
-  if (!data) return
-  if (data.job_id && journalPending.has(data.job_id)) {
-    const entry = journalPending.get(data.job_id)
-    journalPending.delete(data.job_id)
-    if (parseQueueResult(data.result)?.image_base64) appliedEffects.value.push(entry)
-  }
-  if (data.job_id && recipeJobResolvers.has(data.job_id)) {
-    const resolve = recipeJobResolvers.get(data.job_id)
-    recipeJobResolvers.delete(data.job_id)
-    resolve(parseQueueResult(data.result)?.image_base64 || '')
-  }
-  if (data.job_id && effectJobIds.value.has(data.job_id)) {
-    effectJobIds.value.delete(data.job_id)
-    const r = parseQueueResult(data.result)
-    if (r?.image_base64) {
-      pushLayerHistory()
-      currentB64.value = r.image_base64
-      loadImageDimensions(r.image_base64)
-    }
-    if (effectJobIds.value.size === 0) applyingEffect.value = false
-  }
-}
-
-function onQueueFailed(data) {
-  if (!data) return
-  handleJobTerminal(data)
-}
-
-function onQueuePaused(data) {
-  if (!data?.job_id) return
-  if ((data.retry_count || 0) < (data.max_retries || 0)) return
-  handleJobTerminal(data)
-}
-
-function handleJobTerminal(data) {
-  if (data.job_id && journalPending.has(data.job_id)) journalPending.delete(data.job_id)
-  if (data.job_id && recipeJobResolvers.has(data.job_id)) {
-    const resolve = recipeJobResolvers.get(data.job_id)
-    recipeJobResolvers.delete(data.job_id)
-    resolve('')
-  }
-  if (data.job_id && effectJobIds.value.has(data.job_id)) {
-    effectJobIds.value.delete(data.job_id)
-    if (data.error) error.value = data.error
-    if (effectJobIds.value.size === 0) applyingEffect.value = false
-  }
-}
-
-async function onQueueChanged() {
-  if (effectJobIds.value.size === 0 && recipeJobResolvers.size === 0) return
-  let jobs
-  try {
-    jobs = await api.getQueue() || []
-  } catch {
-    return
-  }
-  const byId = new Map(jobs.map(j => [j.id, j]))
-  for (const id of [...effectJobIds.value]) {
-    const job = byId.get(id)
-    if (job && job.status !== 'cancelled') continue
-    effectJobIds.value.delete(id)
-    journalPending.delete(id)
-    if (effectJobIds.value.size === 0) applyingEffect.value = false
-  }
-  for (const [id, resolve] of [...recipeJobResolvers]) {
-    const job = byId.get(id)
-    if (job && job.status !== 'cancelled') continue
-    recipeJobResolvers.delete(id)
-    journalPending.delete(id)
-    resolve('')
-  }
-}
-
 async function consumePostQueue() {
   if (!postQueue.value.length) return
   const items = postQueue.value.slice()
@@ -1778,10 +1747,6 @@ watch(() => postQueue.value.length, (n) => {
   if (n > 0 && pageMounted) consumePostQueue()
 })
 
-let offCompleted = () => {}
-let offFailed = () => {}
-let offPaused = () => {}
-let offQueueChanged = () => {}
 let offSessionSelected = () => {}
 
 onMounted(async () => {
@@ -1790,10 +1755,6 @@ onMounted(async () => {
   document.addEventListener('keydown', onPageKeydown)
   window.addEventListener('resize', onWindowResize)
   measureArea()
-  offCompleted = EventsOn('queue:completed', onQueueCompleted)
-  offFailed = EventsOn('queue:failed', onQueueFailed)
-  offPaused = EventsOn('queue:paused', onQueuePaused)
-  offQueueChanged = EventsOn('queue:changed', onQueueChanged)
   offSessionSelected = EventsOn('session:selected', () => { loadLastImage() })
   await loadPresets()
   await loadEffectModel()
@@ -1811,24 +1772,16 @@ onUnmounted(() => {
   if (batch.value) {
     interruptBatch()
     batch.value = null
-    api.batchReset().catch(() => {})
+    api.batchReset().catch(e => console.warn('PostProcessPage.onUnmounted:', e))
   }
   batchCancelled = true
   recipeCancelled = true
-  for (const [id, resolve] of [...recipeJobResolvers]) {
-    recipeJobResolvers.delete(id)
-    journalPending.delete(id)
-    resolve('')
-  }
+  dropChainJobs(false)
   clearTimeout(previewTimer)
   clearTimeout(suppressDblTimer)
   window.removeEventListener('resize', onWindowResize)
   document.removeEventListener('paste', handlePaste)
   document.removeEventListener('keydown', onPageKeydown)
-  offCompleted()
-  offFailed()
-  offPaused()
-  offQueueChanged()
   offSessionSelected()
 })
 </script>

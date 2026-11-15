@@ -1,8 +1,6 @@
 package faceguard
 
 import (
-	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"image"
@@ -13,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/imgcodec"
 )
 
 const (
@@ -386,7 +385,7 @@ func clamp8(v float64) uint8 {
 }
 
 func AnalyzeBase64(b64 string, pts []Point) (Stats, error) {
-	img, err := decode(b64, "image")
+	img, err := imgcodec.Decode(b64, imgcodec.Options{Name: "image", DataURL: true})
 	if err != nil {
 		return Stats{}, err
 	}
@@ -394,7 +393,7 @@ func AnalyzeBase64(b64 string, pts []Point) (Stats, error) {
 }
 
 func ApplyRetouchBase64(b64 string, pts []Point, r Retouch) (string, error) {
-	img, err := decode(b64, "image")
+	img, err := imgcodec.Decode(b64, imgcodec.Options{Name: "image", DataURL: true})
 	if err != nil {
 		return "", err
 	}
@@ -402,9 +401,5 @@ func ApplyRetouchBase64(b64 string, pts []Point, r Retouch) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, res); err != nil {
-		return "", fmt.Errorf("encode: %w", err)
-	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	return imgcodec.EncodePNG(res, png.DefaultCompression)
 }

@@ -450,7 +450,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		QualityUpscaleSkipped:   upscaleSkipped,
 		QualityRedenoiseSkipped: redenoiseSkipped,
 	}
-	s.sessions.AddToSession(finalImage, finalInfo, "edit", genMeta)
+	result.SessionItemID = s.sessions.AddToSession(finalImage, finalInfo, "edit", genMeta)
 	return result, nil
 }
 
