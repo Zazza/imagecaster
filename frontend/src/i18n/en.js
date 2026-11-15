@@ -282,7 +282,7 @@ export const en = {
   'settings.enabled': 'Enabled',
   'settings.disabled': 'Disabled',
   'fast.section': 'Fast generation',
-  'fast.hint': 'Makes generation about 1.5–2.5× faster by skipping nearly identical work of neighbouring steps. Fine detail (skin pores, hair strands) gets a little softer. Works on Moss, Flux.1, Qwen-Image, Chroma, SDXL, SD 1.5 and Pony; not used on fast models (Z-Image Turbo, Klein). A style can turn it on or off for itself.',
+  'fast.hint': 'Makes generation about 1.5–2.5× faster by skipping nearly identical work of neighbouring steps. Fine detail (skin pores, hair strands) gets a little softer. Works on Moss, Flux.1, Qwen-Image and Chroma; not used on fast models (SDXL, SD 1.5, Pony, Z-Image Turbo, Klein). A style can turn it on or off for itself.',
   'settings.section_sd_prompt': 'For tag-based models (SDXL etc.)',
   'settings.instruction_saved': 'Instruction saved.',
   'settings.prompt_instruction_description': 'Builds a prompt as a list of tags.',

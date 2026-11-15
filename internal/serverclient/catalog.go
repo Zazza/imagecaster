@@ -233,14 +233,10 @@ func (m CatalogSDModel) InstalledVariant(files []ModelInfo) (*CatalogVariant, bo
 }
 
 var fastCacheByBase = map[string]string{
-	"Moss-Image":       "dbcache",
-	"Flux.1":           "easycache",
-	"Qwen-Image":       "easycache",
-	"Chroma":           "dbcache",
-	"SDXL":             "ucache",
-	"SD 1.5":           "ucache",
-	"Pony XL":          "ucache",
-	"Pony/Illustrious": "ucache",
+	"Moss-Image": "dbcache",
+	"Flux.1":     "easycache",
+	"Qwen-Image": "easycache",
+	"Chroma":     "dbcache",
 }
 
 func (c *Catalog) FastCacheMode(model string) string {

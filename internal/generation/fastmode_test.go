@@ -28,8 +28,8 @@ var fastModels = []struct {
 	{"flux1-dev-fp8", "easycache"},
 	{"qwen_image_2.1-Q8_0", "easycache"},
 	{"Chroma1-HD", "dbcache"},
-	{"juggernautXL_ragnarokBy", "ucache"},
-	{"dreamshaper_8", "ucache"},
+	{"juggernautXL_ragnarokBy", ""},
+	{"dreamshaper_8", ""},
 	{"z-image-turbo-fp8-aio", ""},
 	{"flux-2-klein-4b", ""},
 	{"unknown-model-xyz", ""},
@@ -159,14 +159,14 @@ func TestGenerateImage_SendsCacheMode(t *testing.T) {
 		want   string
 	}{
 		{"preset on flux", "flux1-dev-fp8", "on", boolp(false), false, "easycache"},
-		{"preset on sdxl", "juggernautXL_ragnarokBy", "on", nil, false, "ucache"},
+		{"preset on sdxl gets no cache", "juggernautXL_ragnarokBy", "on", nil, false, ""},
 		{"global on moss", "moss_image_sft_bf16", "", boolp(true), false, "dbcache"},
 		{"global on chroma", "Chroma1-HD", "", boolp(true), false, "dbcache"},
 		{"global on no-cache base", "z-image-turbo-fp8-aio", "", boolp(true), false, ""},
 		{"global off", "flux1-dev-fp8", "", boolp(false), false, ""},
 		{"global unset", "flux1-dev-fp8", "", nil, false, ""},
 		{"preset off overrides global on", "dreamshaper_8", "off", boolp(true), false, ""},
-		{"hires on", "dreamshaper_8", "on", nil, true, "ucache"},
+		{"hires on", "Chroma1-HD", "on", nil, true, "dbcache"},
 		{"hires off", "dreamshaper_8", "off", boolp(true), true, ""},
 	}
 	for _, tt := range tests {
@@ -246,7 +246,7 @@ func TestGenerateImage_JobJSONCacheMode(t *testing.T) {
 		want   string
 	}{
 		{"on sends cache_mode", "qwen_image_2.1-Q8_0", "", "true", "easycache"},
-		{"preset on sends cache_mode", "dreamshaper_8", "on", "false", "ucache"},
+		{"preset on sends cache_mode", "Chroma1-HD", "on", "false", "dbcache"},
 		{"off omits cache_mode", "qwen_image_2.1-Q8_0", "", "false", ""},
 		{"preset off omits cache_mode", "qwen_image_2.1-Q8_0", "off", "true", ""},
 		{"no-cache base omits cache_mode", "flux-2-klein-4b", "on", "true", ""},
@@ -317,8 +317,8 @@ func TestGenerateCompoundImage_SendsCacheMode(t *testing.T) {
 		wantTxt string
 		wantImg string
 	}{
-		{"preset on", "on", nil, "easycache", "ucache"},
-		{"global on", "", boolp(true), "easycache", "ucache"},
+		{"preset on", "on", nil, "easycache", "dbcache"},
+		{"global on", "", boolp(true), "easycache", "dbcache"},
 		{"global off", "", boolp(false), "", ""},
 		{"global unset", "", nil, "", ""},
 		{"preset off overrides global on", "off", boolp(true), "", ""},
@@ -329,7 +329,7 @@ func TestGenerateCompoundImage_SendsCacheMode(t *testing.T) {
 			db := openTestDB(t)
 			setFastGlobal(t, db, tt.global)
 			first := makeTestPreset(t, db, &preset.Preset{Name: "c1", PresetType: "txt2img", Prompt: "cat", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: "flux1-dev-fp8", FastMode: tt.mode})
-			second := makeTestPreset(t, db, &preset.Preset{Name: "c2", PresetType: "txt2img", Prompt: "oil", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: "dreamshaper_8", FastMode: tt.mode})
+			second := makeTestPreset(t, db, &preset.Preset{Name: "c2", PresetType: "txt2img", Prompt: "oil", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: "Chroma1-HD", FastMode: tt.mode})
 			cp := &preset.CompoundPreset{Name: "pipe", Steps: []preset.CompoundPresetStep{
 				{StepOrder: 1, PresetID: first.ID},
 				{StepOrder: 2, PresetID: second.ID, DenoisingStrength: 0.6},
@@ -365,7 +365,8 @@ func TestGenerateFromImage_SendsCacheMode(t *testing.T) {
 		global *bool
 		want   string
 	}{
-		{"preset on sdxl", "juggernautXL_ragnarokBy", "on", nil, "ucache"},
+		{"preset on sdxl gets no cache", "juggernautXL_ragnarokBy", "on", nil, ""},
+		{"preset on flux", "flux1-dev-fp8", "on", nil, "easycache"},
 		{"global on chroma", "Chroma1-HD", "", boolp(true), "dbcache"},
 		{"global on no-cache base", "z-image-turbo-fp8-aio", "", boolp(true), ""},
 		{"global off", "dreamshaper_8", "", boolp(false), ""},

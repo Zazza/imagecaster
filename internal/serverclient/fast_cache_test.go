@@ -8,14 +8,10 @@ import (
 )
 
 var wantCacheByBase = map[string]string{
-	"Moss-Image":       "dbcache",
-	"Flux.1":           "easycache",
-	"Qwen-Image":       "easycache",
-	"Chroma":           "dbcache",
-	"SDXL":             "ucache",
-	"SD 1.5":           "ucache",
-	"Pony XL":          "ucache",
-	"Pony/Illustrious": "ucache",
+	"Moss-Image": "dbcache",
+	"Flux.1":     "easycache",
+	"Qwen-Image": "easycache",
+	"Chroma":     "dbcache",
 }
 
 func TestCatalog_FastCacheMode(t *testing.T) {
@@ -30,10 +26,10 @@ func TestCatalog_FastCacheMode(t *testing.T) {
 		{"flux1-dev-fp8", "easycache"},
 		{"qwen_image_2.1-Q8_0", "easycache"},
 		{"Chroma1-HD", "dbcache"},
-		{"juggernautXL_ragnarokBy", "ucache"},
-		{"dreamshaper_8", "ucache"},
-		{"ponyDiffusionV6XL_v6StartWithThisOne", "ucache"},
-		{"riMixPONYIllustrious_riMixV2", "ucache"},
+		{"juggernautXL_ragnarokBy", ""},
+		{"dreamshaper_8", ""},
+		{"ponyDiffusionV6XL_v6StartWithThisOne", ""},
+		{"riMixPONYIllustrious_riMixV2", ""},
 		{"z-image-turbo-fp8-aio", ""},
 		{"flux-2-klein-4b", ""},
 		{"flux3-image-klein-Q8_0", ""},
