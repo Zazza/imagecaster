@@ -230,29 +230,8 @@ defineExpose({ reset })
 .lora-disabled {
   opacity: 0.5;
 }
-.lora-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
 .lora-head .form-label {
   margin-bottom: 0;
-}
-.lora-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.lora-row .form-input[type='text'] {
-  flex: 1;
-}
-.lora-row .form-input[type='number'] {
-  flex: 0 0 90px;
-}
-.lora-remove {
-  padding: 4px 10px;
 }
 .lora-empty {
   font-size: 11px;

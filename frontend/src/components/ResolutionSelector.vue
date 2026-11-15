@@ -114,7 +114,7 @@ onMounted(load)
   <div class="selector-wrap">
     <div class="selector-header">
       <label class="form-label">{{ t('res.label') }}</label>
-      <button @click="showAdd = true; editing = false; newRes.name = ''; newRes.width = 512; newRes.height = 512" class="btn-icon" :title="t('res.add_custom')" :aria-label="t('res.add_custom')">+</button>
+      <button @click="showAdd = true; editing = false; newRes.name = ''; newRes.width = 512; newRes.height = 512" class="btn-icon-framed" :title="t('res.add_custom')" :aria-label="t('res.add_custom')">+</button>
     </div>
     <select v-model="selectedId" @change="emitChange" class="form-select">
       <option :value="null">{{ noneLabel }}</option>
@@ -136,58 +136,3 @@ onMounted(load)
     </div>
   </div>
 </template>
-
-<style scoped>
-.selector-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.selector-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.btn-icon {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-size: 16px;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-.btn-icon:hover {
-  background: var(--surface-2);
-}
-
-.selector-inline {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.selector-inline .form-input {
-  flex: 1;
-  min-width: 80px;
-}
-
-.btn.sm {
-  padding: 4px 12px;
-  font-size: 12px;
-}
-
-.selector-manage {
-  display: flex;
-  gap: 6px;
-}
-</style>

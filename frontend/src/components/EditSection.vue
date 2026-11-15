@@ -571,27 +571,6 @@ onUnmounted(() => {
   font-size: 10px;
   color: var(--text-dim);
 }
-.lora-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.lora-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.lora-row .form-input[type='text'] {
-  flex: 1;
-}
-.lora-row .form-input[type='number'] {
-  flex: 0 0 90px;
-}
-.lora-remove {
-  padding: 4px 10px;
-}
 .lora-hint {
   font-size: 11px;
   color: var(--text-dim);
