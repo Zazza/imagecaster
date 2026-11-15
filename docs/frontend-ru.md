@@ -94,7 +94,7 @@ frontend/src/
 - Подключение (`settings.tab_connection`) — адрес сервера и поиск в сети, процессы сервера (запуск / остановка / перезапуск / логи), память GPU, выбор моделей для промптов и для фото, параметры LLM (контекст, top-p, потоки);
 - Промпты (`settings.tab_prompts`) — редактируемые промпты со значениями по умолчанию от бэкенда;
 - Безопасность (`settings.tab_safety`) — безопасный режим (`settings.section_kids`) с PIN (`PinModal.vue`) и категориями;
-- Дополнительно (`settings.tab_advanced`) — быстрая генерация (`fast.section`, настройка `fast_generation`; в окне стиля свой выбор «Как в настройках / Включена / Выключена»), видеопамять (`settings.section_memory_guard`, автовыгрузка LLM), списки SD/LoRA и LLM-моделей на сервере.
+- Дополнительно (`settings.tab_advanced`) — быстрая генерация (`fast.section`, настройка `fast_generation`; та же настройка — кнопка «Быстро» у «Сгенерировать», общий стейт `fastMode.js`, поддержка модели — поле `fast_cache` каталога), видеопамять (`settings.section_memory_guard`, автовыгрузка LLM), списки SD/LoRA и LLM-моделей на сервере.
 
 ### Подвал
 `AppFooter.vue` — статус сервисов (`CheckServices`), версия приложения, три вкладки панели (История — `footer/SessionPanel.vue`, Журнал — `footer/LogPanel.vue`):

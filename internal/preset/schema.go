@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 35
+const schemaVersion = 36
 
 const legacySchemaVersion = 32
 
@@ -19,7 +19,7 @@ type schemaStep struct {
 var schemaSteps = []schemaStep{
 	{33, migrateV33PresetsSamplerDefault},
 	{34, migrateV34QueryIndexes},
-	{35, migrateV35PresetFastMode},
+	{36, migrateV36DropPresetFastMode},
 }
 
 const presetsTableDDL = `
@@ -45,8 +45,7 @@ CREATE TABLE %s (
 	type_id INTEGER,
 	tags TEXT DEFAULT '',
 	loras TEXT DEFAULT '',
-	is_bundled INTEGER NOT NULL DEFAULT 0,
-	fast_mode TEXT NOT NULL DEFAULT ''
+	is_bundled INTEGER NOT NULL DEFAULT 0
 )`
 
 var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + `
@@ -425,18 +424,18 @@ func migrateV34QueryIndexes(ctx context.Context, conn *sql.Conn) error {
 	return nil
 }
 
-func migrateV35PresetFastMode(ctx context.Context, conn *sql.Conn) error {
+func migrateV36DropPresetFastMode(ctx context.Context, conn *sql.Conn) error {
 	cols, err := tableColumns(ctx, conn, "presets")
 	if err != nil {
 		return err
 	}
 	for _, c := range cols {
 		if c == "fast_mode" {
-			return nil
+			_, err = conn.ExecContext(ctx, `ALTER TABLE presets DROP COLUMN fast_mode`)
+			return err
 		}
 	}
-	_, err = conn.ExecContext(ctx, `ALTER TABLE presets ADD COLUMN fast_mode TEXT NOT NULL DEFAULT ''`)
-	return err
+	return nil
 }
 
 func tableColumns(ctx context.Context, conn *sql.Conn, table string) ([]string, error) {

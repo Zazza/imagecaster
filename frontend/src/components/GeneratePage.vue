@@ -1,5 +1,5 @@
 <script setup>
-import { Check, Sparkles, TriangleAlert, Maximize2, SlidersHorizontal } from 'lucide-vue-next'
+import { Check, Sparkles, TriangleAlert, Maximize2, SlidersHorizontal, Zap } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
@@ -10,6 +10,7 @@ import { b64Url } from '../imageDataUrl.js'
 import { parseLoras } from '../loraOverride.js'
 import { newCustomStep, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
+import { fastGeneration, loadFastGeneration, saveFastGeneration, fastCacheFor } from '../fastMode.js'
 import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
@@ -135,6 +136,32 @@ const generateDisabled = computed(() => {
   if (genMode.value === 'custom') return !customValid.value
   return !selectedCompoundPresetId.value
 })
+
+const modelCatalog = ref(null)
+
+const selectedPreset = computed(() => presets.value.find(p => p.id === selectedPresetId.value) || null)
+
+const fastUnsupported = computed(() => {
+  if (genMode.value !== 'preset' || !selectedPreset.value || !modelCatalog.value) return false
+  const model = presetOverrides.value?.model_name || selectedPreset.value.model_name
+  return !fastCacheFor(modelCatalog.value, model)
+})
+
+async function loadModelCatalog() {
+  try {
+    modelCatalog.value = await api.getModelCatalog()
+  } catch (e) {
+    console.error('getModelCatalog:', e)
+  }
+}
+
+async function toggleFast() {
+  try {
+    await saveFastGeneration(!fastGeneration.value)
+  } catch (e) {
+    error.value = String(e)
+  }
+}
 
 const descs = useSavedDescriptions({ description, negative, error })
 const {
@@ -531,6 +558,8 @@ let offSessionAdded = () => {}
 
 onMounted(async () => {
   const isReset = props.resetting
+  loadFastGeneration()
+  loadModelCatalog()
   await loadPresets()
   loadKidsMode()
   await loadSavedDescs()
@@ -806,6 +835,10 @@ function onKeydown(e) {
               <input class="form-input" type="number" v-model.number="genCount" min="1" max="100" :aria-label="t('generate.count_title')" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
               <span class="gen-count-unit">{{ t('generate.count_unit') }}</span>
             </label>
+            <button type="button" class="btn btn-secondary gen-fast" data-testid="gen-fast" :aria-pressed="fastGeneration && !fastUnsupported" :disabled="fastUnsupported" :title="fastUnsupported ? t('fast.unsupported') : t('fast.button_title')" @click="toggleFast">
+              <Zap :size="16" />
+              {{ t('fast.button') }}
+            </button>
           </div>
           <div v-if="isDesktop" class="shortcut-hint">{{ t('generate.shortcut_hint') }}</div>
         </div>

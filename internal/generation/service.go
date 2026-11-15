@@ -906,7 +906,7 @@ func (s *Service) presetTxt2Img(p *preset.Preset, spec sd.ModelSpec, prompt, neg
 		req: sd.Txt2ImgRequest{
 			Model:                  spec,
 			Prompt:                 prompt,
-			CacheMode:              s.cacheModeFor(p, spec.Checkpoint),
+			CacheMode:              s.cacheModeFor(spec.Checkpoint),
 			NegativePrompt:         negativePrompt,
 			SamplerName:            p.Sampler,
 			Scheduler:              p.ScheduleType,

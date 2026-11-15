@@ -42,7 +42,6 @@ const form = reactive({
   batch_size: props.preset?.batch_size ?? 1,
   batch_count: props.preset?.batch_count ?? 1,
   vae: props.preset?.vae ?? '',
-  fast_mode: props.preset?.fast_mode || '',
   tags: props.preset?.tags || '',
 })
 
@@ -115,7 +114,6 @@ async function save() {
       batch_size: form.batch_size != null ? Number(form.batch_size) : null,
       batch_count: form.batch_count != null ? Number(form.batch_count) : null,
       vae: form.vae || '',
-      fast_mode: form.fast_mode || '',
       tags: form.tags || '',
       loras: lorasData.length > 0 ? JSON.stringify(lorasData) : '',
     })
@@ -262,15 +260,7 @@ onMounted(() => {
               <option v-for="v in vaes" :key="v.model_name" :value="v.model_name">{{ v.model_name }}</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('preset.label_fast') }}</label>
-            <select class="form-select" v-model="form.fast_mode" data-testid="preset-fast-mode">
-              <option value="">{{ t('preset.fast_inherit') }}</option>
-              <option value="on">{{ t('preset.fast_on') }}</option>
-              <option value="off">{{ t('preset.fast_off') }}</option>
-            </select>
-            <div class="form-hint">{{ t('preset.fast_hint') }}</div>
-          </div>
+          <div></div>
         </div>
 
         <div class="modal-actions">

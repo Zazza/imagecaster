@@ -11,17 +11,17 @@
 
 ## Migrations
 
-The schema version is stored in `PRAGMA user_version` (`internal/preset/schema.go`, current `schemaVersion` = 35).
+The schema version is stored in `PRAGMA user_version` (`internal/preset/schema.go`, current `schemaVersion` = 36).
 
 | Database state at open | What happens |
 |---|---|
-| empty (no tables) | `latestSchemaDDL` + seed data are created in one transaction; version = 35 |
+| empty (no tables) | `latestSchemaDDL` + seed data are created in one transaction; version = 36 |
 | has tables, `user_version = 0` (created by an old version) | the old migration chain `legacyMigrations` (`internal/preset/db.go`) runs once, version is set to 32, then `schemaSteps` |
-| `user_version` ≥ 35 | nothing runs; opening does not write |
+| `user_version` ≥ 36 | nothing runs; opening does not write |
 
 `schemaSteps` entries run in order, each in a `BEGIN IMMEDIATE` transaction, only if its number is above `user_version`; the version is raised in the same transaction.
 
-**Adding a migration:** add a `schemaSteps` entry with the next number (36, 37, …), make the same change in `latestSchemaDDL`, raise `schemaVersion`. Tests `TestSchema_FreshEqualsFullLegacyChain` and `TestSchema_OldDBUpgradesToLatest` check that a new database and an upgraded one end with the same schema.
+**Adding a migration:** add a `schemaSteps` entry with the next number (37, 38, …), make the same change in `latestSchemaDDL`, raise `schemaVersion`. Tests `TestSchema_FreshEqualsFullLegacyChain` and `TestSchema_OldDBUpgradesToLatest` check that a new database and an upgraded one end with the same schema.
 
 ## Tables
 
@@ -44,7 +44,6 @@ Styles and effects (generation presets).
 | cfg_scale | REAL, default 7.0 | |
 | model_name | TEXT, default `''` | checkpoint file |
 | vae | TEXT, default `''` | VAE file |
-| fast_mode | TEXT, default `''` | fast generation (sd.cpp step cache): `''` follows the `fast_generation` setting, `on` / `off` always on/off. Added in v35 |
 | seed | INTEGER | NULL = random |
 | denoising_strength | REAL | NULL = not set |
 | clip_skip | INTEGER | |
@@ -235,7 +234,7 @@ Key–value store: `key TEXT PRIMARY KEY`, `value TEXT NOT NULL DEFAULT ''`. The
 | `llm_num_ctx`, `llm_generate_num_ctx`, `llm_analyze_num_ctx` | 4096 | sent as `options.num_ctx`, but the server ignores it: llama.cpp context size is the server's `llm.context_size` (default 8192) |
 | `llm_generate_*` / `llm_analyze_*` `top_p`, `num_thread` | 0.9 / 0 | sent with every text (`generate`) or photo (`analyze`) request; 0 = not sent. Temperatures are fixed in code per operation; old `temperature`/`num_predict` rows are ignored |
 | `llm_auto_unload` | `true` | memory guard: unload LLM models before an SD job when free VRAM/RAM is low |
-| `fast_generation` | `false` | fast generation for styles without their own choice: the job gets `params.cache_mode` by the model's catalog base (Moss, Chroma → dbcache; Flux.1, Qwen-Image → easycache; others (SDXL, SD 1.5, Pony and fast models) — no cache) |
+| `fast_generation` | `false` | fast generation (switch in Settings and the “Fast” button next to Generate): the job gets `params.cache_mode` by the model's catalog base (Moss, Chroma → dbcache; Flux.1, Qwen-Image → easycache; others (SDXL, SD 1.5, Pony and fast models) — no cache) |
 | `auto_installed_presets` | — | names of bundled presets already installed by `SyncPresets` (deleted ones are not reinstalled) |
 | `install_id` | random | 16 hex chars; prefix of every server job `client_ref` |
 

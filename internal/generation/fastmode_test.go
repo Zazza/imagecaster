@@ -35,19 +35,6 @@ var fastModels = []struct {
 	{"unknown-model-xyz", ""},
 }
 
-func fastExpected(presetMode string, global bool, cache string) string {
-	switch presetMode {
-	case "on":
-		return cache
-	case "off":
-		return ""
-	}
-	if global {
-		return cache
-	}
-	return ""
-}
-
 func setFastGlobal(t *testing.T, db *preset.DB, on *bool) {
 	t.Helper()
 	if on == nil {
@@ -62,58 +49,30 @@ func setFastGlobal(t *testing.T, db *preset.DB, on *bool) {
 
 func TestCacheModeFor_Matrix(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"", "on", "off"} {
-		for _, global := range []bool{true, false} {
-			for _, m := range fastModels {
-				name := "preset=" + mode + "/global=" + map[bool]string{true: "true", false: "false"}[global] + "/" + m.model
-				t.Run(name, func(t *testing.T) {
-					t.Parallel()
-					db := openTestDB(t)
-					g := global
-					setFastGlobal(t, db, &g)
-					svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-					p := &preset.Preset{Name: "p", ModelName: m.model, FastMode: mode}
-					assert.Equal(t, fastExpected(mode, global, m.cache), svc.cacheModeFor(p, m.model))
-				})
-			}
+	for _, global := range []bool{true, false} {
+		for _, m := range fastModels {
+			name := map[bool]string{true: "global=true", false: "global=false"}[global] + "/" + m.model
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				db := openTestDB(t)
+				g := global
+				setFastGlobal(t, db, &g)
+				svc := newTestService(t, db, &mockLLM{}, &mockSD{})
+				want := ""
+				if global {
+					want = m.cache
+				}
+				assert.Equal(t, want, svc.cacheModeFor(m.model))
+			})
 		}
 	}
 }
 
 func TestCacheModeFor_GlobalDefaultIsOff(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		mode string
-		want string
-	}{
-		{"", ""},
-		{"on", "easycache"},
-		{"off", ""},
-	}
-	for _, tt := range tests {
-		t.Run("preset="+tt.mode, func(t *testing.T) {
-			t.Parallel()
-			db := openTestDB(t)
-			svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-			p := &preset.Preset{Name: "p", ModelName: "flux1-dev-fp8", FastMode: tt.mode}
-			assert.Equal(t, tt.want, svc.cacheModeFor(p, "flux1-dev-fp8"))
-		})
-	}
-}
-
-func TestCacheModeFor_InvalidPresetValueFollowsGlobal(t *testing.T) {
-	t.Parallel()
-	for _, global := range []bool{true, false} {
-		t.Run(map[bool]string{true: "global on", false: "global off"}[global], func(t *testing.T) {
-			t.Parallel()
-			db := openTestDB(t)
-			g := global
-			setFastGlobal(t, db, &g)
-			svc := newTestService(t, db, &mockLLM{}, &mockSD{})
-			p := &preset.Preset{Name: "p", ModelName: "Chroma1-HD", FastMode: "maybe"}
-			assert.Equal(t, fastExpected("", global, "dbcache"), svc.cacheModeFor(p, "Chroma1-HD"))
-		})
-	}
+	db := openTestDB(t)
+	svc := newTestService(t, db, &mockLLM{}, &mockSD{})
+	assert.Equal(t, "", svc.cacheModeFor("flux1-dev-fp8"))
 }
 
 type capturedReqs struct {
@@ -153,28 +112,26 @@ func TestGenerateImage_SendsCacheMode(t *testing.T) {
 	tests := []struct {
 		name   string
 		model  string
-		mode   string
 		global *bool
 		hires  bool
 		want   string
 	}{
-		{"preset on flux", "flux1-dev-fp8", "on", boolp(false), false, "easycache"},
-		{"preset on sdxl gets no cache", "juggernautXL_ragnarokBy", "on", nil, false, ""},
-		{"global on moss", "moss_image_sft_bf16", "", boolp(true), false, "dbcache"},
-		{"global on chroma", "Chroma1-HD", "", boolp(true), false, "dbcache"},
-		{"global on no-cache base", "z-image-turbo-fp8-aio", "", boolp(true), false, ""},
-		{"global off", "flux1-dev-fp8", "", boolp(false), false, ""},
-		{"global unset", "flux1-dev-fp8", "", nil, false, ""},
-		{"preset off overrides global on", "dreamshaper_8", "off", boolp(true), false, ""},
-		{"hires on", "Chroma1-HD", "on", nil, true, "dbcache"},
-		{"hires off", "dreamshaper_8", "off", boolp(true), true, ""},
+		{"global on flux", "flux1-dev-fp8", boolp(true), false, "easycache"},
+		{"global on sdxl gets no cache", "juggernautXL_ragnarokBy", boolp(true), false, ""},
+		{"global on moss", "moss_image_sft_bf16", boolp(true), false, "dbcache"},
+		{"global on chroma", "Chroma1-HD", boolp(true), false, "dbcache"},
+		{"global on no-cache base", "z-image-turbo-fp8-aio", boolp(true), false, ""},
+		{"global off", "flux1-dev-fp8", boolp(false), false, ""},
+		{"global unset", "flux1-dev-fp8", nil, false, ""},
+		{"hires on", "Chroma1-HD", boolp(true), true, "dbcache"},
+		{"hires off", "Chroma1-HD", boolp(false), true, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			db := openTestDB(t)
 			setFastGlobal(t, db, tt.global)
-			p := makeTestPreset(t, db, &preset.Preset{Name: "fm", PresetType: "txt2img", Prompt: "cat", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: tt.model, FastMode: tt.mode})
+			p := makeTestPreset(t, db, &preset.Preset{Name: "fm", PresetType: "txt2img", Prompt: "cat", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: tt.model})
 			params := GenerateImageParams{PresetID: p.ID}
 			if tt.hires {
 				hp := &preset.HiresProfile{Name: "hr", Upscale: 2.0, DenoisingStrength: 0.5, Upscaler: "Latent"}
@@ -241,22 +198,20 @@ func TestGenerateImage_JobJSONCacheMode(t *testing.T) {
 	tests := []struct {
 		name   string
 		model  string
-		mode   string
 		global string
 		want   string
 	}{
-		{"on sends cache_mode", "qwen_image_2.1-Q8_0", "", "true", "easycache"},
-		{"preset on sends cache_mode", "Chroma1-HD", "on", "false", "dbcache"},
-		{"off omits cache_mode", "qwen_image_2.1-Q8_0", "", "false", ""},
-		{"preset off omits cache_mode", "qwen_image_2.1-Q8_0", "off", "true", ""},
-		{"no-cache base omits cache_mode", "flux-2-klein-4b", "on", "true", ""},
+		{"on sends cache_mode", "qwen_image_2.1-Q8_0", "true", "easycache"},
+		{"on sends dbcache for chroma", "Chroma1-HD", "true", "dbcache"},
+		{"off omits cache_mode", "qwen_image_2.1-Q8_0", "false", ""},
+		{"no-cache base omits cache_mode", "flux-2-klein-4b", "true", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			db := openTestDB(t)
 			require.NoError(t, db.SetSetting("fast_generation", tt.global))
-			p := makeTestPreset(t, db, &preset.Preset{Name: "fm", PresetType: "txt2img", Prompt: "cat", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: tt.model, FastMode: tt.mode})
+			p := makeTestPreset(t, db, &preset.Preset{Name: "fm", PresetType: "txt2img", Prompt: "cat", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: tt.model})
 			ts, bodies := jobBodyServer(t)
 			client := sd.New(ts.URL)
 			client.PollInterval = time.Millisecond
@@ -312,24 +267,21 @@ func TestGenerateCompoundImage_SendsCacheMode(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		mode    string
 		global  *bool
 		wantTxt string
 		wantImg string
 	}{
-		{"preset on", "on", nil, "easycache", "dbcache"},
-		{"global on", "", boolp(true), "easycache", "dbcache"},
-		{"global off", "", boolp(false), "", ""},
-		{"global unset", "", nil, "", ""},
-		{"preset off overrides global on", "off", boolp(true), "", ""},
+		{"global on", boolp(true), "easycache", "dbcache"},
+		{"global off", boolp(false), "", ""},
+		{"global unset", nil, "", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			db := openTestDB(t)
 			setFastGlobal(t, db, tt.global)
-			first := makeTestPreset(t, db, &preset.Preset{Name: "c1", PresetType: "txt2img", Prompt: "cat", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: "flux1-dev-fp8", FastMode: tt.mode})
-			second := makeTestPreset(t, db, &preset.Preset{Name: "c2", PresetType: "txt2img", Prompt: "oil", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: "Chroma1-HD", FastMode: tt.mode})
+			first := makeTestPreset(t, db, &preset.Preset{Name: "c1", PresetType: "txt2img", Prompt: "cat", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: "flux1-dev-fp8"})
+			second := makeTestPreset(t, db, &preset.Preset{Name: "c2", PresetType: "txt2img", Prompt: "oil", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: "Chroma1-HD"})
 			cp := &preset.CompoundPreset{Name: "pipe", Steps: []preset.CompoundPresetStep{
 				{StepOrder: 1, PresetID: first.ID},
 				{StepOrder: 2, PresetID: second.ID, DenoisingStrength: 0.6},
@@ -361,24 +313,22 @@ func TestGenerateFromImage_SendsCacheMode(t *testing.T) {
 	tests := []struct {
 		name   string
 		model  string
-		mode   string
 		global *bool
 		want   string
 	}{
-		{"preset on sdxl gets no cache", "juggernautXL_ragnarokBy", "on", nil, ""},
-		{"preset on flux", "flux1-dev-fp8", "on", nil, "easycache"},
-		{"global on chroma", "Chroma1-HD", "", boolp(true), "dbcache"},
-		{"global on no-cache base", "z-image-turbo-fp8-aio", "", boolp(true), ""},
-		{"global off", "dreamshaper_8", "", boolp(false), ""},
-		{"global unset", "dreamshaper_8", "", nil, ""},
-		{"preset off overrides global on", "dreamshaper_8", "off", boolp(true), ""},
+		{"global on sdxl gets no cache", "juggernautXL_ragnarokBy", boolp(true), ""},
+		{"global on flux", "flux1-dev-fp8", boolp(true), "easycache"},
+		{"global on chroma", "Chroma1-HD", boolp(true), "dbcache"},
+		{"global on no-cache base", "z-image-turbo-fp8-aio", boolp(true), ""},
+		{"global off", "flux1-dev-fp8", boolp(false), ""},
+		{"global unset", "flux1-dev-fp8", nil, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			db := openTestDB(t)
 			setFastGlobal(t, db, tt.global)
-			p := makeTestPreset(t, db, &preset.Preset{Name: "fi", PresetType: "txt2img", Prompt: "1girl", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: tt.model, FastMode: tt.mode})
+			p := makeTestPreset(t, db, &preset.Preset{Name: "fi", PresetType: "txt2img", Prompt: "1girl", Sampler: "euler", Steps: 10, CfgScale: 5, ModelName: tt.model})
 			capt := &modeCapture{}
 			svc := newTestService(t, db, &mockLLM{}, capt.sd())
 			svc.ctx = context.Background()

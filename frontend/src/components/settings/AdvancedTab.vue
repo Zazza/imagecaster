@@ -5,6 +5,7 @@ import StatusMessage from '../StatusMessage.vue'
 import ToggleSwitch from '../ToggleSwitch.vue'
 import DownloadProgress from '../DownloadProgress.vue'
 import { api } from '../../api.js'
+import { saveFastGeneration } from '../../fastMode.js'
 import {
   serverURL, serverModels, serverModelsLoading, modelActionLoading, activeDownload, activeLabel,
   loadServerModels, downloadModel, deleteModel, pullLLM, deleteLLMModel,
@@ -16,14 +17,10 @@ const { memoryForm, fastGeneration, serverModelDownload, llmPullName } = inject(
 const fastError = ref('')
 
 async function onFastToggle(on) {
-  const prev = fastGeneration.value
-  fastGeneration.value = on
   fastError.value = ''
   try {
-    await api.updateSettings({ fast_generation: on ? 'true' : 'false' })
+    await saveFastGeneration(on)
   } catch (e) {
-    console.error('save fast_generation:', e)
-    fastGeneration.value = prev
     fastError.value = String(e)
   }
 }

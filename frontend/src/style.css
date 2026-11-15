@@ -1719,6 +1719,12 @@ details.cat-extra summary {
   color: var(--text-dim);
 }
 
+.gen-fast[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
 .direct-prompt {
   margin-top: 16px;
   padding-top: 12px;

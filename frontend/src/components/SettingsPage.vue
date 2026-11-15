@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, watch, provide, onMounted, onUnmounted } from 'vue'
+import { fastGeneration, applyFastSetting } from '../fastMode.js'
 import { api } from '../api.js'
 import { checkServer } from '../serverState.js'
 import { serverURL, loadServerModels } from '../serverModels.js'
@@ -36,7 +37,7 @@ const state = {
   kidsMode: ref(false),
   kidsCategories: ref([]),
   memoryForm: reactive({ llm_auto_unload: true }),
-  fastGeneration: ref(false),
+  fastGeneration,
   processActionLoading: reactive({}),
   serverModelDownload: reactive({ type: 'sd', url: '', filename: '' }),
   llmPullName: ref(''),
@@ -121,7 +122,7 @@ async function loadSettings() {
     s.kidsMode.value = await api.isKidsModeActive()
     loadKidsCategories()
     s.memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
-    s.fastGeneration.value = settings.fast_generation === 'true'
+    applyFastSetting(settings)
     s.promptInstruction.value = settings.sd_prompt_instruction || ''
     s.promptInstructionProse.value = settings.sd_prompt_instruction_prose || ''
     serverURL.value = settings.server_url || ''

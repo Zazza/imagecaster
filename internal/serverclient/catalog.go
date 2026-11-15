@@ -47,6 +47,7 @@ type CatalogSDModel struct {
 	Modules       []CatalogModule  `json:"modules,omitempty"`
 	Presets       string           `json:"presets,omitempty"`
 	Variants      []CatalogVariant `json:"variants,omitempty"`
+	FastCache     string           `json:"fast_cache,omitempty"`
 }
 
 type CatalogVariant struct {
@@ -86,6 +87,7 @@ var parsedCatalog = sync.OnceValues(func() (*Catalog, error) {
 	}
 	for i := range catalog.SDModels {
 		catalog.SDModels[i].fillVariants()
+		catalog.SDModels[i].FastCache = fastCacheByBase[catalog.SDModels[i].Base]
 	}
 	return &catalog, nil
 })
@@ -244,5 +246,5 @@ func (c *Catalog) FastCacheMode(model string) string {
 	if m == nil {
 		return ""
 	}
-	return fastCacheByBase[m.Base]
+	return m.FastCache
 }

@@ -94,7 +94,7 @@ Styles whose model or LoRA is missing on the server are hidden (`presetAvailabil
 - Connection (`settings.tab_connection`) — server address and network search, server processes (start / stop / restart / logs), GPU memory, prompt and photo model choice, LLM parameters (context, top-p, threads);
 - Prompts (`settings.tab_prompts`) — editable prompts with defaults from the backend;
 - Safety (`settings.tab_safety`) — safe mode (`settings.section_kids`) with PIN (`PinModal.vue`) and categories;
-- Advanced (`settings.tab_advanced`) — fast generation (`fast.section`, setting `fast_generation`; the style dialog has its own “As in settings / On / Off” choice), video memory (`settings.section_memory_guard`, auto-unload LLM), SD/LoRA and LLM model lists on the server.
+- Advanced (`settings.tab_advanced`) — fast generation (`fast.section`, setting `fast_generation`; the same setting is the “Fast” button next to Generate, shared state in `fastMode.js`, model support from the catalog `fast_cache` field), video memory (`settings.section_memory_guard`, auto-unload LLM), SD/LoRA and LLM model lists on the server.
 
 ### Footer
 `AppFooter.vue` — service status (`CheckServices`), app version, three panel tabs (History — `footer/SessionPanel.vue`, Log — `footer/LogPanel.vue`):

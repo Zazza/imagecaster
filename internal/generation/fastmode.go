@@ -3,24 +3,13 @@ package generation
 import (
 	"log"
 
-	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 )
 
 const fastGenerationSetting = "fast_generation"
 
-func fastEnabled(presetMode, global string) bool {
-	switch preset.NormalizeFastMode(presetMode) {
-	case preset.FastModeOn:
-		return true
-	case preset.FastModeOff:
-		return false
-	}
-	return global == "true"
-}
-
-func fastCacheMode(presetMode, global, model string) string {
-	if !fastEnabled(presetMode, global) {
+func fastCacheMode(global, model string) string {
+	if global != "true" {
 		return ""
 	}
 	catalog, err := serverclient.LoadCatalog()
@@ -31,13 +20,10 @@ func fastCacheMode(presetMode, global, model string) string {
 	return catalog.FastCacheMode(model)
 }
 
-func (s *Service) cacheModeFor(p *preset.Preset, model string) string {
-	if p == nil {
-		return ""
-	}
+func (s *Service) cacheModeFor(model string) string {
 	global, err := s.db.GetSetting(fastGenerationSetting)
 	if err != nil {
 		log.Printf("[fast] read %s: %v", fastGenerationSetting, err)
 	}
-	return fastCacheMode(p.FastMode, global, model)
+	return fastCacheMode(global, model)
 }

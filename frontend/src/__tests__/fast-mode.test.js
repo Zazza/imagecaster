@@ -117,44 +117,14 @@ async function mountForm(preset) {
   return w
 }
 
-describe('preset form: fast mode select', () => {
-  it('offers inherit, on and off', async () => {
-    const w = await mountForm({ ...basePreset, fast_mode: '' })
-    const values = w.find('[data-testid="preset-fast-mode"]').findAll('option').map(o => o.element.value)
-    expect(values).toEqual(['', 'on', 'off'])
-  })
-
-  it.each([
-    ['on', 'on'],
-    ['off', 'off'],
-    ['', ''],
-    [undefined, ''],
-  ])('saved fast_mode %s is shown as %s', async (stored, want) => {
-    const p = { ...basePreset }
-    if (stored !== undefined) p.fast_mode = stored
-    const w = await mountForm(p)
-    expect(w.find('[data-testid="preset-fast-mode"]').element.value).toBe(want)
-  })
-
-  it.each([
-    ['', 'on'],
-    ['on', 'off'],
-    ['off', ''],
-    ['on', 'on'],
-  ])('from %s choosing %s emits it on save', async (stored, choice) => {
-    const w = await mountForm({ ...basePreset, fast_mode: stored })
-    await w.find('[data-testid="preset-fast-mode"]').setValue(choice)
+describe('preset form: no per-style fast mode', () => {
+  it('has no fast mode select and does not send fast_mode', async () => {
+    const w = await mountForm({ ...basePreset })
+    expect(w.find('[data-testid="preset-fast-mode"]').exists()).toBe(false)
     await w.find('form').trigger('submit')
     await settle()
     const saves = w.emitted('save')
     expect(saves, 'save emitted').toBeTruthy()
-    expect(saves[saves.length - 1][0].fast_mode).toBe(choice)
-  })
-
-  it('select has no inline styles', async () => {
-    const w = await mountForm({ ...basePreset, fast_mode: '' })
-    const group = w.find('[data-testid="preset-fast-mode"]').element.parentElement
-    expect(group.hasAttribute('style')).toBe(false)
-    expect(group.querySelectorAll('[style]').length).toBe(0)
+    expect(saves[saves.length - 1][0]).not.toHaveProperty('fast_mode')
   })
 })

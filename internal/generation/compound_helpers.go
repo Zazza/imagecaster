@@ -39,7 +39,7 @@ func (s *Service) runCompoundFirstStep(step preset.CompoundPresetStep, p *preset
 	}
 	req := sd.Txt2ImgRequest{
 		Model:                  presetSpec(p),
-		CacheMode:              s.cacheModeFor(p, p.ModelName),
+		CacheMode:              s.cacheModeFor(p.ModelName),
 		Prompt:                 prompt,
 		NegativePrompt:         negPrompt,
 		SamplerName:            samplerName,
@@ -87,7 +87,7 @@ func (s *Service) runCompoundStep(step preset.CompoundPresetStep, p *preset.Pres
 	batchCount := 1
 	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
 		Model:             presetSpec(p),
-		CacheMode:         s.cacheModeFor(p, p.ModelName),
+		CacheMode:         s.cacheModeFor(p.ModelName),
 		InitImages:        []string{lastImage},
 		Prompt:            prompt,
 		NegativePrompt:    negPrompt,
@@ -134,7 +134,7 @@ func (s *Service) applyHiresOnLastStep(p *preset.Preset, lastImage, prompt, negP
 	s.log.Info("compound last step: hires upscale %.1fx, denoise=%.2f, upscaler=%s", scale, ds, hiresUpscaler)
 	hrResult, hrErr := s.manualHiresUpscale(lastImage, sd.Txt2ImgRequest{
 		Model:          presetSpec(p),
-		CacheMode:      s.cacheModeFor(p, p.ModelName),
+		CacheMode:      s.cacheModeFor(p.ModelName),
 		Prompt:         prompt,
 		NegativePrompt: negPrompt,
 		SamplerName:    samplerName,
@@ -168,7 +168,7 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 		}
 		req := sd.Img2ImgRequest{
 			Model:             presetSpec(p),
-			CacheMode:         s.cacheModeFor(p, p.ModelName),
+			CacheMode:         s.cacheModeFor(p.ModelName),
 			InitImages:        []string{initImage},
 			Prompt:            prompt,
 			NegativePrompt:    negPrompt,
@@ -201,7 +201,7 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 	}
 	result, err := s.sd.Txt2Img(sd.Txt2ImgRequest{
 		Model:          presetSpec(p),
-		CacheMode:      s.cacheModeFor(p, p.ModelName),
+		CacheMode:      s.cacheModeFor(p.ModelName),
 		Prompt:         prompt,
 		NegativePrompt: negPrompt,
 		SamplerName:    samplerName,
@@ -239,7 +239,7 @@ func (s *Service) runFromImageCompoundStep(step preset.CompoundPresetStep, p *pr
 	batchCount := 1
 	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
 		Model:             presetSpec(p),
-		CacheMode:         s.cacheModeFor(p, p.ModelName),
+		CacheMode:         s.cacheModeFor(p.ModelName),
 		InitImages:        []string{lastImage},
 		Prompt:            prompt,
 		NegativePrompt:    negPrompt,
