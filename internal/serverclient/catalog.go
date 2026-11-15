@@ -233,7 +233,7 @@ func (m CatalogSDModel) InstalledVariant(files []ModelInfo) (*CatalogVariant, bo
 }
 
 var fastCacheByBase = map[string]string{
-	"Moss-Image":       "spectrum",
+	"Moss-Image":       "dbcache",
 	"Flux.1":           "easycache",
 	"Qwen-Image":       "easycache",
 	"Chroma":           "dbcache",

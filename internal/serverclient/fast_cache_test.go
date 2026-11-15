@@ -8,7 +8,7 @@ import (
 )
 
 var wantCacheByBase = map[string]string{
-	"Moss-Image":       "spectrum",
+	"Moss-Image":       "dbcache",
 	"Flux.1":           "easycache",
 	"Qwen-Image":       "easycache",
 	"Chroma":           "dbcache",
@@ -26,7 +26,7 @@ func TestCatalog_FastCacheMode(t *testing.T) {
 		model string
 		want  string
 	}{
-		{"moss_image_sft_bf16", "spectrum"},
+		{"moss_image_sft_bf16", "dbcache"},
 		{"flux1-dev-fp8", "easycache"},
 		{"qwen_image_2.1-Q8_0", "easycache"},
 		{"Chroma1-HD", "dbcache"},

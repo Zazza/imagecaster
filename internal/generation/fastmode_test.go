@@ -24,7 +24,7 @@ var fastModels = []struct {
 	model string
 	cache string
 }{
-	{"moss_image_sft_bf16", "spectrum"},
+	{"moss_image_sft_bf16", "dbcache"},
 	{"flux1-dev-fp8", "easycache"},
 	{"qwen_image_2.1-Q8_0", "easycache"},
 	{"Chroma1-HD", "dbcache"},
@@ -160,7 +160,7 @@ func TestGenerateImage_SendsCacheMode(t *testing.T) {
 	}{
 		{"preset on flux", "flux1-dev-fp8", "on", boolp(false), false, "easycache"},
 		{"preset on sdxl", "juggernautXL_ragnarokBy", "on", nil, false, "ucache"},
-		{"global on moss", "moss_image_sft_bf16", "", boolp(true), false, "spectrum"},
+		{"global on moss", "moss_image_sft_bf16", "", boolp(true), false, "dbcache"},
 		{"global on chroma", "Chroma1-HD", "", boolp(true), false, "dbcache"},
 		{"global on no-cache base", "z-image-turbo-fp8-aio", "", boolp(true), false, ""},
 		{"global off", "flux1-dev-fp8", "", boolp(false), false, ""},

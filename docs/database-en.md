@@ -235,7 +235,7 @@ Key–value store: `key TEXT PRIMARY KEY`, `value TEXT NOT NULL DEFAULT ''`. The
 | `llm_num_ctx`, `llm_generate_num_ctx`, `llm_analyze_num_ctx` | 4096 | sent as `options.num_ctx`, but the server ignores it: llama.cpp context size is the server's `llm.context_size` (default 8192) |
 | `llm_generate_*` / `llm_analyze_*` `top_p`, `num_thread` | 0.9 / 0 | sent with every text (`generate`) or photo (`analyze`) request; 0 = not sent. Temperatures are fixed in code per operation; old `temperature`/`num_predict` rows are ignored |
 | `llm_auto_unload` | `true` | memory guard: unload LLM models before an SD job when free VRAM/RAM is low |
-| `fast_generation` | `false` | fast generation for styles without their own choice: the job gets `params.cache_mode` by the model's catalog base (Moss → spectrum; Flux.1, Qwen-Image → easycache; Chroma → dbcache; SDXL, SD 1.5, Pony → ucache; others — no cache) |
+| `fast_generation` | `false` | fast generation for styles without their own choice: the job gets `params.cache_mode` by the model's catalog base (Moss, Chroma → dbcache; Flux.1, Qwen-Image → easycache; SDXL, SD 1.5, Pony → ucache; others — no cache) |
 | `auto_installed_presets` | — | names of bundled presets already installed by `SyncPresets` (deleted ones are not reinstalled) |
 | `install_id` | random | 16 hex chars; prefix of every server job `client_ref` |
 
