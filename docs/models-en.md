@@ -32,7 +32,7 @@ Folders are relative to the server data folder (see [Setup](setup-en.md#data-fol
 | `flux3-image-klein-Q8_0` | Flux.3 | Plain-language prompts, 16 steps | 6.15 | text encoder, VAE (2.8), presets | Q4_K 3.51 · Q8_0 6.15 |
 | `Krea-2-Turbo-Q4_K_M` | Krea-2 | Aesthetic photos in few steps | 7.22 | text encoder, VAE (2.8), presets | Q3_K_M 5.51 · Q4_K_M 7.22 · Q6_K 10.52 |
 | `qwen_image_2.1-Q8_0` | Qwen-Image | Strong prompt following, readable text in images; also Edit by instruction and its own effects | 7.69 | text encoder, vision module, VAE (6.8), presets | Q4_K 4.20 · Q6_K 6.00 · Q8_0 7.69 |
-| `hidream_o1_image_dev_fp8_scaled` | HiDream-O1 | Illustration, concept art, painting, posters with text, product shots; one file, no separate text encoder or VAE | 16.37 | presets | BF16 16.37 (FP8 gives noise in sd.cpp) |
+| `hidream_o1_image_dev_fp8_scaled` | HiDream-O1 | Illustration, concept art, painting, posters with a large title (small text is garbled), product shots, photos look painted; one file, no separate text encoder or VAE | 16.37 | presets | BF16 16.37 (FP8 gives noise in sd.cpp) |
 | `Chroma1-HD` | Chroma | Open Flux-based model: long prompts, art and photo; CFG 4, 26 steps — slower than the rest | 7.65 | t5xxl text encoder, VAE (5.2), presets | Q4_K_S 5.43 · Q6_K 7.65 · Q8_0 9.74 |
 | `juggernautXL_ragnarokBy` | SDXL | Versatile photorealism | 6.6 | — |
 | `epicrealismXL_pureFix` | SDXL | Realistic people | 6.5 | — |
