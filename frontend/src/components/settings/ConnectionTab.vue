@@ -137,87 +137,85 @@ async function saveLLMParams() {
 
 <template>
   <div class="card">
-    <StatusMessage v-if="connectionSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="connectionSaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
-    <StatusMessage v-if="connectionError" style="margin-bottom: 16px;" @close="connectionError = ''">{{ connectionError }}</StatusMessage>
+    <StatusMessage v-if="connectionSaved" kind="success" :timeout="8000" class="mb-4" @close="connectionSaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
+    <StatusMessage v-if="connectionError" class="mb-4" @close="connectionError = ''">{{ connectionError }}</StatusMessage>
 
       <div class="form-group">
         <label class="form-label">{{ t('settings.label_server_url') }}</label>
-        <div style="display: flex; gap: 8px;">
-          <input class="form-input" v-model="serverURL" placeholder="http://192.168.1.100:8080" style="flex: 1;" />
+        <div class="flex gap-2">
+          <input class="form-input flex-1" v-model="serverURL" placeholder="http://192.168.1.100:8080" />
           <button class="btn btn-secondary btn-sm" @click="discoverServers" :disabled="discovering">
             {{ discovering ? t('settings.btn_discovering') : t('settings.btn_discover') }}
           </button>
         </div>
       </div>
 
-      <div v-if="discoveredServers.length > 0" style="margin-bottom: 16px;">
+      <div v-if="discoveredServers.length > 0" class="mb-4">
         <div v-for="srv in discoveredServers" :key="srv.ip_address + ':' + srv.port"
+          class="server-pick"
           @click="selectServer(srv)"
-          style="padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s;"
-          @mouseenter="$event.target.style.borderColor = 'var(--accent)'"
-          @mouseleave="$event.target.style.borderColor = 'var(--border)'"
         >
-          <div style="color: var(--text-bright); font-size: 13px; font-weight: 500;">{{ srv.name || 'Imagecaster Server' }}</div>
-          <div style="color: var(--text-dim); font-size: 12px;">{{ srv.ip_address }}:{{ srv.port }}</div>
+          <div class="server-pick-name">{{ srv.name || 'Imagecaster Server' }}</div>
+          <div class="text-dim fs-sm">{{ srv.ip_address }}:{{ srv.port }}</div>
         </div>
       </div>
-      <div v-else-if="discovering" style="color: var(--text-dim); font-size: 13px; margin-bottom: 16px; text-align: center;">
+      <div v-else-if="discovering" class="discovering">
         <span class="spinner"></span> {{ t('settings.btn_discovering') }}
       </div>
 
-      <div v-if="serverStatus" style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;">
-        <div style="color: var(--text-bright); font-weight: 500; margin-bottom: 8px;">{{ t('settings.section_server_status') }}</div>
-        <div v-for="[name, proc] in serviceRows" :key="name" :data-testid="'process-row-' + name" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div v-if="serverStatus" class="inset-box">
+        <div class="inset-box-title">{{ t('settings.section_server_status') }}</div>
+        <div v-for="[name, proc] in serviceRows" :key="name" :data-testid="'process-row-' + name" class="proc-row">
+          <div class="flex-between">
             <div>
-              <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
+              <span class="proc-name">{{ proc.name || name }}</span>
               <span data-testid="process-status" :style="{ color: proc.status === 'running' ? 'var(--success)' : proc.status === 'starting' ? 'var(--warning)' : 'var(--danger)', marginLeft: '8px', fontSize: '12px' }">
                 {{ proc.status === 'running' ? t('settings.process_running') : proc.status === 'starting' ? t('settings.process_starting') : proc.status === 'crashed' ? t('settings.process_crashed') : proc.status === 'unhealthy' ? t('settings.process_unhealthy') : t('settings.process_stopped') }}
               </span>
-              <span v-if="proc.pid" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">PID {{ proc.pid }}</span>
-              <span v-if="proc.uptime" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">{{ proc.uptime }}</span>
-              <span v-if="proc.restarts > 0" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.process_restarts', { count: proc.restarts }) }}</span>
+              <span v-if="proc.pid" class="proc-meta">PID {{ proc.pid }}</span>
+              <span v-if="proc.uptime" class="proc-meta">{{ proc.uptime }}</span>
+              <span v-if="proc.restarts > 0" class="proc-meta proc-restarts">{{ t('settings.process_restarts', { count: proc.restarts }) }}</span>
             </div>
-            <div style="display: flex; gap: 6px;">
+            <div class="proc-actions">
               <button v-if="proc.status !== 'running' && proc.status !== 'starting' && proc.status !== 'unhealthy'" data-testid="process-start" class="btn btn-primary btn-sm" @click="startProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_start') }}</button>
               <button v-if="proc.status === 'running' || proc.status === 'unhealthy'" data-testid="process-stop" class="btn btn-secondary btn-sm" @click="stopProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_stop') }}</button>
               <button v-if="proc.status === 'running' || proc.status === 'unhealthy'" data-testid="process-restart" class="btn btn-secondary btn-sm" @click="restartProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_restart') }}</button>
               <button class="btn btn-secondary btn-sm" @click="showProcessLogs(name)">{{ t('settings.btn_logs') }}</button>
             </div>
           </div>
-          <div v-if="visibleLogs[name]" style="margin-top: 6px; padding: 8px; background: var(--bg-dark); border-radius: 4px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px; color: var(--text-dim);">
+          <div v-if="visibleLogs[name]" class="proc-logs">
             <div v-if="processLogs[name] && processLogs[name].length > 0">
               <div v-for="(line, i) in processLogs[name]" :key="i">{{ line }}</div>
             </div>
-            <div v-else style="color: var(--text-dim);">{{ t('settings.no_logs') }}</div>
+            <div v-else>{{ t('settings.no_logs') }}</div>
           </div>
         </div>
-        <div v-if="serverStatus.gpu && serverStatus.gpu.available" style="margin-top: 8px; font-size: 12px; color: var(--text-dim);">
+        <div v-if="serverStatus.gpu && serverStatus.gpu.available" class="mt-2 fs-sm text-dim">
           {{ t('settings.gpu_vram', { name: serverStatus.gpu.name, used: serverStatus.gpu.memory_used_mb, total: serverStatus.gpu.memory_total_mb }) }}
         </div>
-        <div v-if="utilityRows.length" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
-          <div @click="utilitiesExpanded = !utilitiesExpanded" style="cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
+        <div v-if="utilityRows.length" class="utilities">
+          <div class="utilities-toggle" @click="utilitiesExpanded = !utilitiesExpanded">
             <span :style="{ transform: utilitiesExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-flex' }"><ChevronRight :size="12" /></span>
             {{ t('settings.section_utilities') }}
           </div>
           <div v-if="utilitiesExpanded">
-            <div v-for="[name, proc] in utilityRows" :key="'u-'+name" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
+            <div v-for="[name, proc] in utilityRows" :key="'u-'+name" class="proc-row">
               <div>
-                <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
+                <span class="proc-name">{{ proc.name || name }}</span>
                 <span v-if="serverStatus.installs && serverStatus.installs[name]" :style="{ color: serverStatus.installs[name].installed ? 'var(--success)' : 'var(--danger)', marginLeft: '8px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: serverStatus.installs[name].installed ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)' }">
                   {{ serverStatus.installs[name].installed ? t('settings.installed') : t('settings.not_installed') }}
                 </span>
-                <span v-if="serverStatus.installs && serverStatus.installs[name] && serverStatus.installs[name].version" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">v{{ serverStatus.installs[name].version }}</span>
+                <span v-if="serverStatus.installs && serverStatus.installs[name] && serverStatus.installs[name].version" class="proc-meta">v{{ serverStatus.installs[name].version }}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="form-group" v-if="serverModels.llm.length > 0" style="margin-top: 16px;">
+      <div class="form-group mt-4" v-if="serverModels.llm.length > 0">
         <label class="form-label">{{ t('settings.label_model_generate') }}</label>
-        <div style="display: flex; gap: 8px;">
-          <select class="form-select" v-model="generateModel" style="flex: 1;">
+        <div class="flex gap-2">
+          <select class="form-select flex-1" v-model="generateModel">
             <option value="" disabled>{{ t('llm_setup.choose') }}</option>
             <option v-for="m in serverModels.llm" :key="m.name" :value="m.name">{{ m.name }}</option>
           </select>
@@ -240,10 +238,10 @@ async function saveLLMParams() {
 
     <details class="settings-advanced">
       <summary>{{ t('settings.section_llm_params') }}</summary>
-      <StatusMessage v-if="llmParamsSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="llmParamsSaved = false">{{ t('settings.params_saved') }}</StatusMessage>
-      <StatusMessage v-if="llmParamsError" style="margin-bottom: 16px;" @close="llmParamsError = ''">{{ llmParamsError }}</StatusMessage>
+      <StatusMessage v-if="llmParamsSaved" kind="success" :timeout="8000" class="mb-4" @close="llmParamsSaved = false">{{ t('settings.params_saved') }}</StatusMessage>
+      <StatusMessage v-if="llmParamsError" class="mb-4" @close="llmParamsError = ''">{{ llmParamsError }}</StatusMessage>
 
-      <h4 style="color: var(--text-bright); margin: 16px 0 8px; font-size: 14px;">{{ t('settings.generate_params') }}</h4>
+      <h4 class="subsection-title">{{ t('settings.generate_params') }}</h4>
       <div class="form-row-2">
         <div class="form-group">
           <label class="form-label">{{ t('settings.label_context_size') }}</label>
@@ -261,7 +259,7 @@ async function saveLLMParams() {
         </div>
       </div>
 
-      <h4 style="color: var(--text-bright); margin: 16px 0 8px; font-size: 14px;">{{ t('settings.analyze_params') }}</h4>
+      <h4 class="subsection-title">{{ t('settings.analyze_params') }}</h4>
       <div class="form-row-2">
         <div class="form-group">
           <label class="form-label">{{ t('settings.label_context_size') }}</label>
@@ -279,7 +277,90 @@ async function saveLLMParams() {
         </div>
       </div>
 
-      <button class="btn btn-primary" @click="saveLLMParams" style="margin-top: 8px;">{{ t('settings.btn_save_params') }}</button>
+      <button class="btn btn-primary mt-2" @click="saveLLMParams">{{ t('settings.btn_save_params') }}</button>
     </details>
   </div>
 </template>
+
+<style scoped>
+.server-pick {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.server-pick:hover {
+  border-color: var(--accent);
+}
+
+.server-pick-name {
+  color: var(--text-bright);
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+
+.discovering {
+  margin-bottom: var(--sp-4);
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  text-align: center;
+}
+
+
+.proc-row {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.proc-name {
+  color: var(--text-bright);
+  font-size: var(--fs-md);
+}
+
+.proc-meta {
+  margin-left: 6px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.proc-restarts {
+  color: var(--warning);
+}
+
+.proc-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.proc-logs {
+  margin-top: 6px;
+  padding: var(--sp-2);
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.utilities {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+
+.utilities-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+</style>

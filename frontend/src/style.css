@@ -2126,6 +2126,26 @@ details.cat-extra summary {
   padding: 4px 10px;
 }
 
+.subsection-title {
+  margin: var(--sp-4) 0 var(--sp-2);
+  color: var(--text-bright);
+  font-size: var(--fs-base);
+}
+
+.inset-box {
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.inset-box-title {
+  margin-bottom: var(--sp-2);
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
 .spinner-sm {
   width: 14px;
   height: 14px;
