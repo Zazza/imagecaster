@@ -508,7 +508,7 @@ defineExpose({
 }
 
 .fx-selected {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
   margin-top: 6px;
 }
@@ -543,7 +543,7 @@ defineExpose({
 
 .fx-name {
   max-width: 100%;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -552,7 +552,7 @@ defineExpose({
 
 .fx-orig {
   max-width: 100%;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   line-height: 1.2;
   color: var(--text-dim);
   white-space: nowrap;
@@ -566,7 +566,7 @@ defineExpose({
   justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 </style>

@@ -34,7 +34,7 @@ const etaSec = computed(() => Math.ceil(props.eta))
 
 <style scoped>
 .gp-label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .gp-stats {
@@ -46,10 +46,10 @@ const etaSec = computed(() => Math.ceil(props.eta))
 }
 .gp-stats span {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .small .gp-stats span {
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .gp-bar {
   background: var(--surface-2);
@@ -70,7 +70,7 @@ const etaSec = computed(() => Math.ceil(props.eta))
 }
 .gp-interrupt {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .gp-block {
   width: 100%;

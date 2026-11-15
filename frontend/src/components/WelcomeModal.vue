@@ -120,17 +120,17 @@ const openSettings = () => emit('settings', dontShow.value)
 .welcome-tabs { display: flex; gap: 6px; flex: 1; min-width: 0; }
 .welcome-tabs .on { color: var(--text-bright); border-color: var(--accent); }
 .welcome-body { max-height: 65vh; overflow-y: auto; }
-.welcome-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; color: var(--text-bright); }
+.welcome-title { margin: 0 0 8px; font-size: var(--fs-xl); font-weight: 600; color: var(--text-bright); }
 .welcome-lead { margin: 0 0 12px; line-height: 1.55; }
-.welcome-lead.dim { color: var(--text-dim); font-size: 13px; }
+.welcome-lead.dim { color: var(--text-dim); font-size: var(--fs-md); }
 .welcome-lead.ok { color: var(--success); }
-.welcome-lead.err { color: var(--danger); font-size: 12px; }
+.welcome-lead.err { color: var(--danger); font-size: var(--fs-sm); }
 .welcome-progress { margin: 0 0 12px; }
 .welcome-news { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
 .welcome-models { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
-.welcome-subtitle { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text-bright); }
+.welcome-subtitle { margin: 0 0 6px; font-size: var(--fs-lg); font-weight: 600; color: var(--text-bright); }
 .welcome-actions { display: flex; align-items: center; gap: 8px; }
 .welcome-actions .btn { min-width: 104px; }
 .welcome-spacer { flex: 1; }
-.welcome-dont { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-dim); font-size: 13px; }
+.welcome-dont { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-dim); font-size: var(--fs-md); }
 </style>

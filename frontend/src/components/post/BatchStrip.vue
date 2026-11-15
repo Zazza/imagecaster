@@ -62,7 +62,7 @@ const { batch: current, batchIndex, batchBusy, batchExporting, batchProgress, ba
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 

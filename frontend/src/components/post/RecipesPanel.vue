@@ -311,7 +311,7 @@ defineExpose({ applyRecipe, load: loadRecipes })
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text);
   margin-bottom: 6px;
 }

@@ -537,6 +537,6 @@ onMounted(loadData)
 .pipe-chain { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .pipe-arrow { color: var(--text-dim); flex-shrink: 0; }
 .pipe-step { display: inline-flex; align-items: center; gap: 5px; }
-.pipe-denoise { font-size: 10px; opacity: 0.7; }
+.pipe-denoise { font-size: var(--fs-2xs); opacity: 0.7; }
 .pipe-step.badge-muted { background: transparent; }
 </style>

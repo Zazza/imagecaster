@@ -58,7 +58,7 @@ installWindowFrame()
   left: 140px;
   right: 140px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent-mark);

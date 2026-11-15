@@ -490,7 +490,7 @@ onUnmounted(() => {
 }
 .look-prompt-line {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -502,7 +502,7 @@ onUnmounted(() => {
 .look-name-input {
   flex: 1;
   min-width: 120px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   padding: 4px 8px;
 }
 .drop-zone-compact {
@@ -511,7 +511,7 @@ onUnmounted(() => {
 }
 .drop-zone-hint {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   margin: 0;
 }
 .fi-btn-row {
@@ -524,7 +524,7 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 .btn-tiny {
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .ref-container {
   display: flex;
@@ -540,7 +540,7 @@ onUnmounted(() => {
   display: block;
 }
 .field-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-top: 4px;
 }
@@ -555,7 +555,7 @@ onUnmounted(() => {
   margin-top: 6px;
 }
 .style-tags-label span {
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .style-lora-list {
   display: inline-flex;
@@ -568,11 +568,11 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--text-dim);
 }
 .lora-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 .quality-label {
@@ -582,7 +582,7 @@ onUnmounted(() => {
   margin-top: 8px;
 }
 .quality-label span {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .btn-generate {
   width: 100%;
@@ -607,14 +607,14 @@ onUnmounted(() => {
 }
 .edit-progress-label {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .edit-progress-info {
   margin-top: 8px;
 }
 .edit-effective-prompt {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;

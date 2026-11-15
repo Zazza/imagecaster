@@ -235,7 +235,7 @@ export default { name: 'AppFooter' }
 }
 
 .footer-version {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-right: 4px;
   opacity: 0.7;
@@ -247,7 +247,7 @@ export default { name: 'AppFooter' }
   color: var(--text-dim);
   padding: 2px 10px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 
@@ -268,7 +268,7 @@ export default { name: 'AppFooter' }
 }
 
 .status-dot {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   padding: 1px 6px;
   border-radius: 3px;

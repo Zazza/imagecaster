@@ -226,7 +226,7 @@ defineExpose({ reset })
   accent-color: var(--accent);
 }
 .overrides-check span {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .lora-section {
   margin-top: 10px;
@@ -238,12 +238,12 @@ defineExpose({ reset })
   margin-bottom: 0;
 }
 .lora-empty {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 .overrides-hint {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 @media (max-width: 900px) {

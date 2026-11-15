@@ -354,7 +354,7 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.65);
   color: #fff;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .gen-overlay-stats {
@@ -457,7 +457,7 @@ onUnmounted(() => {
   background: #fff;
   color: #000;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1;
   pointer-events: auto;
   cursor: ew-resize;
@@ -471,7 +471,7 @@ onUnmounted(() => {
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   pointer-events: none;
 }
 
@@ -495,7 +495,7 @@ onUnmounted(() => {
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   pointer-events: none;
 }
 

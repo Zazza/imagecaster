@@ -223,7 +223,7 @@ export default { name: 'QueuePanel' }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .queue-active {
@@ -254,7 +254,7 @@ export default { name: 'QueuePanel' }
   border-radius: 3px;
   color: var(--text-dim);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 2px 8px;
   height: 24px;
   min-width: 112px;
@@ -298,7 +298,7 @@ export default { name: 'QueuePanel' }
   text-align: center;
   color: var(--text-dim);
   padding: 20px;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .queue-item {
@@ -353,7 +353,7 @@ export default { name: 'QueuePanel' }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .qi-type {
@@ -363,7 +363,7 @@ export default { name: 'QueuePanel' }
 
 .qi-time {
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
 }
 
 .qi-progress {
@@ -389,14 +389,14 @@ export default { name: 'QueuePanel' }
 }
 
 .qi-progress-text {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--text-dim);
   width: 32px;
   text-align: right;
 }
 
 .qi-error {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--danger, #e55);
   margin-top: 2px;
   overflow: hidden;
@@ -409,7 +409,7 @@ export default { name: 'QueuePanel' }
   align-items: center;
   gap: 4px;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .qi-paused-label {
@@ -418,11 +418,11 @@ export default { name: 'QueuePanel' }
 
 .qi-retry-info {
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--fs-2xs);
 }
 
 .qi-retry-badge {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--warning, #f0a030);
   margin-top: 2px;
 }

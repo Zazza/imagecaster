@@ -408,7 +408,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .fb-path-input:focus {
@@ -423,7 +423,7 @@ onUnmounted(() => {
 }
 
 .fb-select-count {
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text);
 }
 
@@ -448,7 +448,7 @@ onUnmounted(() => {
 
 .fb-error {
   color: var(--danger);
-  font-size: 13px;
+  font-size: var(--fs-md);
   padding: 8px;
 }
 
@@ -456,7 +456,7 @@ onUnmounted(() => {
   text-align: center;
   padding: 40px 16px;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .fb-grid {
@@ -512,7 +512,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .fb-sort-label {
@@ -540,7 +540,7 @@ onUnmounted(() => {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
 }
 
@@ -562,7 +562,7 @@ onUnmounted(() => {
 }
 
 .fb-card-name {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -570,7 +570,7 @@ onUnmounted(() => {
 }
 
 .fb-card-meta {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-top: 2px;
 }

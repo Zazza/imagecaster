@@ -364,7 +364,7 @@ defineExpose({ updateFilename, load: loadExportPresets })
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 

@@ -50,7 +50,7 @@ function toggle() {
   background: none;
   border: none;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-md);
   text-align: left;
   cursor: pointer;
   user-select: none;
@@ -82,7 +82,7 @@ function toggle() {
   flex-shrink: 0;
 }
 .fold-hint {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .fold-summary {
@@ -92,7 +92,7 @@ function toggle() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--accent-mark);
 }
 .fold-summary::before {

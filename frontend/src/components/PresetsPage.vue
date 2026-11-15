@@ -445,6 +445,6 @@ onMounted(load)
 
 <style scoped>
 .styles-group { width: auto; min-width: 150px; }
-.styles-unavailable { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); cursor: pointer; }
+.styles-unavailable { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--text-dim); cursor: pointer; }
 .col-num { text-align: right; white-space: nowrap; width: 48px; }
 </style>

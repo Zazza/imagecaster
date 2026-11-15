@@ -233,7 +233,7 @@ defineExpose({
   margin: 12px 0;
 }
 .object-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-bottom: 10px;
 }
@@ -244,7 +244,7 @@ defineExpose({
   gap: 8px;
 }
 .object-mask-ready {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--accent);
 }
 .object-brush-row {
@@ -264,7 +264,7 @@ defineExpose({
 }
 .object-more {
   margin-top: 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .object-more summary {
   cursor: pointer;

@@ -458,7 +458,7 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   color: var(--text);
   padding: 4px 26px 4px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   max-width: 220px;
   cursor: pointer;
   outline: none;
@@ -508,7 +508,7 @@ onUnmounted(() => {
 .session-tool-btn.text-btn {
   width: auto;
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .session-delete-btn {
@@ -521,7 +521,7 @@ onUnmounted(() => {
   border-radius: 3px;
   color: var(--text-dim);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 2px 8px;
   height: 24px;
   min-width: 136px;
@@ -551,7 +551,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .session-new {
@@ -578,7 +578,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 
@@ -647,7 +647,7 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 4px;
   min-width: 0;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   line-height: 1.3;
 }
 
@@ -736,5 +736,5 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }</style>

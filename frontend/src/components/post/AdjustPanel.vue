@@ -68,7 +68,7 @@ const { adjust, sliderMeta, adjustGroups, autoAdjusting } = props.post
 }
 
 .adj-group-title {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -90,7 +90,7 @@ const { adjust, sliderMeta, adjustGroups, autoAdjusting } = props.post
 }
 
 .adj-label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text);
 }
 
@@ -120,7 +120,7 @@ const { adjust, sliderMeta, adjustGroups, autoAdjusting } = props.post
 }
 
 .adj-value {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }

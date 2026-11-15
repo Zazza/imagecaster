@@ -205,13 +205,13 @@ function scrollActiveIntoView() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 
 .ss-empty {
   padding: 8px 12px;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 </style>

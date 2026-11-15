@@ -27,7 +27,7 @@ const shown = computed(() => (known.value ? Math.max(0, Math.min(100, props.perc
 </template>
 
 <style scoped>
-.dl-progress { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-dim); }
+.dl-progress { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-xs); color: var(--text-dim); }
 .dl-progress.wide { width: 100%; }
 .dl-progress-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .dl-progress-pct { color: var(--text-bright); font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }

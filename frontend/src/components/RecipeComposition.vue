@@ -85,7 +85,7 @@ function stepTitle(s) {
 }
 
 .comp-title {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -97,7 +97,7 @@ function stepTitle(s) {
   display: flex;
   gap: 6px;
   margin-bottom: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.35;
 }
 
@@ -123,7 +123,7 @@ function stepTitle(s) {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }

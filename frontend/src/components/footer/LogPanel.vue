@@ -93,7 +93,7 @@ defineExpose({ scrollToBottom })
   color: var(--text-dim);
   padding: 2px 8px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 
@@ -110,7 +110,7 @@ defineExpose({ scrollToBottom })
   overflow-y: auto;
   padding: 4px 0;
   font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
 }
 
@@ -123,7 +123,7 @@ defineExpose({ scrollToBottom })
 .log-entry:hover { background: var(--surface-2); }
 
 .log-time { color: var(--text-dim); flex-shrink: 0; width: 60px; }
-.log-level { flex-shrink: 0; width: 44px; font-weight: 600; font-size: 11px; }
+.log-level { flex-shrink: 0; width: 44px; font-weight: 600; font-size: var(--fs-xs); }
 
 .log-error .log-level { color: var(--danger); }
 .log-error { background: rgba(224, 85, 85, 0.06); }
@@ -139,5 +139,5 @@ defineExpose({ scrollToBottom })
   color: var(--text-dim);
   padding: 20px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }</style>

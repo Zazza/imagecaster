@@ -174,7 +174,7 @@ function onLorasToggle(e) {
   margin-bottom: 8px;
 }
 .custom-max-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin: -4px 0 8px;
 }
@@ -194,7 +194,7 @@ function onLorasToggle(e) {
 }
 .custom-step-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .custom-step-actions {
   display: flex;
@@ -202,7 +202,7 @@ function onLorasToggle(e) {
   margin-left: auto;
 }
 .custom-lora-badge {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   background: var(--surface-2);
   border-radius: 4px;
@@ -221,7 +221,7 @@ function onLorasToggle(e) {
 .custom-loras summary {
   cursor: pointer;
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   padding: 6px 10px;
   user-select: none;
   display: flex;
@@ -244,7 +244,7 @@ function onLorasToggle(e) {
   accent-color: var(--accent);
 }
 .custom-loras-check span {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .custom-loras-section {
   margin-top: 8px;
@@ -274,7 +274,7 @@ function onLorasToggle(e) {
   padding: 4px 10px;
 }
 .custom-lora-empty {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 @media (max-width: 640px) {

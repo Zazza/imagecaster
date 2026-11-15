@@ -636,7 +636,7 @@ onUnmounted(() => {
 
 
 .card-title {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text-bright);
 }
@@ -665,7 +665,7 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 0 16px 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 

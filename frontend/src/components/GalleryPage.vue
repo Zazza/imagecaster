@@ -581,12 +581,12 @@ onUnmounted(() => {
 
 <style scoped>
 .gal-date { width: auto; }
-.gal-more { border: none; background: transparent; color: var(--accent); font-size: 12px; cursor: pointer; padding: 0 4px; }
+.gal-more { border: none; background: transparent; color: var(--accent); font-size: var(--fs-sm); cursor: pointer; padding: 0 4px; }
 .gal-pipeline { border-style: dashed; }
-.gal-summary { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+.gal-summary { font-size: var(--fs-sm); color: var(--text-dim); margin-bottom: 8px; }
 .gal-day { margin-bottom: 16px; }
-.gal-day-title { font-size: 13px; font-weight: 600; color: var(--text-bright); margin: 0 0 8px; }
-.gal-day-count { font-size: 11px; color: var(--text-dim); font-weight: 400; margin-left: 4px; }
+.gal-day-title { font-size: var(--fs-md); font-weight: 600; color: var(--text-bright); margin: 0 0 8px; }
+.gal-day-count { font-size: var(--fs-xs); color: var(--text-dim); font-weight: 400; margin-left: 4px; }
 .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
 .gal-tile {
   position: relative; aspect-ratio: 1; padding: 0; border: 2px solid transparent; border-radius: var(--radius-sm);

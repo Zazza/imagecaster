@@ -939,7 +939,7 @@ function onKeydown(e) {
 .gen-controls .btn-generate {
   justify-content: center;
   padding: 8px 16px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 .card-collapse.collapsed > .card-body {
@@ -1070,7 +1070,7 @@ function onKeydown(e) {
 .gen-batch-count {
   margin-top: 8px;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .gen-batch-progress {
   margin-top: 8px;
@@ -1090,11 +1090,11 @@ function onKeydown(e) {
 }
 .gen-prompt-label {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   margin-bottom: 4px;
 }
 .gen-prompt-text {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -1118,7 +1118,7 @@ function onKeydown(e) {
   margin-top: 6px;
 }
 .gen-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-top: 4px;
 }

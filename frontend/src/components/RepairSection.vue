@@ -176,7 +176,7 @@ defineExpose({
 }
 
 .repair-hint {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin: 12px 0 10px;
 }
@@ -193,7 +193,7 @@ defineExpose({
   gap: 8px;
 }
 .repair-mask-ready {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--accent);
 }
 .repair-brush-row {
@@ -217,7 +217,7 @@ defineExpose({
 }
 .repair-more {
   margin-top: 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .repair-more summary {
   cursor: pointer;

@@ -365,7 +365,7 @@ function handleDelete(id) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   user-select: none;
 }
@@ -391,7 +391,7 @@ function handleDelete(id) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .sdm-per-idea {
@@ -399,12 +399,12 @@ function handleDelete(id) {
 }
 
 .sdm-batch-total {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 
 .sdm-batch-target {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -419,7 +419,7 @@ function handleDelete(id) {
 
 .sdm-batch-hint {
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   display: flex;
   align-items: center;
@@ -432,7 +432,7 @@ function handleDelete(id) {
 
 .sdm-batch-errors {
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--danger, #e5484d);
   max-height: 80px;
   overflow-y: auto;
@@ -447,7 +447,7 @@ function handleDelete(id) {
 }
 
 .sdm-count {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -473,7 +473,7 @@ function handleDelete(id) {
 .sdm-name {
   font-weight: 600;
   color: var(--text-bright);
-  font-size: 13px;
+  font-size: var(--fs-md);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -481,7 +481,7 @@ function handleDelete(id) {
 
 .sdm-date {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -493,7 +493,7 @@ function handleDelete(id) {
 }
 
 .sdm-text {
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: var(--text);
   margin-top: 3px;
@@ -509,7 +509,7 @@ function handleDelete(id) {
 }
 
 .sdm-neg {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-top: 3px;
   overflow: hidden;

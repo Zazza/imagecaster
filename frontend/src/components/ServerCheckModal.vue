@@ -116,20 +116,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 <style>
 .server-check-modal { width: min(560px, 92vw); max-width: 560px; display: flex; flex-direction: column; gap: 12px; }
-.server-check-title { margin: 0; font-size: 18px; font-weight: 600; color: var(--text-bright); }
+.server-check-title { margin: 0; font-size: var(--fs-xl); font-weight: 600; color: var(--text-bright); }
 .server-check-lead { margin: 0; line-height: 1.55; }
-.server-check-lead.dim { color: var(--text-dim); font-size: 13px; }
-.server-check-lead.err { color: var(--danger); font-size: 12px; word-break: break-word; }
+.server-check-lead.dim { color: var(--text-dim); font-size: var(--fs-md); }
+.server-check-lead.err { color: var(--danger); font-size: var(--fs-sm); word-break: break-word; }
 .server-check-block { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
 .server-check-row { display: flex; align-items: center; gap: 8px; }
 .server-check-row .form-input { flex: 1; min-width: 0; }
-.server-check-label { flex: 1; font-size: 13px; color: var(--text); }
+.server-check-label { flex: 1; font-size: var(--fs-md); color: var(--text); }
 .server-check-found { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
 .server-check-found:hover { border-color: var(--accent); }
-.server-check-name { color: var(--text-bright); font-size: 13px; font-weight: 500; }
-.server-check-addr { color: var(--text-dim); font-size: 12px; }
+.server-check-name { color: var(--text-bright); font-size: var(--fs-md); font-weight: 500; }
+.server-check-addr { color: var(--text-dim); font-size: var(--fs-sm); }
 .server-check-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .server-check-spacer { flex: 1; }
-.server-banner { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: rgba(248, 113, 113, 0.12); border-bottom: 1px solid var(--border); color: var(--text-bright); font-size: 13px; }
+.server-banner { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: rgba(248, 113, 113, 0.12); border-bottom: 1px solid var(--border); color: var(--text-bright); font-size: var(--fs-md); }
 .server-banner .btn { margin-left: auto; }
 </style>

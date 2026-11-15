@@ -128,12 +128,12 @@ function resetAnalyzePrompts() {
 }
 .prompts-sub {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-md);
   margin-bottom: 8px;
 }
 .prompt-area {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
 }
 .prompt-actions {
