@@ -10,6 +10,7 @@ var AllowedSettings = map[string]bool{
 	"llm_analyze_num_ctx": true,
 	"llm_analyze_top_p":   true, "llm_analyze_num_thread": true,
 	"llm_auto_unload":             true,
+	"fast_generation":             true,
 	"sd_prompt_instruction_prose": true,
 	"sd_prompt_instruction":       true,
 	"analyze_system_prompt":       true, "analyze_prompt": true, "analyze_describe_prompt": true,
