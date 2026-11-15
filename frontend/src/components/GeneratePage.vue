@@ -1,13 +1,14 @@
 <script setup>
 import { Check, Sparkles, TriangleAlert, Maximize2, SlidersHorizontal } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
-import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
+import GenProgress from './GenProgress.vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
 import { b64Url } from '../imageDataUrl.js'
 import { parseLoras } from '../loraOverride.js'
-import { newCustomStep, restoreCustomSteps, persistCustomSteps, customStepsPayload, customStepLoras } from '../customSteps.js'
+import { newCustomStep, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
 import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
@@ -15,7 +16,9 @@ import { useKidsMode } from '../composables/useKidsMode.js'
 import { usePresets } from '../composables/usePresets.js'
 import { useZoomPan, ZOOM_MIN, ZOOM_MAX, ZOOM_PRESETS } from '../composables/useZoomPan.js'
 import { useJobTracker, resultImageUrl } from '../composables/useJobTracker.js'
-import { runIdeasBatch } from '../ideasBatch.js'
+import { useGenStatePersistence } from '../composables/useGenStatePersistence.js'
+import { useSavedDescriptions } from '../composables/useSavedDescriptions.js'
+import { useIdeasBatch } from '../composables/useIdeasBatch.js'
 import SavedDescriptionsModal from './SavedDescriptionsModal.vue'
 import ImageViewer from './ImageViewer.vue'
 import { openInHistoryViewer } from '../historyViewer.js'
@@ -56,16 +59,11 @@ const generationStage = ref('')
 const error = ref('')
 const successMsg = ref('')
 let promptDirty = true
-let currentDescId = null
-let lastUsedDescText = ''
-let lastUsedDescNegative = ''
 
 const { kidsModeActive, loadKidsMode } = useKidsMode()
 
 const selectedResolutionId = ref(null)
 const selectedHiresProfileId = ref(null)
-
-const shared = inject('sharedGenState', null)
 
 const genCount = ref(1)
 const seedInput = ref('')
@@ -81,8 +79,6 @@ const jobs = useJobTracker({
 const enqueuedJobIds = jobs.pending
 const batchDone = jobs.done
 
-const savedDescs = ref([])
-const showSavedDescs = ref(false)
 const showViewer = ref(false)
 const shownItemId = ref(null)
 
@@ -140,108 +136,25 @@ const generateDisabled = computed(() => {
   return !selectedCompoundPresetId.value
 })
 
-const ideasBatchRunning = ref(false)
-const ideasBatchProgress = ref(null)
-let ideasBatchStopped = false
+const descs = useSavedDescriptions({ description, negative, error })
+const {
+  savedDescs, showSavedDescs, loadSavedDescs, saveDescription, deleteDescription, useDescription,
+  handleCreateDesc, handleUpdateDesc,
+} = descs
 
-const ideasBatchTarget = computed(() => {
-  if (genMode.value === 'preset') {
-    const p = presets.value.find(x => x.id === selectedPresetId.value)
-    return p ? t('descriptions.batch_target_preset', { name: p.name }) : ''
-  }
-  if (genMode.value === 'custom') return customValid.value ? t('descriptions.batch_target_custom', { n: customSteps.value.length }) : ''
-  const c = compoundPresets.value.find(x => x.id === selectedCompoundPresetId.value)
-  return c ? t('descriptions.batch_target_workflow', { name: c.name }) : ''
+const { saveGenState, restoreGenState, persistGenState } = useGenStatePersistence({
+  selectedTypeId, selectedPresetId, selectedCompoundPresetId, genMode, description, negative,
+  extraPrompt, extraNegativePrompt, customSteps, selectedResolutionId, selectedHiresProfileId, genCount,
+  presets, compoundPresets, genTypes, descs,
 })
 
-const ideasBatchDisabled = computed(() => {
-  if (genMode.value === 'preset') return selectedPresetId.value ? '' : t('descriptions.batch_no_style')
-  if (genMode.value === 'custom') return customValid.value ? '' : t('descriptions.batch_bad_custom')
-  return selectedCompoundPresetId.value ? '' : t('descriptions.batch_no_workflow')
+const {
+  ideasBatchRunning, ideasBatchProgress, ideasBatchTarget, ideasBatchDisabled, runIdeasBatchFromModal, stopIdeasBatch,
+} = useIdeasBatch({
+  savedDescs, showSavedDescs, genMode, presets, compoundPresets, selectedPresetId, selectedCompoundPresetId,
+  presetOverrides, customSteps, customValid, selectedResolutionId, selectedHiresProfileId,
+  jobs, batchTotal, generatingImage, generationStage, error, successMsg, resetProgress, saveGenState,
 })
-
-function ideaDisplayName(desc) {
-  if (desc.name) return desc.name
-  const text = desc.text || ''
-  return text.length > 40 ? text.slice(0, 40) + '…' : text
-}
-
-async function runIdeasBatchFromModal({ ids, perIdea }) {
-  if (ideasBatchRunning.value || ideasBatchDisabled.value) return
-  const byId = new Map(savedDescs.value.map(d => [d.id, d]))
-  const ideas = (ids || []).map(id => byId.get(id)).filter(Boolean)
-  if (!ideas.length) return
-
-  const mode = genMode.value
-  const presetId = selectedPresetId.value
-  const compoundId = selectedCompoundPresetId.value
-  const ov = presetOverrides.value
-  const customPayload = customStepsPayload(customSteps.value, presets.value)
-  const resId = selectedResolutionId.value
-  const hiresId = selectedHiresProfileId.value
-
-  saveGenState()
-  if (enqueuedJobIds.value.size === 0) {
-    resetProgress()
-    batchTotal.value = 0
-    batchDone.value = 0
-  }
-  ideasBatchStopped = false
-  ideasBatchRunning.value = true
-  ideasBatchProgress.value = { done: 0, total: ideas.length, errors: [] }
-  error.value = ''
-  successMsg.value = ''
-
-  try {
-    const res = await runIdeasBatch({
-      ideas,
-      perIdea,
-      isStopped: () => ideasBatchStopped,
-      generatePrompt: (idea) => ({ prompt: idea.text || '', negative_prompt: idea.negative_prompt || '' }),
-      enqueue: async ({ prompt, negative_prompt }) => {
-        const common = { extra_prompt: '', extra_negative_prompt: '', idea: prompt, idea_negative: negative_prompt, resolution_id: resId, hires_profile_id: hiresId }
-        let jobId
-        if (mode === 'compound') jobId = await api.enqueueCompound({ compound_preset_id: compoundId, ...common })
-        else if (mode === 'custom') jobId = await api.enqueueCompound({ steps: customPayload, ...common, seed: null })
-        else jobId = await api.enqueueTxt2Img({ preset_id: presetId, ...common, overrides: ov, seed: null })
-        if (jobId) {
-          jobs.track(jobId)
-          batchTotal.value++
-          generatingImage.value = true
-          generationStage.value = 'image'
-        }
-        return jobId
-      },
-      onProgress: ({ done, total }) => {
-        ideasBatchProgress.value = { ...ideasBatchProgress.value, done, total }
-      },
-    })
-    ideasBatchProgress.value = {
-      ...ideasBatchProgress.value,
-      errors: res.errors.map(e => ({ name: ideaDisplayName(e.idea), error: e.error === 'empty prompt' ? t('descriptions.batch_empty_idea') : e.error })),
-    }
-    if (res.jobIds.length) {
-      successMsg.value = t('descriptions.batch_done', { n: res.jobIds.length })
-      ideasBatchProgress.value = { ...ideasBatchProgress.value, message: successMsg.value }
-    }
-  } catch (e) {
-    error.value = String(e)
-  } finally {
-    ideasBatchRunning.value = false
-    if (enqueuedJobIds.value.size === 0) {
-      generatingImage.value = false
-      generationStage.value = ''
-    }
-  }
-}
-
-watch(showSavedDescs, (open) => {
-  if (open && !ideasBatchRunning.value) ideasBatchProgress.value = null
-})
-
-function stopIdeasBatch() {
-  ideasBatchStopped = true
-}
 
 const imageSrc = computed(() => b64Url(generatedImage.value))
 
@@ -258,15 +171,6 @@ const formattedGenInfo = computed(() => {
 
 watch([description, negative, selectedPresetId, selectedCompoundPresetId, customFirstPresetId, () => presetOverrides.value?.model_name], () => {
   promptDirty = true
-})
-
-watch(description, (val) => {
-  if (currentDescId !== null && val !== lastUsedDescText) {
-    if (negative.value === lastUsedDescNegative) negative.value = ''
-    currentDescId = null
-    lastUsedDescText = ''
-    lastUsedDescNegative = ''
-  }
 })
 
 watch(selectedTypeId, () => {
@@ -287,33 +191,8 @@ watch([genMode, kidsModeActive], () => {
   overridesPanel.value?.reset()
 })
 
-watch([selectedResolutionId, selectedHiresProfileId], () => {
-  api.updateSettings({
-    gen_resolution_id: String(selectedResolutionId.value || ''),
-    gen_hires_profile_id: String(selectedHiresProfileId.value || ''),
-  }).catch(e => console.warn('GeneratePage.watch:', e))
-})
-
 function onResize() {
   isDesktop.value = window.innerWidth > 1024
-}
-
-function saveGenState() {
-  api.updateSettings({
-    gen_preset_id: String(selectedPresetId.value || ''),
-    gen_type_id: String(selectedTypeId.value || ''),
-    gen_description: description.value || '',
-    gen_negative: negative.value || '',
-    gen_desc_id: String(currentDescId || ''),
-    gen_extra_prompt: extraPrompt.value || '',
-    gen_extra_negative: extraNegativePrompt.value || '',
-    gen_mode: genMode.value,
-    gen_compound_preset_id: String(selectedCompoundPresetId.value || ''),
-    gen_custom_steps: JSON.stringify(persistCustomSteps(customSteps.value, presets.value)),
-    gen_resolution_id: String(selectedResolutionId.value || ''),
-    gen_hires_profile_id: String(selectedHiresProfileId.value || ''),
-    gen_count: String(genCount.value || 1),
-  }).catch(e => console.warn('GeneratePage.saveGenState:', e))
 }
 
 async function sendToSD() {
@@ -532,82 +411,6 @@ async function upscaleImageX2() {
   }
 }
 
-async function loadSavedDescs() {
-  try {
-    savedDescs.value = await api.listDescriptions() || []
-  } catch (e) {
-    console.error(e)
-  }
-}
-
-async function saveDescription() {
-  if (!description.value.trim()) return
-  try {
-    const created = await api.createDescriptionFull({
-      text: description.value.trim(),
-      name: '',
-      negative_prompt: negative.value || '',
-      type: '',
-    })
-    if (created && created.id) {
-      currentDescId = created.id
-      lastUsedDescText = description.value.trim()
-      lastUsedDescNegative = negative.value || ''
-    }
-    await loadSavedDescs()
-  } catch (e) {
-    error.value = t('generate.error_save_desc', { error: String(e) })
-  }
-}
-
-async function deleteDescription(id) {
-  try {
-    await api.deleteDescription(id)
-    if (currentDescId === id) {
-      currentDescId = null
-      lastUsedDescText = ''
-      lastUsedDescNegative = ''
-    }
-    await loadSavedDescs()
-  } catch (e) {
-    error.value = t('generate.error_delete_desc', { error: String(e) })
-  }
-}
-
-function useDescription(desc) {
-  currentDescId = desc.id
-  lastUsedDescText = desc.text
-  lastUsedDescNegative = desc.negative_prompt || ''
-  description.value = desc.text
-  if (desc.negative_prompt) negative.value = desc.negative_prompt
-  showSavedDescs.value = false
-}
-
-async function handleCreateDesc(data) {
-  try {
-    await api.createDescriptionFull(data)
-    await loadSavedDescs()
-  } catch (e) {
-    error.value = t('generate.error_create', { error: String(e) })
-  }
-}
-
-async function handleUpdateDesc(data) {
-  try {
-    await api.updateDescription(data)
-    await loadSavedDescs()
-    if (currentDescId === data.id) {
-      const negLoaded = negative.value === lastUsedDescNegative
-      lastUsedDescText = data.text
-      lastUsedDescNegative = data.negative_prompt || ''
-      description.value = data.text
-      if (negLoaded) negative.value = data.negative_prompt || ''
-    }
-  } catch (e) {
-    error.value = t('generate.error_update', { error: String(e) })
-  }
-}
-
 async function resolveImageBase64() {
   if (!generatedImage.value) return null
   if (!generatedImage.value.startsWith('/api/')) return generatedImage.value
@@ -649,7 +452,7 @@ function onQueueFailed(data, { tracked, paused }) {
 }
 
 async function interruptBatch() {
-  ideasBatchStopped = true
+  stopIdeasBatch()
   if (enqueuedJobIds.value.size > 0) {
     try {
       await api.cancelQueue()
@@ -731,94 +534,13 @@ onMounted(async () => {
   await loadPresets()
   loadKidsMode()
   await loadSavedDescs()
-  let resolutionLoaded = false
-  try {
-    const s = await api.getSettings()
-    if (s.gen_type_id) {
-      const tid = Number(s.gen_type_id) || null
-      if (tid && genTypes.value.find(pt => pt.id === tid)) {
-        selectedTypeId.value = tid
-      }
-    }
-    if (s.gen_extra_prompt) extraPrompt.value = s.gen_extra_prompt
-    if (s.gen_extra_negative) extraNegativePrompt.value = s.gen_extra_negative
-    if (s.gen_preset_id) {
-      const pid = Number(s.gen_preset_id)
-      if (presets.value.find(p => p.id === pid)) {
-        selectedPresetId.value = pid
-      }
-    }
-    if (s.gen_description) description.value = s.gen_description
-    const rid = Number(s.gen_desc_id) || null
-    const rdesc = rid && savedDescs.value.find(d => d.id === rid)
-    let bindingRestored = false
-    if (rdesc && rdesc.text === description.value) {
-      currentDescId = rdesc.id
-      lastUsedDescText = rdesc.text
-      lastUsedDescNegative = rdesc.negative_prompt || ''
-      bindingRestored = true
-    }
-    if (s.gen_negative && (bindingRestored || !rid)) negative.value = s.gen_negative
-    if (s.gen_mode === 'preset' || s.gen_mode === 'compound' || s.gen_mode === 'custom') genMode.value = s.gen_mode
-    if (s.gen_compound_preset_id) {
-      const cpid = Number(s.gen_compound_preset_id)
-      if (compoundPresets.value.find(c => c.id === cpid)) {
-        selectedCompoundPresetId.value = cpid
-      }
-    }
-    if (s.gen_custom_steps) {
-      try {
-        customSteps.value = restoreCustomSteps(JSON.parse(s.gen_custom_steps), presets.value)
-      } catch (e) {
-        console.warn('GeneratePage.onMounted:', e)
-      }
-    }
-    if (s.gen_resolution_id) {
-      selectedResolutionId.value = Number(s.gen_resolution_id)
-      resolutionLoaded = true
-    }
-    if (s.gen_hires_profile_id) selectedHiresProfileId.value = Number(s.gen_hires_profile_id)
-    if (s.gen_count) genCount.value = Math.max(1, Math.min(100, Number(s.gen_count) || 1))
-  } catch (e) {
-    console.warn('GeneratePage.onMounted:', e)
-  }
-  if (shared) {
-    if (shared.selectedPresetId) {
-      const pid = Number(shared.selectedPresetId)
-      if (presets.value.find(p => p.id === pid)) {
-        selectedPresetId.value = pid
-      }
-    }
-    if (shared.selectedCompoundPresetId) {
-      const cpid = Number(shared.selectedCompoundPresetId)
-      if (compoundPresets.value.find(c => c.id === cpid)) {
-        selectedCompoundPresetId.value = cpid
-      }
-    }
-    if (shared.genMode === 'preset' || shared.genMode === 'compound' || shared.genMode === 'custom') genMode.value = shared.genMode
-    if (shared.description) description.value = shared.description
-    if (shared.negative) negative.value = shared.negative
-    if (shared.selectedResolutionId) {
-      selectedResolutionId.value = shared.selectedResolutionId
-      resolutionLoaded = true
-    }
-    if (shared.selectedHiresProfileId !== undefined) selectedHiresProfileId.value = shared.selectedHiresProfileId
-  }
-  if (!resolutionLoaded) {
-    try {
-      const resolutions = await api.listResolutions()
-      if (resolutions && resolutions.length > 0) selectedResolutionId.value = resolutions[0].id
-    } catch (e) {
-      console.warn('GeneratePage.onMounted:', e)
-    }
-  }
+  await restoreGenState()
   if (!isReset) {
     try {
       const item = await api.getActiveSessionItem()
       if (item) {
         generatedImage.value = api.sessionImageUrl(item.id)
         shownItemId.value = item.id
-    shownItemId.value = item.id
         genInfo.value = item.info || null
         sourceImage.value = generatedImage.value
         sourceGenInfo.value = item.info || null
@@ -848,20 +570,11 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  ideasBatchStopped = true
+  stopIdeasBatch()
   offSessionAdded()
   document.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', onResize)
-  saveGenState()
-  if (shared) {
-    shared.selectedPresetId = selectedPresetId.value
-    shared.selectedCompoundPresetId = selectedCompoundPresetId.value
-    shared.genMode = genMode.value === 'custom' ? 'preset' : genMode.value
-    shared.description = description.value
-    shared.negative = negative.value
-    shared.selectedResolutionId = selectedResolutionId.value
-    shared.selectedHiresProfileId = selectedHiresProfileId.value
-  }
+  persistGenState()
 })
 
 function onKeydown(e) {
@@ -889,45 +602,23 @@ function onKeydown(e) {
     <div class="gen-workspace">
       <div class="gen-preview-col">
         <div class="generate-image-area" :class="{ 'loading': generatingImage && !generatedImage, 'empty': !generatedImage && !generatingImage }">
-          <div v-if="generatingImage && !generatedImage" style="text-align: center; padding: 24px;">
-            <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" style="max-width: 100%; border-radius: var(--radius-sm); opacity: 0.6; image-rendering: pixelated;" />
-            <span v-else class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></span>
-            <p style="margin-top: 12px; color: var(--text-dim);">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ llmStatus === 'thinking' ? t('generate.generating_prompt') : upscalingX2 ? t('generate.upscaling_x2') : t('generate.generating_image') }}</p>
-            <div v-if="sdProgress && sdProgress.progress > 0" style="margin-top: 12px; max-width: 300px; margin-left: auto; margin-right: auto;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="color: var(--text-dim); font-size: 12px;">{{ Math.round(sdProgress.progress * 100) }}%</span>
-                <span style="color: var(--text-dim); font-size: 12px;">{{ t('progress.sd_step', { current: Math.round(sdProgress.progress * sdProgress.steps), total: sdProgress.steps }) }}
-                  <span v-if="sdProgress.etaRelative > 0"> — ~{{ Math.ceil(sdProgress.etaRelative) }}s</span>
-                </span>
-              </div>
-              <div style="background: var(--surface-2); border-radius: 4px; overflow: hidden; height: 6px;">
-                <div :style="{ width: (sdProgress.progress * 100) + '%', background: 'var(--accent)', height: '100%', transition: 'width 0.3s' }"></div>
-              </div>
-              <button class="btn btn-sm btn-secondary" @click="interruptBatch" style="margin-top: 8px; font-size: 11px;">{{ t('progress.btn_interrupt') }}</button>
-            </div>
+          <div v-if="generatingImage && !generatedImage" class="gen-loading">
+            <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" class="gen-loading-preview" />
+            <span v-else class="spinner gen-spinner-lg"></span>
+            <p class="gen-loading-text">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ llmStatus === 'thinking' ? t('generate.generating_prompt') : upscalingX2 ? t('generate.upscaling_x2') : t('generate.generating_image') }}</p>
+            <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="gen-loading-progress" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats @interrupt="interruptBatch" />
           </div>
-          <div v-else-if="generatingImage && generatedImage && enqueuedJobIds.size > 0" style="width: 100%; padding: 12px; position: relative;">
-            <img :src="imageSrc" alt="Generating..." style="border-radius: var(--radius-sm); opacity: 0.4; width: 100%;" />
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(0,0,0,0.6); padding: 16px 24px; border-radius: 8px;">
-              <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" style="max-width: 200px; border-radius: var(--radius-sm); opacity: 0.8; image-rendering: pixelated;" />
-              <span v-else class="spinner" style="width: 24px; height: 24px; border-width: 2px;"></span>
-              <p style="margin-top: 8px; color: var(--text-dim); font-size: 13px;">{{ (batchDone + 1) + ' / ' + batchTotal }}</p>
-              <div v-if="sdProgress && sdProgress.progress > 0" style="margin-top: 8px; min-width: 180px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                  <span style="color: var(--text-dim); font-size: 11px;">{{ Math.round(sdProgress.progress * 100) }}%</span>
-                  <span style="color: var(--text-dim); font-size: 11px;">
-                    <span v-if="sdProgress.etaRelative > 0">~{{ Math.ceil(sdProgress.etaRelative) }}s</span>
-                  </span>
-                </div>
-                <div style="background: var(--surface-2); border-radius: 4px; overflow: hidden; height: 4px;">
-                  <div :style="{ width: (sdProgress.progress * 100) + '%', background: 'var(--accent)', height: '100%', transition: 'width 0.3s' }"></div>
-                </div>
-                <button class="btn btn-sm btn-secondary" @click="interruptBatch" style="margin-top: 8px; font-size: 11px;">{{ t('progress.btn_interrupt') }}</button>
-              </div>
+          <div v-else-if="generatingImage && generatedImage && enqueuedJobIds.size > 0" class="gen-batch">
+            <img :src="imageSrc" alt="Generating..." class="gen-batch-img" />
+            <div class="gen-batch-overlay">
+              <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" class="gen-batch-preview" />
+              <span v-else class="spinner gen-spinner-md"></span>
+              <p class="gen-batch-count">{{ (batchDone + 1) + ' / ' + batchTotal }}</p>
+              <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="gen-batch-progress" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats small :show-step="false" @interrupt="interruptBatch" />
             </div>
           </div>
           <div v-else-if="generatedImage" class="gen-result">
-            <StatusMessage v-if="hiresSkipped" kind="warning" style="margin-bottom: 8px; text-align: center;" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
+            <StatusMessage v-if="hiresSkipped" kind="warning" class="gen-hires-warning" @close="hiresSkipped = false">{{ t('generate.hires_skipped') }}</StatusMessage>
             <div class="gen-stage-wrap">
               <div class="viewfinder" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
               <div
@@ -973,18 +664,18 @@ function onKeydown(e) {
 
         <details v-if="genInfo" class="gen-info card">
           <summary>{{ t('generate.technical_details') }}</summary>
-          <pre style="white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word;">{{ formattedGenInfo }}</pre>
+          <pre class="gen-info-pre">{{ formattedGenInfo }}</pre>
         </details>
 
         <details v-if="effectivePrompt" class="gen-info card">
           <summary>{{ t('generate.final_prompt') }}</summary>
-          <div style="margin-bottom: 8px;">
-            <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 4px;">{{ t('generate.positive') }}</div>
-            <div style="font-size: 12px; line-height: 1.5; word-break: break-word;">{{ effectivePrompt }}</div>
+          <div class="gen-prompt-block">
+            <div class="gen-prompt-label">{{ t('generate.positive') }}</div>
+            <div class="gen-prompt-text">{{ effectivePrompt }}</div>
           </div>
-          <div v-if="effectiveNegative" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
-            <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 4px;">{{ t('generate.negative') }}</div>
-            <div style="font-size: 12px; line-height: 1.5; word-break: break-word;">{{ effectiveNegative }}</div>
+          <div v-if="effectiveNegative" class="gen-prompt-negative">
+            <div class="gen-prompt-label">{{ t('generate.negative') }}</div>
+            <div class="gen-prompt-text">{{ effectiveNegative }}</div>
           </div>
         </details>
       </div>
@@ -997,7 +688,7 @@ function onKeydown(e) {
             </div>
             <div class="card-collapse" :class="{ collapsed: openSection !== 'main' }">
               <div class="card-body">
-                <div class="form-group" style="display: flex; gap: 8px;">
+                <div class="form-group gen-mode-row">
                   <button class="btn btn-sm" :class="genMode === 'preset' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'preset'" @click="genMode = 'preset'">{{ t('generate.btn_style') }}</button>
                   <button class="btn btn-sm" :class="genMode === 'compound' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'compound'" @click="genMode = 'compound'">{{ t('generate.btn_workflow') }}</button>
                   <button class="btn btn-sm" :class="genMode === 'custom' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="genMode === 'custom'" @click="genMode = 'custom'">{{ t('generate.btn_custom') }}</button>
@@ -1030,7 +721,7 @@ function onKeydown(e) {
 
                 <div v-if="genMode === 'custom'" class="form-group">
                   <CustomPipelineEditor v-model="customSteps" :presets="presets" :disable-loras="kidsModeActive" />
-                  <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                  <div class="gen-pipeline-actions">
                     <button class="btn btn-sm btn-secondary" :disabled="!customValid" @click="openSavePipelineModal">{{ t('generate.save_pipeline') }}</button>
                   </div>
                 </div>
@@ -1038,7 +729,7 @@ function onKeydown(e) {
                 <div class="form-group">
                   <label class="form-label">{{ t('generate.label_description') }}</label>
                   <textarea class="form-textarea" v-model="description" rows="4" :placeholder="t('generate.placeholder_description')"></textarea>
-                  <div style="display: flex; gap: 8px; margin-top: 6px;">
+                  <div class="gen-desc-actions">
                     <button class="btn btn-sm btn-secondary" @click="saveDescription" :disabled="!description.trim()">{{ t('generate.btn_save') }}</button>
                     <button class="btn btn-sm btn-secondary" @click="showSavedDescs = !showSavedDescs">
                       {{ t('generate.saved_ideas') }} {{ savedDescs.length ? '(' + savedDescs.length + ')' : '' }}
@@ -1064,7 +755,7 @@ function onKeydown(e) {
                 <div v-if="genMode === 'preset' || genMode === 'custom'" class="form-group">
                   <label class="form-label">{{ t('generate.seed_label') }}</label>
                   <input class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
-                  <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ genMode === 'custom' ? t('generate.seed_hint_custom') : t('generate.seed_hint') }}</div>
+                  <div class="gen-hint">{{ genMode === 'custom' ? t('generate.seed_hint_custom') : t('generate.seed_hint') }}</div>
                 </div>
               </div>
             </div>
@@ -1095,7 +786,7 @@ function onKeydown(e) {
                   <label class="form-label">{{ t('generate.label_negative_prompt') }}</label>
                   <textarea class="form-textarea" v-model="extraNegativePrompt" rows="2" :placeholder="t('generate.placeholder_negative_prompt')"></textarea>
                 </div>
-                <button class="btn btn-secondary" style="width: 100%; justify-content: center;" @click="sendToSD" :disabled="generateDisabled || !extraPrompt">
+                <button class="btn btn-secondary gen-direct-btn" @click="sendToSD" :disabled="generateDisabled || !extraPrompt">
                   {{ t('generate.btn_generate_directly') }}
                 </button>
               </div>
@@ -1104,9 +795,9 @@ function onKeydown(e) {
         </div>
         <div class="gen-actions">
           <div class="gen-actions-row">
-            <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" style="justify-content: center;" @click="generateImage" :disabled="generateDisabled">
-              <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
-                <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+            <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" @click="generateImage" :disabled="generateDisabled">
+              <span v-if="generatingImage" class="gen-btn-inner">
+                <span class="spinner gen-action-spinner"></span>
                 {{ generationStage === 'prompt' ? t('generate.generating_prompt') : t('generate.generating_image') }}
               </span>
               <span v-else>{{ genCount <= 1 ? t('generate.btn_generate') : t('generate.btn_generate_n', { count: genCount }) }}</span>
@@ -1140,20 +831,20 @@ function onKeydown(e) {
     <ImageViewer v-if="showViewer" :image-base64="generatedImage" @close="showViewer = false" />
 
     <div v-if="showSavePipelineModal" class="modal-overlay">
-      <div class="modal-content" style="max-width: 400px;">
-        <h3 style="margin: 0 0 12px;">{{ t('generate.save_pipeline_title') }}</h3>
+      <div class="modal-content gen-modal">
+        <h3 class="gen-modal-title">{{ t('generate.save_pipeline_title') }}</h3>
         <div class="form-group">
           <label class="form-label">{{ t('generate.save_pipeline_name') }}</label>
           <input class="form-input" v-model="pipelineName" :placeholder="t('generate.save_pipeline_placeholder_name')" @keydown.enter="confirmSavePipeline" :disabled="savingPipeline" autofocus />
         </div>
-        <div class="form-group" style="margin-top: 8px;">
+        <div class="form-group gen-modal-field">
           <label class="form-label">{{ t('generate.save_pipeline_description') }}</label>
           <input class="form-input" v-model="pipelineDescription" :placeholder="t('generate.save_pipeline_placeholder_description')" :disabled="savingPipeline" />
         </div>
-        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
+        <div class="gen-modal-actions">
           <button class="btn btn-secondary" @click="showSavePipelineModal = false" :disabled="savingPipeline">{{ t('compound.btn_cancel') }}</button>
           <button class="btn btn-primary" @click="confirmSavePipeline" :disabled="!pipelineName.trim() || savingPipeline">
-            <span v-if="savingPipeline" class="spinner" style="width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span>
+            <span v-if="savingPipeline" class="spinner gen-action-spinner gen-spinner-inline"></span>
             {{ t('generate.save_pipeline') }}
           </button>
         </div>
@@ -1317,15 +1008,12 @@ function onKeydown(e) {
     width: auto;
   }
 }
-</style>
-<style scoped>
 .gen-controls .btn-generate {
+  justify-content: center;
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
 }
-</style>
-<style scoped>
 .card-collapse.collapsed > .card-body {
   padding-top: 0;
   padding-bottom: 0;
@@ -1472,5 +1160,145 @@ function onKeydown(e) {
 .split-zoom-menu button.active {
   color: var(--accent);
   font-weight: 600;
+}
+.gen-loading {
+  text-align: center;
+  padding: 24px;
+}
+.gen-loading-preview {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  opacity: 0.6;
+  image-rendering: pixelated;
+}
+.gen-spinner-lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+.gen-loading-text {
+  margin-top: 12px;
+  color: var(--text-dim);
+}
+.gen-loading-progress {
+  margin-top: 12px;
+  max-width: 300px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.gen-batch {
+  width: 100%;
+  padding: 12px;
+  position: relative;
+}
+.gen-batch-img {
+  border-radius: var(--radius-sm);
+  opacity: 0.4;
+  width: 100%;
+}
+.gen-batch-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: rgba(0,0,0,0.6);
+  padding: 16px 24px;
+  border-radius: 8px;
+}
+.gen-batch-preview {
+  max-width: 200px;
+  border-radius: var(--radius-sm);
+  opacity: 0.8;
+  image-rendering: pixelated;
+}
+.gen-spinner-md {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+}
+.gen-batch-count {
+  margin-top: 8px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.gen-batch-progress {
+  margin-top: 8px;
+  min-width: 180px;
+}
+.gen-hires-warning {
+  margin-bottom: 8px;
+  text-align: center;
+}
+.gen-info-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.gen-prompt-block {
+  margin-bottom: 8px;
+}
+.gen-prompt-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.gen-prompt-text {
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.gen-prompt-negative {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.gen-mode-row {
+  display: flex;
+  gap: 8px;
+}
+.gen-pipeline-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.gen-desc-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.gen-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.gen-direct-btn {
+  width: 100%;
+  justify-content: center;
+}
+.gen-btn-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.gen-modal {
+  max-width: 400px;
+}
+.gen-modal-title {
+  margin: 0 0 12px;
+}
+.gen-modal-field {
+  margin-top: 8px;
+}
+.gen-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.gen-spinner-inline {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 </style>

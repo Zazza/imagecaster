@@ -1,5 +1,6 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
+import GenProgress from './GenProgress.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -183,10 +184,7 @@ defineExpose({
       <span v-else>{{ op === 'replace' ? t('object.btn_replace') : t('object.btn_remove') }}</span>
     </button>
 
-    <div v-if="running && sdProgress && sdProgress.progress > 0" class="object-progress">
-      <div class="object-progress-bar"><div :style="{ width: (sdProgress.progress * 100) + '%' }"></div></div>
-      <button class="btn btn-sm btn-secondary" style="width: 100%; margin-top: 8px; font-size: 11px;" @click="interruptGeneration">{{ t('progress.btn_interrupt') }}</button>
-    </div>
+    <GenProgress v-if="running && sdProgress && sdProgress.progress > 0" class="object-progress" :progress="sdProgress.progress" block @interrupt="interruptGeneration" />
 
     <div v-if="detectedObject && !running" style="font-size: 12px; color: var(--text-dim); margin-top: 10px;">
       {{ t('object.detected', { object: detectedObject }) }}
@@ -270,18 +268,6 @@ defineExpose({
 .object-progress {
   margin-top: 10px;
   text-align: center;
-}
-.object-progress-bar {
-  background: var(--surface-2);
-  border-radius: 4px;
-  overflow: hidden;
-  height: 6px;
-  margin-top: 6px;
-}
-.object-progress-bar div {
-  background: var(--accent);
-  height: 100%;
-  transition: width 0.3s;
 }
 .gen-info {
   margin-top: 10px;

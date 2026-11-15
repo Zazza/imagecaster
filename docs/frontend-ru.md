@@ -57,7 +57,7 @@ frontend/src/
 - значения формы сохраняются в настройки (ключи `gen_*`).
 
 ### Постобработка
-`PostProcessPage.vue` — одна картинка (или пакет), карточки пронумерованы по порядку:
+`PostProcessPage.vue` — одна картинка (или пакет), карточки пронумерованы по порядку (части страницы — в `components/post/`: просмотр `PostViewer`, пакет `BatchStrip`, `EffectPanel`, `AdjustPanel`, `FinishPanel`, `ExportPanel`, `RecipesPanel`; общие стили `post-shared.css`):
 
 | № | Ключ заголовка | Подпись | Реализация |
 |---|---|---|---|
@@ -90,14 +90,14 @@ frontend/src/
 `CatalogPage.vue` — каталог моделей сервера (`GetModelCatalog`): скачать / удалить модели и LLM, «Скачать всё для пресетов», прогресс в `DownloadProgress.vue`. Состояние — в `serverModels.js`.
 
 ### Настройки
-`SettingsPage.vue`, вкладки:
-- Подключение (`settings.tab_connection`) — адрес сервера и поиск в сети, процессы сервера (запуск / остановка / перезапуск / логи), память GPU, выбор моделей для промптов и для фото, параметры LLM (контекст, максимум токенов, top-p, потоки);
+`SettingsPage.vue` (загрузка настроек и опрос статуса сервера), вкладки — `components/settings/*Tab.vue`:
+- Подключение (`settings.tab_connection`) — адрес сервера и поиск в сети, процессы сервера (запуск / остановка / перезапуск / логи), память GPU, выбор моделей для промптов и для фото, параметры LLM (контекст, top-p, потоки);
 - Промпты (`settings.tab_prompts`) — редактируемые промпты со значениями по умолчанию от бэкенда;
 - Безопасность (`settings.tab_safety`) — безопасный режим (`settings.section_kids`) с PIN (`PinModal.vue`) и категориями;
 - Дополнительно (`settings.tab_advanced`) — видеопамять (`settings.section_memory_guard`, автовыгрузка LLM), списки SD/LoRA и LLM-моделей на сервере.
 
 ### Подвал
-`AppFooter.vue` — статус сервисов (`CheckServices`), версия приложения, три вкладки панели:
+`AppFooter.vue` — статус сервисов (`CheckServices`), версия приложения, три вкладки панели (История — `footer/SessionPanel.vue`, Журнал — `footer/LogPanel.vue`):
 - История (`footer.session`) — элементы текущей сессии, переключение сессий (слушает `session:*`);
 - Журнал (`footer.log`) — `GetLogEntries` + `log:entry`;
 - Обработка (`footer.processing`) — `QueuePanel.vue`: пауза / продолжение, отмена, повтор, продолжение приостановленных (`queue.resume_paused`).
@@ -105,7 +105,7 @@ frontend/src/
 Одна кнопка закрытия открытой панели. Высота подвала сохраняется через `SaveWindowLayout`.
 
 ### Общие виджеты
-`ImageViewer.vue` (полный просмотр, масштаб, пред./след., удаление, отправка в Постобработку, данные генерации), `FoldBlock.vue` (сворачиваемый блок), `StatusMessage.vue`, `ToggleSwitch.vue`, `SearchableSelect.vue`, `DownloadProgress.vue`.
+`ImageViewer.vue` (полный просмотр, масштаб, пред./след., удаление, отправка в Постобработку, данные генерации), `FoldBlock.vue` (сворачиваемый блок), `StatusMessage.vue`, `ToggleSwitch.vue`, `SearchableSelect.vue`, `DownloadProgress.vue`, `GenProgress.vue` (прогресс генерации с кнопкой остановки), `ZoomControls.vue` (кнопки масштаба для `useZoomPan`).
 
 ## api.js
 
@@ -126,6 +126,11 @@ frontend/src/
 | `useMaskCanvas.js` | рисование маски с отменой/повтором |
 | `useZoomPan.js` | масштаб 10–500 % (быстрые 30/50/100), сдвиг, Ctrl+колесо |
 | `useWindowFrame.js` | классы состояния окна для окна без рамки |
+| `useJobTracker.js` | ожидание заданий очереди страницы: результат по id элемента истории, отмена, ошибки |
+| `useServerLoras.js` | список LoRA с сервера; одновременные запросы объединяются в один, кэша нет |
+| `useGenStatePersistence.js`, `useSavedDescriptions.js`, `useIdeasBatch.js` | Генерация: сохранение формы, сохранённые идеи, пакет идей |
+| `useImageInput.js`, `usePostBatch.js`, `usePostAdjust.js` | Постобработка: загрузка картинки, пакет, ползунки и предпросмотр |
+| `useServiceStatus.js`, `useFooterResize.js` | Подвал: проверка сервисов раз в 30 с, высота панели |
 
 ## Модули состояния и помощники
 

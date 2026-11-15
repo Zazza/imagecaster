@@ -5,11 +5,17 @@ export const ZOOM_MIN = 10
 export const ZOOM_MAX = 500
 export const ZOOM_PRESETS = [30, 50, 100]
 
-export function useZoomPan(areaRef) {
+function clientSize(el) {
+  return { w: el.clientWidth, h: el.clientHeight }
+}
+
+export function useZoomPan(areaRef, options = {}) {
+  const measureArea = options.measure || clientSize
+  const observe = options.observe !== false
   const naturalW = ref(0)
   const naturalH = ref(0)
-  const areaW = ref(0)
-  const areaH = ref(0)
+  const areaW = ref(options.initialSize?.w || 0)
+  const areaH = ref(options.initialSize?.h || 0)
   const zoomMode = ref('fit')
   const zoomPct = ref(100)
   const panX = ref(0)
@@ -20,6 +26,8 @@ export function useZoomPan(areaRef) {
   let lastY = 0
   let moved = 0
   let observer = null
+  let suppressDbl = false
+  let suppressDblTimer = null
 
   const isFit = computed(() => zoomMode.value === 'fit')
   const zoomLabel = computed(() => isFit.value ? t('viewer.zoom_fit') : zoomPct.value + '%')
@@ -39,8 +47,11 @@ export function useZoomPan(areaRef) {
   function measure() {
     const el = areaRef.value
     if (!el) return
-    areaW.value = el.clientWidth
-    areaH.value = el.clientHeight
+    const size = measureArea(el)
+    if (size) {
+      areaW.value = size.w
+      areaH.value = size.h
+    }
     if (!isFit.value) clampPan()
   }
 
@@ -85,6 +96,18 @@ export function useZoomPan(areaRef) {
     zoomMenuOpen.value = !zoomMenuOpen.value
   }
 
+  function toggleFit100() {
+    if (suppressDbl) return
+    if (isFit.value) enterZoom(100)
+    else setFit()
+  }
+
+  function resetImage() {
+    naturalW.value = 0
+    naturalH.value = 0
+    setFit()
+  }
+
   function onImgLoad(e) {
     naturalW.value = e.target.naturalWidth
     naturalH.value = e.target.naturalHeight
@@ -118,6 +141,11 @@ export function useZoomPan(areaRef) {
   }
 
   function onPointerUp() {
+    if (panning.value && moved > 4) {
+      suppressDbl = true
+      clearTimeout(suppressDblTimer)
+      suppressDblTimer = setTimeout(() => { suppressDbl = false }, 300)
+    }
     panning.value = false
   }
 
@@ -129,17 +157,20 @@ export function useZoomPan(areaRef) {
     observer?.disconnect()
     observer = null
     if (!el) return
-    if (typeof ResizeObserver !== 'undefined') {
+    if (observe && typeof ResizeObserver !== 'undefined') {
       observer = new ResizeObserver(measure)
       observer.observe(el)
     }
     measure()
   })
-  onScopeDispose(() => observer?.disconnect())
+  onScopeDispose(() => {
+    observer?.disconnect()
+    clearTimeout(suppressDblTimer)
+  })
 
   return {
-    naturalW, naturalH, zoomPct, panning, zoomMenuOpen, isFit, zoomLabel, panEnabled, layerStyle,
-    fitPercent, enterZoom, setFit, zoomBy, onZoomIndicatorClick, onImgLoad, onWheel,
+    naturalW, naturalH, zoomPct, panX, panY, renderedW, renderedH, panning, zoomMenuOpen, isFit, zoomLabel, panEnabled, layerStyle,
+    measure, fitPercent, enterZoom, setFit, zoomBy, onZoomIndicatorClick, toggleFit100, resetImage, onImgLoad, onWheel,
     onPointerDown, onPointerMove, onPointerUp, wasDragged,
   }
 }

@@ -6,6 +6,7 @@ import { modelLoraText } from '../modelLora.js'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { buildLorasOverride, sanitizeWeight, sameLoras } from '../loraOverride.js'
+import { fetchServerLoras } from '../composables/useServerLoras.js'
 
 const props = defineProps({
   modelValue: { type: Object, default: null },
@@ -107,13 +108,14 @@ async function loadLists() {
       api.getModels(),
       api.getSamplers(),
       api.getSchedulers(),
-      api.getLoRAs(),
+      fetchServerLoras(),
     ])
     models.value = m || []
     samplers.value = s || []
     schedulers.value = sch || []
     serverLoras.value = lor || []
   } catch (e) {
+    console.error('overrides lists load error:', e)
     loadError.value = true
     loaded.value = false
   }

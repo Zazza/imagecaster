@@ -4,6 +4,8 @@ import { t } from '../i18n/index.js'
 import { b64Url } from '../imageDataUrl.js'
 import { parseLoras } from '../loraOverride.js'
 import { ChevronLeft, ChevronRight, Info, X } from 'lucide-vue-next'
+import { useZoomPan } from '../composables/useZoomPan.js'
+import ZoomControls from './ZoomControls.vue'
 
 const props = defineProps({
   imageBase64: { type: String, required: true },
@@ -20,24 +22,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'prev', 'next', 'export', 'delete'])
 
 const infoExpanded = ref(false)
-
-const ZOOM_MIN = 10
-const ZOOM_MAX = 500
-const ZOOM_PRESETS = [30, 50, 100]
-
-const naturalW = ref(0)
-const naturalH = ref(0)
-const zoomMode = ref('fit')
-const zoomPct = ref(100)
-const panX = ref(0)
-const panY = ref(0)
-const dragging = ref(false)
-const zoomMenuOpen = ref(false)
-let dragLastX = 0
-let dragLastY = 0
-let dragMovedDist = 0
-let suppressDbl = false
-let suppressDblTimer = null
 
 const imgSrc = computed(() => b64Url(props.imageBase64))
 
@@ -103,34 +87,20 @@ const chainRows = computed(() => chain.value.map((s, i) => {
   }
 }))
 
-const isFit = computed(() => zoomMode.value === 'fit')
-const zoomLabel = computed(() => isFit.value ? t('viewer.zoom_fit') : zoomPct.value + '%')
-
 const stageRef = ref(null)
-const stageW = ref(window.innerWidth)
-const stageH = ref(window.innerHeight)
-const availW = computed(() => stageW.value)
-const availH = computed(() => stageH.value)
 const showCounter = computed(() => props.total > 1 && props.position > 0)
-let stageObserver = null
 
-function measureStage() {
-  const el = stageRef.value
-  if (el && el.clientWidth && el.clientHeight) {
-    const cs = window.getComputedStyle(el)
-    stageW.value = el.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0)
-    stageH.value = el.clientHeight - parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0)
+function stageSize(el) {
+  if (!el.clientWidth || !el.clientHeight) return null
+  const cs = window.getComputedStyle(el)
+  return {
+    w: el.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0),
+    h: el.clientHeight - parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0),
   }
-  if (!isFit.value) clampPan()
 }
 
-const renderedW = computed(() => naturalW.value ? (naturalW.value * zoomPct.value) / 100 : 0)
-const renderedH = computed(() => naturalH.value ? (naturalH.value * zoomPct.value) / 100 : 0)
-
-const panEnabled = computed(() => {
-  if (isFit.value || !naturalW.value) return false
-  return renderedW.value > availW.value || renderedH.value > availH.value
-})
+const zoom = useZoomPan(stageRef, { measure: stageSize, initialSize: { w: window.innerWidth, h: window.innerHeight } })
+const { naturalW, isFit, panEnabled, panning, zoomMenuOpen, renderedW, panX, panY } = zoom
 
 const imgStyle = computed(() => {
   if (isFit.value || !naturalW.value) return null
@@ -140,105 +110,9 @@ const imgStyle = computed(() => {
   }
 })
 
-function clampPan() {
-  const maxX = Math.max(0, (renderedW.value - availW.value) / 2)
-  const maxY = Math.max(0, (renderedH.value - availH.value) / 2)
-  panX.value = Math.min(maxX, Math.max(-maxX, panX.value))
-  panY.value = Math.min(maxY, Math.max(-maxY, panY.value))
-}
+watch(() => props.imageBase64, () => zoom.resetImage())
 
-function fitPercent() {
-  if (!naturalW.value || !naturalH.value) return 100
-  const scale = Math.min(availW.value / naturalW.value, availH.value / naturalH.value)
-  return Math.floor(scale * 100)
-}
-
-function enterZoom(pct) {
-  zoomMode.value = 'pct'
-  zoomPct.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pct))
-  clampPan()
-  zoomMenuOpen.value = false
-}
-
-function setFit() {
-  zoomMode.value = 'fit'
-  zoomPct.value = 100
-  panX.value = 0
-  panY.value = 0
-  dragging.value = false
-  zoomMenuOpen.value = false
-}
-
-function zoomBy(delta) {
-  const base = isFit.value ? Math.floor(fitPercent() / 10) * 10 : zoomPct.value
-  enterZoom(base + delta)
-}
-
-function onZoomIndicatorClick() {
-  if (!isFit.value) {
-    setFit()
-    return
-  }
-  zoomMenuOpen.value = !zoomMenuOpen.value
-}
-
-function toggleFit100() {
-  if (suppressDbl) return
-  if (isFit.value) enterZoom(100)
-  else setFit()
-}
-
-function onImgLoad(e) {
-  naturalW.value = e.target.naturalWidth
-  naturalH.value = e.target.naturalHeight
-  if (!isFit.value) clampPan()
-}
-
-function onPointerDown(e) {
-  if (!panEnabled.value || e.button !== 0) return
-  dragging.value = true
-  dragMovedDist = 0
-  dragLastX = e.clientX
-  dragLastY = e.clientY
-  e.target.setPointerCapture(e.pointerId)
-}
-
-function onPointerMove(e) {
-  if (!dragging.value) return
-  panX.value += e.clientX - dragLastX
-  panY.value += e.clientY - dragLastY
-  dragMovedDist += Math.abs(e.clientX - dragLastX) + Math.abs(e.clientY - dragLastY)
-  dragLastX = e.clientX
-  dragLastY = e.clientY
-  clampPan()
-}
-
-function onPointerUp() {
-  if (dragging.value && dragMovedDist > 4) {
-    suppressDbl = true
-    clearTimeout(suppressDblTimer)
-    suppressDblTimer = setTimeout(() => { suppressDbl = false }, 300)
-  }
-  dragging.value = false
-}
-
-function onWheel(e) {
-  if (!e.ctrlKey) return
-  e.preventDefault()
-  zoomBy(e.deltaY < 0 ? 10 : -10)
-}
-
-function onResize() {
-  measureStage()
-}
-
-watch(() => props.imageBase64, () => {
-  naturalW.value = 0
-  naturalH.value = 0
-  setFit()
-})
-
-watch(infoExpanded, () => nextTick(measureStage))
+watch(infoExpanded, () => nextTick(zoom.measure))
 
 function onKeydown(e) {
   if (e.key === 'Escape') {
@@ -253,18 +127,12 @@ function onKeydown(e) {
 
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
-  window.addEventListener('resize', onResize)
-  if (typeof ResizeObserver !== 'undefined' && stageRef.value) {
-    stageObserver = new ResizeObserver(measureStage)
-    stageObserver.observe(stageRef.value)
-  }
-  measureStage()
+  window.addEventListener('resize', zoom.measure)
+  zoom.measure()
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('resize', onResize)
-  if (stageObserver) stageObserver.disconnect()
-  clearTimeout(suppressDblTimer)
+  window.removeEventListener('resize', zoom.measure)
 })
 </script>
 
@@ -275,31 +143,7 @@ onUnmounted(() => {
         <span v-if="showCounter" class="iv-counter">{{ t('viewer.counter', { n: position, total }) }}</span>
         <span v-if="title" class="iv-title" :title="title">{{ title }}</span>
       </div>
-      <div class="image-viewer-zoom">
-        <button
-          class="image-viewer-zoom-btn"
-          :title="t('viewer.zoom_out')"
-          :aria-label="t('viewer.zoom_out')"
-          :disabled="isFit && fitPercent() <= ZOOM_MIN"
-          @click="zoomBy(-10)"
-        >&minus;</button>
-        <button class="image-viewer-zoom-btn image-viewer-zoom-label" :title="t('viewer.zoom_presets')" :aria-expanded="zoomMenuOpen" aria-haspopup="menu" @click="onZoomIndicatorClick">{{ zoomLabel }}</button>
-        <button
-          class="image-viewer-zoom-btn"
-          :title="t('viewer.zoom_in')"
-          :aria-label="t('viewer.zoom_in')"
-          @click="zoomBy(10)"
-        >&plus;</button>
-        <div v-if="zoomMenuOpen" class="image-viewer-zoom-menu" role="menu">
-          <button :class="{ active: isFit }" @click="setFit">{{ t('viewer.zoom_fit') }}</button>
-          <button
-            v-for="p in ZOOM_PRESETS"
-            :key="p"
-            :class="{ active: !isFit && zoomPct === p }"
-            @click="enterZoom(p)"
-          >{{ p }}%</button>
-        </div>
-      </div>
+      <ZoomControls :zoom="zoom" prefix="image-viewer-zoom" :limit-max="false" />
       <div class="iv-toolbar-side iv-toolbar-right">
         <button
           v-if="item"
@@ -324,19 +168,19 @@ onUnmounted(() => {
     </div>
     <div class="iv-body">
       <div class="iv-main">
-        <div ref="stageRef" class="image-viewer-stage" @wheel="onWheel" @pointerdown="zoomMenuOpen = false">
+        <div ref="stageRef" class="image-viewer-stage" @wheel="zoom.onWheel" @pointerdown="zoomMenuOpen = false">
           <img
             :src="imgSrc"
             :alt="t('viewer.full_size')"
-            :class="{ zoomed: !isFit && naturalW > 0, pannable: panEnabled, panning: dragging }"
+            :class="{ zoomed: !isFit && naturalW > 0, pannable: panEnabled, panning }"
             :style="imgStyle"
-            @dblclick="toggleFit100"
+            @dblclick="zoom.toggleFit100"
             @dragstart.prevent
-            @load="onImgLoad"
-            @pointerdown="onPointerDown"
-            @pointermove="onPointerMove"
-            @pointerup="onPointerUp"
-            @pointercancel="onPointerUp"
+            @load="zoom.onImgLoad"
+            @pointerdown="zoom.onPointerDown"
+            @pointermove="zoom.onPointerMove"
+            @pointerup="zoom.onPointerUp"
+            @pointercancel="zoom.onPointerUp"
           />
         </div>
         <button v-if="hasPrev" class="image-viewer-nav image-viewer-prev" :aria-label="t('viewer.prev')" @click="$emit('prev')"><ChevronLeft :size="32" :stroke-width="1.5" /></button>

@@ -57,7 +57,7 @@ frontend/src/
 - form values are saved to settings (`gen_*` keys).
 
 ### Post-processing
-`PostProcessPage.vue` — one image (or a batch), cards numbered in order:
+`PostProcessPage.vue` — one image (or a batch), cards numbered in order (page parts live in `components/post/`: viewer `PostViewer`, batch `BatchStrip`, `EffectPanel`, `AdjustPanel`, `FinishPanel`, `ExportPanel`, `RecipesPanel`; shared styles `post-shared.css`):
 
 | # | Title key | Label | Implementation |
 |---|---|---|---|
@@ -90,14 +90,14 @@ Styles whose model or LoRA is missing on the server are hidden (`presetAvailabil
 `CatalogPage.vue` — server model catalog (`GetModelCatalog`): download / delete models and LLMs, "Download all for presets", progress in `DownloadProgress.vue`. State in `serverModels.js`.
 
 ### Settings
-`SettingsPage.vue`, tabs:
-- Connection (`settings.tab_connection`) — server address and network search, server processes (start / stop / restart / logs), GPU memory, prompt and photo model choice, LLM parameters (context, max tokens, top-p, threads);
+`SettingsPage.vue` (loads settings, polls server status), tabs in `components/settings/*Tab.vue`:
+- Connection (`settings.tab_connection`) — server address and network search, server processes (start / stop / restart / logs), GPU memory, prompt and photo model choice, LLM parameters (context, top-p, threads);
 - Prompts (`settings.tab_prompts`) — editable prompts with defaults from the backend;
 - Safety (`settings.tab_safety`) — safe mode (`settings.section_kids`) with PIN (`PinModal.vue`) and categories;
 - Advanced (`settings.tab_advanced`) — video memory (`settings.section_memory_guard`, auto-unload LLM), SD/LoRA and LLM model lists on the server.
 
 ### Footer
-`AppFooter.vue` — service status (`CheckServices`), app version, three panel tabs:
+`AppFooter.vue` — service status (`CheckServices`), app version, three panel tabs (History — `footer/SessionPanel.vue`, Log — `footer/LogPanel.vue`):
 - History (`footer.session`) — items of the current session, session switching (listens to `session:*`);
 - Log (`footer.log`) — `GetLogEntries` + `log:entry`;
 - Processing (`footer.processing`) — `QueuePanel.vue`: pause / resume, cancel, retry, resume paused (`queue.resume_paused`).
@@ -105,7 +105,7 @@ Styles whose model or LoRA is missing on the server are hidden (`presetAvailabil
 One close button for the open panel. The footer height is saved with `SaveWindowLayout`.
 
 ### Shared widgets
-`ImageViewer.vue` (full view, zoom, prev/next, delete, send to Post-processing, generation info), `FoldBlock.vue` (collapsible block), `StatusMessage.vue`, `ToggleSwitch.vue`, `SearchableSelect.vue`, `DownloadProgress.vue`.
+`ImageViewer.vue` (full view, zoom, prev/next, delete, send to Post-processing, generation info), `FoldBlock.vue` (collapsible block), `StatusMessage.vue`, `ToggleSwitch.vue`, `SearchableSelect.vue`, `DownloadProgress.vue`, `GenProgress.vue` (generation progress with a stop button), `ZoomControls.vue` (zoom buttons for `useZoomPan`).
 
 ## api.js
 
@@ -126,6 +126,11 @@ One close button for the open panel. The footer height is saved with `SaveWindow
 | `useMaskCanvas.js` | mask drawing with undo/redo |
 | `useZoomPan.js` | zoom 10–500 % (presets 30/50/100), pan, Ctrl+wheel |
 | `useWindowFrame.js` | window state classes for the frameless window |
+| `useJobTracker.js` | waits for a page's queue jobs: result by history item id, cancel, errors |
+| `useServerLoras.js` | server LoRA list; simultaneous requests are joined into one, no cache |
+| `useGenStatePersistence.js`, `useSavedDescriptions.js`, `useIdeasBatch.js` | Generate: form persistence, saved ideas, ideas batch |
+| `useImageInput.js`, `usePostBatch.js`, `usePostAdjust.js` | Post-process: image input, batch, sliders and preview |
+| `useServiceStatus.js`, `useFooterResize.js` | Footer: service check every 30 s, panel height |
 
 ## State modules and helpers
 

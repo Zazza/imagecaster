@@ -1,0 +1,159 @@
+.form-range {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.form-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.adj-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group-half {
+  flex: 1;
+}
+
+.form-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-inline .form-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.form-divider {
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+.form-control {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.preset-row {
+  display: flex;
+  gap: 8px;
+}
+
+.preset-row .form-select {
+  flex: 1;
+}
+
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preset-empty {
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px;
+}
+
+.preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.preset-item:hover {
+  background: var(--surface-2);
+}
+
+.preset-item.active {
+  background: var(--accent-bg);
+}
+
+.preset-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.preset-name {
+  font-size: 13px;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.preset-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.preset-item:hover .preset-actions {
+  opacity: 1;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 14px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.btn-icon:hover {
+  color: var(--text-bright);
+  background: var(--surface-3);
+}
+
+.btn-icon-danger:hover {
+  color: var(--danger);
+}
+
+.btn-icon.btn-confirm {
+  color: var(--danger);
+}
+
+.preset-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-block {
+  width: 100%;
+}

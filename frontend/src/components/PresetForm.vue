@@ -4,6 +4,8 @@ import { ref, onMounted, reactive } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import StatusMessage from './StatusMessage.vue'
+import { parseLoras } from '../loraOverride.js'
+import { fetchServerLoras } from '../composables/useServerLoras.js'
 
 const props = defineProps({
   preset: Object,
@@ -21,12 +23,7 @@ const presetTypes = ref([])
 
 const presetLoras = ref([])
 
-try {
-  const raw = props.preset?.loras
-  if (raw) presetLoras.value = JSON.parse(raw)
-} catch (e) {
-  console.warn('PresetForm:', e)
-}
+presetLoras.value = parseLoras(props.preset?.loras, { defaultWeight: 1, min: -Infinity, max: Infinity })
 
 const form = reactive({
   name: props.preset?.name || '',
@@ -81,7 +78,7 @@ function loadVAEs() {
 }
 
 function loadLoRAs() {
-  return loadList(loras, api.getLoRAs)
+  return loadList(loras, fetchServerLoras)
 }
 
 function loadPresetTypes() {

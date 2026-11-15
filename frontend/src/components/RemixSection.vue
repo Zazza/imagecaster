@@ -1,6 +1,7 @@
 <script setup>
 import { X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
+import GenProgress from './GenProgress.vue'
 import { b64Url } from '../imageDataUrl.js'
 import FoldBlock from './FoldBlock.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
@@ -479,16 +480,7 @@ function onKeydown(e) {
         <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
         <span class="remix-progress-label">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ progressLabel }}</span>
       </div>
-      <div v-if="sdProgress && sdProgress.progress > 0" class="remix-progress-info">
-        <div class="remix-progress-row remix-progress-stats">
-          <span>{{ Math.round(sdProgress.progress * 100) }}%</span>
-          <span>{{ t('progress.sd_step', { current: Math.round(sdProgress.progress * sdProgress.steps), total: sdProgress.steps }) }}<span v-if="sdProgress.etaRelative > 0"> — ~{{ Math.ceil(sdProgress.etaRelative) }}s</span></span>
-        </div>
-        <div class="remix-progress-bar">
-          <div :style="{ width: (sdProgress.progress * 100) + '%' }"></div>
-        </div>
-        <button class="btn btn-sm btn-secondary btn-block" @click="interruptBatch">{{ t('progress.btn_interrupt') }}</button>
-      </div>
+      <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="remix-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats block @interrupt="interruptBatch" />
     </div>
 
     <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" style="margin-top: 8px;" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
@@ -527,34 +519,8 @@ function onKeydown(e) {
   color: var(--text-dim);
   font-size: 12px;
 }
-.remix-progress-stats {
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.remix-progress-stats span {
-  color: var(--text-dim);
-  font-size: 12px;
-}
 .remix-progress-info {
   margin-top: 8px;
-}
-.remix-progress-bar {
-  background: var(--surface-2);
-  border-radius: 4px;
-  overflow: hidden;
-  height: 6px;
-}
-.remix-progress-bar div {
-  background: var(--accent);
-  height: 100%;
-  transition: width 0.3s;
-}
-.remix-progress-info .btn {
-  margin-top: 8px;
-  font-size: 11px;
-}
-.btn-block {
-  width: 100%;
 }
 .gen-info {
   margin-top: 10px;

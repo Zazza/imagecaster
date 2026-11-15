@@ -95,3 +95,25 @@ test('buildLorasOverride: edited back to original -> null', () => {
   expect(buildLorasOverride(original, edited, false)).toBe(JSON.stringify([{ name: 'a', weight: 0.9 }]))
   expect(buildLorasOverride(original, original, false)).toBeNull()
 })
+
+describe('lora weight options', () => {
+  it('uses the given default weight for a missing weight', () => {
+    expect(parseLoras('[{"name":"x"}]', { defaultWeight: 1 })).toEqual([{ name: 'x', weight: 1 }])
+    expect(parseLoras('[{"name":"x"}]')).toEqual([{ name: 'x', weight: 0.6 }])
+  })
+
+  it('keeps negative weights when the minimum allows them', () => {
+    expect(sanitizeWeight(-1.5, { defaultWeight: 1, min: -2 })).toBe(-1.5)
+    expect(sanitizeWeight(-1.5)).toBe(0.6)
+  })
+
+  it('clamps to the maximum', () => {
+    expect(sanitizeWeight(5, { defaultWeight: 1, min: -2 })).toBe(2)
+  })
+})
+
+  it('without limits keeps stored weights as they are, like the effect and preset form', () => {
+    const free = { defaultWeight: 1, min: -Infinity, max: Infinity }
+    expect(parseLoras('[{"name":"a","weight":-2.5},{"name":"b","weight":2.7},{"name":"c"}]', free))
+      .toEqual([{ name: 'a', weight: -2.5 }, { name: 'b', weight: 2.7 }, { name: 'c', weight: 1 }])
+  })

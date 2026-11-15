@@ -1,5 +1,6 @@
 <script setup>
 import StatusMessage from './StatusMessage.vue'
+import GenProgress from './GenProgress.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -151,11 +152,7 @@ defineExpose({
       <span v-else>{{ t('repair.btn_run') }}</span>
     </button>
 
-    <div v-if="running && tileTotal > 0" data-testid="repair-progress" class="repair-progress">
-      <div class="repair-progress-label">{{ t('repair.progress', { n: tileCurrent, m: tileTotal }) }}</div>
-      <div class="repair-progress-bar"><div :style="{ width: (overallProgress * 100) + '%' }"></div></div>
-      <button class="btn btn-sm btn-secondary" style="width: 100%; margin-top: 8px; font-size: 11px;" @click="interruptGeneration">{{ t('progress.btn_interrupt') }}</button>
-    </div>
+    <GenProgress v-if="running && tileTotal > 0" data-testid="repair-progress" class="repair-progress" :progress="overallProgress" :label="t('repair.progress', { n: tileCurrent, m: tileTotal })" block @interrupt="interruptGeneration" />
 
 
     <details class="repair-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
@@ -217,22 +214,6 @@ defineExpose({
 .repair-progress {
   margin-top: 10px;
   text-align: center;
-}
-.repair-progress-label {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.repair-progress-bar {
-  background: var(--surface-2);
-  border-radius: 4px;
-  overflow: hidden;
-  height: 6px;
-  margin-top: 6px;
-}
-.repair-progress-bar div {
-  background: var(--accent);
-  height: 100%;
-  transition: width 0.3s;
 }
 .repair-more {
   margin-top: 12px;

@@ -1,274 +1,68 @@
 <script setup>
-import { ChevronRight, X } from 'lucide-vue-next'
-import StatusMessage from './StatusMessage.vue'
-import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, watch, provide, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { checkServer } from '../serverState.js'
-import {
-  serverURL, serverModels, serverModelsLoading, modelActionLoading, activeDownload, activeLabel,
-  loadServerModels, downloadModel, deleteModel, pullLLM, deleteLLMModel,
-} from '../serverModels.js'
+import { serverURL, loadServerModels } from '../serverModels.js'
 import { t } from '../i18n/index.js'
-import ToggleSwitch from './ToggleSwitch.vue'
-import PinModal from './PinModal.vue'
-import FoldBlock from './FoldBlock.vue'
-import DownloadProgress from './DownloadProgress.vue'
+import ConnectionTab from './settings/ConnectionTab.vue'
+import PromptsTab from './settings/PromptsTab.vue'
+import SafetyTab from './settings/SafetyTab.vue'
+import AdvancedTab from './settings/AdvancedTab.vue'
 
 const props = defineProps({
   initialTab: { type: String, default: 'connection' },
   active: { type: Boolean, default: true }
 })
 
+const TABS = [
+  ['connection', 'settings.tab_connection'],
+  ['prompts', 'settings.tab_prompts'],
+  ['safety', 'settings.tab_safety'],
+  ['advanced', 'settings.tab_advanced'],
+]
+
 const activeTab = ref(props.initialTab || 'connection')
 watch(() => props.initialTab, (tab) => { if (tab) activeTab.value = tab })
 
-// --- Server discovery & status ---
-const discoveredServers = ref([])
-const discovering = ref(false)
-const serverStatus = ref(null)
-
-// --- Server models ---
-const serverModelDownload = reactive({ type: 'sd', url: '', filename: '' })
-const llmPullName = ref('')
-const processActionLoading = reactive({})
-const visibleLogs = reactive({})
-const processLogs = reactive({})
-const utilitiesExpanded = ref(false)
-
-
-
-// --- Direct mode forms ---
-const connectionForm = reactive({
-  llm_keep_alive: '5m',
-  llm_max_tokens: '256',
-})
-const connectionSaved = ref(false)
-const connectionError = ref('')
-
-const generateModel = ref('')
-const analyzeModel = ref('')
-
-const generateParams = reactive({
-  num_ctx: 4096,
-  top_p: 0.9,
-  num_thread: 0,
-})
-
-const analyzeParams = reactive({
-  num_ctx: 4096,
-  top_p: 0.9,
-  num_thread: 0,
-})
-
-const llmParamsSaved = ref(false)
-const llmParamsError = ref('')
-
-const kidsMode = ref(false)
-const showPinModal = ref(false)
-const pinMode = ref('set')
-const pinError = ref('')
-const kidsCategories = ref([])
-const kidsCatPinModal = ref(false)
-const kidsCatPinError = ref('')
-const kidsCatPending = ref(null)
-
-const memoryForm = reactive({
-  llm_auto_unload: true,
-})
-const memorySaved = ref(false)
-const memoryError = ref('')
-
-async function saveMemoryGuard() {
-  memorySaved.value = false
-  memoryError.value = ''
-  try {
-    await api.updateSettings({
-      llm_auto_unload: memoryForm.llm_auto_unload ? 'true' : 'false',
-    })
-    memorySaved.value = true
-  } catch (e) {
-    memoryError.value = String(e)
-  }
+const state = {
+  discoveredServers: ref([]),
+  discovering: ref(false),
+  serverStatus: ref(null),
+  utilitiesExpanded: ref(false),
+  generateModel: ref(''),
+  analyzeModel: ref(''),
+  generateParams: reactive({ num_ctx: 4096, top_p: 0.9, num_thread: 0 }),
+  analyzeParams: reactive({ num_ctx: 4096, top_p: 0.9, num_thread: 0 }),
+  kidsMode: ref(false),
+  kidsCategories: ref([]),
+  memoryForm: reactive({ llm_auto_unload: true }),
+  processActionLoading: reactive({}),
+  serverModelDownload: reactive({ type: 'sd', url: '', filename: '' }),
+  llmPullName: ref(''),
+  promptInstruction: ref(''),
+  defaultPromptInstruction: ref(''),
+  promptInstructionProse: ref(''),
+  defaultPromptInstructionProse: ref(''),
+  analyzeSystemPrompt: ref(''),
+  analyzeSinglePrompt: ref(''),
+  analyzeDescribePrompt: ref(''),
+  editGarmentPrompt: ref(''),
+  defaultAnalyzePrompts: ref(null),
+  defaultGarmentPrompt: ref(''),
+  refreshServerStatus,
+  pollServerStatus,
+  loadKidsCategories,
 }
-
-const promptInstruction = ref('')
-const promptInstructionSaved = ref(false)
-const promptInstructionError = ref('')
-const defaultPromptInstruction = ref('')
-
-const promptInstructionProse = ref('')
-const promptInstructionProseSaved = ref(false)
-const promptInstructionProseError = ref('')
-const defaultPromptInstructionProse = ref('')
-
-const analyzeSystemPrompt = ref('')
-const analyzeSinglePrompt = ref('')
-const analyzeDescribePrompt = ref('')
-const editGarmentPrompt = ref('')
-const analyzeSaved = ref(false)
-const analyzeError = ref('')
-const defaultAnalyzePrompts = ref(null)
-const defaultGarmentPrompt = ref('')
-
-async function loadSettings() {
-  try {
-    const settings = await api.getSettings()
-    connectionForm.llm_keep_alive = settings.llm_keep_alive || '5m'
-    connectionForm.llm_max_tokens = settings.llm_max_tokens || '256'
-    generateModel.value = settings.llm_generate_model || settings.sd_prompt_model || ''
-    analyzeModel.value = settings.llm_analyze_model || settings.vision_model || ''
-    generateParams.num_ctx = parseInt(settings.llm_generate_num_ctx) || 4096
-    generateParams.top_p = parseFloat(settings.llm_generate_top_p) || 0.9
-    generateParams.num_thread = parseInt(settings.llm_generate_num_thread) || 0
-    analyzeParams.num_ctx = parseInt(settings.llm_analyze_num_ctx) || 4096
-    analyzeParams.top_p = parseFloat(settings.llm_analyze_top_p) || 0.9
-    analyzeParams.num_thread = parseInt(settings.llm_analyze_num_thread) || 0
-    kidsMode.value = await api.isKidsModeActive()
-    loadKidsCategories()
-    memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
-    promptInstruction.value = settings.sd_prompt_instruction || ''
-    promptInstructionProse.value = settings.sd_prompt_instruction_prose || ''
-    serverURL.value = settings.server_url || ''
-    if (serverURL.value) {
-      refreshServerStatus()
-    }
-  } catch (e) {
-    console.error('loadSettings:', e)
-  }
-
-  try {
-    defaultPromptInstruction.value = await api.getDefaultPromptInstruction()
-  } catch (e) {
-    console.error('getDefaultPromptInstruction:', e)
-  }
-
-  if (!promptInstruction.value && defaultPromptInstruction.value) {
-    promptInstruction.value = defaultPromptInstruction.value
-  }
-
-  try {
-    defaultPromptInstructionProse.value = await api.getDefaultPromptInstructionProse()
-  } catch (e) {
-    console.error('getDefaultPromptInstructionProse:', e)
-  }
-
-  if (!promptInstructionProse.value && defaultPromptInstructionProse.value) {
-    promptInstructionProse.value = defaultPromptInstructionProse.value
-  }
-
-  try {
-    const settings = await api.getSettings()
-    analyzeSystemPrompt.value = settings.analyze_system_prompt || ''
-    analyzeSinglePrompt.value = settings.analyze_prompt || ''
-    analyzeDescribePrompt.value = settings.analyze_describe_prompt || ''
-    editGarmentPrompt.value = settings.edit_garment_prompt || ''
-  } catch (e) {
-    console.error('loadAnalyzeSettings:', e)
-  }
-
-  try {
-    defaultAnalyzePrompts.value = await api.getDefaultAnalyzePrompts()
-  } catch (e) {
-    console.error('getDefaultAnalyzePrompts:', e)
-  }
-
-  if (!analyzeSystemPrompt.value && defaultAnalyzePrompts.value) {
-    analyzeSystemPrompt.value = defaultAnalyzePrompts.value.system_prompt
-  }
-  if (!analyzeSinglePrompt.value && defaultAnalyzePrompts.value) {
-    analyzeSinglePrompt.value = defaultAnalyzePrompts.value.single_prompt
-  }
-  if (!analyzeDescribePrompt.value && defaultAnalyzePrompts.value) {
-    analyzeDescribePrompt.value = defaultAnalyzePrompts.value.describe_prompt || ''
-  }
-
-  try {
-    defaultGarmentPrompt.value = await api.getDefaultEditGarmentPrompt()
-  } catch (e) {
-    console.error('getDefaultEditGarmentPrompt:', e)
-  }
-  if (!editGarmentPrompt.value && defaultGarmentPrompt.value) {
-    editGarmentPrompt.value = defaultGarmentPrompt.value
-  }
-}
-
-// --- Server mode functions ---
-
-async function discoverServers() {
-  discovering.value = true
-  discoveredServers.value = []
-  try {
-    discoveredServers.value = await api.discoverServers() || []
-  } catch (e) {
-    console.error('discoverServers:', e)
-  } finally {
-    discovering.value = false
-  }
-}
-
-async function selectServer(server) {
-  const url = `http://${server.ip_address}:${server.port}`
-  serverURL.value = url
-  try {
-    await saveServerURL()
-  } catch (e) {
-    connectionError.value = String(e)
-    return
-  }
-  await refreshServerStatus()
-}
-
-async function saveServerURL() {
-  await api.updateSettings({ server_url: serverURL.value })
-}
+provide('settingsState', state)
 
 async function refreshServerStatus() {
   if (!serverURL.value) return
   checkServer()
   try {
-    serverStatus.value = await api.getServerStatus()
+    state.serverStatus.value = await api.getServerStatus()
     loadServerModels()
   } catch (e) {
     console.error('refreshServerStatus:', e)
-  }
-}
-
-async function startProcess(name) {
-  processActionLoading[name] = true
-  try {
-    await api.startServerProcess(name)
-    pollServerStatus()
-  } catch (e) {
-    alert(t('settings.err_start', { error: String(e) }))
-    await refreshServerStatus()
-  } finally {
-    delete processActionLoading[name]
-  }
-}
-
-async function stopProcess(name) {
-  processActionLoading[name] = true
-  try {
-    await api.stopServerProcess(name)
-    pollServerStatus()
-  } catch (e) {
-    alert(t('settings.err_stop', { error: String(e) }))
-    await refreshServerStatus()
-  } finally {
-    delete processActionLoading[name]
-  }
-}
-
-async function restartProcess(name) {
-  processActionLoading[name] = true
-  try {
-    await api.restartServerProcess(name)
-    pollServerStatus()
-  } catch (e) {
-    alert(t('settings.err_restart', { error: String(e) }))
-    await refreshServerStatus()
-  } finally {
-    delete processActionLoading[name]
   }
 }
 
@@ -291,209 +85,77 @@ function pollServerStatus(interval = 2000, count = 10) {
 
 onUnmounted(stopServerPoll)
 
-const logTimers = {}
-
-async function refreshProcessLogs(name) {
-  try {
-    processLogs[name] = await api.getServerProcessLogs(name, 50) || []
-  } catch (e) {
-    processLogs[name] = [t('settings.logs_error', { error: e?.message || String(e) })]
-  }
-}
-
-function hideProcessLogs(name) {
-  visibleLogs[name] = false
-  clearInterval(logTimers[name])
-  delete logTimers[name]
-}
-
-function hideAllProcessLogs() {
-  for (const name of Object.keys(visibleLogs)) hideProcessLogs(name)
-}
-
-watch(() => props.active, (on) => { if (!on) hideAllProcessLogs() })
-watch(activeTab, (tab) => { if (tab !== 'connection') hideAllProcessLogs() })
-onUnmounted(hideAllProcessLogs)
-
-async function showProcessLogs(name) {
-  if (visibleLogs[name]) {
-    hideProcessLogs(name)
-    return
-  }
-  visibleLogs[name] = true
-  await refreshProcessLogs(name)
-  if (visibleLogs[name] && !logTimers[name]) {
-    logTimers[name] = setInterval(() => refreshProcessLogs(name), 2000)
-  }
-}
-
-async function saveServerConnection() {
-  connectionSaved.value = false
-  connectionError.value = ''
-  try {
-    await api.updateSettings({
-      server_url: serverURL.value,
-      llm_generate_model: generateModel.value,
-      llm_analyze_model: analyzeModel.value,
-    })
-    connectionSaved.value = true
-    await refreshServerStatus()
-  } catch (e) {
-    connectionError.value = String(e)
-  }
-}
-
-function formatBytes(bytes) {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}
-
-async function saveLLMParams() {
-  llmParamsSaved.value = false
-  llmParamsError.value = ''
-  try {
-    await api.updateSettings({
-      llm_generate_num_ctx: String(generateParams.num_ctx),
-      llm_generate_top_p: String(generateParams.top_p),
-      llm_generate_num_thread: String(generateParams.num_thread),
-      llm_analyze_num_ctx: String(analyzeParams.num_ctx),
-      llm_analyze_top_p: String(analyzeParams.top_p),
-      llm_analyze_num_thread: String(analyzeParams.num_thread),
-    })
-    llmParamsSaved.value = true
-  } catch (e) {
-    llmParamsError.value = String(e)
-  }
-}
-
-async function pullFromForm() {
-  if (await pullLLM(llmPullName.value)) llmPullName.value = ''
-}
-
-function switchTab(tab) {
-  activeTab.value = tab
-}
-
-function onKidsToggle(val) {
-  pinError.value = ''
-  if (val) {
-    pinMode.value = 'set'
-    showPinModal.value = true
-  } else {
-    pinMode.value = 'verify'
-    showPinModal.value = true
-  }
-}
-
-async function onPinConfirm(pin) {
-  pinError.value = ''
-  const enabled = pinMode.value === 'set'
-  try {
-    await api.setKidsMode(enabled, pin)
-    kidsMode.value = enabled
-    showPinModal.value = false
-    if (enabled) loadKidsCategories()
-  } catch (e) {
-    pinError.value = String(e) || 'Error'
-  }
-}
-
-function onPinCancel() {
-  showPinModal.value = false
-  pinError.value = ''
-}
-
 async function loadKidsCategories() {
   try {
-    kidsCategories.value = await api.getKidsCategories()
+    state.kidsCategories.value = await api.getKidsCategories()
   } catch (e) {
     console.warn('SettingsPage.loadKidsCategories:', e)
   }
 }
 
-function onKidsCatToggle(cat) {
-  if (cat.alwaysOn || !kidsMode.value) return
-  kidsCatPending.value = { name: cat.name, enabled: !cat.enabled }
-  kidsCatPinError.value = ''
-  kidsCatPinModal.value = true
-}
-
-async function onKidsCatPinConfirm(pin) {
-  if (!kidsCatPending.value) return
-  kidsCatPinError.value = ''
+async function loadDefault(target, getter, label) {
   try {
-    await api.setKidsCategory(kidsCatPending.value.name, kidsCatPending.value.enabled, pin)
-    const cat = kidsCategories.value.find(c => c.name === kidsCatPending.value.name)
-    if (cat) cat.enabled = kidsCatPending.value.enabled
-    kidsCatPinModal.value = false
-    kidsCatPending.value = null
+    target.value = await getter()
   } catch (e) {
-    kidsCatPinError.value = String(e) || 'Error'
+    console.error(label + ':', e)
   }
 }
 
-function onKidsCatPinCancel() {
-  kidsCatPinModal.value = false
-  kidsCatPending.value = null
-  kidsCatPinError.value = ''
+function fillEmpty(target, value) {
+  if (!target.value && value) target.value = value
 }
 
-async function savePromptInstruction() {
-  promptInstructionSaved.value = false
-  promptInstructionError.value = ''
+async function loadSettings() {
+  const s = state
   try {
-    await api.updateSettings({ sd_prompt_instruction: promptInstruction.value })
-    promptInstructionSaved.value = true
-  } catch (e) {
-    promptInstructionError.value = String(e)
-  }
-}
-
-async function savePromptInstructionProse() {
-  promptInstructionProseSaved.value = false
-  promptInstructionProseError.value = ''
-  try {
-    await api.updateSettings({ sd_prompt_instruction_prose: promptInstructionProse.value })
-    promptInstructionProseSaved.value = true
-  } catch (e) {
-    promptInstructionProseError.value = String(e)
-  }
-}
-
-async function saveAnalyzePrompts() {
-  analyzeSaved.value = false
-  analyzeError.value = ''
-  try {
-    const data = {
-      analyze_system_prompt: storedPrompt(analyzeSystemPrompt.value, defaultAnalyzePrompts.value?.system_prompt),
-      analyze_prompt: storedPrompt(analyzeSinglePrompt.value, defaultAnalyzePrompts.value?.single_prompt),
-      analyze_describe_prompt: storedPrompt(analyzeDescribePrompt.value, defaultAnalyzePrompts.value?.describe_prompt),
-      edit_garment_prompt: storedPrompt(editGarmentPrompt.value, defaultGarmentPrompt.value),
+    const settings = await api.getSettings()
+    s.generateModel.value = settings.llm_generate_model || settings.sd_prompt_model || ''
+    s.analyzeModel.value = settings.llm_analyze_model || settings.vision_model || ''
+    s.generateParams.num_ctx = parseInt(settings.llm_generate_num_ctx) || 4096
+    s.generateParams.top_p = parseFloat(settings.llm_generate_top_p) || 0.9
+    s.generateParams.num_thread = parseInt(settings.llm_generate_num_thread) || 0
+    s.analyzeParams.num_ctx = parseInt(settings.llm_analyze_num_ctx) || 4096
+    s.analyzeParams.top_p = parseFloat(settings.llm_analyze_top_p) || 0.9
+    s.analyzeParams.num_thread = parseInt(settings.llm_analyze_num_thread) || 0
+    s.kidsMode.value = await api.isKidsModeActive()
+    loadKidsCategories()
+    s.memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
+    s.promptInstruction.value = settings.sd_prompt_instruction || ''
+    s.promptInstructionProse.value = settings.sd_prompt_instruction_prose || ''
+    serverURL.value = settings.server_url || ''
+    if (serverURL.value) {
+      refreshServerStatus()
     }
-    await api.updateSettings(data)
-    analyzeSaved.value = true
   } catch (e) {
-    analyzeError.value = String(e)
+    console.error('loadSettings:', e)
   }
-}
 
-function resetAnalyzePrompts() {
-  if (!defaultAnalyzePrompts.value) return
-  analyzeSystemPrompt.value = defaultAnalyzePrompts.value.system_prompt
-  analyzeSinglePrompt.value = defaultAnalyzePrompts.value.single_prompt
-  analyzeDescribePrompt.value = defaultAnalyzePrompts.value.describe_prompt || ''
-  if (defaultGarmentPrompt.value) editGarmentPrompt.value = defaultGarmentPrompt.value
-}
+  await loadDefault(s.defaultPromptInstruction, api.getDefaultPromptInstruction, 'getDefaultPromptInstruction')
+  fillEmpty(s.promptInstruction, s.defaultPromptInstruction.value)
 
-function storedPrompt(value, def) {
-  return def && value.trim() === def.trim() ? '' : value
-}
+  await loadDefault(s.defaultPromptInstructionProse, api.getDefaultPromptInstructionProse, 'getDefaultPromptInstructionProse')
+  fillEmpty(s.promptInstructionProse, s.defaultPromptInstructionProse.value)
 
-function promptState(value, def) {
-  return value && def && value.trim() !== def.trim() ? t('settings.prompt_custom') : t('settings.prompt_default')
+  try {
+    const settings = await api.getSettings()
+    s.analyzeSystemPrompt.value = settings.analyze_system_prompt || ''
+    s.analyzeSinglePrompt.value = settings.analyze_prompt || ''
+    s.analyzeDescribePrompt.value = settings.analyze_describe_prompt || ''
+    s.editGarmentPrompt.value = settings.edit_garment_prompt || ''
+  } catch (e) {
+    console.error('loadAnalyzeSettings:', e)
+  }
+
+  await loadDefault(s.defaultAnalyzePrompts, api.getDefaultAnalyzePrompts, 'getDefaultAnalyzePrompts')
+  const defs = s.defaultAnalyzePrompts.value
+  if (defs) {
+    fillEmpty(s.analyzeSystemPrompt, defs.system_prompt)
+    fillEmpty(s.analyzeSinglePrompt, defs.single_prompt)
+    if (!s.analyzeDescribePrompt.value) s.analyzeDescribePrompt.value = defs.describe_prompt || ''
+  }
+
+  await loadDefault(s.defaultGarmentPrompt, api.getDefaultEditGarmentPrompt, 'getDefaultEditGarmentPrompt')
+  fillEmpty(s.editGarmentPrompt, s.defaultGarmentPrompt.value)
 }
 
 onMounted(loadSettings)
@@ -506,364 +168,12 @@ onMounted(loadSettings)
     </div>
 
     <div class="tabs">
-      <button class="tab" :class="{ active: activeTab === 'connection' }" @click="switchTab('connection')">{{ t('settings.tab_connection') }}</button>
-      <button class="tab" :class="{ active: activeTab === 'prompts' }" @click="switchTab('prompts')">{{ t('settings.tab_prompts') }}</button>
-      <button class="tab" :class="{ active: activeTab === 'safety' }" @click="switchTab('safety')">{{ t('settings.tab_safety') }}</button>
-      <button class="tab" :class="{ active: activeTab === 'advanced' }" @click="switchTab('advanced')">{{ t('settings.tab_advanced') }}</button>
+      <button v-for="[tab, key] in TABS" :key="tab" class="tab" :class="{ active: activeTab === tab }" @click="activeTab = tab">{{ t(key) }}</button>
     </div>
 
-    <!-- Connection Tab -->
-    <div v-if="activeTab === 'connection'" class="card">
-      <StatusMessage v-if="connectionSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="connectionSaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
-      <StatusMessage v-if="connectionError" style="margin-bottom: 16px;" @close="connectionError = ''">{{ connectionError }}</StatusMessage>
-
-        <div class="form-group">
-          <label class="form-label">{{ t('settings.label_server_url') }}</label>
-          <div style="display: flex; gap: 8px;">
-            <input class="form-input" v-model="serverURL" placeholder="http://192.168.1.100:8080" style="flex: 1;" />
-            <button class="btn btn-secondary btn-sm" @click="discoverServers" :disabled="discovering">
-              {{ discovering ? t('settings.btn_discovering') : t('settings.btn_discover') }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Discovered Servers -->
-        <div v-if="discoveredServers.length > 0" style="margin-bottom: 16px;">
-          <div v-for="srv in discoveredServers" :key="srv.ip_address + ':' + srv.port"
-            @click="selectServer(srv)"
-            style="padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s;"
-            @mouseenter="$event.target.style.borderColor = 'var(--accent)'"
-            @mouseleave="$event.target.style.borderColor = 'var(--border)'"
-          >
-            <div style="color: var(--text-bright); font-size: 13px; font-weight: 500;">{{ srv.name || 'Imagecaster Server' }}</div>
-            <div style="color: var(--text-dim); font-size: 12px;">{{ srv.ip_address }}:{{ srv.port }}</div>
-          </div>
-        </div>
-        <div v-else-if="discovering" style="color: var(--text-dim); font-size: 13px; margin-bottom: 16px; text-align: center;">
-          <span class="spinner"></span> {{ t('settings.btn_discovering') }}
-        </div>
-
-        <!-- Server Status -->
-        <div v-if="serverStatus" style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;">
-          <div style="color: var(--text-bright); font-weight: 500; margin-bottom: 8px;">{{ t('settings.section_server_status') }}</div>
-          <!-- Services -->
-          <div v-for="(proc, name) in (serverStatus.processes || {})" :key="name" :data-testid="'process-row-' + name" v-show="proc.name && proc.category !== 'utility' && name !== 'ollama'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
-                <span data-testid="process-status" :style="{ color: proc.status === 'running' ? 'var(--success)' : proc.status === 'starting' ? 'var(--warning)' : 'var(--danger)', marginLeft: '8px', fontSize: '12px' }">
-                  {{ proc.status === 'running' ? t('settings.process_running') : proc.status === 'starting' ? t('settings.process_starting') : proc.status === 'crashed' ? t('settings.process_crashed') : proc.status === 'unhealthy' ? t('settings.process_unhealthy') : t('settings.process_stopped') }}
-                </span>
-                <span v-if="proc.pid" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">PID {{ proc.pid }}</span>
-                <span v-if="proc.uptime" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">{{ proc.uptime }}</span>
-                <span v-if="proc.restarts > 0" style="color: var(--warning); font-size: 11px; margin-left: 6px;">{{ t('settings.process_restarts', { count: proc.restarts }) }}</span>
-              </div>
-              <div style="display: flex; gap: 6px;">
-                <button v-if="proc.status !== 'running' && proc.status !== 'starting' && proc.status !== 'unhealthy'" data-testid="process-start" class="btn btn-primary btn-sm" @click="startProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_start') }}</button>
-                <button v-if="proc.status === 'running' || proc.status === 'unhealthy'" data-testid="process-stop" class="btn btn-secondary btn-sm" @click="stopProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_stop') }}</button>
-                <button v-if="proc.status === 'running' || proc.status === 'unhealthy'" data-testid="process-restart" class="btn btn-secondary btn-sm" @click="restartProcess(name)" :disabled="processActionLoading[name]">{{ t('settings.btn_restart') }}</button>
-                <button class="btn btn-secondary btn-sm" @click="showProcessLogs(name)">{{ t('settings.btn_logs') }}</button>
-              </div>
-            </div>
-            <div v-if="visibleLogs[name]" style="margin-top: 6px; padding: 8px; background: var(--bg-dark); border-radius: 4px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px; color: var(--text-dim);">
-              <div v-if="processLogs[name] && processLogs[name].length > 0">
-                <div v-for="(line, i) in processLogs[name]" :key="i">{{ line }}</div>
-              </div>
-              <div v-else style="color: var(--text-dim);">{{ t('settings.no_logs') }}</div>
-            </div>
-          </div>
-          <!-- GPU -->
-          <div v-if="serverStatus.gpu && serverStatus.gpu.available" style="margin-top: 8px; font-size: 12px; color: var(--text-dim);">
-            {{ t('settings.gpu_vram', { name: serverStatus.gpu.name, used: serverStatus.gpu.memory_used_mb, total: serverStatus.gpu.memory_total_mb }) }}
-          </div>
-          <!-- Utilities (collapsed) -->
-          <div v-if="Object.entries(serverStatus.processes || {}).some(([n, p]) => p.category === 'utility' && p.name && n !== 'python' && n !== 'ollama')" style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
-            <div @click="utilitiesExpanded = !utilitiesExpanded" style="cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
-              <span :style="{ transform: utilitiesExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-flex' }"><ChevronRight :size="12" /></span>
-              {{ t('settings.section_utilities') }}
-            </div>
-            <div v-if="utilitiesExpanded">
-              <div v-for="(proc, name) in (serverStatus.processes || {})" :key="'u-'+name" v-show="proc.name && proc.category === 'utility' && name !== 'python' && name !== 'ollama'" style="padding: 6px 0; border-bottom: 1px solid var(--border);">
-                <div>
-                  <span style="color: var(--text-bright); font-size: 13px;">{{ proc.name || name }}</span>
-                  <span v-if="serverStatus.installs && serverStatus.installs[name]" :style="{ color: serverStatus.installs[name].installed ? 'var(--success)' : 'var(--danger)', marginLeft: '8px', fontSize: '11px', padding: '1px 6px', borderRadius: '3px', background: serverStatus.installs[name].installed ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)' }">
-                    {{ serverStatus.installs[name].installed ? t('settings.installed') : t('settings.not_installed') }}
-                  </span>
-                  <span v-if="serverStatus.installs && serverStatus.installs[name] && serverStatus.installs[name].version" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">v{{ serverStatus.installs[name].version }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Server LLM Model selection -->
-        <div class="form-group" v-if="serverModels.llm.length > 0" style="margin-top: 16px;">
-          <label class="form-label">{{ t('settings.label_model_generate') }}</label>
-          <div style="display: flex; gap: 8px;">
-            <select class="form-select" v-model="generateModel" style="flex: 1;">
-              <option value="" disabled>{{ t('llm_setup.choose') }}</option>
-              <option v-for="m in serverModels.llm" :key="m.name" :value="m.name">{{ m.name }}</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" @click="loadServerModels" :disabled="serverModelsLoading.llm">
-              {{ serverModelsLoading.llm ? '...' : t('settings.btn_refresh') }}
-            </button>
-          </div>
-        </div>
-
-        <div class="form-group" v-if="serverModels.llm.length > 0">
-          <label class="form-label">{{ t('settings.label_model_analyze') }}</label>
-          <select class="form-select" v-model="analyzeModel">
-            <option value="">{{ t('settings.same_as_generate') }}</option>
-            <option v-for="m in serverModels.llm" :key="m.name" :value="m.name">{{ m.name }}</option>
-          </select>
-        </div>
-
-
-        <button class="btn btn-primary" @click="saveServerConnection">{{ t('settings.btn_save_server') }}</button>
-
-      <!-- LLM Parameters (shared) -->
-      <details class="settings-advanced">
-        <summary>{{ t('settings.section_llm_params') }}</summary>
-        <StatusMessage v-if="llmParamsSaved" kind="success" :timeout="8000" style="margin-bottom: 16px;" @close="llmParamsSaved = false">{{ t('settings.params_saved') }}</StatusMessage>
-        <StatusMessage v-if="llmParamsError" style="margin-bottom: 16px;" @close="llmParamsError = ''">{{ llmParamsError }}</StatusMessage>
-
-        <h4 style="color: var(--text-bright); margin: 16px 0 8px; font-size: 14px;">{{ t('settings.generate_params') }}</h4>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_context_size') }}</label>
-            <input class="form-input" type="number" v-model.number="generateParams.num_ctx" step="512" min="512" max="32768" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_top_p') }}</label>
-            <input class="form-input" type="number" v-model.number="generateParams.top_p" step="0.05" min="0" max="1" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_threads') }}</label>
-            <input class="form-input" type="number" v-model.number="generateParams.num_thread" min="0" max="64" />
-          </div>
-        </div>
-
-        <h4 style="color: var(--text-bright); margin: 16px 0 8px; font-size: 14px;">{{ t('settings.analyze_params') }}</h4>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_context_size') }}</label>
-            <input class="form-input" type="number" v-model.number="analyzeParams.num_ctx" step="512" min="512" max="32768" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_top_p') }}</label>
-            <input class="form-input" type="number" v-model.number="analyzeParams.top_p" step="0.05" min="0" max="1" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ t('settings.label_threads') }}</label>
-            <input class="form-input" type="number" v-model.number="analyzeParams.num_thread" min="0" max="64" />
-          </div>
-        </div>
-
-        <button class="btn btn-primary" @click="saveLLMParams" style="margin-top: 8px;">{{ t('settings.btn_save_params') }}</button>
-      </details>
-    </div>
-
-    <div v-if="activeTab === 'prompts'" class="prompts-tab">
-      <div class="card">
-        <h3 class="prompts-title">{{ t('settings.group_image_prompt') }}</h3>
-        <div class="prompts-sub">{{ t('settings.group_image_prompt_sub') }}</div>
-
-        <FoldBlock :title="t('settings.section_sd_prompt')" :hint="t('settings.prompt_instruction_description')" :summary="promptState(promptInstruction, defaultPromptInstruction)">
-          <StatusMessage v-if="promptInstructionSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="promptInstructionSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
-          <StatusMessage v-if="promptInstructionError" style="margin-bottom: 12px;" @close="promptInstructionError = ''">{{ promptInstructionError }}</StatusMessage>
-          <textarea class="form-textarea prompt-area" v-model="promptInstruction" rows="16"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-primary" @click="savePromptInstruction">{{ t('settings.btn_save_instruction') }}</button>
-            <button class="btn btn-secondary" @click="promptInstruction = defaultPromptInstruction">{{ t('settings.btn_reset_default') }}</button>
-          </div>
-        </FoldBlock>
-
-        <FoldBlock :title="t('settings.section_sd_prompt_prose')" :hint="t('settings.prompt_instruction_prose_description')" :summary="promptState(promptInstructionProse, defaultPromptInstructionProse)">
-          <StatusMessage v-if="promptInstructionProseSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="promptInstructionProseSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
-          <StatusMessage v-if="promptInstructionProseError" style="margin-bottom: 12px;" @close="promptInstructionProseError = ''">{{ promptInstructionProseError }}</StatusMessage>
-          <textarea class="form-textarea prompt-area" v-model="promptInstructionProse" rows="16"></textarea>
-          <div class="prompt-actions">
-            <button class="btn btn-primary" @click="savePromptInstructionProse">{{ t('settings.btn_save_instruction') }}</button>
-            <button class="btn btn-secondary" @click="promptInstructionProse = defaultPromptInstructionProse">{{ t('settings.btn_reset_default') }}</button>
-          </div>
-        </FoldBlock>
-      </div>
-
-      <div class="card" style="margin-top: 16px;">
-        <h3 class="prompts-title">{{ t('settings.group_describe_photo') }}</h3>
-        <div class="prompts-sub">{{ t('settings.group_describe_photo_sub') }}</div>
-
-        <FoldBlock :title="t('settings.label_system_prompt')" :hint="t('settings.hint_system_prompt')" :summary="promptState(analyzeSystemPrompt, defaultAnalyzePrompts?.system_prompt)">
-          <textarea class="form-textarea prompt-area" v-model="analyzeSystemPrompt" rows="3"></textarea>
-        </FoldBlock>
-        <FoldBlock :title="t('settings.label_single_analysis')" :hint="t('settings.hint_single_analysis')" :summary="promptState(analyzeSinglePrompt, defaultAnalyzePrompts?.single_prompt)">
-          <textarea class="form-textarea prompt-area" v-model="analyzeSinglePrompt" rows="10"></textarea>
-        </FoldBlock>
-        <FoldBlock :title="t('settings.label_describe_analysis')" :hint="t('settings.hint_describe_analysis')" :summary="promptState(analyzeDescribePrompt, defaultAnalyzePrompts?.describe_prompt)">
-          <textarea class="form-textarea prompt-area" v-model="analyzeDescribePrompt" rows="6"></textarea>
-        </FoldBlock>
-        <FoldBlock :title="t('settings.edit_garment_prompt')" :hint="t('settings.edit_garment_prompt_hint')" :summary="promptState(editGarmentPrompt, defaultGarmentPrompt)">
-          <textarea class="form-textarea prompt-area" v-model="editGarmentPrompt" rows="8"></textarea>
-        </FoldBlock>
-
-        <StatusMessage v-if="analyzeSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="analyzeSaved = false">{{ t('settings.prompts_saved') }}</StatusMessage>
-        <StatusMessage v-if="analyzeError" style="margin-bottom: 12px;" @close="analyzeError = ''">{{ analyzeError }}</StatusMessage>
-        <div class="prompt-actions">
-          <button class="btn btn-primary" @click="saveAnalyzePrompts">{{ t('settings.btn_save_prompts') }}</button>
-          <button class="btn btn-secondary" @click="resetAnalyzePrompts">{{ t('settings.btn_reset_default') }}</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Safety Tab -->
-    <div v-if="activeTab === 'safety'" class="card">
-      <h3 style="color: var(--text-bright); margin-bottom: 16px;">{{ t('settings.section_kids') }}</h3>
-      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-        <ToggleSwitch :modelValue="kidsMode" @update:modelValue="onKidsToggle" />
-        <div>
-          <div style="color: var(--text-bright); font-weight: 500;">{{ kidsMode ? t('settings.enabled') : t('settings.disabled') }}</div>
-          <div style="color: var(--text-dim); font-size: 12px; margin-top: 2px;">
-            {{ t('settings.kids_description') }}
-          </div>
-        </div>
-      </div>
-
-      <div v-if="kidsMode && kidsCategories.length > 0" style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);">
-        <div style="color: var(--text-bright); font-weight: 500; margin-bottom: 10px;">{{ t('settings.filter_categories') }}</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <div v-for="cat in kidsCategories" :key="cat.name" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0;">
-            <div>
-              <span style="color: var(--text-bright); font-size: 13px;">{{ cat.label }}</span>
-              <span v-if="cat.alwaysOn" style="color: var(--text-dim); font-size: 11px; margin-left: 6px;">{{ t('settings.always_on') }}</span>
-            </div>
-            <ToggleSwitch :modelValue="cat.enabled" @update:modelValue="onKidsCatToggle(cat)" :disabled="cat.alwaysOn" />
-          </div>
-        </div>
-        <div style="color: var(--text-dim); font-size: 11px; margin-top: 8px;">{{ t('settings.pin_required_categories') }}</div>
-      </div>
-
-      <div style="color: var(--text-dim); font-size: 13px; line-height: 1.6;">
-        {{ t('settings.kids_layers') }}
-        <ul style="margin: 8px 0 0 16px; padding: 0;">
-          <li>{{ t('settings.kids_filter_input') }}</li>
-          <li>{{ t('settings.kids_filter_llm') }}</li>
-          <li>{{ t('settings.kids_filter_output') }}</li>
-          <li>{{ t('settings.kids_forces_negative') }}</li>
-        </ul>
-        <div style="margin-top: 8px;">{{ t('settings.kids_pin_protected') }}</div>
-      </div>
-    </div>
-
-    <!-- Advanced Tab — changes in server mode -->
-    <div v-if="activeTab === 'advanced'">
-      <div class="card" style="margin-bottom: 16px;">
-        <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.section_memory_guard') }}</h3>
-        <StatusMessage v-if="memorySaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="memorySaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
-        <StatusMessage v-if="memoryError" style="margin-bottom: 12px;" @close="memoryError = ''">{{ memoryError }}</StatusMessage>
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 12px;">
-          <input data-testid="settings-llm-auto-unload" type="checkbox" v-model="memoryForm.llm_auto_unload" style="accent-color: var(--accent);" />
-          <span style="font-size: 13px;">{{ t('settings.llm_auto_unload') }}</span>
-        </label>
-        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px;">{{ t('settings.llm_auto_unload_hint') }}</div>
-        <button class="btn btn-primary btn-sm" @click="saveMemoryGuard">{{ t('settings.btn_save_params') }}</button>
-      </div>
-        <div v-if="!serverURL" style="color: var(--text-dim); padding: 20px; text-align: center;">{{ t('settings.server_not_configured') }}</div>
-        <template v-else>
-          <!-- SD Models -->
-          <div class="card" style="margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="color: var(--text-bright);">{{ t('settings.title_sd_models') }}</h3>
-              <button class="btn btn-secondary btn-sm" @click="loadServerModels">{{ t('settings.btn_refresh') }}</button>
-            </div>
-            <div v-if="serverModelsLoading.sd" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="serverModels.sd.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
-            <div v-for="m in serverModels.sd" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
-              <div>
-                <div style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</div>
-                <div style="color: var(--text-dim); font-size: 11px;">{{ formatBytes(m.size) }}</div>
-              </div>
-              <button class="btn btn-sm btn-danger-quiet" @click="deleteModel('sd', m.name)" :disabled="modelActionLoading[`del_sd_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
-            </div>
-            <!-- Download form -->
-            <div style="display: flex; gap: 8px; margin-top: 12px; align-items: flex-end;">
-              <div class="form-group" style="flex: 2; margin: 0;">
-                <input class="form-input" v-model="serverModelDownload.url" placeholder="Download URL" style="font-size: 12px;" />
-              </div>
-              <div class="form-group" style="flex: 1; margin: 0;">
-                <input class="form-input" v-model="serverModelDownload.filename" placeholder="filename.safetensors" style="font-size: 12px;" />
-              </div>
-              <button class="btn btn-primary btn-sm" @click="downloadModel('sd', serverModelDownload.url, serverModelDownload.filename)" :disabled="!serverModelDownload.url || !serverModelDownload.filename || modelActionLoading['dl_sd']">
-                {{ modelActionLoading['dl_sd'] ? t('settings.btn_downloading') : t('settings.btn_download_model') }}
-              </button>
-            </div>
-            <DownloadProgress v-if="activeDownload.type === 'sd' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-          </div>
-
-          <!-- LoRA -->
-          <div class="card" style="margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="color: var(--text-bright);">LoRA</h3>
-            </div>
-            <div v-if="serverModelsLoading.lora" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="serverModels.lora.length === 0" style="color: var(--text-dim);">{{ t('settings.no_loras') }}</div>
-            <div v-else style="display: flex; flex-wrap: wrap; gap: 6px;">
-              <span v-for="m in serverModels.lora" :key="m.name" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;">
-                <span style="font-size: 12px; color: var(--text);">{{ m.name }}</span>
-                <button class="chip-remove" :title="t('settings.btn_delete_model')" :aria-label="t('settings.btn_delete_model')" @click="deleteModel('lora', m.name)"><X :size="12" /></button>
-              </span>
-            </div>
-          </div>
-
-          <!-- LLM Models -->
-          <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="color: var(--text-bright);">{{ t('settings.title_llm_models') }}</h3>
-            </div>
-            <div v-if="serverModelsLoading.llm" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-            <div v-else-if="serverModels.llm.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
-            <div v-for="m in serverModels.llm" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
-              <span style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</span>
-              <button class="btn btn-sm btn-danger-quiet" @click="deleteLLMModel(m.name)" :disabled="modelActionLoading[`del_llm_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
-            </div>
-            <!-- Pull form -->
-            <div style="display: flex; gap: 8px; margin-top: 12px;">
-              <input class="form-input" v-model="llmPullName" placeholder="e.g. qwen3:8b" style="flex: 1; font-size: 12px;" :disabled="modelActionLoading['pull_llm']" />
-              <button class="btn btn-primary btn-sm" @click="pullFromForm" :disabled="!llmPullName || modelActionLoading['pull_llm']">
-                {{ modelActionLoading['pull_llm'] ? t('settings.btn_pulling') : t('settings.btn_pull_llm') }}
-              </button>
-            </div>
-            <DownloadProgress v-if="activeDownload.type === 'llm' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
-          </div>
-        </template>
-    </div>
-
-    <PinModal v-if="showPinModal" :mode="pinMode" :error="pinError" @confirm="onPinConfirm" @cancel="onPinCancel" />
-    <PinModal v-if="kidsCatPinModal" mode="verify" :error="kidsCatPinError" @confirm="onKidsCatPinConfirm" @cancel="onKidsCatPinCancel" />
+    <ConnectionTab v-if="activeTab === 'connection'" :active="active" />
+    <PromptsTab v-if="activeTab === 'prompts'" />
+    <SafetyTab v-if="activeTab === 'safety'" />
+    <AdvancedTab v-if="activeTab === 'advanced'" />
   </div>
 </template>
-
-<style scoped>
-.prompts-title {
-  color: var(--text-bright);
-  margin-bottom: 4px;
-}
-.prompts-sub {
-  color: var(--text-dim);
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-.prompt-area {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.prompt-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-</style>

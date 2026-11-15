@@ -1,6 +1,7 @@
 <script setup>
 import { X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
+import GenProgress from './GenProgress.vue'
 import FoldBlock from './FoldBlock.vue'
 import { modelLoraText } from '../modelLora.js'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
@@ -12,6 +13,7 @@ import { b64Url } from '../imageDataUrl.js'
 import { t } from '../i18n/index.js'
 import { readImageFile } from '../imageFile.js'
 import { parseLoras, sanitizeWeight } from '../loraOverride.js'
+import { useServerLoras } from '../composables/useServerLoras.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import ResolutionSelector from './ResolutionSelector.vue'
 import RecipeComposition from './RecipeComposition.vue'
@@ -42,9 +44,7 @@ const loraRows = ref([])
 const editModel = ref('klein')
 const lorasByModel = { klein: [], qwen: [] }
 const QWEN_VISION_FILE = 'mmproj-Qwen3VL-8B-Instruct-F16.gguf'
-const serverLoras = ref([])
-const lorasLoaded = ref(false)
-const loraLoadError = ref(false)
+const { loras: serverLoras, error: loraLoadError, load: loadLoras } = useServerLoras()
 const allPresets = ref([])
 const stylesLoadError = ref(false)
 const stylePresetId = ref(0)
@@ -91,19 +91,6 @@ function addLora() {
 
 function removeLora(idx) {
   loraRows.value.splice(idx, 1)
-}
-
-async function loadLoras() {
-  if (lorasLoaded.value) return
-  lorasLoaded.value = true
-  loraLoadError.value = false
-  try {
-    const lor = await api.getLoRAs()
-    serverLoras.value = lor || []
-  } catch (e) {
-    loraLoadError.value = true
-    lorasLoaded.value = false
-  }
 }
 
 function onLorasToggle(open) {
@@ -477,16 +464,7 @@ onUnmounted(() => {
         <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
         <span class="edit-progress-label">{{ t('edit.generating') }}</span>
       </div>
-      <div v-if="sdProgress && sdProgress.progress > 0" class="edit-progress-info">
-        <div class="edit-progress-row edit-progress-stats">
-          <span>{{ Math.round(sdProgress.progress * 100) }}%</span>
-          <span>{{ t('progress.sd_step', { current: Math.round(sdProgress.progress * sdProgress.steps), total: sdProgress.steps }) }}<span v-if="sdProgress.etaRelative > 0"> — ~{{ Math.ceil(sdProgress.etaRelative) }}s</span></span>
-        </div>
-        <div class="edit-progress-bar">
-          <div :style="{ width: (sdProgress.progress * 100) + '%' }"></div>
-        </div>
-        <button class="btn btn-sm btn-secondary btn-block" @click="interruptGeneration">{{ t('progress.btn_interrupt') }}</button>
-      </div>
+      <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="edit-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats @interrupt="interruptGeneration" />
     </div>
 
     <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
@@ -673,31 +651,8 @@ onUnmounted(() => {
   color: var(--text-dim);
   font-size: 12px;
 }
-.edit-progress-stats {
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.edit-progress-stats span {
-  color: var(--text-dim);
-  font-size: 12px;
-}
 .edit-progress-info {
   margin-top: 8px;
-}
-.edit-progress-bar {
-  background: var(--surface-2);
-  border-radius: 4px;
-  overflow: hidden;
-  height: 6px;
-}
-.edit-progress-bar div {
-  background: var(--accent);
-  height: 100%;
-  transition: width 0.3s;
-}
-.edit-progress-info .btn {
-  margin-top: 8px;
-  font-size: 11px;
 }
 .edit-effective-prompt {
   margin-top: 8px;

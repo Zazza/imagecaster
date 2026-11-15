@@ -1,0 +1,195 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
+import { EventsEmit, clearEventMocks } from './mocks/runtime'
+
+import RemixSection from '../components/RemixSection.vue'
+import EditSection from '../components/EditSection.vue'
+import ObjectSection from '../components/ObjectSection.vue'
+import RepairSection from '../components/RepairSection.vue'
+import GeneratePage from '../components/GeneratePage.vue'
+import GenProgress from '../components/GenProgress.vue'
+import {
+  GetSettings, ListPresets, ListCompoundPresets, ListHiresProfiles, EnqueueFromImage, EditImage, EditObject,
+  RepairImage, InterruptGeneration, CancelQueueJob, CancelQueue, GetQueue, GetActiveSessionItem,
+} from '../wailsjs/go/main/App.js'
+import { useRemixQueue } from '../remixQueue.js'
+import { t } from '../i18n/index.js'
+import { useFakeImage, useFakeCanvas } from './helpers/dom.js'
+import { settle } from './helpers/async.js'
+
+enableAutoUnmount(afterEach)
+useFakeImage()
+useFakeCanvas()
+
+const SOURCE = 'c291cmNl'
+const STEP_TEXT = () => t('progress.sd_step', { current: 10, total: 20 })
+
+function deferred() {
+  let resolve, reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  clearEventMocks()
+  useRemixQueue().clearPostQueue()
+  ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
+})
+
+const barWidths = w => w.findAll('[style]').map(e => e.element.style.width).filter(Boolean)
+const interruptButton = w => w.findAll('button').find(b => b.text().includes(t('progress.btn_interrupt')))
+
+async function emitProgress(data) {
+  EventsEmit('sd:progress', data)
+  await settle()
+}
+
+async function startEdit() {
+  GetSettings.mockReturnValue(Promise.resolve({}))
+  ListPresets.mockReturnValue(Promise.resolve([]))
+  const w = mount(EditSection, { props: { source: SOURCE } })
+  await settle()
+  await w.find('[data-testid="edit-instruction"]').setValue('make the sky red')
+  EditImage.mockReturnValue(deferred().promise)
+  await w.findAll('button').find(b => b.text().includes(t('edit.btn_generate'))).trigger('click')
+  await settle()
+  return w
+}
+
+async function startRemix() {
+  GetSettings.mockReturnValue(Promise.resolve({ fi_mode: 'img2img', fi_gen_mode: 'compound', fi_compound_preset_id: '3' }))
+  ListCompoundPresets.mockReturnValue(Promise.resolve([{ id: 3, name: 'Pipeline', steps: [] }]))
+  const w = mount(RemixSection, { props: { source: '', active: true } })
+  await settle()
+  await w.setProps({ source: SOURCE })
+  await settle()
+  EnqueueFromImage.mockReturnValue(Promise.resolve('remix-p'))
+  await w.findAll('button').find(b => b.text().includes(t('fi.btn_generate'))).trigger('click')
+  await settle()
+  return w
+}
+
+async function paint(w) {
+  w.vm.beginStroke(10, 10, 5)
+  w.vm.strokeTo(12, 12, 5)
+  w.vm.endStroke()
+  await settle()
+}
+
+async function startObject() {
+  GetSettings.mockReturnValue(Promise.resolve({}))
+  const w = mount(ObjectSection, { props: { source: SOURCE, active: true }, attachTo: document.body })
+  await settle()
+  await paint(w)
+  EditObject.mockReturnValue(deferred().promise)
+  await w.find('[data-testid="object-run"]').trigger('click')
+  await settle()
+  return w
+}
+
+async function startRepair() {
+  GetSettings.mockReturnValue(Promise.resolve({}))
+  const w = mount(RepairSection, { props: { source: SOURCE, active: true }, attachTo: document.body })
+  await settle()
+  await paint(w)
+  RepairImage.mockReturnValue(deferred().promise)
+  await w.find('[data-testid="repair-run"]').trigger('click')
+  await settle()
+  return w
+}
+
+async function mountGenerating({ withImage }) {
+  GetSettings.mockReturnValue(Promise.resolve({}))
+  ListPresets.mockReturnValue(Promise.resolve([]))
+  ListCompoundPresets.mockReturnValue(Promise.resolve([]))
+  GetActiveSessionItem.mockReturnValue(Promise.resolve(withImage ? { id: 7, info: '{}' } : null))
+  GetQueue.mockReturnValue(Promise.resolve([{ id: 55, type: 'txt2img', status: 'running' }]))
+  const w = mount(GeneratePage, { attachTo: document.body })
+  await settle()
+  return w
+}
+
+describe('generation progress block: current behavior', () => {
+  it('Edit: percent, step, ETA, bar width, interrupt calls InterruptGeneration', async () => {
+    const w = await startEdit()
+    expect(interruptButton(w)).toBeFalsy()
+    await emitProgress({ progress: 0.5, steps: 20, eta_relative: 12.3 })
+    expect(w.text()).toContain('50%')
+    expect(w.text()).toMatch(new RegExp(STEP_TEXT() + '\\s+— ~13s'))
+    expect(barWidths(w)).toContain('50%')
+    expect(w.findComponent(GenProgress).exists()).toBe(true)
+    await interruptButton(w).trigger('click')
+    await settle()
+    expect(InterruptGeneration).toHaveBeenCalled()
+  })
+
+  it('Edit: no ETA when eta is 0', async () => {
+    const w = await startEdit()
+    await emitProgress({ progress: 0.25, steps: 20, eta_relative: 0 })
+    expect(w.text()).toContain('25%')
+    expect(w.text()).not.toContain('~0s')
+    expect(barWidths(w)).toContain('25%')
+  })
+
+  it('Remix: batch interrupt cancels the queued job', async () => {
+    const w = await startRemix()
+    await emitProgress({ progress: 0.5, steps: 20, eta_relative: 4.2 })
+    expect(w.text()).toContain('50%')
+    expect(w.text()).toMatch(new RegExp(STEP_TEXT() + '\\s+— ~5s'))
+    expect(barWidths(w)).toContain('50%')
+    await interruptButton(w).trigger('click')
+    await settle()
+    expect(CancelQueueJob).toHaveBeenCalledWith('remix-p')
+  })
+
+  it('Object: only the bar and interrupt, no percent text', async () => {
+    const w = await startObject()
+    expect(interruptButton(w)).toBeFalsy()
+    await emitProgress({ progress: 0.5, steps: 20, eta_relative: 3 })
+    expect(barWidths(w)).toContain('50%')
+    expect(w.text()).not.toContain('50%')
+    expect(w.text()).not.toContain(STEP_TEXT())
+    await interruptButton(w).trigger('click')
+    await settle()
+    expect(InterruptGeneration).toHaveBeenCalled()
+  })
+
+  it('Repair: tile label and overall bar width', async () => {
+    const w = await startRepair()
+    EventsEmit('repair:progress', { done: 1, total: 4 })
+    await settle()
+    await emitProgress({ progress: 0.5, steps: 20 })
+    const block = w.find('[data-testid="repair-progress"]')
+    expect(block.text()).toContain(t('repair.progress', { n: 2, m: 4 }))
+    expect(block.text()).not.toContain(STEP_TEXT())
+    expect(barWidths(block)).toContain('37.5%')
+    await interruptButton(w).trigger('click')
+    await settle()
+    expect(InterruptGeneration).toHaveBeenCalled()
+  })
+
+  it('GeneratePage without image: percent, step, ETA, interrupt cancels the queue', async () => {
+    const w = await mountGenerating({ withImage: false })
+    await emitProgress({ progress: 0.5, steps: 20, eta_relative: 12.3 })
+    expect(w.text()).toContain('50%')
+    expect(w.text()).toMatch(new RegExp(STEP_TEXT() + '\\s+— ~13s'))
+    expect(barWidths(w)).toContain('50%')
+    await interruptButton(w).trigger('click')
+    await settle()
+    expect(CancelQueue).toHaveBeenCalled()
+  })
+
+  it('GeneratePage over an image: percent and ETA without step, interrupt cancels the queue', async () => {
+    const w = await mountGenerating({ withImage: true })
+    await emitProgress({ progress: 0.5, steps: 20, eta_relative: 12.3 })
+    expect(w.text()).toContain('50%')
+    expect(w.text()).toContain('~13s')
+    expect(w.text()).not.toContain(STEP_TEXT())
+    expect(w.text()).toContain('1 / 1')
+    expect(barWidths(w)).toContain('50%')
+    await interruptButton(w).trigger('click')
+    await settle()
+    expect(CancelQueue).toHaveBeenCalled()
+  })
+})

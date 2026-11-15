@@ -1,9 +1,9 @@
 <script setup>
 import { ChevronDown, ChevronUp, X } from 'lucide-vue-next'
 import { ref, computed } from 'vue'
-import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { parseLoras, sanitizeWeight } from '../loraOverride.js'
+import { useServerLoras } from '../composables/useServerLoras.js'
 import { MAX_CUSTOM_STEPS, newCustomStep, customStepLoras, customPresetLoras } from '../customSteps.js'
 import SearchableSelect from './SearchableSelect.vue'
 
@@ -18,8 +18,7 @@ const steps = computed(() => props.modelValue || [])
 
 const presetItems = computed(() => (props.presets || []).map(p => ({ value: p.id, label: p.name })))
 
-const serverLoras = ref([])
-let lorasLoaded = false
+const { loras: serverLoras, load: loadLoras } = useServerLoras()
 
 function emitSteps(next) {
   emit('update:modelValue', next)
@@ -88,11 +87,7 @@ function onLoraRowEdit(step) {
 }
 
 function onLorasToggle(e) {
-  if (!e.target.open || lorasLoaded) return
-  lorasLoaded = true
-  api.getLoRAs()
-    .then(lor => { serverLoras.value = lor || [] })
-    .catch(() => { lorasLoaded = false })
+  if (e.target.open) loadLoras()
 }
 </script>
 
