@@ -265,13 +265,4 @@ defineExpose({
   margin-top: 10px;
   text-align: center;
 }
-.gen-info {
-  margin-top: 10px;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-.gen-info summary {
-  cursor: pointer;
-  user-select: none;
-}
 </style>

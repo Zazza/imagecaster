@@ -764,6 +764,7 @@ details.cat-extra summary {
 
 .gen-info summary {
   cursor: pointer;
+  user-select: none;
   color: var(--text-dim);
 }
 

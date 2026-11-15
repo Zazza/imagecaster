@@ -518,13 +518,4 @@ function onKeydown(e) {
 .remix-progress-info {
   margin-top: 8px;
 }
-.gen-info {
-  margin-top: 10px;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-.gen-info summary {
-  cursor: pointer;
-  user-select: none;
-}
 </style>
