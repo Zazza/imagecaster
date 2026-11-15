@@ -326,8 +326,8 @@ onMounted(loadData)
 
     <StatusMessage v-if="error" @close="error = ''">{{ error }}</StatusMessage>
 
-    <div v-if="showForm" class="card" style="max-width: 700px;">
-      <h3 style="margin-bottom: 12px;">{{ editing ? t('compound.edit_pipeline') : t('compound.new_pipeline') }}</h3>
+    <div v-if="showForm" class="card compound-form">
+      <h3 class="mb-3">{{ editing ? t('compound.edit_pipeline') : t('compound.new_pipeline') }}</h3>
 
       <div class="form-group">
         <label class="form-label">{{ t('compound.label_name') }}</label>
@@ -339,24 +339,24 @@ onMounted(loadData)
         <input class="form-input" v-model="formDescription" :placeholder="t('compound.placeholder_description')" />
       </div>
 
-      <div style="margin-bottom: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <label class="form-label" style="margin: 0;">{{ t('compound.steps_count', { count: formSteps.length }) }}</label>
+      <div class="mb-3">
+        <div class="flex-between mb-2">
+          <label class="form-label m-0">{{ t('compound.steps_count', { count: formSteps.length }) }}</label>
           <button class="btn btn-sm btn-secondary" @click="addStep">{{ t('compound.btn_add_step') }}</button>
         </div>
 
-        <div v-for="(step, idx) in formSteps" :key="idx" style="border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 8px; background: var(--surface-1);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-weight: 600; font-size: 13px;">{{ t('compound.step_label', { num: idx + 1, type: idx === 0 ? t('compound.step_txt2img') : t('compound.step_img2img') }) }}</span>
-            <div style="display: flex; gap: 4px;">
-              <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepUp(idx)" :disabled="idx === 0"><ChevronUp :size="14" /></button>
-              <button class="btn btn-sm btn-secondary" style="padding: 2px 8px;" @click="moveStepDown(idx)" :disabled="idx === formSteps.length - 1"><ChevronDown :size="14" /></button>
-              <button class="btn btn-sm btn-danger-quiet" style="padding: 2px 8px;" @click="removeStep(idx)" :disabled="formSteps.length <= 1"><X :size="14" /></button>
+        <div v-for="(step, idx) in formSteps" :key="idx" class="compound-step">
+          <div class="flex-between mb-2">
+            <span class="compound-step-title">{{ t('compound.step_label', { num: idx + 1, type: idx === 0 ? t('compound.step_txt2img') : t('compound.step_img2img') }) }}</span>
+            <div class="flex gap-1">
+              <button class="btn btn-sm btn-secondary compound-step-btn" @click="moveStepUp(idx)" :disabled="idx === 0"><ChevronUp :size="14" /></button>
+              <button class="btn btn-sm btn-secondary compound-step-btn" @click="moveStepDown(idx)" :disabled="idx === formSteps.length - 1"><ChevronDown :size="14" /></button>
+              <button class="btn btn-sm btn-danger-quiet compound-step-btn" @click="removeStep(idx)" :disabled="formSteps.length <= 1"><X :size="14" /></button>
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
-            <div class="form-group" style="margin: 0;">
+          <div class="compound-step-fields">
+            <div class="form-group m-0">
               <label class="form-label">{{ t('compound.label_style') }}</label>
               <SearchableSelect
                 v-model="step.preset_id"
@@ -366,7 +366,7 @@ onMounted(loadData)
               />
             </div>
 
-            <div v-if="idx > 0" class="form-group" style="margin: 0;">
+            <div v-if="idx > 0" class="form-group m-0">
               <label class="form-label">{{ t('compound.label_denoising') }}</label>
               <input class="form-input" type="number" v-model.number="step.denoising_strength" min="0" max="1" step="0.05" />
             </div>
@@ -374,7 +374,7 @@ onMounted(loadData)
         </div>
       </div>
 
-      <div style="display: flex; gap: 8px;">
+      <div class="flex gap-2">
         <button class="btn btn-primary" @click="saveCompound">{{ editing ? t('compound.btn_update') : t('compound.btn_create') }}</button>
         <button class="btn btn-secondary" @click="cancelForm">{{ t('compound.btn_cancel') }}</button>
       </div>
@@ -489,8 +489,8 @@ onMounted(loadData)
           <li v-for="cp in selectedCompounds.slice(0, 10)" :key="cp.id">{{ cp.name }}</li>
           <li v-if="selectedCompounds.length > 10">{{ t('presets.delete_more', { count: selectedCompounds.length - 10 }) }}</li>
         </ul>
-        <p style="color: var(--text-dim); font-size: 0.9em;">{{ t('presets.delete_cannot_undo') }}</p>
-        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+        <p class="delete-note">{{ t('presets.delete_cannot_undo') }}</p>
+        <div class="actions-end">
           <button class="btn btn-secondary" @click="showDeleteConfirm = false">{{ t('presets.btn_cancel') }}</button>
           <button class="btn btn-danger" data-testid="confirm-delete" @click="confirmBatchDelete">{{ t('presets.btn_delete') }}</button>
         </div>
@@ -507,6 +507,33 @@ onMounted(loadData)
 </template>
 
 <style scoped>
+.compound-form {
+  max-width: 700px;
+}
+
+.compound-step {
+  margin-bottom: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.compound-step-title {
+  font-weight: 600;
+  font-size: var(--fs-md);
+}
+
+.compound-step-btn {
+  padding: 2px 8px;
+}
+
+.compound-step-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+}
+
 .pipe-chain { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .pipe-arrow { color: var(--text-dim); flex-shrink: 0; }
 .pipe-step { display: inline-flex; align-items: center; gap: 5px; }

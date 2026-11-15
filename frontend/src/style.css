@@ -2191,3 +2191,40 @@ details.cat-extra summary {
   gap: var(--sp-2);
   margin-top: var(--sp-4);
 }
+
+.btn-xs {
+  padding: 2px 8px;
+  font-size: var(--fs-xs);
+}
+
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.accent-check {
+  accent-color: var(--accent);
+}
+
+.field-note {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.field-note-accent {
+  color: var(--accent);
+}
+
+.pre-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.delete-note {
+  color: var(--text-dim);
+  font-size: 0.9em;
+}

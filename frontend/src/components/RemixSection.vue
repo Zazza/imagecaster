@@ -358,14 +358,14 @@ function onKeydown(e) {
     <StatusMessage v-if="error" :kind="error === 'interrupted' ? 'warning' : 'error'" :text="error" @close="error = ''" />
 
     <div class="form-group">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <label class="form-label" style="margin-bottom: 0;">{{ t('remix.description_label') }}</label>
-        <div style="display: flex; gap: 6px;">
-          <button class="btn btn-sm" :class="analyzeMode === 'quick' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'quick'" style="font-size: 11px; padding: 2px 8px;">{{ t('fi.tags') }}</button>
-          <button class="btn btn-sm" :class="analyzeMode === 'describe' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'describe'" style="font-size: 11px; padding: 2px 8px;">{{ t('fi.describe') }}</button>
+      <div class="flex-between remix-desc-head">
+        <label class="form-label m-0">{{ t('remix.description_label') }}</label>
+        <div class="flex remix-gap-6">
+          <button class="btn btn-sm btn-xs" :class="analyzeMode === 'quick' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'quick'">{{ t('fi.tags') }}</button>
+          <button class="btn btn-sm btn-xs" :class="analyzeMode === 'describe' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'describe'">{{ t('fi.describe') }}</button>
         </div>
       </div>
-      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+      <div class="flex gap-2 remix-desc-head">
         <button class="btn btn-sm btn-secondary" @click="analyzeImage" :disabled="analyzing || !source">
           <template v-if="analyzing">
             <span>{{ t('fi.analyzing') }} ({{ analyzeElapsed }}s)</span>
@@ -377,12 +377,12 @@ function onKeydown(e) {
       <div v-if="!kidsModeActive" class="remix-hint">{{ t('remix.analyze_hint') }}</div>
       <textarea class="form-textarea" v-model="tags" rows="4" :placeholder="t('fi.placeholder_tags')" :disabled="kidsModeActive"></textarea>
       <div v-if="batch" class="form-hint">{{ t('fi.batch_describe_hint') }}</div>
-      <div v-if="kidsModeActive" style="margin-top: 4px; padding: 6px; background: var(--surface-2); border-radius: 4px; text-align: center; font-size: 11px; color: var(--text-dim);">
+      <div v-if="kidsModeActive" class="remix-kids-note">
         {{ t('fi.kids_tags_restricted') }}
       </div>
     </div>
 
-    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+    <div class="flex gap-2 mb-3">
       <button class="btn btn-sm" :class="genMode === 'preset' ? 'btn-primary' : 'btn-secondary'" @click="genMode = 'preset'">{{ t('fi.btn_style') }}</button>
       <button class="btn btn-sm" :class="genMode === 'compound' ? 'btn-primary' : 'btn-secondary'" @click="genMode = 'compound'">{{ t('fi.btn_workflow') }}</button>
     </div>
@@ -413,17 +413,17 @@ function onKeydown(e) {
     </div>
 
     <div v-if="genMode === 'preset' && kleinPresetSelected" class="form-group">
-      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-        <input data-testid="fi-preserve-identity-checkbox" type="checkbox" v-model="preserveIdentity" style="accent-color: var(--accent);" />
-        <span style="font-size: 12px;">{{ t('fi.preserve_identity') }}</span>
+      <label class="check-label">
+        <input data-testid="fi-preserve-identity-checkbox" type="checkbox" v-model="preserveIdentity" class="accent-check" />
+        <span class="fs-sm">{{ t('fi.preserve_identity') }}</span>
       </label>
-      <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.preserve_identity_hint') }}</div>
+      <div class="field-note">{{ t('fi.preserve_identity_hint') }}</div>
     </div>
 
     <div class="form-group">
       <label class="form-label">{{ t('fi.label_denoising', { value: denoisingStrength.toFixed(2) }) }}</label>
       <input type="range" class="form-range" v-model.number="denoisingStrength" min="0.05" max="1.0" step="0.05" />
-      <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);">
+      <div class="flex-between fs-xs text-dim">
         <span>{{ t('fi.keep_original') }}</span>
         <span>{{ t('fi.full_redraw') }}</span>
       </div>
@@ -435,26 +435,26 @@ function onKeydown(e) {
       <div class="form-group">
         <label class="form-label" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }">{{ t('fi.seed_label') }}</label>
         <input data-testid="fi-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :disabled="genMode === 'compound'" :placeholder="t('fi.seed_placeholder')" :style="{ opacity: genMode === 'compound' ? 0.5 : 1 }" />
-        <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 4px;">{{ t('fi.preset_only') }}</div>
-        <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.seed_hint') }}</div>
+        <div v-if="genMode === 'compound'" class="field-note field-note-accent">{{ t('fi.preset_only') }}</div>
+        <div v-else class="field-note">{{ t('fi.seed_hint') }}</div>
       </div>
 
       <div class="form-group">
         <ResolutionSelector v-model="selectedResolutionId" :none-label="t('fi.resolution_original')" />
-        <div style="margin-top: 6px;">
+        <div class="remix-quality">
           <label :style="{ display: 'flex', alignItems: 'center', gap: '6px', cursor: (genMode === 'compound' || !selectedResolutionId) ? 'not-allowed' : 'pointer', opacity: (genMode === 'compound' || !selectedResolutionId) ? 0.5 : 1 }">
-            <input data-testid="fi-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="genMode === 'compound' || !selectedResolutionId" style="accent-color: var(--accent);" />
-            <span style="font-size: 12px;">{{ t('fi.quality_mode') }}</span>
+            <input data-testid="fi-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="genMode === 'compound' || !selectedResolutionId" class="accent-check" />
+            <span class="fs-sm">{{ t('fi.quality_mode') }}</span>
           </label>
-          <div v-if="genMode === 'compound'" style="font-size: 11px; color: var(--accent); margin-top: 2px;">{{ t('fi.preset_only') }}</div>
-          <div v-else-if="!selectedResolutionId" style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_needs_resolution') }}</div>
-          <div v-else style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">{{ t('fi.quality_hint') }}</div>
+          <div v-if="genMode === 'compound'" class="field-note field-note-accent">{{ t('fi.preset_only') }}</div>
+          <div v-else-if="!selectedResolutionId" class="field-note">{{ t('fi.quality_needs_resolution') }}</div>
+          <div v-else class="field-note">{{ t('fi.quality_hint') }}</div>
         </div>
       </div>
 
       <div v-if="genMode === 'compound'" class="form-group">
         <HiresProfileSelector v-model="selectedHiresProfileId" />
-        <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('fi.hires_hint') }}</div>
+        <div class="field-note">{{ t('fi.hires_hint') }}</div>
       </div>
 
       <div v-if="!kidsModeActive" class="form-group">
@@ -463,40 +463,77 @@ function onKeydown(e) {
       </div>
     </FoldBlock>
 
-    <div style="display: flex; gap: 8px; width: 100%;">
-      <button class="btn btn-primary" :class="{ 'btn-generating': generatingImage }" style="flex: 1; justify-content: center; padding: 12px;" @click="generate" :disabled="generatingImage || (batch && batchBusy) || !source || (genMode === 'preset' ? !selectedPresetId : !selectedCompoundPresetId)">
-        <span v-if="generatingImage" style="display: inline-flex; align-items: center; gap: 6px;">
-          <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+    <div class="flex gap-2 remix-actions">
+      <button class="btn btn-primary remix-generate" :class="{ 'btn-generating': generatingImage }" @click="generate" :disabled="generatingImage || (batch && batchBusy) || !source || (genMode === 'preset' ? !selectedPresetId : !selectedCompoundPresetId)">
+        <span v-if="generatingImage" class="inline-center">
+          <span class="spinner spinner-sm"></span>
           {{ progressLabel }}
         </span>
         <span v-else-if="batch">{{ t('fi.btn_apply_all') }}</span>
         <span v-else>{{ genCount <= 1 ? t('fi.btn_generate') : t('fi.btn_generate_n', { count: genCount }) }}</span>
       </button>
-      <input v-if="!batch" class="form-input" type="number" v-model.number="genCount" min="1" max="100" style="width: 70px; text-align: center;" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
+      <input v-if="!batch" class="form-input remix-count" type="number" v-model.number="genCount" min="1" max="100" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
     </div>
 
     <div v-if="generatingImage" class="remix-progress">
       <div class="remix-progress-row">
-        <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+        <span class="spinner spinner-sm"></span>
         <span class="remix-progress-label">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ progressLabel }}</span>
       </div>
       <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="remix-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats block @interrupt="interruptBatch" />
     </div>
 
-    <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" style="margin-top: 8px;" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
-    <StatusMessage v-if="qualityRedenoiseSkipped" kind="warning" style="margin-top: 8px;" @close="qualityRedenoiseSkipped = false">{{ t('fi.quality_redenoise_skipped') }}</StatusMessage>
+    <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" class="mt-2" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>
+    <StatusMessage v-if="qualityRedenoiseSkipped" kind="warning" class="mt-2" @close="qualityRedenoiseSkipped = false">{{ t('fi.quality_redenoise_skipped') }}</StatusMessage>
 
     <details v-if="genInfo" class="gen-info">
       <summary>{{ t('fi.technical_details') }}</summary>
-      <pre style="white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word;">{{ typeof genInfo === 'string' ? genInfo : JSON.stringify(genInfo, null, 2) }}</pre>
+      <pre class="pre-wrap">{{ typeof genInfo === 'string' ? genInfo : JSON.stringify(genInfo, null, 2) }}</pre>
     </details>
   </div>
 </template>
 
 <style scoped>
+.remix-desc-head {
+  margin-bottom: 6px;
+}
+
+.remix-gap-6 {
+  gap: 6px;
+}
+
+.remix-kids-note {
+  margin-top: var(--sp-1);
+  padding: 6px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.remix-quality {
+  margin-top: 6px;
+}
+
+.remix-actions {
+  width: 100%;
+}
+
+.remix-generate {
+  flex: 1;
+  justify-content: center;
+  padding: var(--sp-3);
+}
+
+.remix-count {
+  width: 70px;
+  text-align: center;
+}
+
 .remix-hint {
   margin-bottom: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 
@@ -513,7 +550,7 @@ function onKeydown(e) {
 }
 .remix-progress-label {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .remix-progress-info {
   margin-top: 8px;
