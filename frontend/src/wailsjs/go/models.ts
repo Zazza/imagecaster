@@ -1778,6 +1778,7 @@ export namespace serverclient {
 	    modules?: CatalogModule[];
 	    presets?: string;
 	    variants?: CatalogVariant[];
+	    fast_cache?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CatalogSDModel(source);
@@ -1798,6 +1799,7 @@ export namespace serverclient {
 	        this.modules = this.convertValues(source["modules"], CatalogModule);
 	        this.presets = source["presets"];
 	        this.variants = this.convertValues(source["variants"], CatalogVariant);
+	        this.fast_cache = source["fast_cache"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
