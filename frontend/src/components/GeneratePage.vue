@@ -827,9 +827,9 @@ function onKeydown(e) {
             <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" @click="generateImage" :disabled="generateDisabled">
               <span v-if="generatingImage" class="gen-btn-inner">
                 <span class="spinner gen-action-spinner"></span>
-                {{ generationStage === 'prompt' ? t('generate.generating_prompt') : t('generate.generating_image') }}
+                <span class="gen-btn-label">{{ generationStage === 'prompt' ? t('generate.generating_prompt') : t('generate.generating_image') }}</span>
               </span>
-              <span v-else>{{ genCount <= 1 ? t('generate.btn_generate') : t('generate.btn_generate_n', { count: genCount }) }}</span>
+              <span v-else class="gen-btn-label">{{ genCount <= 1 ? t('generate.btn_generate') : t('generate.btn_generate_n', { count: genCount }) }}</span>
             </button>
             <label class="gen-count" :title="t('generate.count_title')">
               <input class="form-input" type="number" v-model.number="genCount" min="1" max="100" :aria-label="t('generate.count_title')" @change="genCount = Math.max(1, Math.min(100, genCount || 1))" />
@@ -954,6 +954,8 @@ function onKeydown(e) {
   }
 }
 .gen-controls .btn-generate {
+  flex: 0 1 auto;
+  min-width: 0;
   justify-content: center;
   padding: 8px 16px;
   font-size: var(--fs-md);
@@ -1147,6 +1149,17 @@ function onKeydown(e) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+.gen-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gen-btn-inner > .spinner,
+.gen-actions-row > .gen-count,
+.gen-actions-row > .gen-fast {
+  flex-shrink: 0;
 }
 .gen-modal {
   max-width: 400px;
