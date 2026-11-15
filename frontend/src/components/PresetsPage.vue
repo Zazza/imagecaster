@@ -291,7 +291,7 @@ onMounted(load)
       </div>
     </div>
 
-    <div v-if="loading" style="padding: 40px; text-align: center;">
+    <div v-if="loading" class="loading-block">
       <span class="spinner"></span>
     </div>
 
@@ -433,8 +433,8 @@ onMounted(load)
           <li v-for="p in selectedStyles.slice(0, 10)" :key="p.id">{{ p.name }}</li>
           <li v-if="selectedStyles.length > 10">{{ t('presets.delete_more', { count: selectedStyles.length - 10 }) }}</li>
         </ul>
-        <p style="color: var(--text-dim); font-size: 0.9em;">{{ t('presets.delete_cannot_undo') }}</p>
-        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+        <p class="delete-note">{{ t('presets.delete_cannot_undo') }}</p>
+        <div class="actions-end">
           <button class="btn btn-secondary" @click="showDeleteConfirm = false">{{ t('presets.btn_cancel') }}</button>
           <button class="btn btn-danger" data-testid="confirm-delete" @click="confirmBatchDelete">{{ t('presets.btn_delete') }}</button>
         </div>

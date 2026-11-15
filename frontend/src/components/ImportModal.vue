@@ -66,7 +66,7 @@ async function doImport() {
 
       <div v-if="error" class="import-error">{{ error }}</div>
 
-      <div style="margin-bottom: 12px;">
+      <div class="mb-3">
         <label class="import-select-all">
           <input type="checkbox" :checked="allSelected" @change="toggleAll" />
           {{ t('import.select_all') }}
@@ -95,7 +95,7 @@ async function doImport() {
         </template>
       </div>
 
-      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+      <div class="modal-actions">
         <button class="btn btn-secondary" @click="$emit('close')">{{ t('import.btn_cancel') }}</button>
         <button class="btn btn-primary" :disabled="importing || selectedCount === 0" @click="doImport">
           {{ importing ? t('import.importing') : t('import.btn_import', { count: selectedCount }) }}

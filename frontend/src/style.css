@@ -2228,3 +2228,20 @@ details.cat-extra summary {
   color: var(--text-dim);
   font-size: 0.9em;
 }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: var(--sp-5);
+}
+
+.center-pad {
+  padding: var(--sp-5);
+  text-align: center;
+}
+
+.loading-block {
+  padding: 40px;
+  text-align: center;
+}

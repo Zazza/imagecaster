@@ -178,15 +178,15 @@ function handleDelete(id) {
 
 <template>
   <div v-if="visible" class="modal-overlay">
-    <div class="modal" style="max-width: 860px;">
+    <div class="modal sdm-modal">
       <div class="modal-header">
         <h2 class="modal-title">{{ t('descriptions.title') }}</h2>
         <button class="modal-close" @click="$emit('close')"><X :size="16" /></button>
       </div>
 
       <div class="sdm-toolbar">
-        <input class="form-input" v-model="search" :placeholder="t('descriptions.placeholder_search')"
-          style="flex: 1; min-width: 160px;" @keydown.enter="searchEnter" />
+        <input class="form-input sdm-search" v-model="search" :placeholder="t('descriptions.placeholder_search')"
+          @keydown.enter="searchEnter" />
         <span v-if="descriptions.length" class="sdm-count">
           {{ t('descriptions.found_of', { found: filtered.length, total: descriptions.length }) }}
         </span>
@@ -206,20 +206,20 @@ function handleDelete(id) {
         <span class="sdm-count">{{ t('descriptions.selected') }} <span data-testid="sdm-selected-count">{{ selectedCount }}</span></span>
       </div>
 
-      <div v-if="types.length > 0" class="style-markers" style="margin-bottom: 12px;">
+      <div v-if="types.length > 0" class="style-markers mb-3">
         <span class="style-chip" :class="{ active: !typeFilter }" @click="typeFilter = ''">{{ t('descriptions.all') }}</span>
         <span v-for="ty in types" :key="ty" class="style-chip" :class="{ active: typeFilter === ty }" @click="typeFilter = ty">{{ ty }}</span>
       </div>
 
-      <div v-if="showCreate" style="background: var(--surface-2); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 12px;">
+      <div v-if="showCreate" class="sdm-create">
         <div class="form-group">
           <input class="form-input" v-model="newText" :placeholder="t('descriptions.placeholder_text')" />
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="sdm-create-grid">
           <input class="form-input" v-model="newName" :placeholder="t('descriptions.placeholder_name')" />
           <input class="form-input" v-model="newType" :placeholder="t('descriptions.placeholder_tag')" />
         </div>
-        <div class="form-group" style="margin-top: 8px;">
+        <div class="form-group mt-2">
           <textarea class="form-textarea" v-model="newNegative" :placeholder="t('descriptions.placeholder_exclude')" rows="2"></textarea>
         </div>
         <button class="btn btn-primary btn-sm" @click="handleCreate" :disabled="!newText.trim()">{{ t('descriptions.btn_save') }}</button>
@@ -263,7 +263,7 @@ function handleDelete(id) {
               <input class="form-input" v-model="editName" :placeholder="t('descriptions.placeholder_name_edit')" />
               <input class="form-input" v-model="editType" :placeholder="t('descriptions.placeholder_type_edit')" />
               <textarea class="form-textarea" v-model="editNegative" :placeholder="t('descriptions.placeholder_exclude_edit')" rows="2"></textarea>
-              <div style="display: flex; gap: 6px;">
+              <div class="flex sdm-gap-6">
                 <button class="btn btn-primary btn-sm" @click.stop="saveEdit(desc)">{{ t('descriptions.btn_save') }}</button>
                 <button class="btn btn-secondary btn-sm" @click.stop="editingId = null">{{ t('descriptions.btn_cancel') }}</button>
               </div>
@@ -292,7 +292,7 @@ function handleDelete(id) {
         </div>
         <div v-if="batchDisabled && !batchRunning" class="sdm-batch-hint">{{ batchDisabled }}</div>
         <div v-if="batchRunning && batchProgress" class="sdm-batch-hint" data-testid="sdm-batch-progress">
-          <span class="spinner" style="width: 11px; height: 11px; border-width: 2px;"></span>
+          <span class="spinner spinner-sm"></span>
           {{ t('descriptions.batch_progress', { done: batchProgress.done, total: batchProgress.total }) }}
         </div>
         <div v-if="!batchRunning && batchProgress?.message" class="sdm-batch-hint sdm-batch-ok">{{ batchProgress.message }}</div>
@@ -306,6 +306,32 @@ function handleDelete(id) {
 </template>
 
 <style scoped>
+.sdm-modal {
+  max-width: 860px;
+}
+
+.sdm-search {
+  flex: 1;
+  min-width: 160px;
+}
+
+.sdm-create {
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.sdm-create-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+
+.sdm-gap-6 {
+  gap: 6px;
+}
+
 .saved-modal-list {
   max-height: 55vh;
 }

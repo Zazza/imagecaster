@@ -74,8 +74,8 @@ function resetAnalyzePrompts() {
       <div class="prompts-sub">{{ t('settings.group_image_prompt_sub') }}</div>
 
       <FoldBlock :title="t('settings.section_sd_prompt')" :hint="t('settings.prompt_instruction_description')" :summary="promptState(promptInstruction, defaultPromptInstruction)">
-        <StatusMessage v-if="promptInstructionSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="promptInstructionSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
-        <StatusMessage v-if="promptInstructionError" style="margin-bottom: 12px;" @close="promptInstructionError = ''">{{ promptInstructionError }}</StatusMessage>
+        <StatusMessage v-if="promptInstructionSaved" kind="success" :timeout="8000" class="mb-3" @close="promptInstructionSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
+        <StatusMessage v-if="promptInstructionError" class="mb-3" @close="promptInstructionError = ''">{{ promptInstructionError }}</StatusMessage>
         <textarea class="form-textarea prompt-area" v-model="promptInstruction" rows="16"></textarea>
         <div class="prompt-actions">
           <button class="btn btn-primary" @click="savePromptInstruction">{{ t('settings.btn_save_instruction') }}</button>
@@ -84,8 +84,8 @@ function resetAnalyzePrompts() {
       </FoldBlock>
 
       <FoldBlock :title="t('settings.section_sd_prompt_prose')" :hint="t('settings.prompt_instruction_prose_description')" :summary="promptState(promptInstructionProse, defaultPromptInstructionProse)">
-        <StatusMessage v-if="promptInstructionProseSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="promptInstructionProseSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
-        <StatusMessage v-if="promptInstructionProseError" style="margin-bottom: 12px;" @close="promptInstructionProseError = ''">{{ promptInstructionProseError }}</StatusMessage>
+        <StatusMessage v-if="promptInstructionProseSaved" kind="success" :timeout="8000" class="mb-3" @close="promptInstructionProseSaved = false">{{ t('settings.instruction_saved') }}</StatusMessage>
+        <StatusMessage v-if="promptInstructionProseError" class="mb-3" @close="promptInstructionProseError = ''">{{ promptInstructionProseError }}</StatusMessage>
         <textarea class="form-textarea prompt-area" v-model="promptInstructionProse" rows="16"></textarea>
         <div class="prompt-actions">
           <button class="btn btn-primary" @click="savePromptInstructionProse">{{ t('settings.btn_save_instruction') }}</button>
@@ -94,7 +94,7 @@ function resetAnalyzePrompts() {
       </FoldBlock>
     </div>
 
-    <div class="card" style="margin-top: 16px;">
+    <div class="card mt-4">
       <h3 class="prompts-title">{{ t('settings.group_describe_photo') }}</h3>
       <div class="prompts-sub">{{ t('settings.group_describe_photo_sub') }}</div>
 
@@ -111,8 +111,8 @@ function resetAnalyzePrompts() {
         <textarea class="form-textarea prompt-area" v-model="editGarmentPrompt" rows="8"></textarea>
       </FoldBlock>
 
-      <StatusMessage v-if="analyzeSaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="analyzeSaved = false">{{ t('settings.prompts_saved') }}</StatusMessage>
-      <StatusMessage v-if="analyzeError" style="margin-bottom: 12px;" @close="analyzeError = ''">{{ analyzeError }}</StatusMessage>
+      <StatusMessage v-if="analyzeSaved" kind="success" :timeout="8000" class="mb-3" @close="analyzeSaved = false">{{ t('settings.prompts_saved') }}</StatusMessage>
+      <StatusMessage v-if="analyzeError" class="mb-3" @close="analyzeError = ''">{{ analyzeError }}</StatusMessage>
       <div class="prompt-actions">
         <button class="btn btn-primary" @click="saveAnalyzePrompts">{{ t('settings.btn_save_prompts') }}</button>
         <button class="btn btn-secondary" @click="resetAnalyzePrompts">{{ t('settings.btn_reset_default') }}</button>

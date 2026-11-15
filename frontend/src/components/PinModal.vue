@@ -39,21 +39,21 @@ function handleCancel() {
 
 <template>
   <div class="modal-overlay">
-    <div class="modal" style="max-width: 360px;">
+    <div class="modal pin-modal">
       <div class="modal-header">
         <h2 class="modal-title">{{ title }}</h2>
         <button class="modal-close" @click="handleCancel"><X :size="16" /></button>
       </div>
 
-      <div style="padding: 16px 0;">
-        <div v-if="isSetMode" style="color: var(--text-dim); margin-bottom: 16px; font-size: 13px;">
+      <div class="pin-body">
+        <div v-if="isSetMode" class="pin-text">
           {{ t('pin.set_description') }}
         </div>
-        <div v-else style="color: var(--text-dim); margin-bottom: 16px; font-size: 13px;">
+        <div v-else class="pin-text">
           {{ t('pin.disable_description') }}
         </div>
 
-        <div v-if="pinError || error" class="status status-error" style="margin-bottom: 12px;">
+        <div v-if="pinError || error" class="status status-error mb-3">
           {{ pinError || error }}
         </div>
 
@@ -85,10 +85,30 @@ function handleCancel() {
         </div>
       </div>
 
-      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <div class="flex gap-2 pin-actions">
         <button class="btn btn-secondary" @click="handleCancel">{{ t('pin.btn_cancel') }}</button>
         <button class="btn btn-primary" @click="handleSubmit">{{ t('pin.btn_confirm') }}</button>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.pin-modal {
+  max-width: 360px;
+}
+
+.pin-body {
+  padding: var(--sp-4) 0;
+}
+
+.pin-text {
+  margin-bottom: var(--sp-4);
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+}
+
+.pin-actions {
+  justify-content: flex-end;
+}
+</style>

@@ -140,7 +140,7 @@ defineExpose({ reset })
 <template>
   <FoldBlock class="preset-overrides" :title="title || t('overrides.title')" :summary="summary" @toggle="onToggle">
     <div class="preset-overrides-body">
-      <div v-if="loadError" class="overrides-hint" style="color: var(--status-warn, #e6a23c);">{{ t('overrides.load_error') }}</div>
+      <div v-if="loadError" class="overrides-hint overrides-warn">{{ t('overrides.load_error') }}</div>
       <div class="overrides-grid">
         <div class="form-group">
           <label class="form-label">{{ t('overrides.model') }}</label>
@@ -203,6 +203,10 @@ defineExpose({ reset })
 </template>
 
 <style scoped>
+.overrides-warn {
+  color: var(--warning);
+}
+
 .preset-overrides-body {
   padding: 0;
 }

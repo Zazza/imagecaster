@@ -81,14 +81,14 @@ async function pullFromForm() {
       <div class="fs-xs text-dim mb-3">{{ t('settings.llm_auto_unload_hint') }}</div>
       <button class="btn btn-primary btn-sm" @click="saveMemoryGuard">{{ t('settings.btn_save_params') }}</button>
     </div>
-      <div v-if="!serverURL" class="adv-placeholder text-dim">{{ t('settings.server_not_configured') }}</div>
+      <div v-if="!serverURL" class="center-pad text-dim">{{ t('settings.server_not_configured') }}</div>
       <template v-else>
         <div class="card mb-4">
           <div class="flex-between mb-3">
             <h3 class="text-bright">{{ t('settings.title_sd_models') }}</h3>
             <button class="btn btn-secondary btn-sm" @click="loadServerModels">{{ t('settings.btn_refresh') }}</button>
           </div>
-          <div v-if="serverModelsLoading.sd" class="adv-placeholder"><span class="spinner"></span></div>
+          <div v-if="serverModelsLoading.sd" class="center-pad"><span class="spinner"></span></div>
           <div v-else-if="serverModels.sd.length === 0" class="text-dim">{{ t('settings.no_models') }}</div>
           <div v-for="m in serverModels.sd" :key="m.name" class="flex-between adv-model-row">
             <div>
@@ -115,7 +115,7 @@ async function pullFromForm() {
           <div class="flex-between mb-3">
             <h3 class="text-bright">LoRA</h3>
           </div>
-          <div v-if="serverModelsLoading.lora" class="adv-placeholder"><span class="spinner"></span></div>
+          <div v-if="serverModelsLoading.lora" class="center-pad"><span class="spinner"></span></div>
           <div v-else-if="serverModels.lora.length === 0" class="text-dim">{{ t('settings.no_loras') }}</div>
           <div v-else class="adv-chips">
             <span v-for="m in serverModels.lora" :key="m.name" class="adv-chip">
@@ -129,7 +129,7 @@ async function pullFromForm() {
           <div class="flex-between mb-3">
             <h3 class="text-bright">{{ t('settings.title_llm_models') }}</h3>
           </div>
-          <div v-if="serverModelsLoading.llm" class="adv-placeholder"><span class="spinner"></span></div>
+          <div v-if="serverModelsLoading.llm" class="center-pad"><span class="spinner"></span></div>
           <div v-else-if="serverModels.llm.length === 0" class="text-dim">{{ t('settings.no_models') }}</div>
           <div v-for="m in serverModels.llm" :key="m.name" class="flex-between adv-model-row">
             <span class="text-bright fs-md">{{ m.name }}</span>
@@ -148,11 +148,6 @@ async function pullFromForm() {
 </template>
 
 <style scoped>
-.adv-placeholder {
-  padding: var(--sp-5);
-  text-align: center;
-}
-
 .adv-model-row {
   padding: 6px 0;
   border-bottom: 1px solid var(--border);

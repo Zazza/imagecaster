@@ -145,8 +145,8 @@ defineExpose({
     </div>
 
     <button data-testid="repair-run" class="btn btn-primary repair-run" :class="{ 'btn-generating': running }" @click="run" :disabled="!canRun">
-      <span v-if="running" style="display: inline-flex; align-items: center; gap: 6px;">
-        <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+      <span v-if="running" class="inline-center">
+        <span class="spinner spinner-sm"></span>
         {{ t('repair.stage_running') }}
       </span>
       <span v-else>{{ t('repair.btn_run') }}</span>
@@ -157,10 +157,10 @@ defineExpose({
 
     <details class="repair-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
       <summary>{{ t('repair.more') }}</summary>
-      <div class="form-group" style="margin-top: 10px;">
+      <div class="form-group repair-strength">
         <label class="form-label">{{ t('repair.label_strength', { value: strength.toFixed(2) }) }}</label>
         <input data-testid="repair-strength" type="range" class="form-range" v-model.number="strength" min="0.3" max="0.9" step="0.05" />
-        <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('repair.strength_hint') }}</div>
+        <div class="field-note">{{ t('repair.strength_hint') }}</div>
       </div>
       <div class="form-group">
         <label class="form-label">{{ t('fi.seed_label') }}</label>
@@ -171,6 +171,10 @@ defineExpose({
 </template>
 
 <style scoped>
+.repair-strength {
+  margin-top: 10px;
+}
+
 .repair-hint {
   font-size: 11px;
   color: var(--text-dim);

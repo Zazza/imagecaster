@@ -94,7 +94,7 @@ function onLorasToggle(e) {
 <template>
   <div class="custom-pipeline">
     <div class="custom-pipeline-head">
-      <label class="form-label" style="margin: 0;">{{ t('custom.steps_count', { count: steps.length }) }}</label>
+      <label class="form-label m-0">{{ t('custom.steps_count', { count: steps.length }) }}</label>
       <button type="button" class="btn btn-sm btn-secondary" :disabled="steps.length >= MAX_CUSTOM_STEPS" @click="addStep">
         {{ t('custom.btn_add_step') }}
       </button>
@@ -108,13 +108,13 @@ function onLorasToggle(e) {
         </span>
         <span v-if="!disableLoras" class="custom-lora-badge" :class="{ touched: loraBadgeTouched(step) }">{{ loraBadge(step) }}</span>
         <div class="custom-step-actions">
-          <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px;" :disabled="idx === 0" :aria-label="t('custom.step_move_up')" @click="moveStep(idx, -1)"><ChevronUp :size="14" /></button>
-          <button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px;" :disabled="idx === steps.length - 1" :aria-label="t('custom.step_move_down')" @click="moveStep(idx, 1)"><ChevronDown :size="14" /></button>
-          <button type="button" class="btn btn-sm btn-danger-quiet" style="padding: 2px 8px;" :disabled="steps.length <= 1" :aria-label="t('custom.step_remove')" @click="removeStep(idx)"><X :size="14" /></button>
+          <button type="button" class="btn btn-sm btn-secondary custom-step-btn" :disabled="idx === 0" :aria-label="t('custom.step_move_up')" @click="moveStep(idx, -1)"><ChevronUp :size="14" /></button>
+          <button type="button" class="btn btn-sm btn-secondary custom-step-btn" :disabled="idx === steps.length - 1" :aria-label="t('custom.step_move_down')" @click="moveStep(idx, 1)"><ChevronDown :size="14" /></button>
+          <button type="button" class="btn btn-sm btn-danger-quiet custom-step-btn" :disabled="steps.length <= 1" :aria-label="t('custom.step_remove')" @click="removeStep(idx)"><X :size="14" /></button>
         </div>
       </div>
 
-      <div class="form-group" style="margin: 0 0 8px;">
+      <div class="form-group m-0 mb-2">
         <label class="form-label">{{ t('compound.label_style') }}</label>
         <SearchableSelect
           :model-value="step.preset_id"
@@ -125,7 +125,7 @@ function onLorasToggle(e) {
         />
       </div>
 
-      <div v-if="idx > 0" class="form-group custom-denoise" style="margin: 0;">
+      <div v-if="idx > 0" class="form-group custom-denoise m-0">
         <label class="form-label">{{ t('compound.label_denoising') }}</label>
         <input class="form-input" type="number" v-model.number="step.denoising_strength" min="0.05" max="1" step="0.05" @change="clampDenoise(step)" />
       </div>
@@ -142,7 +142,7 @@ function onLorasToggle(e) {
           </label>
           <div class="custom-loras-section" :class="{ 'custom-loras-disabled': step.loraIgnoreAll }">
             <div class="custom-loras-head">
-              <label class="form-label" style="margin: 0;">{{ t('overrides.loras') }}</label>
+              <label class="form-label m-0">{{ t('overrides.loras') }}</label>
               <button type="button" class="btn btn-sm btn-secondary" :disabled="step.loraIgnoreAll" @click="addLora(step)">{{ t('overrides.loras_add') }}</button>
             </div>
             <div v-for="(row, ri) in step.loraRows" :key="ri" class="custom-lora-row">
@@ -163,6 +163,10 @@ function onLorasToggle(e) {
 </template>
 
 <style scoped>
+.custom-step-btn {
+  padding: 2px 8px;
+}
+
 .custom-pipeline-head {
   display: flex;
   justify-content: space-between;

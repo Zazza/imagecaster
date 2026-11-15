@@ -129,7 +129,7 @@ onUnmounted(() => {
       </div>
       <div class="footer-actions">
         <span v-if="appVersion" class="footer-version">v{{ appVersion }}</span>
-        <span v-if="footerError" style="color: var(--danger); font-size: 11px; margin-right: 8px;">{{ footerError }}</span>
+        <span v-if="footerError" class="footer-error">{{ footerError }}</span>
         <button class="footer-tab-btn" :class="{ active: expanded && panel === 'session' }" @click="togglePanel('session')">
           {{ t('footer.session') }} {{ itemCount > 0 ? `(${itemCount})` : '' }}
         </button>
@@ -160,6 +160,12 @@ export default { name: 'AppFooter' }
 </script>
 
 <style scoped>
+.footer-error {
+  margin-right: var(--sp-2);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+}
+
 .app-footer {
   background: var(--frame);
   flex-shrink: 0;

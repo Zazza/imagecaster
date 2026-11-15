@@ -171,14 +171,14 @@ defineExpose({
       </div>
     </div>
 
-    <div v-if="op === 'replace'" class="form-group" style="margin-top: 12px;">
+    <div v-if="op === 'replace'" class="form-group mt-3">
       <label class="form-label">{{ t('object.label_replacement') }}</label>
       <textarea data-testid="object-replacement" class="form-textarea" v-model="replacement" rows="2" maxlength="500" :placeholder="t('object.placeholder_replacement')"></textarea>
     </div>
 
     <button data-testid="object-run" class="btn btn-primary object-run" :class="{ 'btn-generating': running }" @click="run" :disabled="!canRun">
-      <span v-if="running" style="display: inline-flex; align-items: center; gap: 6px;">
-        <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+      <span v-if="running" class="inline-center">
+        <span class="spinner spinner-sm"></span>
         {{ progressLabel }}
       </span>
       <span v-else>{{ op === 'replace' ? t('object.btn_replace') : t('object.btn_remove') }}</span>
@@ -186,16 +186,16 @@ defineExpose({
 
     <GenProgress v-if="running && sdProgress && sdProgress.progress > 0" class="object-progress" :progress="sdProgress.progress" block @interrupt="interruptGeneration" />
 
-    <div v-if="detectedObject && !running" style="font-size: 12px; color: var(--text-dim); margin-top: 10px;">
+    <div v-if="detectedObject && !running" class="object-detected">
       {{ t('object.detected', { object: detectedObject }) }}
     </div>
 
     <details class="object-more" :open="moreOpen" @toggle="moreOpen = $event.target.open">
       <summary>{{ t('object.more') }}</summary>
-      <div class="form-group" style="margin-top: 10px;">
+      <div class="form-group object-gap">
         <label class="form-label">{{ t('object.label_object') }}</label>
         <input data-testid="object-object" class="form-input" v-model="objectText" maxlength="200" :placeholder="t('object.placeholder_object')" />
-        <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">{{ t('object.object_hint') }}</div>
+        <div class="field-note">{{ t('object.object_hint') }}</div>
       </div>
       <div class="form-group">
         <label class="form-label">{{ t('fi.seed_label') }}</label>
@@ -205,12 +205,22 @@ defineExpose({
 
     <details v-if="effectivePrompt" class="gen-info">
       <summary>{{ t('fi.technical_details') }}</summary>
-      <pre style="white-space: pre-wrap; word-break: break-word;">{{ effectivePrompt }}</pre>
+      <pre class="pre-wrap">{{ effectivePrompt }}</pre>
     </details>
   </div>
 </template>
 
 <style scoped>
+.object-detected {
+  margin-top: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.object-gap {
+  margin-top: 10px;
+}
+
 .object-mask-controls {
   padding: 12px;
   background: var(--surface-2);

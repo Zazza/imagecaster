@@ -201,7 +201,7 @@ onMounted(async () => {
       <h1 class="page-title">{{ t('app.nav_catalog') }}</h1>
     </div>
     <div>
-      <div v-if="!modelCatalog" style="color: var(--text-dim); text-align: center; padding: 20px;">
+      <div v-if="!modelCatalog" class="center-pad text-dim">
         <template v-if="modelCatalogError">{{ t('settings.catalog_error', { error: modelCatalogError }) }}</template>
         <template v-else>{{ t('settings.catalog_loading') }}</template>
       </div>

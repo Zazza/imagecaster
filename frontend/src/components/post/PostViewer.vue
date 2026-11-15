@@ -283,8 +283,8 @@ onUnmounted(() => {
       @drop.prevent="onDrop"
       @click="emit('upload')"
     >
-      <div style="color: var(--text-dim); display: flex;"><ImageIcon :size="32" :stroke-width="1.5" /></div>
-      <p style="color: var(--text-dim); margin-top: 8px;">{{ t('fi.drop_image') }}</p>
+      <div class="flex text-dim"><ImageIcon :size="32" :stroke-width="1.5" /></div>
+      <p class="text-dim mt-2">{{ t('fi.drop_image') }}</p>
     </div>
   </div>
 </template>

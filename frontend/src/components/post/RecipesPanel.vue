@@ -282,7 +282,7 @@ defineExpose({ applyRecipe, load: loadRecipes })
   </div>
 
   <div class="pipeline-progress" v-if="recipeRunning">
-    <span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span>
+    <span class="spinner spinner-sm"></span>
     {{ t('post.recipe_progress', { i: recipeStepIdx, n: recipeStepTotal }) }}
   </div>
   <button v-if="recipeRunning" class="btn btn-secondary btn-block" @click="interruptRecipe">

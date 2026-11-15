@@ -312,7 +312,7 @@ defineExpose({
       :disabled="!source || autoStyleBusy"
       @click="runAutoStyle"
     >
-      <span v-if="autoStyleBusy" class="spinner" style="width: 11px; height: 11px; border-width: 2px;"></span>
+      <span v-if="autoStyleBusy" class="spinner spinner-sm"></span>
       <Sparkles v-else :size="13" />
       {{ autoStyleBusy ? t('post.autostyle_analyzing') : t('post.autostyle') }}
     </button>
@@ -415,7 +415,7 @@ defineExpose({
     {{ batchActive ? t('post.btn_apply_effect_all', { n: batchState.items.length }) : t('post.btn_apply_effect') }}
   </button>
   <button v-else class="btn btn-primary btn-block btn-generating" @click="batchBusy ? batch.interruptBatch() : interruptEffect()">
-    <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+    <span class="spinner spinner-sm"></span>
     {{ t('post.applying') }}
   </button>
   </div>

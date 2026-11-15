@@ -506,7 +506,7 @@ onUnmounted(() => {
 
       <div class="gal-summary" data-testid="gallery-total">{{ t('gallery.total', { count: total }) }}</div>
 
-      <div v-if="loading && !items.length" style="padding: 40px; text-align: center;"><span class="spinner"></span></div>
+      <div v-if="loading && !items.length" class="loading-block"><span class="spinner"></span></div>
 
       <div v-else-if="total === 0" class="styles-empty" data-testid="no-match">
         <p>{{ t('gallery.no_match') }}</p>
@@ -546,8 +546,8 @@ onUnmounted(() => {
           <button class="modal-close" @click="showDeleteConfirm = false"><X :size="16" /></button>
         </div>
         <p>{{ t('gallery.delete_confirm_n', { count: selectedCount }) }}</p>
-        <p style="color: var(--text-dim); font-size: 0.9em;">{{ t('gallery.delete_hint') }}</p>
-        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+        <p class="delete-note">{{ t('gallery.delete_hint') }}</p>
+        <div class="actions-end">
           <button class="btn btn-secondary" @click="showDeleteConfirm = false">{{ t('presets.btn_cancel') }}</button>
           <button class="btn btn-danger" data-testid="confirm-delete" @click="confirmBatchDelete">{{ t('presets.btn_delete') }}</button>
         </div>

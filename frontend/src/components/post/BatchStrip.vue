@@ -15,7 +15,7 @@ const { batch: current, batchIndex, batchBusy, batchExporting, batchProgress, ba
       <span class="batch-title">{{ t('post.batch_title', { n: current.items.length }) }}</span>
       <span class="batch-steps">{{ t('post.batch_steps', { n: current.steps }) }}</span>
       <template v-if="batchBusy || batchExporting">
-        <span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span>
+        <span class="spinner spinner-sm"></span>
         <span>{{ t('post.batch_progress', { done: batchProgress.done, total: batchProgress.total }) }}</span>
         <button class="btn btn-sm btn-secondary" @click="batch.stopBatch">{{ t('progress.btn_interrupt') }}</button>
       </template>

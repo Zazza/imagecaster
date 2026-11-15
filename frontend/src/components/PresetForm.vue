@@ -170,19 +170,19 @@ onMounted(() => {
         </div>
 
         <div class="form-group">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label class="form-label" style="margin: 0;">{{ t('preset.label_lora') }}</label>
+          <div class="lora-head">
+            <label class="form-label m-0">{{ t('preset.label_lora') }}</label>
             <button type="button" class="btn btn-sm btn-secondary" @click="addLoRA">{{ t('preset.btn_add_lora') }}</button>
           </div>
-          <div v-for="(lora, idx) in presetLoras" :key="idx" style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
-            <select class="form-select" v-model="lora.name" style="flex: 2;">
+          <div v-for="(lora, idx) in presetLoras" :key="idx" class="lora-row">
+            <select class="form-select preset-lora-name" v-model="lora.name">
               <option value="" disabled>{{ t('preset.select_lora') }}</option>
               <option v-for="l in loras" :key="l.name" :value="l.name">{{ l.name }}</option>
             </select>
-            <input class="form-input" type="number" v-model.number="lora.weight" step="0.1" min="0" max="2" style="flex: 0 0 80px;" />
-            <button type="button" class="btn btn-sm btn-secondary" style="padding: 4px 10px;" @click="removeLoRA(idx)"><X :size="14" /></button>
+            <input class="form-input" type="number" v-model.number="lora.weight" step="0.1" min="0" max="2" />
+            <button type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLoRA(idx)"><X :size="14" /></button>
           </div>
-          <div v-if="!presetLoras.length" style="color: var(--text-dim); font-size: 13px;">{{ t('preset.no_loras') }}</div>
+          <div v-if="!presetLoras.length" class="text-dim fs-md">{{ t('preset.no_loras') }}</div>
         </div>
 
         <div class="form-group">
@@ -273,7 +273,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <div class="modal-actions">
           <button type="button" class="btn btn-secondary" @click="$emit('close')">{{ t('preset.btn_cancel') }}</button>
           <button type="submit" class="btn btn-primary" :disabled="saving">
             {{ saving ? t('preset.btn_saving') : t('preset.btn_save') }}
@@ -285,6 +285,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.preset-lora-name {
+  flex: 2;
+}
+
 .modal-overlay {
   z-index: 1000;
 }

@@ -331,7 +331,7 @@ onUnmounted(() => {
       <template v-if="lookWay === 'effects'">
         <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': lookCompiling }" :disabled="!canCompileLook" @click="compileLook">
           <span class="btn-generate-inner">
-            <span v-if="lookCompiling" class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+            <span v-if="lookCompiling" class="spinner spinner-sm"></span>
             <span>{{ t('edit.look_compile') }}</span>
           </span>
         </button>
@@ -348,7 +348,7 @@ onUnmounted(() => {
         </div>
         <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': lookBusy }" :disabled="!canApplyLookFree || !source" @click="applyLookFree">
           <span class="btn-generate-inner">
-            <span v-if="lookBusy" class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+            <span v-if="lookBusy" class="spinner spinner-sm"></span>
             <span>{{ lookBusy ? t('post.applying') : t('edit.look_apply') }}</span>
           </span>
         </button>
@@ -411,7 +411,7 @@ onUnmounted(() => {
       </select>
       <div v-if="stylesLoadError" class="field-hint field-hint-warn">{{ t('overrides.load_error') }}</div>
       <label v-if="selectedStyle" class="style-tags-label">
-        <input data-testid="edit-style-tags" type="checkbox" v-model="styleTags" style="accent-color: var(--accent);" />
+        <input data-testid="edit-style-tags" type="checkbox" v-model="styleTags" class="accent-check" />
         <span>{{ t('edit.style_tags') }}</span>
       </label>
       <div v-if="selectedStyle" class="field-hint">
@@ -443,7 +443,7 @@ onUnmounted(() => {
     <div class="form-group">
       <ResolutionSelector v-model="selectedResolutionId" :none-label="t('fi.resolution_original')" />
       <label class="quality-label" :style="{ cursor: selectedResolutionId ? 'pointer' : 'not-allowed', opacity: selectedResolutionId ? 1 : 0.5 }">
-        <input data-testid="edit-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="!selectedResolutionId" style="accent-color: var(--accent);" />
+        <input data-testid="edit-quality-checkbox" type="checkbox" v-model="qualityMode" :disabled="!selectedResolutionId" class="accent-check" />
         <span>{{ t('edit.quality_mode') }}</span>
       </label>
       <div v-if="qualityMode && selectedResolutionId" class="field-hint">{{ t('edit.quality_hint') }}</div>
@@ -452,7 +452,7 @@ onUnmounted(() => {
 
     <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': generatingImage }" @click="generate" :disabled="!canGenerate">
       <span v-if="generatingImage" class="btn-generate-inner">
-        <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+        <span class="spinner spinner-sm"></span>
         {{ t('edit.generating') }}
       </span>
       <span v-else>{{ batch ? t('edit.btn_apply_all') : t('edit.btn_generate') }}</span>
@@ -461,7 +461,7 @@ onUnmounted(() => {
 
     <div v-if="generatingImage" class="edit-progress">
       <div class="edit-progress-row">
-        <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+        <span class="spinner spinner-sm"></span>
         <span class="edit-progress-label">{{ t('edit.generating') }}</span>
       </div>
       <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="edit-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats @interrupt="interruptGeneration" />
