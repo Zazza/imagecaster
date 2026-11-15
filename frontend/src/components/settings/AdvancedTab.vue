@@ -70,79 +70,115 @@ async function pullFromForm() {
         </div>
       </div>
     </div>
-    <div class="card" style="margin-bottom: 16px;">
-      <h3 style="color: var(--text-bright); margin-bottom: 12px;">{{ t('settings.section_memory_guard') }}</h3>
-      <StatusMessage v-if="memorySaved" kind="success" :timeout="8000" style="margin-bottom: 12px;" @close="memorySaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
-      <StatusMessage v-if="memoryError" style="margin-bottom: 12px;" @close="memoryError = ''">{{ memoryError }}</StatusMessage>
-      <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 12px;">
-        <input data-testid="settings-llm-auto-unload" type="checkbox" v-model="memoryForm.llm_auto_unload" style="accent-color: var(--accent);" />
-        <span style="font-size: 13px;">{{ t('settings.llm_auto_unload') }}</span>
+    <div class="card mb-4">
+      <h3 class="text-bright mb-3">{{ t('settings.section_memory_guard') }}</h3>
+      <StatusMessage v-if="memorySaved" kind="success" :timeout="8000" class="mb-3" @close="memorySaved = false">{{ t('settings.saved_immediate') }}</StatusMessage>
+      <StatusMessage v-if="memoryError" class="mb-3" @close="memoryError = ''">{{ memoryError }}</StatusMessage>
+      <label class="check-label mb-3">
+        <input data-testid="settings-llm-auto-unload" type="checkbox" v-model="memoryForm.llm_auto_unload" class="accent-check" />
+        <span class="fs-md">{{ t('settings.llm_auto_unload') }}</span>
       </label>
-      <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px;">{{ t('settings.llm_auto_unload_hint') }}</div>
+      <div class="fs-xs text-dim mb-3">{{ t('settings.llm_auto_unload_hint') }}</div>
       <button class="btn btn-primary btn-sm" @click="saveMemoryGuard">{{ t('settings.btn_save_params') }}</button>
     </div>
-      <div v-if="!serverURL" style="color: var(--text-dim); padding: 20px; text-align: center;">{{ t('settings.server_not_configured') }}</div>
+      <div v-if="!serverURL" class="adv-placeholder text-dim">{{ t('settings.server_not_configured') }}</div>
       <template v-else>
-        <div class="card" style="margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="color: var(--text-bright);">{{ t('settings.title_sd_models') }}</h3>
+        <div class="card mb-4">
+          <div class="flex-between mb-3">
+            <h3 class="text-bright">{{ t('settings.title_sd_models') }}</h3>
             <button class="btn btn-secondary btn-sm" @click="loadServerModels">{{ t('settings.btn_refresh') }}</button>
           </div>
-          <div v-if="serverModelsLoading.sd" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-          <div v-else-if="serverModels.sd.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
-          <div v-for="m in serverModels.sd" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
+          <div v-if="serverModelsLoading.sd" class="adv-placeholder"><span class="spinner"></span></div>
+          <div v-else-if="serverModels.sd.length === 0" class="text-dim">{{ t('settings.no_models') }}</div>
+          <div v-for="m in serverModels.sd" :key="m.name" class="flex-between adv-model-row">
             <div>
-              <div style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</div>
-              <div style="color: var(--text-dim); font-size: 11px;">{{ formatBytes(m.size) }}</div>
+              <div class="text-bright fs-md">{{ m.name }}</div>
+              <div class="text-dim fs-xs">{{ formatBytes(m.size) }}</div>
             </div>
             <button class="btn btn-sm btn-danger-quiet" @click="deleteModel('sd', m.name)" :disabled="modelActionLoading[`del_sd_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
           </div>
-          <div style="display: flex; gap: 8px; margin-top: 12px; align-items: flex-end;">
-            <div class="form-group" style="flex: 2; margin: 0;">
-              <input class="form-input" v-model="serverModelDownload.url" placeholder="Download URL" style="font-size: 12px;" />
+          <div class="flex gap-2 mt-3 adv-download">
+            <div class="form-group m-0 adv-download-url">
+              <input class="form-input fs-sm" v-model="serverModelDownload.url" placeholder="Download URL" />
             </div>
-            <div class="form-group" style="flex: 1; margin: 0;">
-              <input class="form-input" v-model="serverModelDownload.filename" placeholder="filename.safetensors" style="font-size: 12px;" />
+            <div class="form-group m-0 flex-1">
+              <input class="form-input fs-sm" v-model="serverModelDownload.filename" placeholder="filename.safetensors" />
             </div>
             <button class="btn btn-primary btn-sm" @click="downloadModel('sd', serverModelDownload.url, serverModelDownload.filename)" :disabled="!serverModelDownload.url || !serverModelDownload.filename || modelActionLoading['dl_sd']">
               {{ modelActionLoading['dl_sd'] ? t('settings.btn_downloading') : t('settings.btn_download_model') }}
             </button>
           </div>
-          <DownloadProgress v-if="activeDownload.type === 'sd' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
+          <DownloadProgress v-if="activeDownload.type === 'sd' && !activeDownload.model" wide class="mt-2" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
         </div>
 
-        <div class="card" style="margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="color: var(--text-bright);">LoRA</h3>
+        <div class="card mb-4">
+          <div class="flex-between mb-3">
+            <h3 class="text-bright">LoRA</h3>
           </div>
-          <div v-if="serverModelsLoading.lora" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-          <div v-else-if="serverModels.lora.length === 0" style="color: var(--text-dim);">{{ t('settings.no_loras') }}</div>
-          <div v-else style="display: flex; flex-wrap: wrap; gap: 6px;">
-            <span v-for="m in serverModels.lora" :key="m.name" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;">
-              <span style="font-size: 12px; color: var(--text);">{{ m.name }}</span>
+          <div v-if="serverModelsLoading.lora" class="adv-placeholder"><span class="spinner"></span></div>
+          <div v-else-if="serverModels.lora.length === 0" class="text-dim">{{ t('settings.no_loras') }}</div>
+          <div v-else class="adv-chips">
+            <span v-for="m in serverModels.lora" :key="m.name" class="adv-chip">
+              <span class="fs-sm">{{ m.name }}</span>
               <button class="chip-remove" :title="t('settings.btn_delete_model')" :aria-label="t('settings.btn_delete_model')" @click="deleteModel('lora', m.name)"><X :size="12" /></button>
             </span>
           </div>
         </div>
 
         <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="color: var(--text-bright);">{{ t('settings.title_llm_models') }}</h3>
+          <div class="flex-between mb-3">
+            <h3 class="text-bright">{{ t('settings.title_llm_models') }}</h3>
           </div>
-          <div v-if="serverModelsLoading.llm" style="text-align: center; padding: 20px;"><span class="spinner"></span></div>
-          <div v-else-if="serverModels.llm.length === 0" style="color: var(--text-dim);">{{ t('settings.no_models') }}</div>
-          <div v-for="m in serverModels.llm" :key="m.name" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
-            <span style="color: var(--text-bright); font-size: 13px;">{{ m.name }}</span>
+          <div v-if="serverModelsLoading.llm" class="adv-placeholder"><span class="spinner"></span></div>
+          <div v-else-if="serverModels.llm.length === 0" class="text-dim">{{ t('settings.no_models') }}</div>
+          <div v-for="m in serverModels.llm" :key="m.name" class="flex-between adv-model-row">
+            <span class="text-bright fs-md">{{ m.name }}</span>
             <button class="btn btn-sm btn-danger-quiet" @click="deleteLLMModel(m.name)" :disabled="modelActionLoading[`del_llm_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
           </div>
-          <div style="display: flex; gap: 8px; margin-top: 12px;">
-            <input class="form-input" v-model="llmPullName" placeholder="e.g. qwen3:8b" style="flex: 1; font-size: 12px;" :disabled="modelActionLoading['pull_llm']" />
+          <div class="flex gap-2 mt-3">
+            <input class="form-input flex-1 fs-sm" v-model="llmPullName" placeholder="e.g. qwen3:8b" :disabled="modelActionLoading['pull_llm']" />
             <button class="btn btn-primary btn-sm" @click="pullFromForm" :disabled="!llmPullName || modelActionLoading['pull_llm']">
               {{ modelActionLoading['pull_llm'] ? t('settings.btn_pulling') : t('settings.btn_pull_llm') }}
             </button>
           </div>
-          <DownloadProgress v-if="activeDownload.type === 'llm' && !activeDownload.model" wide style="margin-top: 8px;" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
+          <DownloadProgress v-if="activeDownload.type === 'llm' && !activeDownload.model" wide class="mt-2" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
         </div>
       </template>
   </div>
 </template>
+
+<style scoped>
+.adv-placeholder {
+  padding: var(--sp-5);
+  text-align: center;
+}
+
+.adv-model-row {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.adv-download {
+  align-items: flex-end;
+}
+
+.adv-download-url {
+  flex: 2;
+}
+
+.adv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.adv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+</style>
