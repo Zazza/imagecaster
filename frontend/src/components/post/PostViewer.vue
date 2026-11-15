@@ -295,7 +295,6 @@ onUnmounted(() => {
   min-height: 120px;
 }
 
-
 .split-body {
   position: relative;
   flex: 1;
@@ -303,12 +302,6 @@ onUnmounted(() => {
   display: flex;
   padding: 10px;
 }
-
-
-
-
-
-
 
 .split-area {
   position: relative;
@@ -504,13 +497,5 @@ onUnmounted(() => {
   height: 10px;
   border-width: 2px;
 }
-
-
-
-
-
-
-
-
 
 </style>

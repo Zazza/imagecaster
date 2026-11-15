@@ -606,25 +606,9 @@ onUnmounted(() => {
   border-radius: var(--radius);
 }
 
-
-
-
-
-
-
-
-
 .card.collapsed .card-header {
   border-bottom: none;
 }
-
-
-
-
-
-
-
-
 
 .card-collapse > .card-body {
   min-height: 0;
@@ -633,7 +617,6 @@ onUnmounted(() => {
   overflow: clip;
   transition: padding 0.2s ease;
 }
-
 
 .card-title {
   font-size: var(--fs-md);

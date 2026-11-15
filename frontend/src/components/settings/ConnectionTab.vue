@@ -310,7 +310,6 @@ async function saveLLMParams() {
   text-align: center;
 }
 
-
 .proc-row {
   padding: 6px 0;
   border-bottom: 1px solid var(--border);

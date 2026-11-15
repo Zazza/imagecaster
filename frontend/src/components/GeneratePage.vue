@@ -906,26 +906,10 @@ function onKeydown(e) {
   width: 100%;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 .card-collapse.collapsed {
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.15s ease;
 }
-
 
 @media (max-width: 900px) {
   .gen-workspace {

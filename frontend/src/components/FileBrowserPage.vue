@@ -280,7 +280,9 @@ onUnmounted(() => {
 
 <template>
   <div class="file-browser">
-    <h1 class="page-title">{{ t('app.nav_my_images') }}</h1>
+    <div class="page-header">
+      <h1 class="page-title">{{ t('app.nav_my_images') }}</h1>
+    </div>
     <div class="fb-path-bar">
       <input
         v-model="currentPath"
@@ -393,6 +395,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.file-browser > .page-header {
+  margin-bottom: var(--sp-2);
 }
 
 .fb-path-bar {
