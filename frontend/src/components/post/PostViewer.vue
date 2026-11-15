@@ -292,24 +292,9 @@ onUnmounted(() => {
 <style scoped>
 .drop-zone {
   flex: 1;
-  border: 2px dashed var(--border);
-  border-radius: var(--radius-sm);
-  padding: 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
   min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
 }
 
-.drop-zone:hover,
-.drop-zone-active {
-  border-color: var(--accent);
-  background: var(--surface-2);
-}
 
 .split-body {
   position: relative;
@@ -319,26 +304,11 @@ onUnmounted(() => {
   padding: 10px;
 }
 
-.viewfinder {
-  position: absolute;
-  inset: 6px;
-  pointer-events: none;
-}
 
-.viewfinder span {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border: 0 solid var(--accent);
-}
 
-.viewfinder span:nth-child(1) { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
 
-.viewfinder span:nth-child(2) { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
 
-.viewfinder span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
 
-.viewfinder span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
 
 .split-area {
   position: relative;
@@ -535,75 +505,12 @@ onUnmounted(() => {
   border-width: 2px;
 }
 
-.split-zoom {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: default;
-}
 
-.split-zoom :deep(.split-zoom-btn) {
-  background: rgba(0, 0, 0, 0.55);
-  border: none;
-  color: #fff;
-  height: 24px;
-  min-width: 24px;
-  padding: 0 8px;
-  border-radius: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-}
 
-.split-zoom :deep(.split-zoom-btn:hover) {
-  background: rgba(0, 0, 0, 0.75);
-}
 
-.split-zoom :deep(.split-zoom-btn:disabled) {
-  opacity: 0.4;
-  cursor: default;
-}
 
-.split-zoom :deep(.split-zoom-label) {
-  min-width: 44px;
-  font-variant-numeric: tabular-nums;
-}
 
-.split-zoom :deep(.split-zoom-menu) {
-  position: absolute;
-  bottom: 30px;
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
 
-.split-zoom :deep(.split-zoom-menu) button {
-  background: none;
-  border: none;
-  color: var(--text);
-  padding: 6px 14px;
-  font-size: 12px;
-  cursor: pointer;
-  text-align: left;
-  min-width: 70px;
-}
 
-.split-zoom :deep(.split-zoom-menu) button:hover {
-  background: var(--surface-2);
-}
 
-.split-zoom :deep(.split-zoom-menu) button.active {
-  color: var(--accent);
-  font-weight: 600;
-}
 </style>

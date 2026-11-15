@@ -171,10 +171,6 @@ defineExpose({
 </template>
 
 <style scoped>
-.form-range {
-  width: 100%;
-  accent-color: var(--accent);
-}
 .repair-hint {
   font-size: 11px;
   color: var(--text-dim);

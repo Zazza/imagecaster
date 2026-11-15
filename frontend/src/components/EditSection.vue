@@ -499,32 +499,11 @@ onUnmounted(() => {
 .look-prompt-label {
   color: var(--accent);
 }
-.form-range {
-  width: 100%;
-  accent-color: var(--accent);
-}
 .look-name-input {
   flex: 1;
   min-width: 120px;
   font-size: 12px;
   padding: 4px 8px;
-}
-.drop-zone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius-sm);
-  padding: 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.drop-zone:hover,
-.drop-zone-active {
-  border-color: var(--accent);
-  background: var(--surface-2);
 }
 .drop-zone-compact {
   padding: 10px;

@@ -211,10 +211,6 @@ defineExpose({
 </template>
 
 <style scoped>
-.form-range {
-  width: 100%;
-  accent-color: var(--accent);
-}
 .object-mask-controls {
   padding: 12px;
   background: var(--surface-2);

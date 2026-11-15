@@ -1829,6 +1829,223 @@ details.cat-extra summary {
 .styles-icon-btn.danger { color: var(--danger); }
 .styles-sure { font-size: var(--fs-xs); }
 
+.accordion > .card {
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.accordion > .card + .card {
+  border-top: 1px solid var(--border);
+}
+
+.accordion .card-header {
+  padding: 9px 12px;
+  border-bottom: none;
+}
+
+.accordion > .card.collapsed .card-header:hover {
+  background: var(--surface-2);
+}
+
+.accordion > .card:not(.collapsed) {
+  border-color: var(--accent);
+}
+
+.accordion > .card:not(.collapsed) .card-num {
+  color: var(--accent);
+}
+
+.accordion .card-collapse > .card-body {
+  padding: 10px 12px 12px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.card-num {
+  flex-shrink: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.card-heading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.card-subtitle {
+  font-size: var(--fs-sm);
+  font-weight: normal;
+  color: var(--text-dim);
+}
+
+.card-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-toggle .card-title {
+  font-weight: 600;
+}
+
+.card-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.card-collapse.collapsed {
+  grid-template-rows: 0fr;
+}
+
+.card-collapse > .card-body {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.card-collapse.collapsed > .card-body {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.viewfinder {
+  position: absolute;
+  inset: 6px;
+  pointer-events: none;
+}
+
+.viewfinder span {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 0 solid var(--accent);
+}
+
+.viewfinder span:nth-child(1) { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
+.viewfinder span:nth-child(2) { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
+.viewfinder span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
+.viewfinder span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
+
+.split-zoom {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  cursor: default;
+}
+
+.split-zoom-btn {
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  color: #fff;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-sm);
+}
+
+.split-zoom-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.split-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.split-zoom-label {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.split-zoom-menu {
+  position: absolute;
+  bottom: 30px;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.split-zoom-menu button {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 6px 14px;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  text-align: left;
+  min-width: 70px;
+}
+
+.split-zoom-menu button:hover {
+  background: var(--surface-2);
+}
+
+.split-zoom-menu button.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-6);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.drop-zone:hover,
+.drop-zone-active {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.form-range {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.form-hint {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
 .spinner-sm {
   width: 14px;
   height: 14px;

@@ -426,7 +426,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="post-controls">
+      <div class="post-controls accordion">
         <div ref="editSectionRef" class="card" :class="{ collapsed: openSection !== 'edit' }">
           <div class="card-header card-toggle" @click="setOpenSection('edit')">
             <span class="card-heading"><span class="card-num mono">01</span><span class="card-heading-text"><span class="card-title">{{ t('post.section_edit') }}</span><span class="card-subtitle">{{ t('post.sub_edit') }}</span></span></span>
@@ -606,96 +606,25 @@ onUnmounted(() => {
   border-radius: var(--radius);
 }
 
-.post-controls > .card {
-  flex-shrink: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
 
-.post-controls > .card + .card {
-  border-top: 1px solid var(--border);
-}
 
-.post-controls .card-header {
-  padding: 9px 12px;
-  border-bottom: none;
-}
 
-.post-controls > .card.collapsed .card-header:hover {
-  background: var(--surface-2);
-}
 
-.post-controls > .card:not(.collapsed) {
-  border-color: var(--accent);
-}
 
-.post-controls > .card:not(.collapsed) .card-num {
-  color: var(--accent);
-}
 
-.post-controls .card-collapse > .card-body {
-  padding: 10px 12px 12px;
-}
 
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
-}
 
 .card.collapsed .card-header {
   border-bottom: none;
 }
 
-.card-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  min-width: 0;
-}
 
-.card-num {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--text-dim);
-}
 
-.card-heading-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
 
-.card-subtitle {
-  font-size: 12px;
-  font-weight: normal;
-  color: var(--text-dim);
-}
 
-.card-toggle {
-  cursor: pointer;
-  user-select: none;
-}
 
-.card-toggle .card-title {
-  font-weight: 600;
-}
 
-.card-collapse {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows 0.2s ease;
-}
 
-.card-collapse.collapsed {
-  grid-template-rows: 0fr;
-}
 
 .card-collapse > .card-body {
   min-height: 0;
@@ -705,10 +634,6 @@ onUnmounted(() => {
   transition: padding 0.2s ease;
 }
 
-.card-collapse.collapsed > .card-body {
-  padding-top: 0;
-  padding-bottom: 0;
-}
 
 .card-title {
   font-size: 13px;
@@ -744,9 +669,4 @@ onUnmounted(() => {
   color: var(--text-dim);
 }
 
-.form-hint {
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--text-dim);
-}
 </style>

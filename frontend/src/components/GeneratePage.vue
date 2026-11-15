@@ -681,7 +681,7 @@ function onKeydown(e) {
       </div>
 
       <div class="gen-controls">
-        <div class="gen-sections">
+        <div class="gen-sections accordion">
           <div class="card" :class="{ collapsed: openSection !== 'main' }">
             <div class="card-header card-toggle" @click="setOpenSection('main')">
               <span class="card-heading"><span class="card-num mono">01</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_main') }}</span><span class="card-subtitle">{{ t('gen.sub_main') }}</span></span></span>
@@ -906,98 +906,26 @@ function onKeydown(e) {
   width: 100%;
 }
 
-.gen-sections > .card {
-  flex-shrink: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
 
-.gen-sections > .card + .card {
-  border-top: 1px solid var(--border);
-}
 
-.gen-controls .card-header {
-  padding: 9px 12px;
-  border-bottom: none;
-}
 
-.gen-sections > .card.collapsed .card-header:hover {
-  background: var(--surface-2);
-}
 
-.gen-sections > .card:not(.collapsed) {
-  border-color: var(--accent);
-}
 
-.gen-sections > .card:not(.collapsed) .card-num {
-  color: var(--accent);
-}
 
-.gen-controls .card-collapse > .card-body {
-  padding: 10px 12px 12px;
-}
 
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--border);
-}
 
-.card-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  min-width: 0;
-}
 
-.card-num {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--text-dim);
-}
 
-.card-heading-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
 
-.card-subtitle {
-  font-size: 12px;
-  font-weight: normal;
-  color: var(--text-dim);
-}
 
-.card-toggle {
-  cursor: pointer;
-  user-select: none;
-}
 
-.card-toggle .card-title {
-  font-weight: 600;
-}
 
-.card-collapse {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows 0.2s ease;
-}
 
 .card-collapse.collapsed {
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.15s ease;
 }
 
-.card-collapse > .card-body {
-  overflow: hidden;
-  min-height: 0;
-}
 
 @media (max-width: 900px) {
   .gen-workspace {
@@ -1082,84 +1010,6 @@ function onKeydown(e) {
 }
 .gen-stage:not(.fit) .gen-stage-img {
   pointer-events: none;
-}
-.viewfinder {
-  position: absolute;
-  inset: 6px;
-  pointer-events: none;
-}
-.viewfinder span {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border: 0 solid var(--accent);
-}
-.viewfinder span:nth-child(1) { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
-.viewfinder span:nth-child(2) { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
-.viewfinder span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
-.viewfinder span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
-.split-zoom {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: default;
-}
-.split-zoom-btn {
-  background: rgba(0, 0, 0, 0.55);
-  border: none;
-  color: #fff;
-  height: 24px;
-  min-width: 24px;
-  padding: 0 8px;
-  border-radius: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-}
-.split-zoom-btn:hover {
-  background: rgba(0, 0, 0, 0.75);
-}
-.split-zoom-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.split-zoom-label {
-  min-width: 44px;
-  font-variant-numeric: tabular-nums;
-}
-.split-zoom-menu {
-  position: absolute;
-  bottom: 30px;
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-.split-zoom-menu button {
-  background: none;
-  border: none;
-  color: var(--text);
-  padding: 6px 14px;
-  font-size: 12px;
-  cursor: pointer;
-  text-align: left;
-  min-width: 70px;
-}
-.split-zoom-menu button:hover {
-  background: var(--surface-2);
-}
-.split-zoom-menu button.active {
-  color: var(--accent);
-  font-weight: 600;
 }
 .gen-loading {
   text-align: center;

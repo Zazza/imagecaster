@@ -1,13 +1,4 @@
-.form-range {
-  width: 100%;
-  accent-color: var(--accent);
-}
 
-.form-hint {
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--text-dim);
-}
 
 .adj-actions {
   display: flex;

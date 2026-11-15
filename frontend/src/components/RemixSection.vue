@@ -500,10 +500,6 @@ function onKeydown(e) {
   color: var(--text-dim);
 }
 
-.form-range {
-  width: 100%;
-  accent-color: var(--accent);
-}
 .remix-progress {
   margin-top: 10px;
   text-align: center;
