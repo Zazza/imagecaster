@@ -2,12 +2,46 @@
 
 All notable changes to Imagecaster are documented here.
 
-## [Unreleased]
+## [2.0.0] — 2026-11-16
+
+Imagecaster now runs only through Imagecaster Server 2.0, which generates with stable-diffusion.cpp and runs text models on llama.cpp — no Python, Forge or Ollama. Update the server together with the app.
+
+### Added
+- **Model versions per video memory**: the catalog offers several versions of a model (GGUF quantizations such as Q4_K, Q8_0, BF16); the largest that fits the server's GPU is preselected, the others are marked as not fitting. A version already on the server is recognised by its own file name and works without downloading; the "On the server" row lists them, extra versions can be deleted there.
+- **Fast mode**: the "Fast" button next to Generate (and the setting) turns on the sd.cpp step cache for slow models — Moss and Chroma (dbcache), Qwen-Image and Flux.1 (easycache). Moss goes from about 68 to 28 s per image, Qwen-Image from 30 to 16 s. Fine detail may suffer on complex scenes at large sizes, so it is off by default. Not offered for SDXL, SD 1.5 and Pony.
+- **New models in the catalog**: Flux.3 Klein, FLUX.2 Klein 4B, Krea-2 Turbo, Qwen-Image 2.1 (also for Edit, with its own effects), Chroma1-HD, Anima aesthetic and turbo, HiDream-O1 dev (bf16); Z-Image and Flux.1 dev from split files. Multi-file models download all their parts; "Download all for presets" fetches every file the default presets need.
+- **Gallery page**: every history image with filters by group, period, model, style or pipeline, type, shape and prompt.
+- **Catalog page** of its own under Styles, with tabs and filters; a progress bar in the row while a model, LoRA or LLM downloads.
+- **Styles and Workflows as filterable tables** with source, model and group badges; select-all covers only the filtered rows, delete asks with the list of names.
+- **Presets follow models**: presets arrive when their model is installed; presets without their model or LoRA are hidden ("Show presets without models" shows them).
+- **Generations are server jobs**: closing the app no longer cancels a generation, and after a restart the queue continues where it stopped. The queue shows only current work: finished jobs disappear, failed ones can be retried.
+- **Startup window** "What it is / What's new" with a model check and download; it reopens on a new version or when the server has no models.
+- **AI assistant model choice on first start**.
+- **Journal keeps history**, downloads write their progress to it.
+- Own look ("darkroom and film"), own window frame and title bar (native buttons on macOS), one viewer for fresh and history images, compact collapsible menu.
 
 ### Changed
-- Unified close button for the bottom panel: an × button in the footer tab bar (visible while the panel is open) now closes any of the History / Logs / Queue panels; the old × that lived only in the History toolbar is gone
-- Generate page rebuilt in the Post-Processing style: the image takes the wide left column, the controls live in a numbered accordion on the right (Create — style and description; Parameters; Style tweaks; Direct prompts), the page title is gone
-- Post-Processing page is tighter: the redundant page title is gone, side and inner paddings and the gaps between blocks are smaller, so the image and the controls take more of the window
+- **The app works only through Imagecaster Server**; direct Forge, Ollama, LM Studio and llama.cpp connections are gone, settings keep one server address. On start the app checks the server and, if it is missing or outdated, shows a window that names the reason, searches the network and links to the install guide; library and history keep working meanwhile.
+- **Text models run only on llama.cpp** through the server (Ollama is no longer used).
+- Sampler, scheduler and upscaler names are sd.cpp names; old Forge names in styles and settings are migrated once.
+- Generate page rebuilt in the Post-Processing style: the image takes the wide left column, the controls live in a numbered accordion on the right; the Generate button stays visible, the result zooms and frames like in Post-Process and keeps only Upscale ×2 and Send to post-process.
+- Post-Processing is easier to understand: every section has a one-line description, Remix has a collapsed "More options" block, Edit, Effect and Remix share one "Model and LoRA" block; the page is tighter; the bottom panel (History / Logs / Queue) has one close button in the footer tab bar.
+- Buttons, fields and catalog rows share one look; font sizes and spacing come from one scale; a visible keyboard focus.
+- Settings: a Prompts tab; the preview mode is gone; the GPU layers field is gone; model families live in code, not in settings. Old direct-connection settings move to the server address automatically.
+- AI answers follow the interface language (they were always Russian).
+- Linux builds use WebKitGTK 4.1.
+- README and docs (EN/RU) describe the current stack, with screenshots.
+
+### Removed
+- **Moss from Edit, Effect and Preserve face**: sd.cpp cannot edit photos with it; Klein does this work. Text-to-image with Moss stays.
+- About 15 old image models (chilloutmix, cyberrealistic, zavychromaxl, Stable Yogi and Illustrious models and others) and the Moss Edit LoRA left the catalog; LLM lists are rebuilt by GPU size.
+
+### Fixed
+- Real step counter in the progress; inscriptions in quotes are kept as written.
+- Model downloads go through the app instead of the window ("Connection lost").
+- Cancelling a queued job no longer hangs the generation; results are matched by history id; errors are visible.
+- Photo MCP tools refuse non-local servers; removing a queue job keeps its answers.
+- Status messages can be closed everywhere, success messages close by themselves.
 
 ## [1.5.0] — 2026-11-11
 

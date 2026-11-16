@@ -1,7 +1,13 @@
 export const RELEASE_NOTES = [
   {
-    version: '1.6.0',
+    version: '2.0.0',
     ru: [
+      'Новый движок генерации — stable-diffusion.cpp, текстовые модели работают на llama.cpp: без Python, Forge и Ollama. Обновите Imagecaster Server до 2.0 вместе с приложением.',
+      'В каталоге у моделей есть несколько версий разного сжатия; выбрана самая большая, которая влезает в видеокарту сервера, остальные помечены. Версия, которая уже лежит на сервере, работает без скачивания; лишние версии можно удалить в строке «На сервере».',
+      'Кнопка «Быстро» рядом с «Сгенерировать» ускоряет медленные модели: Moss примерно с 68 до 28 секунд, Qwen-Image с 30 до 16. На сложной сцене в большом размере детали могут пострадать, поэтому по умолчанию режим выключен.',
+      'Новые модели в каталоге: Flux.3 Klein, Krea-2 Turbo, Qwen-Image 2.1 (и для «Правки»), Chroma1-HD, HiDream-O1.',
+      'Новая страница «Галерея»: все картинки истории с фильтрами по группе, периоду, модели, стилю, типу, форме и промпту. «Стили» и «Рабочие процессы» — таблицы с фильтрами, «Каталог» — отдельная страница.',
+      'Генерация — задание на сервере: закрытие приложения её не прерывает, после перезапуска очередь продолжается.',
       'Из «Правки», «Эффекта» и «Сохранять лицо» убрана модель Moss: новый быстрый движок генерации не умеет менять фото с её помощью.',
       'В этих местах работает Klein. Выбирать модель больше не нужно, сохранённый раньше выбор Moss не мешает.',
       'Генерация картинок по описанию на Moss осталась как была.',
@@ -16,6 +22,12 @@ export const RELEASE_NOTES = [
       'Кто раньше подключался напрямую, ничего настраивать не нужно: приложение само ищет сервер на компьютере, где работали Forge или Ollama.',
     ],
     en: [
+      'The new generation engine is stable-diffusion.cpp, text models run on llama.cpp: no Python, Forge or Ollama. Update Imagecaster Server to 2.0 together with the app.',
+      'Catalog models have several versions with different compression; the largest that fits the server GPU is preselected, the others are marked. A version already on the server works without downloading; extra versions can be deleted in the On the server row.',
+      'The Fast button next to Generate speeds up slow models: Moss from about 68 to 28 seconds, Qwen-Image from 30 to 16. On complex scenes at large sizes detail may suffer, so it is off by default.',
+      'New models in the catalog: Flux.3 Klein, Krea-2 Turbo, Qwen-Image 2.1 (also for Edit), Chroma1-HD, HiDream-O1.',
+      'New Gallery page: every history image with filters by group, period, model, style, type, shape and prompt. Styles and Workflows are filterable tables, Catalog has its own page.',
+      'Generations are server jobs: closing the app does not stop them, and after a restart the queue continues.',
       'Moss was removed from Edit, Effect and Preserve face: the new fast generation engine cannot edit photos with it.',
       'Klein does this work now. There is no model to choose, and a previously saved Moss choice does no harm.',
       'Generating images from text with Moss works as before.',
@@ -33,7 +45,7 @@ export const RELEASE_NOTES = [
   {
     version: '1.5.0',
     ru: [
-      'В «Стилях» три вкладки: «Стили», «Эффекты» и «Сценарии». Эффекты постобработки больше не перемешаны со стилями, у них свой фильтр по типу.',
+      'В «Стилях» три вкладки: «Стили», «Эффекты» и «Рабочие процессы». Эффекты постобработки больше не перемешаны со стилями, у них свой фильтр по типу.',
       'В постобработке у «Эффекта» можно выбрать модель: Klein, как раньше, или Moss. Moss точнее, но тратит на фото 20–60 секунд вместо 6–10.',
       'У «Правки» тоже выбор модели: Moss, как раньше, или Klein. Klein правит примерно за 10 секунд вместо 30–90 и не меняет размер фото.',
       'У каждой модели свой список LoRA и свои стили. Пакетная обработка берёт ту модель, которую вы выбрали.',
