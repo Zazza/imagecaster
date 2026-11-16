@@ -2,6 +2,12 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [2.0.1] — 2026-11-16
+
+### Fixed
+- **Generate no longer waits for the AI prompt.** With a changed description the app first asked the AI for a prompt and only then put the image into the queue. While the server was busy with another image the AI request waited behind it, so prompts reached the queue late, or failed after two minutes with "context deadline exceeded". Now the prompt is written by the AI as the first step of the queue job: the button returns at once, several styles can be queued in a row, and the ready prompt appears in the prompt fields when the job finishes. The same AI request within one app run is reused instead of asked again. Descriptions longer than 4000 characters still go the old way.
+- The folder with the queue's AI answers (`data/queue-llm`) is readable by the owner's group, so `wails build` no longer fails with "permission denied" on it; the answer files stay private.
+
 ## [2.0.0] — 2026-11-16
 
 Imagecaster now runs only through Imagecaster Server 2.0, which generates with stable-diffusion.cpp and runs text models on llama.cpp — no Python, Forge or Ollama. Update the server together with the app.
