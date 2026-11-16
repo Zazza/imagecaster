@@ -207,7 +207,11 @@ func (c *Client) AnalyzeImage(model, systemPrompt, imageBase64 string, maxTokens
 }
 
 func (c *Client) AnalyzeImageDescribe(model, prompt, imageBase64 string, maxTokens int) (string, error) {
-	return c.ChatVision(model, "", prompt, imageBase64, 0.4, maxTokens)
+	text, err := c.ChatVision(model, "", prompt, imageBase64, 0.4, maxTokens)
+	if err != nil {
+		return "", err
+	}
+	return promptutil.DedupeSentences(text), nil
 }
 
 var thinkRe = regexp.MustCompile(`(?s)<think\s*>.*?</think\s*>`)

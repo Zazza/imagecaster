@@ -92,6 +92,7 @@ func TruncateRepetitive(s string, maxLen int) string {
 	if s == "" {
 		return s
 	}
+	s = DedupeSentences(s)
 	parts := strings.Split(s, ", ")
 	result := make([]string, 0, len(parts))
 	prevPrefix := ""

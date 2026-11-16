@@ -133,3 +133,11 @@ func TestAnalyzeImageDescribe_NoSystemMessage(t *testing.T) {
 	assert.Equal(t, "describe it", req.Messages[0].Content)
 	assert.Equal(t, []string{"CCCC"}, req.Messages[0].Images)
 }
+
+func TestAnalyzeImageDescribe_LoopedSentenceKeptOnce(t *testing.T) {
+	t.Parallel()
+	c, _, _ := visionServer(t, 200, `{"message":{"content":"Кот спит на диване. Рядом лежит плед. Рядом лежит плед. Рядом лежит плед. Рядом лежит"}}`)
+	got, err := c.AnalyzeImageDescribe("llava", "describe it", "CCCC", 64)
+	require.NoError(t, err)
+	assert.Equal(t, "Кот спит на диване. Рядом лежит плед.", got)
+}
