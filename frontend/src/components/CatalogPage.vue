@@ -165,11 +165,22 @@ function downloadSteps(m) {
 
 async function downloadSDModel(m) {
   if (needsReplace(m) && !confirm(t('settings.confirm_replace_version', { name: m.name, label: selectedVariant(m).label }))) return
+  await runDownload(m, downloadSteps(m))
+}
+
+function hasMissingForLocal(m) {
+  return missingModules(m).length > 0 && (isSDModelPresent(m) || !!selectedLocal(m))
+}
+
+async function downloadMissing(m) {
+  await runDownload(m, missingModules(m).map(mod => ({ op: 'download', type: mod.type, url: mod.url, filename: mod.filename })))
+}
+
+async function runDownload(m, steps) {
   modelActionLoading.dl_sd = true
   activeDownload.model = m.name
   catalogNotice.value = ''
   try {
-    const steps = downloadSteps(m)
     const downloads = steps.filter(s => s.op === 'download')
     activeDownload.steps = downloads.length
     for (const s of steps) {
@@ -324,6 +335,7 @@ onMounted(async () => {
               <DownloadProgress v-if="activeDownload.model === m.name" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
               <template v-else>
                 <button v-if="needsReplace(m) && m.url" class="btn btn-secondary btn-sm" data-testid="catalog-replace" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_replace_version', { label: selectedVariant(m).label }) }}</button>
+                <button v-if="hasMissingForLocal(m)" class="btn btn-secondary btn-sm" data-testid="catalog-download-missing" @click="downloadMissing(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
                 <button v-if="isSDModelPresent(m)" class="btn btn-sm btn-danger-quiet" @click="deleteSDModel(m)">{{ t('settings.btn_delete_model') }}</button>
                 <button v-else-if="m.url && !selectedLocal(m)" class="btn btn-secondary btn-sm" @click="downloadSDModel(m)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.btn_download_model') }}</button>
               </template>

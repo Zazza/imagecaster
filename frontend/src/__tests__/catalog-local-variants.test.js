@@ -373,3 +373,42 @@ describe('catalog page: installed badge for a version under its own name', () =>
     expect(rowOf(w, 'qwen_image_2.1-Q8_0').find(tid('catalog-installed-local')).exists()).toBe(false)
   })
 })
+
+describe('catalog page: model on the server with a module missing', () => {
+  const TE = { name: 'Qwen3VL-8B-Instruct-Q4_K_M.gguf', size: 5 * GB }
+  const VAE = { name: 'qwen_image_2.1_vae_bf16.safetensors', size: 0.68 * GB }
+
+  it('main file present, VAE missing: download fetches only the VAE, the model file stays', async () => {
+    setServer({ sd: [{ name: MAIN, size: 7.69 * GB }], text_encoder: [TE], vae: [] })
+    const w = await openCatalog()
+    const btn = rowOf(w, 'qwen_image_2.1-Q8_0').find(tid('catalog-download-missing'))
+    expect(btn.exists()).toBe(true)
+    expect(btn.text()).toBe(ru['settings.btn_download_model'])
+    await btn.trigger('click')
+    await settle()
+    expect(ops).toEqual([{ op: 'download', type: 'vae', filename: VAE.name, url: 'https://h/vae.safetensors' }])
+  })
+
+  it('only a version under its own name, text encoder missing: download fetches only the encoder', async () => {
+    setServer({ sd: [{ name: Q4, size: 4.2 * GB }], text_encoder: [], vae: [VAE] })
+    const w = await openCatalog()
+    const row = rowOf(w, 'qwen_image_2.1-Q8_0')
+    await row.find(tid('catalog-download-missing')).trigger('click')
+    await settle()
+    expect(ops).toEqual([{ op: 'download', type: 'text_encoder', filename: TE.name, url: 'https://h/te.gguf' }])
+  })
+
+  it('all modules present: no missing-files button', async () => {
+    setServer({ sd: [{ name: MAIN, size: 7.69 * GB }], text_encoder: [TE], vae: [VAE] })
+    const w = await openCatalog()
+    expect(rowOf(w, 'qwen_image_2.1-Q8_0').find(tid('catalog-download-missing')).exists()).toBe(false)
+  })
+
+  it('model not on the server: no missing-files button, the usual download stays', async () => {
+    setServer({ sd: [], text_encoder: [], vae: [] })
+    const w = await openCatalog()
+    const row = rowOf(w, 'qwen_image_2.1-Q8_0')
+    expect(row.find(tid('catalog-download-missing')).exists()).toBe(false)
+    expect(hasDownloadButton(row)).toBe(true)
+  })
+})
