@@ -179,3 +179,13 @@ func (s memoSD) FaceLandmarks(imageBase64 string) ([]sd.Point, error) {
 	}
 	return det.FaceLandmarks(imageBase64)
 }
+
+func (m *llmMemo) ReplaySDPrompt(systemPrompt, description, presetType, model string, maxTokens int, text string) string {
+	v, err := m.call("GenerateSDPrompt", []any{systemPrompt, description, presetType, model, maxTokens}, func() (string, error) {
+		return text, nil
+	})
+	if err != nil {
+		return text
+	}
+	return v
+}

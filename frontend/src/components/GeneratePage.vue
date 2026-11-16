@@ -60,6 +60,11 @@ const generationStage = ref('')
 const error = ref('')
 const successMsg = ref('')
 let promptDirty = true
+let ideaToken = 0
+const IDEA_MAX_CHARS = 4000
+let ideaJobsToken = -1
+let ideaJobIds = new Set()
+let ideaJobsFields = ['', '']
 
 const { kidsModeActive, loadKidsMode } = useKidsMode()
 
@@ -198,6 +203,7 @@ const formattedGenInfo = computed(() => {
 
 watch([description, negative, selectedPresetId, selectedCompoundPresetId, customFirstPresetId, () => presetOverrides.value?.model_name], () => {
   promptDirty = true
+  ideaToken++
 })
 
 watch(selectedTypeId, () => {
@@ -320,17 +326,19 @@ async function generateImage() {
   const ov = presetOverrides.value
   const customPayload = customStepsPayload(customSteps.value, presets.value)
 
-  if (promptDirty) {
-    let llmPresetId = presetId
-    if (mode === 'compound') {
-      const cp = compoundPresets.value.find(c => c.id === compoundId)
-      if (cp && cp.steps && cp.steps.length > 0) {
-        llmPresetId = cp.steps[0].preset_id
-      }
-    } else if (mode === 'custom' && customPayload.length > 0) {
-      llmPresetId = customPayload[0].preset_id
-    }
-    if (llmPresetId && (mode === 'preset' || mode === 'compound' || mode === 'custom')) {
+  let idea = ''
+  let ideaNegative = ''
+  if (promptDirty && description.value.trim() && [...description.value].length <= IDEA_MAX_CHARS && [...negative.value].length <= IDEA_MAX_CHARS) {
+    idea = description.value
+    ideaNegative = negative.value
+    ideaJobsToken = ideaToken
+    ideaJobIds = new Set()
+    ideaJobsFields = [extraPrompt.value, extraNegativePrompt.value]
+  } else if (promptDirty) {
+    const llmPresetId = mode === 'compound'
+      ? compoundPresets.value.find(c => c.id === compoundId)?.steps?.[0]?.preset_id
+      : mode === 'custom' ? customPayload[0]?.preset_id : presetId
+    if (llmPresetId) {
       generationStage.value = 'prompt'
       error.value = ''
       try {
@@ -356,15 +364,14 @@ async function generateImage() {
         generationStage.value = ''
         return
       }
-      generatingImage.value = false
-      generationStage.value = ''
     }
   }
 
   generatingImage.value = true
   generationStage.value = 'image'
-  const extraP = extraPrompt.value
-  const extraN = extraNegativePrompt.value
+  const extraP = idea ? '' : extraPrompt.value
+  const extraN = idea ? '' : extraNegativePrompt.value
+  const ideaFields = idea ? { idea, idea_negative: ideaNegative } : {}
   const resId = selectedResolutionId.value
   const hiresId = selectedHiresProfileId.value
   const seedVal = parseSeedInput(seedInput.value)
@@ -381,6 +388,7 @@ async function generateImage() {
           extra_negative_prompt: extraN,
           resolution_id: resId,
           hires_profile_id: hiresId,
+          ...ideaFields,
         })
       } else if (mode === 'custom') {
         jobId = await api.enqueueCompound({
@@ -390,6 +398,7 @@ async function generateImage() {
           resolution_id: resId,
           hires_profile_id: hiresId,
           seed: seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null,
+          ...ideaFields,
         })
       } else {
         jobId = await api.enqueueTxt2Img({
@@ -400,8 +409,10 @@ async function generateImage() {
           hires_profile_id: hiresId,
           overrides: ov,
           seed: seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null,
+          ...ideaFields,
         })
       }
+      if (jobId && idea) ideaJobIds.add(jobId)
       if (jobId) jobs.track(jobId)
     }
     error.value = ''
@@ -464,6 +475,13 @@ async function toPostProcess() {
 }
 
 function onQueueCompleted(data, result) {
+  if (result?.ideaPrompt && ideaJobIds.has(data.job_id) && ideaJobsToken === ideaToken &&
+      extraPrompt.value === ideaJobsFields[0] && extraNegativePrompt.value === ideaJobsFields[1]) {
+    extraPrompt.value = result.ideaPrompt
+    extraNegativePrompt.value = result.ideaNegativePrompt
+    promptDirty = false
+    ideaJobIds = new Set()
+  }
   if (!result?.hasImage) return
   generatedImage.value = resultImageUrl(result)
   shownItemId.value = result.sessionItemId

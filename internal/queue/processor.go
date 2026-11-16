@@ -93,6 +93,8 @@ func (p *processor) processGeneration(job *Job, gen func() (*generation.Generate
 		SessionItemID:           result.SessionItemID,
 		QualityUpscaleSkipped:   result.QualityUpscaleSkipped,
 		QualityRedenoiseSkipped: result.QualityRedenoiseSkipped,
+		IdeaPrompt:              result.IdeaPrompt,
+		IdeaNegativePrompt:      result.IdeaNegativePrompt,
 	}, nil
 }
 

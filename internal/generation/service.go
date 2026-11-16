@@ -118,6 +118,8 @@ type GenerateImageResult struct {
 	HiresFixManual          bool            `json:"hires_fix_manual"`
 	QualityUpscaleSkipped   bool            `json:"quality_upscale_skipped,omitempty"`
 	QualityRedenoiseSkipped bool            `json:"quality_redenoise_skipped,omitempty"`
+	IdeaPrompt              string          `json:"idea_prompt,omitempty"`
+	IdeaNegativePrompt      string          `json:"idea_negative_prompt,omitempty"`
 	EffectivePrompt         string          `json:"effective_prompt"`
 	EffectiveNegativePrompt string          `json:"effective_negative_prompt"`
 	DetectedObject          string          `json:"detected_object,omitempty"`
@@ -239,6 +241,7 @@ type Service struct {
 
 	ctx      context.Context
 	progress *sdProgressState
+	ideas    *ideaCache
 }
 
 func New(
@@ -265,6 +268,7 @@ func New(
 		guard:    NewMemoryGuard(llmSvc, sdSvc, db, log),
 		ctx:      context.Background(),
 		progress: &sdProgressState{},
+		ideas:    newIdeaCache(),
 	}
 	if sdSvc != nil {
 		sdSvc.SetProgressHandler(svc.onSDProgress)
@@ -974,6 +978,25 @@ func emptyReason(info json.RawMessage) string {
 
 // --- GenerateSDPrompt ---
 
+type llmReplayer interface {
+	ReplaySDPrompt(systemPrompt, userMessage, presetType, model string, maxTokens int, text string) string
+}
+
+func (s *Service) replayIdea(key, systemPrompt, userMessage, presetType, model string, maxTokens int) (GenerateSDPromptResult, string, bool) {
+	raw, ok := s.ideas.get(key)
+	if !ok {
+		return GenerateSDPromptResult{}, "", false
+	}
+	if r, isReplayer := s.llm.(llmReplayer); isReplayer {
+		raw = r.ReplaySDPrompt(systemPrompt, userMessage, presetType, model, maxTokens, raw)
+	}
+	var res GenerateSDPromptResult
+	if err := json.Unmarshal([]byte(promptutil.ExtractJSON(raw)), &res); err != nil {
+		return GenerateSDPromptResult{}, raw, true
+	}
+	return res, raw, true
+}
+
 func (s *Service) llmGenerateAndParse(systemPrompt, userMessage, presetType, model string, maxTokens int) (GenerateSDPromptResult, string, error) {
 	var raw string
 	for attempt := 0; attempt < 2; attempt++ {
@@ -994,6 +1017,10 @@ func (s *Service) llmGenerateAndParse(systemPrompt, userMessage, presetType, mod
 }
 
 func (s *Service) GenerateSDPrompt(params GenerateSDPromptParams) (*GenerateSDPromptResult, error) {
+	return s.generateSDPrompt(params, false)
+}
+
+func (s *Service) generateSDPrompt(params GenerateSDPromptParams, reuse bool) (*GenerateSDPromptResult, error) {
 	if params.PresetID <= 0 {
 		return nil, fmt.Errorf("preset is required")
 	}
@@ -1046,13 +1073,20 @@ RESPONSE LENGTH: you have up to %d tokens. Include ALL visual elements from the 
 	}
 	userMessage := strings.Join(userParts, "\n\n")
 
-	s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
-	result, raw, err := s.llmGenerateAndParse(systemPrompt, userMessage, p.PresetType, generateModel, maxTokens)
-	if err != nil {
-		s.emitter.Emit("llm:status", map[string]string{"status": "done"})
-		return nil, err
+	cacheKey := ideaCacheKey(systemPrompt, userMessage, p.PresetType, generateModel, maxTokens)
+	result, raw, hit := GenerateSDPromptResult{}, "", false
+	if reuse {
+		result, raw, hit = s.replayIdea(cacheKey, systemPrompt, userMessage, p.PresetType, generateModel, maxTokens)
 	}
-	s.emitter.Emit("llm:status", map[string]string{"status": "done"})
+	if !hit {
+		s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
+		var err error
+		result, raw, err = s.llmGenerateAndParse(systemPrompt, userMessage, p.PresetType, generateModel, maxTokens)
+		s.emitter.Emit("llm:status", map[string]string{"status": "done"})
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	if result.Prompt == "" && result.NegativePrompt == "" {
 		result = GenerateSDPromptResult{
@@ -1082,6 +1116,9 @@ RESPONSE LENGTH: you have up to %d tokens. Include ALL visual elements from the 
 	result.Prompt = s.kids.FilterOutput(result.Prompt)
 	result.NegativePrompt = s.kids.FilterOutput(result.NegativePrompt)
 
+	if reuse && !hit && strings.TrimSpace(result.Prompt) != "" && json.Valid([]byte(promptutil.ExtractJSON(raw))) {
+		s.ideas.put(cacheKey, raw)
+	}
 	return &result, nil
 }
 
@@ -1108,6 +1145,7 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 	}
 	s.beginProgress()
 	defer s.endProgress()
+	ideaResolved := false
 	if strings.TrimSpace(params.Idea) != "" {
 		prompt, negative, err := s.resolveIdea(params.PresetID, params.Overrides, params.Idea, params.IdeaNegative)
 		if err != nil {
@@ -1117,6 +1155,7 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 			return nil, err
 		}
 		params.ExtraPrompt, params.ExtraNegativePrompt = prompt, negative
+		ideaResolved = true
 	}
 	p, err := s.db.Get(params.PresetID)
 	if err != nil {
@@ -1148,6 +1187,9 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 		HiresFixManual:          out.hiresManual,
 		EffectivePrompt:         prompt,
 		EffectiveNegativePrompt: negativePrompt,
+	}
+	if ideaResolved {
+		img.IdeaPrompt, img.IdeaNegativePrompt = params.ExtraPrompt, params.ExtraNegativePrompt
 	}
 	img.SessionItemID = s.sessions.AddToSession(img.Image, img.Info, "generate", &preset.GenerationMeta{
 		PresetID: &params.PresetID,

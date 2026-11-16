@@ -33,6 +33,8 @@ export function parseQueueResult(raw) {
     info: parseInfo(r.info),
     qualityUpscaleSkipped: !!r.quality_upscale_skipped,
     qualityRedenoiseSkipped: !!r.quality_redenoise_skipped,
+    ideaPrompt: r.idea_prompt || '',
+    ideaNegativePrompt: r.idea_negative_prompt || '',
   }
 }
 

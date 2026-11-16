@@ -19,12 +19,12 @@ func ValidateIdea(idea, negative string) error {
 }
 
 func (s *Service) resolveIdea(presetID int64, overrides *PresetOverrides, idea, negative string) (string, string, error) {
-	res, err := s.GenerateSDPrompt(GenerateSDPromptParams{
+	res, err := s.generateSDPrompt(GenerateSDPromptParams{
 		PresetID:    presetID,
 		Description: idea,
 		Negative:    negative,
 		Overrides:   overrides,
-	})
+	}, true)
 	if err != nil {
 		return "", "", fmt.Errorf("idea prompt: %w", err)
 	}

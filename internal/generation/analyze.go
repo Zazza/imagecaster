@@ -689,12 +689,14 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 	}
 	s.beginProgress()
 	defer s.endProgress()
+	ideaResolved := false
 	if strings.TrimSpace(params.Idea) != "" {
 		prompt, negative, err := s.resolveIdea(steps[0].PresetID, nil, params.Idea, params.IdeaNegative)
 		if err != nil {
 			return nil, err
 		}
 		params.ExtraPrompt, params.ExtraNegativePrompt = prompt, negative
+		ideaResolved = true
 	}
 
 	var lastImage string
@@ -779,6 +781,9 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		Info:                    lastInfo,
 		EffectivePrompt:         "",
 		EffectiveNegativePrompt: "",
+	}
+	if ideaResolved {
+		img.IdeaPrompt, img.IdeaNegativePrompt = params.ExtraPrompt, params.ExtraNegativePrompt
 	}
 	img.SessionItemID = s.sessions.AddToSession(lastImage, lastInfo, "compound", &preset.GenerationMeta{
 		Label: label,

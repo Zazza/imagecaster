@@ -46,4 +46,6 @@ type JobResult struct {
 	Info                    string `json:"info,omitempty"`
 	QualityUpscaleSkipped   bool   `json:"quality_upscale_skipped,omitempty"`
 	QualityRedenoiseSkipped bool   `json:"quality_redenoise_skipped,omitempty"`
+	IdeaPrompt              string `json:"idea_prompt,omitempty"`
+	IdeaNegativePrompt      string `json:"idea_negative_prompt,omitempty"`
 }
