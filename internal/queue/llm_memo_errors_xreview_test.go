@@ -9,6 +9,8 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -304,4 +306,20 @@ func TestQueueJobSD_FaceDetectionXReview(t *testing.T) {
 			face.mu.Unlock()
 		})
 	}
+}
+
+func TestLLMMemoDirReadableByGroup(t *testing.T) {
+	dataDir := t.TempDir()
+	path := llmMemoPath(dataDir, 7)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	m := newLLMMemo(nil, path)
+	m.mu.Lock()
+	m.saveLocked()
+	m.mu.Unlock()
+	st, err := os.Stat(filepath.Dir(path))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o750), st.Mode().Perm())
+	fst, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fst.Mode().Perm())
 }

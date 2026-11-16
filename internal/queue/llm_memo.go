@@ -15,6 +15,8 @@ import (
 	"github.com/Zazza/imagecaster/internal/sd"
 )
 
+const memoDirMode = 0o750
+
 type memoEntry struct {
 	Text string `json:"t,omitempty"`
 	Err  string `json:"e,omitempty"`
@@ -122,9 +124,13 @@ func (m *llmMemo) saveLocked() {
 		log.Printf("[queue] llm memo %s: %v", m.path, err)
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(m.path), 0o700); err != nil {
+	dir := filepath.Dir(m.path)
+	if err := os.MkdirAll(dir, memoDirMode); err != nil {
 		log.Printf("[queue] llm memo %s: %v", m.path, err)
 		return
+	}
+	if err := os.Chmod(dir, memoDirMode); err != nil {
+		log.Printf("[queue] llm memo dir %s: %v", dir, err)
 	}
 	tmp := m.path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
