@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -309,6 +310,9 @@ func TestQueueJobSD_FaceDetectionXReview(t *testing.T) {
 }
 
 func TestLLMMemoDirReadableByGroup(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permissions")
+	}
 	dataDir := t.TempDir()
 	path := llmMemoPath(dataDir, 7)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
