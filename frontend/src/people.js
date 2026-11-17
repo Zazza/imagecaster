@@ -1,14 +1,29 @@
 import { modelBaseFor } from './fastMode.js'
 
-export const PEOPLE_BASE = 'Z-Image'
+export const TRAIN_BASES = ['Z-Image', 'Moss-Image']
 
 function styleModel(preset, overrides) {
   return overrides?.model_name || preset?.model_name || ''
 }
 
+function personBase(p) {
+  return p?.base || 'Z-Image'
+}
+
+function styleBase(catalog, preset, overrides) {
+  return modelBaseFor(catalog, styleModel(preset, overrides))
+}
+
+export function peopleForStyle(catalog, preset, overrides, people) {
+  if (!preset || !Array.isArray(people)) return []
+  const base = styleBase(catalog, preset, overrides)
+  if (!TRAIN_BASES.includes(base)) return []
+  return people.filter(p => personBase(p) === base)
+}
+
 export function personOverride(catalog, preset, overrides, people, selectedName) {
   if (!selectedName || peopleState(catalog, 'preset', preset, overrides, people) !== 'ok') return null
-  const p = people.find(p => p.name === selectedName)
+  const p = peopleForStyle(catalog, preset, overrides, people).find(p => p.name === selectedName)
   return p ? { name: p.name, trigger: p.trigger } : null
 }
 
@@ -17,6 +32,11 @@ export function peopleState(catalog, mode, preset, overrides, people) {
   if (mode !== 'preset') return 'not_style'
   if (!preset) return 'no_style'
   if (!Array.isArray(catalog?.sd_models)) return 'no_catalog'
-  if (modelBaseFor(catalog, styleModel(preset, overrides)) !== PEOPLE_BASE) return 'wrong_model'
+  if (!TRAIN_BASES.includes(styleBase(catalog, preset, overrides))) return 'wrong_model'
+  if (peopleForStyle(catalog, preset, overrides, people).length === 0) return 'no_people_base'
   return 'ok'
+}
+
+export function peopleStyleBase(catalog, preset, overrides) {
+  return styleBase(catalog, preset, overrides)
 }

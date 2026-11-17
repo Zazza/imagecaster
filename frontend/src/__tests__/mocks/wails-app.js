@@ -36,6 +36,7 @@ export const appDefaults = {
   ListPeople: () => [],
   ListTrainingJobs: () => [],
   TrainingStatus: () => 'not_installed',
+  TrainingBases: () => ['Z-Image'],
 }
 
 export const appExportNames = Object.keys(actual).filter(name => typeof actual[name] === 'function')

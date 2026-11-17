@@ -36,6 +36,10 @@ type fakeAPI struct {
 	people    []serverclient.Person
 	cancelJob *serverclient.TrainJob
 	deleteErr error
+
+	basesCalls int
+	bases      []string
+	basesErr   error
 }
 
 func (f *fakeAPI) SubmitTraining(_ context.Context, req serverclient.TrainRequest) (*serverclient.TrainJob, error) {
@@ -74,10 +78,17 @@ func (f *fakeAPI) DeletePerson(_ context.Context, name string) error {
 	return f.deleteErr
 }
 
+func (f *fakeAPI) TrainingBases(_ context.Context) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.basesCalls++
+	return f.bases, f.basesErr
+}
+
 func (f *fakeAPI) totalCalls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return len(f.submits) + len(f.jobsClients) + len(f.cancels) + f.peopleCalls + len(f.deletes)
+	return len(f.submits) + len(f.jobsClients) + len(f.cancels) + f.peopleCalls + len(f.deletes) + f.basesCalls
 }
 
 func clearProxyEnv(t *testing.T) {
@@ -275,7 +286,7 @@ func TestTrain_NotLocalServer(t *testing.T) {
 			api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 			s := New(api, func() string { return tt.serverURL }, func() string { return "inst-1" })
 
-			job, err := s.Train(context.Background(), dir, "anna", "woman")
+			job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
 
 			require.Error(t, err)
 			assert.True(t, errors.Is(err, ErrNotLocal), "want ErrNotLocal, got %v", err)
@@ -290,7 +301,7 @@ func TestTrain_NotLocalCheckedBeforePhotos(t *testing.T) {
 	api := &fakeAPI{}
 	s := New(api, func() string { return "http://8.8.8.8:8080" }, func() string { return "inst-1" })
 
-	_, err := s.Train(context.Background(), filepath.Join(t.TempDir(), "absent"), "anna", "woman")
+	_, err := s.Train(context.Background(), filepath.Join(t.TempDir(), "absent"), "anna", "woman", "Z-Image")
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNotLocal), "want ErrNotLocal, got %v", err)
@@ -304,7 +315,7 @@ func TestTrain_TooFewPhotos(t *testing.T) {
 	api := &fakeAPI{}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman")
+	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrPhotoCount), "want ErrPhotoCount, got %v", err)
@@ -320,7 +331,7 @@ func TestTrain_SubmitsRequest(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1", Status: "queued"}}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman")
+	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
 
 	require.NoError(t, err)
 	require.NotNil(t, job)
@@ -341,11 +352,11 @@ func TestTrain_ClientRefStableAndLowercase(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 	s := New(api, func() string { return "http://localhost:8080" }, func() string { return "inst-7" })
 
-	_, err := s.Train(context.Background(), dir, "Anna", "woman")
+	_, err := s.Train(context.Background(), dir, "Anna", "woman", "Z-Image")
 	require.NoError(t, err)
-	_, err = s.Train(context.Background(), dir, "Anna", "woman")
+	_, err = s.Train(context.Background(), dir, "Anna", "woman", "Z-Image")
 	require.NoError(t, err)
-	_, err = s.Train(context.Background(), dir, "anna", "woman")
+	_, err = s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
 	require.NoError(t, err)
 
 	require.Len(t, api.submits, 3)
@@ -362,9 +373,9 @@ func TestTrain_DifferentNamesDifferentClientRef(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 	s := New(api, func() string { return "http://127.0.0.1:8080" }, func() string { return "inst-1" })
 
-	_, err := s.Train(context.Background(), dir, "anna", "woman")
+	_, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
 	require.NoError(t, err)
-	_, err = s.Train(context.Background(), dir, "boris", "man")
+	_, err = s.Train(context.Background(), dir, "boris", "man", "Z-Image")
 	require.NoError(t, err)
 
 	require.Len(t, api.submits, 2)
@@ -381,7 +392,7 @@ func TestTrain_SubmitErrorReturned(t *testing.T) {
 	api := &fakeAPI{submitErr: apiErr}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman")
+	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
 
 	require.Error(t, err)
 	assert.Nil(t, job)

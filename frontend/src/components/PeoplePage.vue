@@ -10,6 +10,8 @@ const jobs = ref([])
 const folder = ref('')
 const name = ref('')
 const gender = ref('man')
+const bases = ref(['Z-Image'])
+const base = ref('Z-Image')
 const busy = ref(false)
 const error = ref('')
 let timer = null
@@ -54,8 +56,19 @@ async function init() {
   } catch (e) {
     status.value = 'unreachable'
   }
+  await loadBases()
   await loadPeople()
   await refresh()
+}
+
+async function loadBases() {
+  try {
+    const list = await api.trainingBases()
+    if (Array.isArray(list) && list.length) bases.value = list
+  } catch (e) {
+    console.error('trainingBases:', e)
+  }
+  if (!bases.value.includes(base.value)) base.value = bases.value[0]
 }
 
 async function pickFolder() {
@@ -71,7 +84,7 @@ async function train() {
   busy.value = true
   error.value = ''
   try {
-    await api.trainPerson(folder.value, name.value.trim(), gender.value)
+    await api.trainPerson(folder.value, name.value.trim(), gender.value, base.value)
     folder.value = ''
     name.value = ''
     await refresh()
@@ -133,6 +146,11 @@ onUnmounted(() => {
           <option value="woman">{{ t('people.gender_woman') }}</option>
           <option value="person">{{ t('people.gender_person') }}</option>
         </select>
+        <label class="form-label">{{ t('people.base') }}</label>
+        <select class="form-select" v-model="base" data-testid="people-base">
+          <option v-for="b in bases" :key="b" :value="b">{{ b }}</option>
+        </select>
+        <div class="form-hint">{{ t('people.base_hint') }}</div>
         <div>
           <button class="btn btn-primary" :disabled="!canTrain" data-testid="people-train" @click="train">{{ busy ? t('people.uploading') : t('people.train') }}</button>
         </div>
@@ -152,7 +170,7 @@ onUnmounted(() => {
       <div class="card-title">{{ t('people.list_title') }}</div>
       <div v-if="people.length === 0" class="text-dim">{{ t('people.empty') }}</div>
       <div v-for="p in people" :key="p.name" class="people-row people-item" data-testid="people-item">
-        <span><b>{{ p.name }}</b> <span class="mono text-dim">{{ p.trigger }}</span></span>
+        <span><b>{{ p.name }}</b> <span class="text-dim">{{ p.base || 'Z-Image' }}</span> <span class="mono text-dim">{{ p.trigger }}</span></span>
         <button class="btn btn-sm btn-secondary" @click="remove(p)">{{ t('people.delete') }}</button>
       </div>
     </div>

@@ -30,6 +30,7 @@ type TrainJob struct {
 	Name       string        `json:"name"`
 	Trigger    string        `json:"trigger"`
 	Gender     string        `json:"gender"`
+	Base       string        `json:"base"`
 	Photos     int           `json:"photos"`
 	Status     string        `json:"status"`
 	Progress   TrainProgress `json:"progress"`
@@ -52,6 +53,7 @@ type Person struct {
 type TrainRequest struct {
 	Name      string
 	Gender    string
+	Base      string
 	Client    string
 	ClientRef string
 	Photos    []string
@@ -130,7 +132,7 @@ func (c *Client) SubmitTraining(ctx context.Context, r TrainRequest) (*TrainJob,
 }
 
 func writeTrainForm(mw *multipart.Writer, r TrainRequest) error {
-	for _, f := range [][2]string{{"name", r.Name}, {"gender", r.Gender}, {"client", r.Client}, {"client_ref", r.ClientRef}} {
+	for _, f := range [][2]string{{"name", r.Name}, {"gender", r.Gender}, {"base", r.Base}, {"client", r.Client}, {"client_ref", r.ClientRef}} {
 		if err := mw.WriteField(f[0], f[1]); err != nil {
 			return err
 		}
@@ -201,4 +203,17 @@ func (c *Client) People(ctx context.Context) ([]Person, error) {
 
 func (c *Client) DeletePerson(ctx context.Context, name string) error {
 	return c.trainDo(ctx, http.MethodDelete, "/api/train/people/"+url.PathEscape(name), nil, "", nil)
+}
+
+func (c *Client) TrainingBases(ctx context.Context) ([]string, error) {
+	var out struct {
+		Bases []string `json:"bases"`
+	}
+	if err := c.trainDo(ctx, http.MethodGet, "/api/train/bases", nil, "", &out); err != nil {
+		return nil, err
+	}
+	if out.Bases == nil {
+		out.Bases = []string{}
+	}
+	return out.Bases, nil
 }

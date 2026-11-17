@@ -2182,6 +2182,7 @@ export namespace serverclient {
 	    name: string;
 	    trigger: string;
 	    gender: string;
+	    base: string;
 	    photos: number;
 	    status: string;
 	    progress: TrainProgress;
@@ -2205,6 +2206,7 @@ export namespace serverclient {
 	        this.name = source["name"];
 	        this.trigger = source["trigger"];
 	        this.gender = source["gender"];
+	        this.base = source["base"];
 	        this.photos = source["photos"];
 	        this.status = source["status"];
 	        this.progress = this.convertValues(source["progress"], TrainProgress);

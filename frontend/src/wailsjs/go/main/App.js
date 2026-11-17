@@ -514,8 +514,12 @@ export function SyncPresets() {
   return window['go']['main']['App']['SyncPresets']();
 }
 
-export function TrainPerson(arg1, arg2, arg3) {
-  return window['go']['main']['App']['TrainPerson'](arg1, arg2, arg3);
+export function TrainPerson(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['TrainPerson'](arg1, arg2, arg3, arg4);
+}
+
+export function TrainingBases() {
+  return window['go']['main']['App']['TrainingBases']();
 }
 
 export function TrainingStatus() {

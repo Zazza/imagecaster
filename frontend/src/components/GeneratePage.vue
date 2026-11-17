@@ -11,7 +11,7 @@ import { parseLoras } from '../loraOverride.js'
 import { newCustomStep, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
 import { fastGeneration, loadFastGeneration, saveFastGeneration, fastCacheFor } from '../fastMode.js'
-import { peopleState, personOverride } from '../people.js'
+import { peopleState, personOverride, peopleForStyle, peopleStyleBase } from '../people.js'
 import { people, loadPeople } from '../peopleStore.js'
 import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
@@ -152,6 +152,10 @@ const selectedPreset = computed(() => presets.value.find(p => p.id === selectedP
 const peopleStatus = computed(() => peopleState(modelCatalog.value, genMode.value, selectedPreset.value, presetOverrides.value, people.value))
 
 const showPeople = computed(() => !kidsModeActive.value && peopleStatus.value === 'ok')
+
+const stylePeople = computed(() => peopleForStyle(modelCatalog.value, selectedPreset.value, presetOverrides.value, people.value))
+
+const peopleOffText = computed(() => t('people.off_' + peopleStatus.value, { base: peopleStyleBase(modelCatalog.value, selectedPreset.value, presetOverrides.value) }))
 
 const fastUnsupported = computed(() => {
   if (genMode.value !== 'preset' || !selectedPreset.value || !modelCatalog.value) return false
@@ -842,11 +846,11 @@ function onKeydown(e) {
                 <div v-if="showPeople" class="form-group">
                   <select class="form-select" v-model="selectedPerson" :aria-label="t('people.pick_label')" data-testid="gen-person-select">
                     <option value="">{{ t('people.pick_none') }}</option>
-                    <option v-for="p in people" :key="p.name" :value="p.name">{{ p.name }}</option>
+                    <option v-for="p in stylePeople" :key="p.name" :value="p.name">{{ p.name }}</option>
                   </select>
                   <div class="form-hint">{{ t('people.pick_hint') }}</div>
                 </div>
-                <div v-else class="form-hint" data-testid="gen-person-off">{{ t('people.off_' + peopleStatus) }}</div>
+                <div v-else class="form-hint" data-testid="gen-person-off">{{ peopleOffText }}</div>
               </div>
             </div>
           </div>

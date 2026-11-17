@@ -31,6 +31,7 @@ type API interface {
 	CancelTraining(ctx context.Context, id string) (*serverclient.TrainJob, error)
 	People(ctx context.Context) ([]serverclient.Person, error)
 	DeletePerson(ctx context.Context, name string) error
+	TrainingBases(ctx context.Context) ([]string, error)
 }
 
 type Service struct {
@@ -62,7 +63,7 @@ func CollectPhotos(dir string) ([]string, error) {
 	return out, nil
 }
 
-func (s *Service) Train(ctx context.Context, folder, name, gender string) (*serverclient.TrainJob, error) {
+func (s *Service) Train(ctx context.Context, folder, name, gender, base string) (*serverclient.TrainJob, error) {
 	u := s.serverURL()
 	if !lanonly.IsLocalURL(u) || lanonly.ViaProxy(u) {
 		return nil, ErrNotLocal
@@ -76,6 +77,7 @@ func (s *Service) Train(ctx context.Context, folder, name, gender string) (*serv
 	return s.api.SubmitTraining(ctx, serverclient.TrainRequest{
 		Name:      name,
 		Gender:    gender,
+		Base:      base,
 		Client:    id,
 		ClientRef: id + ":train:" + name,
 		Photos:    photos,
@@ -96,4 +98,8 @@ func (s *Service) List(ctx context.Context) ([]serverclient.Person, error) {
 
 func (s *Service) Delete(ctx context.Context, name string) error {
 	return s.api.DeletePerson(ctx, name)
+}
+
+func (s *Service) Bases(ctx context.Context) ([]string, error) {
+	return s.api.TrainingBases(ctx)
 }

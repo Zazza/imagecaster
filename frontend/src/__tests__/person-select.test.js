@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { personOverride, peopleState } from '../people.js'
+import { personOverride, peopleState, peopleForStyle } from '../people.js'
 
 const ZIMAGE = {
   name: 'z-image-turbo-fp8-aio', base: 'Z-Image', filename: 'z-image-turbo-fp8-aio.gguf',
@@ -10,8 +10,9 @@ const FLUX2 = {
   variants: [{ filename: 'flux-2-klein-4b-Q4_0.gguf' }],
 }
 const SDXL = { name: 'juggernautXL_ragnarokBy', base: 'SDXL' }
+const MOSS = { name: 'moss_image_sft_bf16', base: 'Moss-Image', filename: 'moss_image_sft_bf16.safetensors' }
 
-const catalog = { sd_models: [ZIMAGE, FLUX2, SDXL] }
+const catalog = { sd_models: [ZIMAGE, FLUX2, SDXL, MOSS] }
 
 const PEOPLE = [
   { name: 'zkv', trigger: 'zkv_man', gender: 'man', base: 'Z-Image', lora: 'zkv', steps: 1200 },
@@ -96,5 +97,111 @@ describe('peopleState', () => {
     ['empty catalog', {}],
   ])('%s → no_catalog', (_, cat) => {
     expect(peopleState(cat, 'preset', zPreset, {}, PEOPLE)).toBe('no_catalog')
+  })
+})
+
+const mossPreset = { id: 7, name: 'Moss', model_name: 'moss_image_sft_bf16.safetensors' }
+
+const ZPERSON = { name: 'zkv', trigger: 'zkv_man', gender: 'man', base: 'Z-Image', lora: 'zkv', steps: 1200 }
+const LEGACY = { name: 'old', trigger: 'old_man', gender: 'man', lora: 'old', steps: 2000 }
+const MOSS_A = { name: 'mila', trigger: 'mila_woman', gender: 'woman', base: 'Moss-Image', lora: 'mila', steps: 1500 }
+const MOSS_B = { name: 'ivan', trigger: 'ivan_man', gender: 'man', base: 'Moss-Image', lora: 'ivan', steps: 1500 }
+const MIXED = [ZPERSON, LEGACY, MOSS_A, MOSS_B]
+
+const names = (list) => list.map(p => p.name).sort()
+
+describe('peopleState: training bases', () => {
+  it.each([
+    ['moss style, moss people present', 'ok', 'preset', mossPreset, {}, MIXED],
+    ['moss style, only z-image people', 'no_people_base', 'preset', mossPreset, {}, [ZPERSON]],
+    ['moss style, only people without base', 'no_people_base', 'preset', mossPreset, {}, [LEGACY]],
+    ['z-image style, only moss people', 'no_people_base', 'preset', zPreset, {}, [MOSS_A, MOSS_B]],
+    ['z-image style, only people without base', 'ok', 'preset', zPreset, {}, [LEGACY]],
+    ['z-image style, mixed people', 'ok', 'preset', zPreset, {}, MIXED],
+    ['z-image overridden to moss, only z-image people', 'no_people_base', 'preset', zPreset, { model_name: 'moss_image_sft_bf16.safetensors' }, [ZPERSON]],
+    ['flux overridden to moss, moss people', 'ok', 'preset', fluxPreset, { model_name: 'moss_image_sft_bf16.safetensors' }, [MOSS_A]],
+    ['moss overridden to z-image, only moss people', 'no_people_base', 'preset', mossPreset, { model_name: 'z-image-turbo-fp8-aio.gguf' }, [MOSS_A]],
+    ['flux style, mixed people', 'wrong_model', 'preset', fluxPreset, {}, MIXED],
+    ['sdxl style, moss people', 'wrong_model', 'preset', sdxlPreset, {}, [MOSS_A]],
+    ['unknown model, mixed people', 'wrong_model', 'preset', unknownPreset, {}, MIXED],
+    ['style without model, moss people', 'wrong_model', 'preset', noModelPreset, {}, [MOSS_A]],
+    ['moss style, nobody trained', 'no_people', 'preset', mossPreset, {}, []],
+    ['moss style in compound mode', 'not_style', 'compound', mossPreset, {}, MIXED],
+    ['custom mode, moss people', 'not_style', 'custom', mossPreset, {}, [MOSS_A]],
+    ['no style, moss people', 'no_style', 'preset', null, {}, [MOSS_A]],
+  ])('%s → %s', (_, want, mode, preset, overrides, people) => {
+    expect(peopleState(catalog, mode, preset, overrides, people)).toBe(want)
+  })
+
+  it('moss style without catalog → no_catalog', () => {
+    expect(peopleState(null, 'preset', mossPreset, {}, MIXED)).toBe('no_catalog')
+  })
+})
+
+describe('peopleForStyle', () => {
+  it('moss style → only moss people', () => {
+    expect(names(peopleForStyle(catalog, mossPreset, {}, MIXED))).toEqual(['ivan', 'mila'])
+  })
+
+  it('z-image style → z-image people and people without base', () => {
+    expect(names(peopleForStyle(catalog, zPreset, {}, MIXED))).toEqual(['old', 'zkv'])
+  })
+
+  it('z-image variant model → z-image people', () => {
+    expect(names(peopleForStyle(catalog, zVariantPreset, {}, MIXED))).toEqual(['old', 'zkv'])
+  })
+
+  it('person with base Z-Image and person without base are treated alike', () => {
+    expect(names(peopleForStyle(catalog, zPreset, {}, [LEGACY]))).toEqual(['old'])
+    expect(peopleForStyle(catalog, mossPreset, {}, [LEGACY])).toEqual([])
+  })
+
+  it('override to moss wins over the style model', () => {
+    expect(names(peopleForStyle(catalog, zPreset, { model_name: 'moss_image_sft_bf16.safetensors' }, MIXED))).toEqual(['ivan', 'mila'])
+  })
+
+  it('override to z-image wins over the moss style model', () => {
+    expect(names(peopleForStyle(catalog, mossPreset, { model_name: 'z_image_turbo_bf16.safetensors' }, MIXED))).toEqual(['old', 'zkv'])
+  })
+
+  it.each([
+    ['moss style, no moss people', mossPreset, {}, [ZPERSON, LEGACY]],
+    ['z-image style, only moss people', zPreset, {}, [MOSS_A, MOSS_B]],
+    ['flux style', fluxPreset, {}, MIXED],
+    ['sdxl style', sdxlPreset, {}, MIXED],
+    ['unknown model', unknownPreset, {}, MIXED],
+    ['empty people', mossPreset, {}, []],
+  ])('%s → empty', (_, preset, overrides, people) => {
+    expect(peopleForStyle(catalog, preset, overrides, people)).toEqual([])
+  })
+
+  it('keeps person fields', () => {
+    expect(peopleForStyle(catalog, mossPreset, {}, [MOSS_A])).toEqual([MOSS_A])
+  })
+
+  it('does not mutate inputs', () => {
+    const people = structuredClone(MIXED)
+    peopleForStyle(catalog, mossPreset, {}, people)
+    expect(people).toEqual(MIXED)
+  })
+})
+
+describe('personOverride: training bases', () => {
+  it('moss style and moss person → override', () => {
+    expect(personOverride(catalog, mossPreset, {}, MIXED, 'mila')).toEqual({ name: 'mila', trigger: 'mila_woman' })
+  })
+
+  it('z-image style and person without base → override', () => {
+    expect(personOverride(catalog, zPreset, {}, MIXED, 'old')).toEqual({ name: 'old', trigger: 'old_man' })
+  })
+
+  it.each([
+    ['moss style, z-image person', mossPreset, {}, 'zkv'],
+    ['moss style, person without base', mossPreset, {}, 'old'],
+    ['z-image style, moss person', zPreset, {}, 'mila'],
+    ['z-image overridden to moss, z-image person', zPreset, { model_name: 'moss_image_sft_bf16.safetensors' }, 'zkv'],
+    ['flux style, moss person', fluxPreset, {}, 'mila'],
+  ])('%s → null', (_, preset, overrides, selected) => {
+    expect(personOverride(catalog, preset, overrides, MIXED, selected)).toBeNull()
   })
 })

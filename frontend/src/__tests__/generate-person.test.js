@@ -14,11 +14,13 @@ enableAutoUnmount(afterEach)
 const PRESETS = [
   { id: 1, name: 'Photo', preset_type: 'general', loras: '', model_name: 'z-image-turbo-fp8-aio.gguf' },
   { id: 2, name: 'Flux', preset_type: 'general', loras: '', model_name: 'flux-2-klein-4b' },
+  { id: 3, name: 'Moss', preset_type: 'general', loras: '', model_name: 'moss_image_sft_bf16.safetensors' },
 ]
 const CATALOG = {
   sd_models: [
     { name: 'z-image-turbo-fp8-aio', base: 'Z-Image', filename: 'z-image-turbo-fp8-aio.gguf' },
     { name: 'flux-2-klein-4b', base: 'Flux.2' },
+    { name: 'moss_image_sft_bf16', base: 'Moss-Image', filename: 'moss_image_sft_bf16.safetensors' },
   ],
 }
 const PEOPLE = [{ name: 'anna', trigger: 'anna_woman', gender: 'woman', base: 'Z-Image', lora: 'anna', steps: 2000 }]
@@ -117,5 +119,89 @@ describe('generate: person picker', () => {
     expect(titles[i - 1]).toBe(t('gen.section_overrides'))
     expect(titles[i + 1]).toBe(t('gen.section_prompts'))
     expect(nums).toEqual(['01', '02', '03', '04', '05'])
+  })
+})
+
+const MIXED = [
+  { name: 'anna', trigger: 'anna_woman', gender: 'woman', base: 'Z-Image', lora: 'anna', steps: 2000 },
+  { name: 'old', trigger: 'old_man', gender: 'man', lora: 'old', steps: 2000 },
+  { name: 'mila', trigger: 'mila_woman', gender: 'woman', base: 'Moss-Image', lora: 'mila', steps: 1500 },
+]
+
+async function usePeople(list) {
+  ListPeople.mockImplementation(() => Promise.resolve(list.map(p => ({ ...p }))))
+  await loadPeople()
+}
+
+function optionValues(w) {
+  return w.find('[data-testid="gen-person-select"]').findAll('option').map(o => o.element.value).filter(v => v !== '').sort()
+}
+
+describe('generate: person picker by training base', () => {
+  it('Moss style: select lists only Moss people', async () => {
+    await usePeople(MIXED)
+    const w = await mountPage(3)
+    const card = w.find('[data-testid="gen-person"]')
+    expect(card.classes()).not.toContain('card-inactive')
+    expect(optionValues(w)).toEqual(['mila'])
+  })
+
+  it('Z-Image style: select lists Z-Image people and people without base', async () => {
+    await usePeople(MIXED)
+    const w = await mountPage(1)
+    expect(optionValues(w)).toEqual(['anna', 'old'])
+  })
+
+  it('Moss style: picked Moss person goes into overrides.person', async () => {
+    await usePeople(MIXED)
+    const w = await mountPage(3)
+    await w.find('[data-testid="gen-person-select"]').setValue('mila')
+    await generate(w)
+    expect(EnqueueTxt2Img).toHaveBeenCalledTimes(1)
+    expect(EnqueueTxt2Img.mock.calls[0][0].overrides).toMatchObject({ person: { name: 'mila', trigger: 'mila_woman' } })
+  })
+
+  it('Moss style without Moss people: section inactive, reason names the model, no person in the job', async () => {
+    await usePeople(MIXED.filter(p => p.base !== 'Moss-Image'))
+    const w = await mountPage(3)
+    const card = w.find('[data-testid="gen-person"]')
+    expect(card.exists()).toBe(true)
+    expect(card.classes()).toContain('card-inactive')
+    expect(card.find('[data-testid="gen-person-select"]').exists()).toBe(false)
+    const off = card.find('[data-testid="gen-person-off"]').text()
+    expect(off).toBe(t('people.off_no_people_base', { base: 'Moss-Image' }))
+    expect(off).toContain('Moss-Image')
+    expect(card.find('.card-subtitle').text()).toBe(t('gen.sub_people_no_people_base'))
+    await generate(w)
+    expect(EnqueueTxt2Img.mock.calls[0][0].overrides?.person).toBeUndefined()
+  })
+
+  it('Z-Image style with only Moss people: section inactive, reason names Z-Image', async () => {
+    await usePeople(MIXED.filter(p => p.base === 'Moss-Image'))
+    const w = await mountPage(1)
+    const card = w.find('[data-testid="gen-person"]')
+    expect(card.classes()).toContain('card-inactive')
+    expect(card.find('[data-testid="gen-person-select"]').exists()).toBe(false)
+    const off = card.find('[data-testid="gen-person-off"]').text()
+    expect(off).toBe(t('people.off_no_people_base', { base: 'Z-Image' }))
+    expect(off).toContain('Z-Image')
+  })
+
+  it('Flux style with Moss people: wrong model, as before', async () => {
+    await usePeople(MIXED)
+    const w = await mountPage(2)
+    const card = w.find('[data-testid="gen-person"]')
+    expect(card.classes()).toContain('card-inactive')
+    expect(card.find('[data-testid="gen-person-off"]').text()).toBe(t('people.off_wrong_model'))
+  })
+
+  it('kids mode: section hidden for Moss style too', async () => {
+    await usePeople(MIXED)
+    const w = await mountPage(3)
+    const { kidsModeActive } = useKidsMode()
+    kidsModeActive.value = true
+    await settle()
+    expect(w.find('[data-testid="gen-person"]').exists()).toBe(false)
+    kidsModeActive.value = false
   })
 })

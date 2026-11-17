@@ -53,17 +53,27 @@ func (a *App) PickPeopleFolder() (string, error) {
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Папка с фото человека"})
 }
 
-func (a *App) TrainPerson(folder, name, gender string) (*serverclient.TrainJob, error) {
+func (a *App) TrainPerson(folder, name, gender, base string) (*serverclient.TrainJob, error) {
 	if a.serverClient.GetBaseURL() == "" {
 		return nil, errors.New("сервер Imagecaster не настроен")
 	}
 	ctx, cancel := a.peopleCtx(0)
 	defer cancel()
-	job, err := a.peopleSvc().Train(ctx, folder, name, gender)
+	job, err := a.peopleSvc().Train(ctx, folder, name, gender, base)
 	if err != nil {
 		a.log.Warn("people: train %q: %s", name, err)
 	}
 	return job, err
+}
+
+func (a *App) TrainingBases() ([]string, error) {
+	ctx, cancel := a.peopleCtx(peopleCallTimeout)
+	defer cancel()
+	bases, err := a.peopleSvc().Bases(ctx)
+	if err != nil {
+		a.log.Warn("people: bases: %s", err)
+	}
+	return bases, err
 }
 
 func (a *App) ListTrainingJobs() ([]serverclient.TrainJob, error) {
