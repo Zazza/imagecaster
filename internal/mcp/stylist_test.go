@@ -825,35 +825,6 @@ func TestBuildLookInstruction(t *testing.T) {
 	}
 }
 
-func TestIsLocalURL(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		raw  string
-		want bool
-	}{
-		{raw: "http://localhost:1234", want: true},
-		{raw: "http://127.0.0.1:7860", want: true},
-		{raw: "http://192.168.1.184:8080/api/llm", want: true},
-		{raw: "http://10.0.0.5", want: true},
-		{raw: "http://172.16.3.4", want: true},
-		{raw: "http://[::1]:11434", want: true},
-		{raw: "http://[fd00::1]", want: true},
-		{raw: "https://api.openai.com", want: false},
-		{raw: "http://8.8.8.8", want: false},
-		{raw: "http://172.32.0.1", want: false},
-		{raw: "", want: false},
-		{raw: "not a url", want: false},
-		{raw: "http://no-such-host.invalid", want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.raw, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.want, isLocalURL(tt.raw))
-		})
-	}
-}
-
 func TestImageResult_NoImageBytes(t *testing.T) {
 	t.Parallel()
 	b64 := base64.StdEncoding.EncodeToString(styPNG(1))

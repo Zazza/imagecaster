@@ -42,8 +42,9 @@ type PresetInstallStatus struct {
 }
 
 type LoRAEntry struct {
-	Name   string  `json:"name"`
-	Weight float64 `json:"weight"`
+	Name    string  `json:"name"`
+	Weight  float64 `json:"weight"`
+	Trigger string  `json:"trigger,omitempty"`
 }
 
 type SavedDescription struct {

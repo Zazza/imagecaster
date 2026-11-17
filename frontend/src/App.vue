@@ -2,7 +2,7 @@
 import TitleBar from './components/TitleBar.vue'
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
-import { Sparkles, Sliders, SlidersHorizontal, Settings, Package, Images, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+import { Sparkles, Sliders, SlidersHorizontal, Settings, Package, Images, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight, UserRound } from 'lucide-vue-next'
 import { api } from './api.js'
 import { t, setLocale, locale } from './i18n/index.js'
 import UnifiedPresetsPage from './components/UnifiedPresetsPage.vue'
@@ -10,6 +10,7 @@ import UnifiedGeneratePage from './components/UnifiedGeneratePage.vue'
 import PostProcessPage from './components/PostProcessPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import CatalogPage from './components/CatalogPage.vue'
+import PeoplePage from './components/PeoplePage.vue'
 import GalleryPage from './components/GalleryPage.vue'
 import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
@@ -263,6 +264,9 @@ onUnmounted(() => {
         <a class="sidebar-link" :class="{ active: page === 'catalog' }" @click="page = 'catalog'" :title="t('app.nav_catalog')">
           <Package :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_catalog') }}</span>
         </a>
+        <a class="sidebar-link" :class="{ active: page === 'people' }" @click="page = 'people'" :title="t('app.nav_people')" data-testid="nav-people">
+          <UserRound :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_people') }}</span>
+        </a>
         <div class="sidebar-divider"></div>
         <a class="sidebar-link" :class="{ active: page === 'settings' }" @click="page = 'settings'" :title="t('app.nav_settings')">
           <Settings :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_settings') }}</span>
@@ -293,7 +297,8 @@ onUnmounted(() => {
     <main class="main">
       <SettingsPage :key="settingsKey" v-show="page === 'settings'" :active="page === 'settings'" :initial-tab="settingsTab" @navigate="onNavigate" />
       <CatalogPage v-show="page === 'catalog'" :active="page === 'catalog'" />
-      <template v-if="page !== 'settings' && page !== 'catalog'">
+      <PeoplePage v-if="page === 'people'" />
+      <template v-if="page !== 'settings' && page !== 'catalog' && page !== 'people'">
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />

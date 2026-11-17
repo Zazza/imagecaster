@@ -1866,6 +1866,11 @@ details.cat-extra summary {
   color: var(--accent);
 }
 
+.accordion > .card.card-inactive .card-title,
+.accordion > .card.card-inactive .card-num {
+  color: var(--text-dim);
+}
+
 .accordion .card-collapse > .card-body {
   padding: 10px 12px 12px;
 }

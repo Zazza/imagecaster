@@ -34,11 +34,19 @@ function modelStem(name) {
   return base.replace(/\.(safetensors|ckpt|gguf)$/i, '').toLowerCase()
 }
 
-export function fastCacheFor(catalog, model) {
+function catalogModel(catalog, model) {
   const stem = modelStem(model)
-  if (!stem) return ''
+  if (!stem) return null
   const models = catalog?.sd_models || []
-  const m = models.find(m => modelStem(m.filename || `${m.name}.safetensors`) === stem || String(m.name || '').toLowerCase() === stem)
+  return models.find(m => modelStem(m.filename || `${m.name}.safetensors`) === stem || String(m.name || '').toLowerCase() === stem)
     || models.find(m => (m.variants || []).some(v => modelStem(v.filename) === stem))
-  return m?.fast_cache || ''
+    || null
+}
+
+export function fastCacheFor(catalog, model) {
+  return catalogModel(catalog, model)?.fast_cache || ''
+}
+
+export function modelBaseFor(catalog, model) {
+  return catalogModel(catalog, model)?.base || ''
 }

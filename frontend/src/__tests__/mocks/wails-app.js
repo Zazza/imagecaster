@@ -33,6 +33,9 @@ export const appDefaults = {
   GetSDLoRAs: () => [],
   DiscoverServers: () => [],
   CheckServer: () => ({ state: 'ok', url: 'http://s:1', version: '2', missing: [], error: '' }),
+  ListPeople: () => [],
+  ListTrainingJobs: () => [],
+  TrainingStatus: () => 'not_installed',
 }
 
 export const appExportNames = Object.keys(actual).filter(name => typeof actual[name] === 'function')

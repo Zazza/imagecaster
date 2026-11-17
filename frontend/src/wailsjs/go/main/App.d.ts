@@ -3,9 +3,9 @@
 import {generation} from '../models';
 import {adjust} from '../models';
 import {filebrowser} from '../models';
+import {serverclient} from '../models';
 import {settings} from '../models';
 import {preset} from '../models';
-import {serverclient} from '../models';
 import {importexport} from '../models';
 import {kids} from '../models';
 import {logger} from '../models';
@@ -28,6 +28,8 @@ export function BrowseDirectory(arg1:string):Promise<Array<filebrowser.FileEntry
 export function CancelQueue():Promise<void>;
 
 export function CancelQueueJob(arg1:number):Promise<void>;
+
+export function CancelTraining(arg1:string):Promise<serverclient.TrainJob>;
 
 export function CheckServer():Promise<settings.ServerCheck>;
 
@@ -56,6 +58,8 @@ export function DeleteExportPreset(arg1:number):Promise<void>;
 export function DeleteHiresProfile(arg1:number):Promise<void>;
 
 export function DeleteHistoryItems(arg1:Array<number>):Promise<number>;
+
+export function DeletePerson(arg1:string):Promise<void>;
 
 export function DeletePostRecipe(arg1:number):Promise<void>;
 
@@ -179,6 +183,8 @@ export function ListHiresProfiles():Promise<Array<preset.HiresProfile>>;
 
 export function ListHistory(arg1:preset.HistoryFilter):Promise<preset.HistoryPage>;
 
+export function ListPeople():Promise<Array<serverclient.Person>>;
+
 export function ListPostRecipes():Promise<Array<preset.PostRecipe>>;
 
 export function ListPresetTypes():Promise<Array<preset.PresetType>>;
@@ -189,6 +195,8 @@ export function ListResolutions():Promise<Array<preset.Resolution>>;
 
 export function ListSessions():Promise<Array<preset.SessionInfo>>;
 
+export function ListTrainingJobs():Promise<Array<serverclient.TrainJob>>;
+
 export function OpenImportCompoundFile():Promise<importexport.CompoundImportPreview>;
 
 export function OpenImportFile():Promise<importexport.ImportPreview>;
@@ -196,6 +204,8 @@ export function OpenImportFile():Promise<importexport.ImportPreview>;
 export function OpenInHistory(arg1:number):Promise<void>;
 
 export function PauseQueue():Promise<void>;
+
+export function PickPeopleFolder():Promise<string>;
 
 export function PrepareCompoundPresetsExport(arg1:Array<number>):Promise<string>;
 
@@ -258,6 +268,10 @@ export function StopServerProcess(arg1:string):Promise<void>;
 export function SwitchSession(arg1:number):Promise<void>;
 
 export function SyncPresets():Promise<settings.PresetSync>;
+
+export function TrainPerson(arg1:string,arg2:string,arg3:string):Promise<serverclient.TrainJob>;
+
+export function TrainingStatus():Promise<string>;
 
 export function UpdateCompoundPreset(arg1:preset.CompoundPreset):Promise<preset.CompoundPreset>;
 

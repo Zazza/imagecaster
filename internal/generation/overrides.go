@@ -1,6 +1,8 @@
 package generation
 
 import (
+	"encoding/json"
+	"regexp"
 	"strings"
 
 	"github.com/Zazza/imagecaster/internal/preset"
@@ -14,13 +16,47 @@ const (
 )
 
 type PresetOverrides struct {
-	Sampler      *string  `json:"sampler,omitempty"`
-	ScheduleType *string  `json:"schedule_type,omitempty"`
-	Steps        *int     `json:"steps,omitempty"`
-	CfgScale     *float64 `json:"cfg_scale,omitempty"`
-	ClipSkip     *int     `json:"clip_skip,omitempty"`
-	ModelName    *string  `json:"model_name,omitempty"`
-	Loras        *string  `json:"loras,omitempty"`
+	Sampler      *string         `json:"sampler,omitempty"`
+	ScheduleType *string         `json:"schedule_type,omitempty"`
+	Steps        *int            `json:"steps,omitempty"`
+	CfgScale     *float64        `json:"cfg_scale,omitempty"`
+	ClipSkip     *int            `json:"clip_skip,omitempty"`
+	ModelName    *string         `json:"model_name,omitempty"`
+	Loras        *string         `json:"loras,omitempty"`
+	Person       *PersonOverride `json:"person,omitempty"`
+}
+
+type PersonOverride struct {
+	Name    string `json:"name"`
+	Trigger string `json:"trigger"`
+}
+
+var personNameRe = regexp.MustCompile(`^[a-z0-9_]{2,32}$`)
+
+func validPerson(p *PersonOverride) bool {
+	if p == nil || !personNameRe.MatchString(p.Name) {
+		return false
+	}
+	switch p.Trigger {
+	case p.Name + "_man", p.Name + "_woman", p.Name + "_person":
+		return true
+	}
+	return false
+}
+
+func addPersonLora(lorasJSON string, p *PersonOverride) (string, bool) {
+	var loras []preset.LoRAEntry
+	if lorasJSON != "" {
+		if err := json.Unmarshal([]byte(lorasJSON), &loras); err != nil {
+			return lorasJSON, false
+		}
+	}
+	loras = append(loras, preset.LoRAEntry{Name: p.Name, Weight: 1, Trigger: p.Trigger})
+	data, err := json.Marshal(loras)
+	if err != nil {
+		return lorasJSON, false
+	}
+	return string(data), true
 }
 
 func OverrideModelName(ov *PresetOverrides) string {
@@ -80,5 +116,10 @@ func ApplyPresetOverrides(p *preset.Preset, ov *PresetOverrides) {
 	}
 	if ov.Loras != nil && *ov.Loras != "" {
 		p.Loras = *ov.Loras
+	}
+	if validPerson(ov.Person) {
+		if loras, ok := addPersonLora(p.Loras, ov.Person); ok {
+			p.Loras = loras
+		}
 	}
 }

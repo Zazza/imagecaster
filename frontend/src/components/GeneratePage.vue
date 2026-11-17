@@ -11,6 +11,8 @@ import { parseLoras } from '../loraOverride.js'
 import { newCustomStep, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
 import { fastGeneration, loadFastGeneration, saveFastGeneration, fastCacheFor } from '../fastMode.js'
+import { peopleState, personOverride } from '../people.js'
+import { people, loadPeople } from '../peopleStore.js'
 import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useKidsMode } from '../composables/useKidsMode.js'
@@ -105,6 +107,7 @@ function setOpenSection(name) {
 }
 
 const presetOverrides = ref(null)
+const selectedPerson = ref('')
 const overridesPanel = ref(null)
 
 const customSteps = ref([newCustomStep()])
@@ -146,11 +149,21 @@ const modelCatalog = ref(null)
 
 const selectedPreset = computed(() => presets.value.find(p => p.id === selectedPresetId.value) || null)
 
+const peopleStatus = computed(() => peopleState(modelCatalog.value, genMode.value, selectedPreset.value, presetOverrides.value, people.value))
+
+const showPeople = computed(() => !kidsModeActive.value && peopleStatus.value === 'ok')
+
 const fastUnsupported = computed(() => {
   if (genMode.value !== 'preset' || !selectedPreset.value || !modelCatalog.value) return false
   const model = presetOverrides.value?.model_name || selectedPreset.value.model_name
   return !fastCacheFor(modelCatalog.value, model)
 })
+
+function withPerson(ov) {
+  if (!showPeople.value) return ov
+  const person = personOverride(modelCatalog.value, selectedPreset.value, ov, people.value, selectedPerson.value)
+  return person ? { ...(ov || {}), person } : ov
+}
 
 async function loadModelCatalog() {
   try {
@@ -407,7 +420,7 @@ async function generateImage() {
           extra_negative_prompt: extraN,
           resolution_id: resId,
           hires_profile_id: hiresId,
-          overrides: ov,
+          overrides: withPerson(ov),
           seed: seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null,
           ...ideaFields,
         })
@@ -575,6 +588,7 @@ async function confirmSavePipeline() {
 let offSessionAdded = () => {}
 
 onMounted(async () => {
+  loadPeople()
   const isReset = props.resetting
   loadFastGeneration()
   loadModelCatalog()
@@ -819,9 +833,27 @@ function onKeydown(e) {
             </div>
           </div>
 
+          <div v-if="!kidsModeActive" class="card" :class="{ collapsed: openSection !== 'people', 'card-inactive': !showPeople }" data-testid="gen-person">
+            <div class="card-header card-toggle" @click="setOpenSection('people')">
+              <span class="card-heading"><span class="card-num mono">04</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_people') }}</span><span class="card-subtitle">{{ showPeople ? t('gen.sub_people') : t('gen.sub_people_' + peopleStatus) }}</span></span></span>
+            </div>
+            <div class="card-collapse" :class="{ collapsed: openSection !== 'people' }">
+              <div class="card-body">
+                <div v-if="showPeople" class="form-group">
+                  <select class="form-select" v-model="selectedPerson" :aria-label="t('people.pick_label')" data-testid="gen-person-select">
+                    <option value="">{{ t('people.pick_none') }}</option>
+                    <option v-for="p in people" :key="p.name" :value="p.name">{{ p.name }}</option>
+                  </select>
+                  <div class="form-hint">{{ t('people.pick_hint') }}</div>
+                </div>
+                <div v-else class="form-hint" data-testid="gen-person-off">{{ t('people.off_' + peopleStatus) }}</div>
+              </div>
+            </div>
+          </div>
+
           <div v-if="!kidsModeActive" class="card" :class="{ collapsed: openSection !== 'prompts' }">
             <div class="card-header card-toggle" @click="setOpenSection('prompts')">
-              <span class="card-heading"><span class="card-num mono">04</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_prompts') }}</span><span class="card-subtitle">{{ t('gen.sub_prompts') }}</span></span></span>
+              <span class="card-heading"><span class="card-num mono">05</span><span class="card-heading-text"><span class="card-title">{{ t('gen.section_prompts') }}</span><span class="card-subtitle">{{ t('gen.sub_prompts') }}</span></span></span>
             </div>
             <div class="card-collapse" :class="{ collapsed: openSection !== 'prompts' }">
               <div class="card-body">

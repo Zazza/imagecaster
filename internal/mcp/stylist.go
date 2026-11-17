@@ -1,24 +1,20 @@
 package mcp
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
-	"net"
-	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/lanonly"
 	"github.com/Zazza/imagecaster/internal/preset"
-	"golang.org/x/net/http/httpproxy"
 )
 
 type StylistEngine interface {
@@ -164,55 +160,15 @@ func (s *Server) stylistDeps() (StylistEngine, AppSessions, error) {
 func (s *Server) localOnly(role string) error {
 	if cfg := s.deps.Cfg; cfg != nil {
 		for name, u := range map[string]string{"LLM": cfg.LLMUrl, "SD": cfg.SDUrl} {
-			if !isLocalURL(u) {
+			if !lanonly.IsLocalURL(u) {
 				return fmt.Errorf("%s отключён: адрес %s не в локальной сети, фото не могут покидать LAN", role, name)
 			}
-			if viaProxy(u) {
+			if lanonly.ViaProxy(u) {
 				return fmt.Errorf("%s отключён: запросы к %s пошли бы через HTTP-прокси из окружения — добавь адрес в NO_PROXY", role, name)
 			}
 		}
 	}
 	return nil
-}
-
-func isLocalURL(raw string) bool {
-	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
-		return false
-	}
-	host := u.Hostname()
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	var ips []net.IP
-	if ip := net.ParseIP(host); ip != nil {
-		ips = []net.IP{ip}
-	} else {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-		if err != nil || len(addrs) == 0 {
-			return false
-		}
-		for _, a := range addrs {
-			ips = append(ips, a.IP)
-		}
-	}
-	for _, ip := range ips {
-		if !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() {
-			return false
-		}
-	}
-	return true
-}
-
-func viaProxy(raw string) bool {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return true
-	}
-	p, err := httpproxy.FromEnvironment().ProxyFunc()(u)
-	return err != nil || p != nil
 }
 
 func readPhotoArg(args map[string]any, sessions AppSessions) (photoSource, error) {

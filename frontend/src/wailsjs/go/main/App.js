@@ -34,6 +34,10 @@ export function CancelQueueJob(arg1) {
   return window['go']['main']['App']['CancelQueueJob'](arg1);
 }
 
+export function CancelTraining(arg1) {
+  return window['go']['main']['App']['CancelTraining'](arg1);
+}
+
 export function CheckServer() {
   return window['go']['main']['App']['CheckServer']();
 }
@@ -88,6 +92,10 @@ export function DeleteHiresProfile(arg1) {
 
 export function DeleteHistoryItems(arg1) {
   return window['go']['main']['App']['DeleteHistoryItems'](arg1);
+}
+
+export function DeletePerson(arg1) {
+  return window['go']['main']['App']['DeletePerson'](arg1);
 }
 
 export function DeletePostRecipe(arg1) {
@@ -334,6 +342,10 @@ export function ListHistory(arg1) {
   return window['go']['main']['App']['ListHistory'](arg1);
 }
 
+export function ListPeople() {
+  return window['go']['main']['App']['ListPeople']();
+}
+
 export function ListPostRecipes() {
   return window['go']['main']['App']['ListPostRecipes']();
 }
@@ -354,6 +366,10 @@ export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
 
+export function ListTrainingJobs() {
+  return window['go']['main']['App']['ListTrainingJobs']();
+}
+
 export function OpenImportCompoundFile() {
   return window['go']['main']['App']['OpenImportCompoundFile']();
 }
@@ -368,6 +384,10 @@ export function OpenInHistory(arg1) {
 
 export function PauseQueue() {
   return window['go']['main']['App']['PauseQueue']();
+}
+
+export function PickPeopleFolder() {
+  return window['go']['main']['App']['PickPeopleFolder']();
 }
 
 export function PrepareCompoundPresetsExport(arg1) {
@@ -492,6 +512,14 @@ export function SwitchSession(arg1) {
 
 export function SyncPresets() {
   return window['go']['main']['App']['SyncPresets']();
+}
+
+export function TrainPerson(arg1, arg2, arg3) {
+  return window['go']['main']['App']['TrainPerson'](arg1, arg2, arg3);
+}
+
+export function TrainingStatus() {
+  return window['go']['main']['App']['TrainingStatus']();
 }
 
 export function UpdateCompoundPreset(arg1) {

@@ -648,6 +648,15 @@ func appendLorasToPrompt(prompt, lorasJSON string) string {
 	var loras []preset.LoRAEntry
 	if json.Unmarshal([]byte(lorasJSON), &loras) == nil {
 		for _, l := range loras {
+			if l.Trigger != "" {
+				if prompt == "" {
+					prompt = l.Trigger
+				} else {
+					prompt = l.Trigger + ", " + prompt
+				}
+			}
+		}
+		for _, l := range loras {
 			prompt += fmt.Sprintf(" <lora:%s:%g>", l.Name, l.Weight)
 		}
 	}
