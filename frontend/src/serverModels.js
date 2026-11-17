@@ -4,8 +4,8 @@ import { loadDefaultPlan } from './modelDownloads.js'
 import { t } from './i18n/index.js'
 
 export const serverURL = ref('')
-export const serverModels = reactive({ sd: [], lora: [], vae: [], text_encoder: [], llm: [] })
-export const serverModelsLoading = reactive({ sd: false, lora: false, vae: false, text_encoder: false, llm: false })
+export const serverModels = reactive({ sd: [], lora: [], vae: [], text_encoder: [], train: [], llm: [] })
+export const serverModelsLoading = reactive({ sd: false, lora: false, vae: false, text_encoder: false, train: false, llm: false })
 export const serverModelsKnown = reactive({})
 export const modelActionLoading = reactive({})
 export const activeDownload = reactive({ type: '', name: '', progress: '', percent: null, model: '', step: 0, steps: 0 })
@@ -53,7 +53,7 @@ export async function syncPresets() {
 }
 
 export async function loadServerModels() {
-  for (const type of ['sd', 'lora', 'vae', 'text_encoder']) {
+  for (const type of ['sd', 'lora', 'vae', 'text_encoder', 'train']) {
     serverModelsLoading[type] = true
     try {
       serverModels[type] = await api.getServerModels(type) || []

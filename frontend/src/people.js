@@ -1,6 +1,12 @@
 import { modelBaseFor } from './fastMode.js'
 
-export const TRAIN_BASES = ['Z-Image', 'Moss-Image']
+export const TRAIN_BASES = ['Z-Image', 'Moss-Image', 'SDXL', 'Flux.2']
+
+const BASE_LABELS = { 'Flux.2': 'Flux.2 Klein 4B' }
+
+export function trainBaseLabel(base) {
+  return BASE_LABELS[base] || base
+}
 
 function styleModel(preset, overrides) {
   return overrides?.model_name || preset?.model_name || ''

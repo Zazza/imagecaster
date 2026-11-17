@@ -556,7 +556,7 @@
     },
     {
       "name": "photon_v1",
-      "base": "SDXL",
+      "base": "SD 1.5",
       "category": "Photorealism",
       "category_ru": "Фотореализм",
       "description": "Cinematic, film-like look",
@@ -679,6 +679,94 @@
       "description_ru": "Прорисовка отдельных прядей волос",
       "size_mb": 68,
       "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/release/hairdetailer.safetensors"
+    }
+  ],
+  "train": [
+    {
+      "base": "Z-Image",
+      "files": [
+        {
+          "type": "train",
+          "filename": "z_image_turbo_bf16.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors",
+          "size_gb": 12.31
+        },
+        {
+          "type": "train",
+          "filename": "zimage_turbo_training_adapter_v2.safetensors",
+          "url": "https://huggingface.co/ostris/zimage_turbo_training_adapter/resolve/main/zimage_turbo_training_adapter_v2.safetensors",
+          "size_gb": 0.34
+        },
+        {
+          "type": "text_encoder",
+          "filename": "qwen_3_4b.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
+          "size_gb": 8.04
+        },
+        {
+          "type": "vae",
+          "filename": "ae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors",
+          "size_gb": 0.34
+        }
+      ]
+    },
+    {
+      "base": "Moss-Image",
+      "files": [
+        {
+          "type": "sd",
+          "filename": "moss_image_sft_bf16.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors",
+          "size_gb": 10.16
+        },
+        {
+          "type": "text_encoder",
+          "filename": "qwen35_9b_int8_convrot.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/text_encoders/qwen3.5_9b_int8_convrot.safetensors",
+          "size_gb": 9.75
+        },
+        {
+          "type": "vae",
+          "filename": "flux2-vae_small.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/vae/flux2-vae_small.safetensors",
+          "size_gb": 0.25
+        }
+      ]
+    },
+    {
+      "base": "SDXL",
+      "files": [
+        {
+          "type": "sd",
+          "filename": "juggernautXL_ragnarokBy.safetensors",
+          "url": "https://civitai.com/api/download/models/1759168",
+          "size_gb": 6.6
+        }
+      ]
+    },
+    {
+      "base": "Flux.2",
+      "files": [
+        {
+          "type": "sd",
+          "filename": "flux-2-klein-4b.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors",
+          "size_gb": 7.75
+        },
+        {
+          "type": "text_encoder",
+          "filename": "qwen_3_4b.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
+          "size_gb": 8.04
+        },
+        {
+          "type": "vae",
+          "filename": "flux2-klein-vae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/vae/flux2-vae.safetensors",
+          "size_gb": 0.34
+        }
+      ]
     }
   ]
 }

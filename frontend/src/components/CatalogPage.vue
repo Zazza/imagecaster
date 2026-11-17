@@ -14,6 +14,7 @@ import {
 } from '../catalogFilters.js'
 import { t, locale } from '../i18n/index.js'
 import DownloadProgress from './DownloadProgress.vue'
+import { trainBaseLabel } from '../people.js'
 
 const props = defineProps({ active: { type: Boolean, default: true } })
 
@@ -38,6 +39,20 @@ const bases = computed(() => modelBases(sdModels.value))
 const visibleSDModels = computed(() => filterSDModels(sdModels.value, filters, { isInstalled: hasAnyVersion, vramMB: vramMB.value }))
 const visibleNames = computed(() => new Set(visibleSDModels.value.map(m => m.name)))
 const filtersActive = computed(() => !!(filters.query || filters.base || filters.installed !== 'all' || filters.fits))
+
+const trainBases = computed(() => modelCatalog.value?.train || [])
+
+function trainMissing(b) {
+  return (b.files || []).filter(f => !hasServerFile(f.type, f.filename))
+}
+
+function trainSize(files) {
+  return Math.round(files.reduce((s, f) => s + (f.size_gb || 0), 0) * 100) / 100
+}
+
+async function downloadTrain(b) {
+  await runDownload({ name: 'train:' + b.base }, trainMissing(b).map(f => ({ op: 'download', type: f.type, url: f.url, filename: f.filename })))
+}
 
 function resetFilters() {
   filters.query = ''
@@ -243,6 +258,7 @@ onMounted(async () => {
           <button class="tab" data-testid="catalog-tab-images" :class="{ active: activeTab === 'images' }" @click="activeTab = 'images'">{{ t('settings.title_sd_models') }}</button>
           <button class="tab" data-testid="catalog-tab-ai" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'">{{ t('settings.catalog_tab_ai') }}</button>
           <button class="tab" data-testid="catalog-tab-lora" :class="{ active: activeTab === 'lora' }" @click="activeTab = 'lora'">LoRA</button>
+          <button class="tab" data-testid="catalog-tab-train" :class="{ active: activeTab === 'train' }" @click="activeTab = 'train'">{{ t('settings.catalog_tab_train') }}</button>
         </div>
 
         <div v-show="activeTab === 'ai'">
@@ -357,6 +373,27 @@ onMounted(async () => {
               <DownloadProgress v-if="activeDownload.type === 'lora' && activeDownload.name === m.name + '.safetensors'" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
               <button v-else-if="isCatalogInstalled('lora', m.name)" class="btn btn-sm btn-danger-quiet" @click="deleteModel('lora', m.name + '.safetensors')">{{ t('settings.btn_delete_model') }}</button>
               <button v-else-if="m.url" class="btn btn-secondary btn-sm" @click="downloadModel('lora', m.url, m.name + '.safetensors')" :disabled="modelActionLoading['dl_lora']">{{ t('settings.btn_download_model') }}</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'train'" class="card cat-card">
+          <p class="cat-desc">{{ t('settings.catalog_train_hint') }}</p>
+          <div v-for="b in trainBases" :key="b.base" class="cat-row" data-testid="catalog-train-base">
+            <div class="cat-info">
+              <div class="cat-head">
+                <span class="cat-name">{{ trainBaseLabel(b.base) }}</span>
+                <span v-if="!trainMissing(b).length" class="badge badge-success" data-testid="catalog-train-ready">{{ t('settings.installed') }}</span>
+              </div>
+              <div class="cat-extra">
+                <span v-for="f in b.files" :key="f.type + '/' + f.filename" class="cat-module" :class="{ have: hasServerFile(f.type, f.filename) }" data-testid="catalog-train-file">
+                  <Check v-if="hasServerFile(f.type, f.filename)" :size="12" />{{ f.filename }} ({{ f.size_gb }} {{ t('settings.unit_gb') }})
+                </span>
+              </div>
+            </div>
+            <div class="cat-action">
+              <DownloadProgress v-if="activeDownload.model === 'train:' + b.base" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
+              <button v-else-if="trainMissing(b).length" class="btn btn-secondary btn-sm" data-testid="catalog-train-download" @click="downloadTrain(b)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.catalog_train_download', { gb: trainSize(trainMissing(b)) }) }}</button>
             </div>
           </div>
         </div>

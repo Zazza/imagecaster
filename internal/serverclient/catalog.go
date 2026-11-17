@@ -73,11 +73,17 @@ type CatalogLoRA struct {
 	SizeMB        float64 `json:"size_mb"`
 }
 
+type CatalogTrainBase struct {
+	Base  string          `json:"base"`
+	Files []CatalogModule `json:"files"`
+}
+
 type Catalog struct {
-	LLMGenerate []CatalogModel   `json:"llm_generate"`
-	LLMVision   []CatalogModel   `json:"llm_vision"`
-	SDModels    []CatalogSDModel `json:"sd_models"`
-	LoRA        []CatalogLoRA    `json:"lora"`
+	LLMGenerate []CatalogModel     `json:"llm_generate"`
+	LLMVision   []CatalogModel     `json:"llm_vision"`
+	SDModels    []CatalogSDModel   `json:"sd_models"`
+	LoRA        []CatalogLoRA      `json:"lora"`
+	Train       []CatalogTrainBase `json:"train"`
 }
 
 var parsedCatalog = sync.OnceValues(func() (*Catalog, error) {
@@ -106,6 +112,10 @@ func (c *Catalog) clone() *Catalog {
 		LLMVision:   slices.Clone(c.LLMVision),
 		SDModels:    slices.Clone(c.SDModels),
 		LoRA:        slices.Clone(c.LoRA),
+		Train:       slices.Clone(c.Train),
+	}
+	for i := range out.Train {
+		out.Train[i].Files = slices.Clone(out.Train[i].Files)
 	}
 	for i := range out.SDModels {
 		out.SDModels[i].Modules = slices.Clone(out.SDModels[i].Modules)

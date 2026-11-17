@@ -84,10 +84,10 @@ describe('peopleState', () => {
     ['compound mode', 'compound', zPreset, {}, PEOPLE, 'not_style'],
     ['custom mode', 'custom', zPreset, {}, PEOPLE, 'not_style'],
     ['no style picked', 'preset', null, {}, PEOPLE, 'no_style'],
-    ['flux style', 'preset', fluxPreset, {}, PEOPLE, 'wrong_model'],
-    ['sdxl style', 'preset', sdxlPreset, {}, PEOPLE, 'wrong_model'],
+    ['flux style', 'preset', fluxPreset, {}, PEOPLE, 'no_people_base'],
+    ['sdxl style', 'preset', sdxlPreset, {}, PEOPLE, 'no_people_base'],
     ['style without model', 'preset', noModelPreset, {}, PEOPLE, 'wrong_model'],
-    ['z-image overridden to sdxl', 'preset', zPreset, { model_name: 'juggernautXL_ragnarokBy.safetensors' }, PEOPLE, 'wrong_model'],
+    ['z-image overridden to sdxl', 'preset', zPreset, { model_name: 'juggernautXL_ragnarokBy.safetensors' }, PEOPLE, 'no_people_base'],
   ])('%s → %s', (_, mode, preset, overrides, people, want) => {
     expect(peopleState(catalog, mode, preset, overrides, people)).toBe(want)
   })
@@ -121,8 +121,8 @@ describe('peopleState: training bases', () => {
     ['z-image overridden to moss, only z-image people', 'no_people_base', 'preset', zPreset, { model_name: 'moss_image_sft_bf16.safetensors' }, [ZPERSON]],
     ['flux overridden to moss, moss people', 'ok', 'preset', fluxPreset, { model_name: 'moss_image_sft_bf16.safetensors' }, [MOSS_A]],
     ['moss overridden to z-image, only moss people', 'no_people_base', 'preset', mossPreset, { model_name: 'z-image-turbo-fp8-aio.gguf' }, [MOSS_A]],
-    ['flux style, mixed people', 'wrong_model', 'preset', fluxPreset, {}, MIXED],
-    ['sdxl style, moss people', 'wrong_model', 'preset', sdxlPreset, {}, [MOSS_A]],
+    ['flux style, mixed people', 'no_people_base', 'preset', fluxPreset, {}, MIXED],
+    ['sdxl style, moss people', 'no_people_base', 'preset', sdxlPreset, {}, [MOSS_A]],
     ['unknown model, mixed people', 'wrong_model', 'preset', unknownPreset, {}, MIXED],
     ['style without model, moss people', 'wrong_model', 'preset', noModelPreset, {}, [MOSS_A]],
     ['moss style, nobody trained', 'no_people', 'preset', mossPreset, {}, []],

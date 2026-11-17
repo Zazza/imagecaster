@@ -15,12 +15,14 @@ const PRESETS = [
   { id: 1, name: 'Photo', preset_type: 'general', loras: '', model_name: 'z-image-turbo-fp8-aio.gguf' },
   { id: 2, name: 'Flux', preset_type: 'general', loras: '', model_name: 'flux-2-klein-4b' },
   { id: 3, name: 'Moss', preset_type: 'general', loras: '', model_name: 'moss_image_sft_bf16.safetensors' },
+  { id: 4, name: 'Chroma', preset_type: 'general', loras: '', model_name: 'Chroma1-HD.gguf' },
 ]
 const CATALOG = {
   sd_models: [
     { name: 'z-image-turbo-fp8-aio', base: 'Z-Image', filename: 'z-image-turbo-fp8-aio.gguf' },
     { name: 'flux-2-klein-4b', base: 'Flux.2' },
     { name: 'moss_image_sft_bf16', base: 'Moss-Image', filename: 'moss_image_sft_bf16.safetensors' },
+    { name: 'Chroma1-HD', base: 'Chroma', filename: 'Chroma1-HD.gguf' },
   ],
 }
 const PEOPLE = [{ name: 'anna', trigger: 'anna_woman', gender: 'woman', base: 'Z-Image', lora: 'anna', steps: 2000 }]
@@ -90,8 +92,8 @@ describe('generate: person picker', () => {
     expect(card.find('[data-testid="gen-person-off"]').exists()).toBe(false)
   })
 
-  it('non-Z-Image style: section inactive, no picker, reason shown, no person in the job', async () => {
-    const w = await mountPage(2)
+  it('style on a model without training: section inactive, no picker, reason shown, no person in the job', async () => {
+    const w = await mountPage(4)
     const card = w.find('[data-testid="gen-person"]')
     expect(card.exists()).toBe(true)
     expect(card.classes()).toContain('card-inactive')
@@ -187,12 +189,21 @@ describe('generate: person picker by training base', () => {
     expect(off).toContain('Z-Image')
   })
 
-  it('Flux style with Moss people: wrong model, as before', async () => {
+  it('Flux.2 style without Flux.2 people: section inactive, reason names Flux.2', async () => {
     await usePeople(MIXED)
     const w = await mountPage(2)
     const card = w.find('[data-testid="gen-person"]')
     expect(card.classes()).toContain('card-inactive')
-    expect(card.find('[data-testid="gen-person-off"]').text()).toBe(t('people.off_wrong_model'))
+    expect(card.find('[data-testid="gen-person-off"]').text()).toBe(t('people.off_no_people_base', { base: 'Flux.2' }))
+  })
+
+  it('Flux.2 style: select lists only Flux.2 people, pick goes into overrides.person', async () => {
+    await usePeople([...MIXED, { name: 'kira', trigger: 'kira_woman', gender: 'woman', base: 'Flux.2', lora: 'kira', steps: 1500 }])
+    const w = await mountPage(2)
+    expect(optionValues(w)).toEqual(['kira'])
+    await w.find('[data-testid="gen-person-select"]').setValue('kira')
+    await generate(w)
+    expect(EnqueueTxt2Img.mock.calls[0][0].overrides).toMatchObject({ person: { name: 'kira', trigger: 'kira_woman' } })
   })
 
   it('kids mode: section hidden for Moss style too', async () => {

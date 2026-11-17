@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { loadPeople, people } from '../peopleStore.js'
+import { trainBaseLabel } from '../people.js'
 
 const status = ref('')
 const available = computed(() => status.value === 'ok')
@@ -10,8 +11,9 @@ const jobs = ref([])
 const folder = ref('')
 const name = ref('')
 const gender = ref('man')
-const bases = ref(['Z-Image'])
-const base = ref('Z-Image')
+const bases = ref([])
+const basesLoaded = ref(false)
+const base = ref('')
 const busy = ref(false)
 const error = ref('')
 let timer = null
@@ -20,7 +22,7 @@ let closed = false
 const ACTIVE = ['queued', 'running']
 const activeJobs = computed(() => jobs.value.filter(j => ACTIVE.includes(j.status)))
 const finishedJobs = computed(() => jobs.value.filter(j => !ACTIVE.includes(j.status)).slice(-5).reverse())
-const canTrain = computed(() => available.value && folder.value && /^[A-Za-z0-9_ -]{2,32}$/.test(name.value.trim()) && !busy.value)
+const canTrain = computed(() => available.value && folder.value && /^[A-Za-z0-9_ -]{2,32}$/.test(name.value.trim()) && !!base.value && !busy.value)
 
 function percent(j) {
   const s = j.progress?.steps || 0
@@ -64,11 +66,12 @@ async function init() {
 async function loadBases() {
   try {
     const list = await api.trainingBases()
-    if (Array.isArray(list) && list.length) bases.value = list
+    bases.value = Array.isArray(list) ? list : []
+    basesLoaded.value = true
   } catch (e) {
     console.error('trainingBases:', e)
   }
-  if (!bases.value.includes(base.value)) base.value = bases.value[0]
+  if (!bases.value.includes(base.value)) base.value = bases.value[0] || ''
 }
 
 async function pickFolder() {
@@ -148,9 +151,10 @@ onUnmounted(() => {
         </select>
         <label class="form-label">{{ t('people.base') }}</label>
         <select class="form-select" v-model="base" data-testid="people-base">
-          <option v-for="b in bases" :key="b" :value="b">{{ b }}</option>
+          <option v-for="b in bases" :key="b" :value="b">{{ trainBaseLabel(b) }}</option>
         </select>
-        <div class="form-hint">{{ t('people.base_hint') }}</div>
+        <div v-if="basesLoaded && !bases.length" class="form-hint" data-testid="people-no-bases">{{ t('people.no_bases') }}</div>
+        <div v-else class="form-hint">{{ t('people.base_hint') }}</div>
         <div>
           <button class="btn btn-primary" :disabled="!canTrain" data-testid="people-train" @click="train">{{ busy ? t('people.uploading') : t('people.train') }}</button>
         </div>
@@ -170,7 +174,7 @@ onUnmounted(() => {
       <div class="card-title">{{ t('people.list_title') }}</div>
       <div v-if="people.length === 0" class="text-dim">{{ t('people.empty') }}</div>
       <div v-for="p in people" :key="p.name" class="people-row people-item" data-testid="people-item">
-        <span><b>{{ p.name }}</b> <span class="text-dim">{{ p.base || 'Z-Image' }}</span> <span class="mono text-dim">{{ p.trigger }}</span></span>
+        <span><b>{{ p.name }}</b> <span class="text-dim">{{ trainBaseLabel(p.base || 'Z-Image') }}</span> <span class="mono text-dim">{{ p.trigger }}</span></span>
         <button class="btn btn-sm btn-secondary" @click="remove(p)">{{ t('people.delete') }}</button>
       </div>
     </div>
