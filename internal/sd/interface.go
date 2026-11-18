@@ -19,6 +19,7 @@ type Service interface {
 	HealthCheck() error
 	SetURL(baseURL string)
 	MemoryInfo() (*MemoryStats, error)
+	FaceSwap(ctx context.Context, imgB64, person string, blend float64) (*FaceSwapResult, error)
 }
 
 type QueueScoper interface {

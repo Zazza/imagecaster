@@ -23,6 +23,7 @@ type CatalogModule struct {
 	Filename string  `json:"filename"`
 	URL      string  `json:"url"`
 	SizeGB   float64 `json:"size_gb"`
+	SHA256   string  `json:"sha256,omitempty"`
 }
 
 type CatalogModel struct {
@@ -78,12 +79,19 @@ type CatalogTrainBase struct {
 	Files []CatalogModule `json:"files"`
 }
 
+type CatalogFaceSwap struct {
+	Note   string          `json:"note"`
+	NoteRu string          `json:"note_ru,omitempty"`
+	Files  []CatalogModule `json:"files"`
+}
+
 type Catalog struct {
 	LLMGenerate []CatalogModel     `json:"llm_generate"`
 	LLMVision   []CatalogModel     `json:"llm_vision"`
 	SDModels    []CatalogSDModel   `json:"sd_models"`
 	LoRA        []CatalogLoRA      `json:"lora"`
 	Train       []CatalogTrainBase `json:"train"`
+	FaceSwap    CatalogFaceSwap    `json:"face_swap"`
 }
 
 var parsedCatalog = sync.OnceValues(func() (*Catalog, error) {
@@ -113,7 +121,9 @@ func (c *Catalog) clone() *Catalog {
 		SDModels:    slices.Clone(c.SDModels),
 		LoRA:        slices.Clone(c.LoRA),
 		Train:       slices.Clone(c.Train),
+		FaceSwap:    c.FaceSwap,
 	}
+	out.FaceSwap.Files = slices.Clone(c.FaceSwap.Files)
 	for i := range out.Train {
 		out.Train[i].Files = slices.Clone(out.Train[i].Files)
 	}

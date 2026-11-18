@@ -152,6 +152,7 @@ type shootPlan struct {
 	ge       StylistGarmentEngine
 	outfit   string
 	refineOn bool
+	faceSwap bool
 	w, h     int
 }
 
@@ -213,7 +214,7 @@ func planShoot(people StylistPeople, eng StylistEngine, args map[string]any) (*s
 	plan := &shootPlan{
 		name: name, person: person, m: m, shots: shots, seed: optInt(args, "seed"),
 		garment: garment, ge: ge, outfit: strings.TrimSpace(look.Outfit), refineOn: optBool(args, "face_pass", false),
-		w: shootWidth, h: shootHeight,
+		faceSwap: optBool(args, "face_swap", false), w: shootWidth, h: shootHeight,
 	}
 	if strings.EqualFold(strings.TrimSpace(argString(args, "orientation")), "landscape") {
 		plan.w, plan.h = shootHeight, shootWidth
@@ -237,6 +238,7 @@ type frameOut struct {
 	info     json.RawMessage
 	garment  string
 	facePass string
+	faceSwap string
 	stopped  bool
 }
 
@@ -308,11 +310,12 @@ func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSess
 			}
 			return "", fmt.Errorf("кадр %d из %d не получился: %s", i+1, len(plan.shots), faceSkipReason(err))
 		}
+		shootFaceSwap(eng, &out, plan.name, plan.faceSwap)
 		stopped = out.stopped
 		meta := &preset.GenerationMeta{Model: plan.m.model, Label: truncateLabel("Стилист: " + plan.name + ", " + shot)}
 		id := sessions.AddToNamedSession(StylistSessionName, out.img, out.info, "stylist", meta)
 		saved = append(saved, fmt.Sprint(id))
-		v := map[string]any{"id": id, "shot": shot, "prompt": prompt, "face_pass": out.facePass}
+		v := map[string]any{"id": id, "shot": shot, "prompt": prompt, "face_pass": out.facePass, "face_swap": out.faceSwap}
 		if out.garment != "" {
 			v["garment"] = out.garment
 		}
@@ -391,8 +394,9 @@ func registerShootTools(s *Server) {
 			"person — имя из stylist_people (какую LoRA брать, решает человек). appearance (по-английски) — только то, чего НЕТ в датасете LoRA: пол, телосложение, рост, татуировки и приметы; НЕ описывай возраст, тон кожи, лысину/бороду/причёску и черты лица — LoRA знает их из фото, промптовые токены искажают (возраст «старит», тон кожи перекрашивает, «bald» раздувает лоб). Совсем пустым appearance оставлять нельзя. " +
 			"look — образ, как у stylist_try (одежда подробно: тип, силуэт, длина, вырез, рукава, ткань, цвет, принт, застёжки). shots — до 6 поз/ракурсов по-английски, по кадру на каждый (пусто — 4: спереди, вполоборота, сбоку, со спины); look и appearance одинаковы для всей серии, чтобы вещь была одна. background — фон (по умолчанию светлая студия). " +
 			"face_pass=true — после генерации кадра лицо перерисовывается вторым проходом img2img с той же LoRA (крупный режим), серия идёт дольше; у каждого кадра поле face_pass: done | off | skipped:<причина>. " +
+			"face_swap=true — последним шагом лицо на кадре подменяется лицом человека (нужно лицо для подмены на странице «Люди» приложения и модели подмены на сервере); у кадра поле face_swap: done | off | skipped:<причина> (кадр без подмены). " +
 			"garment_path — фото вещи: на каждый кадр её надевает правка Klein по фото (стороны, которых нет на фото, модель дорисует сама), затем идёт проход лица; поле garment у кадра — done | skipped:<причина> (кадр без вещи), +6–11 с на кадр. Годится для 1–2 вещей; комплект из 3+ предметов примерка НЕ ТЯНЕТ (Klein калечит пропорции на любой базе) — такой лук опиши текстом подробно по каждой вещи (цвет/ткань/фасон с фото через локальную vision), без garment_path. Фото вещи лучше давать НА ЧЕЛОВЕКЕ. Цвет/узор/ткань текстом НЕ описывать — вещь с фото; но СТРУКТУРУ комплекта перечислять ВСЕ предметы поимённо, включая мелочи (a headscarf, stockings, a belt) — неназванный предмет Klein не переносит; если состав неясен — спроси у человека до съёмки. " +
-			"Кадры не рисуются сразу: каждый ставится заданием в очередь приложения Imagecaster (там прогресс, «осталось», пауза и отмена; приложение закрыто — начнёт при запуске). Ответ: jobs — номера заданий по порядку кадров; готовность, id кадров в сессии, face_pass и garment — stylist_shoot_status(job_ids). Скажи человеку, что серия идёт в приложении, и проверяй статус, когда он спросит или через пару минут. Картинок и путей нет.",
+			"Кадры не рисуются сразу: каждый ставится заданием в очередь приложения Imagecaster (там прогресс, «осталось», пауза и отмена; приложение закрыто — начнёт при запуске). Ответ: jobs — номера заданий по порядку кадров; готовность, id кадров в сессии, face_pass, face_swap и garment — stylist_shoot_status(job_ids). Скажи человеку, что серия идёт в приложении, и проверяй статус, когда он спросит или через пару минут. Картинок и путей нет.",
 		InputSchema: props(map[string]any{
 			"person":       prop("имя обученного человека из stylist_people", "string"),
 			"appearance":   prop("по-английски, только то, чего нет в датасете LoRA: пол, телосложение, рост, тату; без возраста, тона кожи и причёски", "string"),
@@ -403,6 +407,7 @@ func registerShootTools(s *Server) {
 			"seed":         prop("сид первого кадра, дальше +1", "integer"),
 			"orientation":  prop("ориентация кадра: portrait (по умолчанию) или landscape (1536×1024); подбирай по позам сам: лёжа/полёжа и широкие композиции — landscape, стоя/крупные планы — portrait", "string"),
 			"face_pass":    prop("перерисовка лица вторым проходом, по умолчанию false (A/B 2026-11-18: сходство не улучшает, только сглаживает кожу); true — включить", "boolean"),
+			"face_swap":    prop("подмена лица лицом человека последним шагом кадра, по умолчанию false", "boolean"),
 		}, "person", "appearance"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			people, shooter, sessions, eng, refiner, err := s.shootDeps()

@@ -245,3 +245,7 @@ func TestProcessJob_EditInvalidParamsIsDispatched(t *testing.T) {
 		t.Errorf("error = %q: edit job is not dispatched", err.Error())
 	}
 }
+
+func (*editFakeSD) FaceSwap(context.Context, string, string, float64) (*sd.FaceSwapResult, error) {
+	return nil, nil
+}

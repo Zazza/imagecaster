@@ -111,6 +111,7 @@ type mockSD struct {
 	setModelModules func(modelName string, modules []string) error
 	setVAE          func(vaeName string) error
 	setOption       func(key string, value any) error
+	faceSwap        func(ctx context.Context, img, person string, blend float64) (*sd.FaceSwapResult, error)
 }
 
 func (m *mockSD) replaySpec(spec sd.ModelSpec) (after func()) {
@@ -190,6 +191,16 @@ func (m *mockSD) UpscaleImage(base64Img string, upscaler string, scale float64) 
 	return "", fmt.Errorf("not implemented")
 }
 func (m *mockSD) MemoryInfo() (*sd.MemoryStats, error) { return nil, nil }
+
+func (m *mockSD) FaceSwap(ctx context.Context, img, person string, blend float64) (*sd.FaceSwapResult, error) {
+	m.mu.Lock()
+	fn := m.faceSwap
+	m.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, img, person, blend)
+	}
+	return nil, fmt.Errorf("not implemented")
+}
 
 func (m *mockSD) State() (*sd.ServerState, error) { return &sd.ServerState{}, nil }
 func (m *mockSD) ListJobs(ctx context.Context, client string) ([]sd.JobStatus, error) {

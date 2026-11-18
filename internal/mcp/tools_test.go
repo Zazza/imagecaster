@@ -821,3 +821,7 @@ func TestTools_EditLookObjectInputValidation(t *testing.T) {
 	assert.Contains(t, err.Error(), "loras")
 	assert.Zero(t, e.sd.calls())
 }
+
+func (*tlSD) FaceSwap(context.Context, string, string, float64) (*sd.FaceSwapResult, error) {
+	return nil, nil
+}

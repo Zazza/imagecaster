@@ -456,3 +456,7 @@ func TestGetModelCatalog_LoadsEmbeddedData(t *testing.T) {
 	assert.NotEmpty(t, cat.SDModels)
 	assert.NotEmpty(t, cat.LoRA)
 }
+
+func (*mockSDService) FaceSwap(context.Context, string, string, float64) (*sd.FaceSwapResult, error) {
+	return nil, nil
+}

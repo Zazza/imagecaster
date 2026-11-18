@@ -18,9 +18,10 @@ import (
 const (
 	DefaultClientName = "imagecaster"
 
-	KindTxt2Img = "txt2img"
-	KindImg2Img = "img2img"
-	KindUpscale = "upscale"
+	KindTxt2Img  = "txt2img"
+	KindImg2Img  = "img2img"
+	KindUpscale  = "upscale"
+	KindFaceSwap = "face_swap"
 
 	JobQueued    = "queued"
 	JobRunning   = "running"
@@ -159,7 +160,7 @@ func normalizeModel(m ModelSpec) ModelSpec {
 
 func (c *Client) SubmitJob(ctx context.Context, req JobRequest) (*JobStatus, error) {
 	body := submitBody{Kind: req.Kind, Client: c.clientName(), ClientRef: req.ClientRef, Params: req.Params}
-	if req.Kind != KindUpscale || req.Model.Checkpoint != "" {
+	if (req.Kind != KindUpscale && req.Kind != KindFaceSwap) || req.Model.Checkpoint != "" {
 		m := normalizeModel(req.Model)
 		body.Model = &m
 	}

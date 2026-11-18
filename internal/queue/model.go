@@ -53,4 +53,5 @@ type JobResult struct {
 	IdeaPrompt              string          `json:"idea_prompt,omitempty"`
 	IdeaNegativePrompt      string          `json:"idea_negative_prompt,omitempty"`
 	Frame                   json.RawMessage `json:"frame,omitempty"`
+	FaceSwap                string          `json:"face_swap,omitempty"`
 }

@@ -768,5 +768,53 @@
         }
       ]
     }
-  ]
+  ],
+  "face_swap": {
+    "note": "Face detection, recognition and swap models (insightface buffalo_l, inswapper_128) are for non-commercial and research use only. GFPGAN is Apache-2.0, the face parser (BiSeNet) is MIT.",
+    "note_ru": "Модели поиска, распознавания и подмены лица (insightface buffalo_l, inswapper_128) — только для некоммерческого и исследовательского использования. GFPGAN — Apache-2.0, разметка лица (BiSeNet) — MIT.",
+    "files": [
+      {
+        "type": "face",
+        "filename": "det_10g.onnx",
+        "url": "https://huggingface.co/public-data/insightface/resolve/main/models/buffalo_l/det_10g.onnx",
+        "size_gb": 0.02,
+        "sha256": "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91"
+      },
+      {
+        "type": "face",
+        "filename": "1k3d68.onnx",
+        "url": "https://huggingface.co/public-data/insightface/resolve/main/models/buffalo_l/1k3d68.onnx",
+        "size_gb": 0.14,
+        "sha256": "df5c06b8a0c12e422b2ed8947b8869faa4105387f199c477af038aa01f9a45cc"
+      },
+      {
+        "type": "face",
+        "filename": "w600k_r50.onnx",
+        "url": "https://huggingface.co/public-data/insightface/resolve/main/models/buffalo_l/w600k_r50.onnx",
+        "size_gb": 0.17,
+        "sha256": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"
+      },
+      {
+        "type": "face",
+        "filename": "inswapper_128.onnx",
+        "url": "https://huggingface.co/facefusion/models-3.0.0/resolve/main/inswapper_128.onnx",
+        "size_gb": 0.56,
+        "sha256": "a290273ed497312095dac48cdef20feec9d5208298223dd01288ab202b54bea7"
+      },
+      {
+        "type": "face",
+        "filename": "bisenet_resnet_34.onnx",
+        "url": "https://huggingface.co/facefusion/models-3.0.0/resolve/main/bisenet_resnet_34.onnx",
+        "size_gb": 0.09,
+        "sha256": "4a0b8c958a3c938913bd06a8365dbb3c8761afba6ecbf0d14b3b1f77eb230c96"
+      },
+      {
+        "type": "face",
+        "filename": "gfpgan_1.4.onnx",
+        "url": "https://huggingface.co/facefusion/models-3.0.0/resolve/main/gfpgan_1.4.onnx",
+        "size_gb": 0.34,
+        "sha256": "accc4757b26bdb89b32b4d3500d4f79c9dff97c1dd7c7104bf9dcb95e3311385"
+      }
+    ]
+  }
 }

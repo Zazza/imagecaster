@@ -49,6 +49,21 @@ type fakeAPI struct {
 	resumeJob *serverclient.TrainJob
 	resumeErr error
 	renameErr error
+
+	identityName   string
+	identityPhotos []string
+	identityErr    error
+}
+
+func (f *fakeAPI) UploadIdentity(_ context.Context, name string, photos []string) (*serverclient.Person, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.identityName = name
+	f.identityPhotos = append([]string(nil), photos...)
+	if f.identityErr != nil {
+		return nil, f.identityErr
+	}
+	return &serverclient.Person{Name: name, Identity: true}, nil
 }
 
 func (f *fakeAPI) SubmitTraining(_ context.Context, req serverclient.TrainRequest) (*serverclient.TrainJob, error) {

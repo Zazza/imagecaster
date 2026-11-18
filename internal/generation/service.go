@@ -124,6 +124,7 @@ type GenerateImageResult struct {
 	EffectiveNegativePrompt string          `json:"effective_negative_prompt"`
 	DetectedObject          string          `json:"detected_object,omitempty"`
 	SessionItemID           int64           `json:"session_item_id,omitempty"`
+	FaceSwap                string          `json:"face_swap,omitempty"`
 }
 
 type UpscaleImageParams struct {
@@ -1216,6 +1217,10 @@ func (s *Service) GenerateImage(params GenerateImageParams) (*GenerateImageResul
 	}
 	if ideaResolved {
 		img.IdeaPrompt, img.IdeaNegativePrompt = params.ExtraPrompt, params.ExtraNegativePrompt
+	}
+	img.Image, img.FaceSwap = s.faceSwapOverride(params.Overrides, img.Image)
+	if err := s.checkSDInterrupted(); err != nil {
+		return nil, err
 	}
 	img.SessionItemID = s.sessions.AddToSession(img.Image, img.Info, "generate", &preset.GenerationMeta{
 		PresetID: &params.PresetID,

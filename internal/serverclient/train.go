@@ -48,6 +48,7 @@ type Person struct {
 	Base      string     `json:"base"`
 	Lora      string     `json:"lora"`
 	Steps     int        `json:"steps"`
+	Identity  bool       `json:"identity"`
 	CreatedAt *time.Time `json:"created_at"`
 }
 
@@ -217,6 +218,37 @@ func (c *Client) RenamePerson(ctx context.Context, oldName, newName string) (*Pe
 		return nil, err
 	}
 	return &out.Person, nil
+}
+
+func (c *Client) UploadIdentity(ctx context.Context, name string, photos []string) (*Person, error) {
+	for _, p := range photos {
+		if _, err := os.Stat(p); err != nil {
+			return nil, err
+		}
+	}
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go func() {
+		pw.CloseWithError(writeIdentityForm(mw, photos))
+	}()
+	var out struct {
+		Person Person `json:"person"`
+	}
+	err := c.trainDo(ctx, http.MethodPost, "/api/train/people/"+url.PathEscape(name)+"/identity", pr, mw.FormDataContentType(), &out)
+	pr.Close()
+	if err != nil {
+		return nil, err
+	}
+	return &out.Person, nil
+}
+
+func writeIdentityForm(mw *multipart.Writer, photos []string) error {
+	for _, p := range photos {
+		if err := writePhotoPart(mw, p); err != nil {
+			return err
+		}
+	}
+	return mw.Close()
 }
 
 func (c *Client) People(ctx context.Context) ([]Person, error) {

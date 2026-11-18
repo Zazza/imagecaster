@@ -26,6 +26,7 @@ import {
   UpdateCompoundPreset, UpdateDescription, UpdateHiresProfile, UpdatePreset, UpdateResolution,
   UpdateSettings, UpscaleImage, Version,
   TrainingStatus, TrainingBases, PickPeopleFolder, TrainPerson, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson,
+  AddPersonIdentity, FaceSwapStatus,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -166,6 +167,8 @@ export const api = {
   renamePerson: (oldName, newName) => RenamePerson(oldName, newName),
   listPeople: () => ListPeople(),
   deletePerson: (name) => DeletePerson(name),
+  addPersonIdentity: (folder, name) => AddPersonIdentity(folder, name),
+  faceSwapStatus: () => FaceSwapStatus(),
   syncPresets: () => SyncPresets(),
   getModelPresets: () => GetModelPresets(),
   installPresetDeps: (id) => InstallPresetDeps(id),

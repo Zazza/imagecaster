@@ -37,6 +37,7 @@ export const appDefaults = {
   ListTrainingJobs: () => [],
   TrainingStatus: () => 'not_installed',
   TrainingBases: () => ['Z-Image'],
+  FaceSwapStatus: () => 'not_installed',
 }
 
 export const appExportNames = Object.keys(actual).filter(name => typeof actual[name] === 'function')

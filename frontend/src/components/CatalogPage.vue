@@ -54,6 +54,14 @@ async function downloadTrain(b) {
   await runDownload({ name: 'train:' + b.base }, trainMissing(b).map(f => ({ op: 'download', type: f.type, url: f.url, filename: f.filename })))
 }
 
+const faceSwap = computed(() => modelCatalog.value?.face_swap || null)
+const faceFiles = computed(() => faceSwap.value?.files || [])
+const faceMissing = computed(() => faceFiles.value.filter(f => !hasServerFile(f.type, f.filename)))
+
+async function downloadFace() {
+  await runDownload({ name: 'face_swap' }, faceMissing.value.map(f => ({ op: 'download', type: f.type, url: f.url, filename: f.filename })))
+}
+
 function resetFilters() {
   filters.query = ''
   filters.base = ''
@@ -259,6 +267,7 @@ onMounted(async () => {
           <button class="tab" data-testid="catalog-tab-ai" :class="{ active: activeTab === 'ai' }" @click="activeTab = 'ai'">{{ t('settings.catalog_tab_ai') }}</button>
           <button class="tab" data-testid="catalog-tab-lora" :class="{ active: activeTab === 'lora' }" @click="activeTab = 'lora'">LoRA</button>
           <button class="tab" data-testid="catalog-tab-train" :class="{ active: activeTab === 'train' }" @click="activeTab = 'train'">{{ t('settings.catalog_tab_train') }}</button>
+          <button v-if="faceFiles.length" class="tab" data-testid="catalog-tab-face" :class="{ active: activeTab === 'face' }" @click="activeTab = 'face'">{{ t('settings.catalog_tab_face') }}</button>
         </div>
 
         <div v-show="activeTab === 'ai'">
@@ -394,6 +403,28 @@ onMounted(async () => {
             <div class="cat-action">
               <DownloadProgress v-if="activeDownload.model === 'train:' + b.base" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
               <button v-else-if="trainMissing(b).length" class="btn btn-secondary btn-sm" data-testid="catalog-train-download" @click="downloadTrain(b)" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.catalog_train_download', { gb: trainSize(trainMissing(b)) }) }}</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="faceFiles.length" v-show="activeTab === 'face'" class="card cat-card" data-testid="catalog-face">
+          <p class="cat-desc">{{ t('settings.catalog_face_hint') }}</p>
+          <p class="cat-desc" data-testid="catalog-face-licence">{{ catalogText(faceSwap, 'note') }}</p>
+          <div class="cat-row">
+            <div class="cat-info">
+              <div class="cat-head">
+                <span class="cat-name">{{ t('settings.catalog_face_name') }}</span>
+                <span v-if="!faceMissing.length" class="badge badge-success" data-testid="catalog-face-ready">{{ t('settings.installed') }}</span>
+              </div>
+              <div class="cat-extra">
+                <span v-for="f in faceFiles" :key="f.filename" class="cat-module" :class="{ have: hasServerFile(f.type, f.filename) }" data-testid="catalog-face-file">
+                  <Check v-if="hasServerFile(f.type, f.filename)" :size="12" />{{ f.filename }} ({{ f.size_gb }} {{ t('settings.unit_gb') }})
+                </span>
+              </div>
+            </div>
+            <div class="cat-action">
+              <DownloadProgress v-if="activeDownload.model === 'face_swap'" :percent="activeDownload.percent" :text="activeDownload.progress" :label="activeLabel" />
+              <button v-else-if="faceMissing.length" class="btn btn-secondary btn-sm" data-testid="catalog-face-download" @click="downloadFace" :disabled="modelActionLoading['dl_sd'] || defaultDownloads.running">{{ t('settings.catalog_train_download', { gb: trainSize(faceMissing) }) }}</button>
             </div>
           </div>
         </div>

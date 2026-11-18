@@ -382,3 +382,7 @@ func TestMemoryGuard_WaitUnloaded(t *testing.T) {
 		assert.False(t, g.waitUnloaded(ctx))
 	})
 }
+
+func (*guardSD) FaceSwap(context.Context, string, string, float64) (*sd.FaceSwapResult, error) {
+	return nil, nil
+}

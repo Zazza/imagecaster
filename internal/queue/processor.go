@@ -124,6 +124,7 @@ func (p *processor) processGeneration(job *Job, gen func() (*generation.Generate
 		QualityRedenoiseSkipped: result.QualityRedenoiseSkipped,
 		IdeaPrompt:              result.IdeaPrompt,
 		IdeaNegativePrompt:      result.IdeaNegativePrompt,
+		FaceSwap:                result.FaceSwap,
 	}, nil
 }
 

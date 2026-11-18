@@ -309,6 +309,7 @@ export namespace generation {
 	}
 	export class PersonOverride {
 	    name: string;
+	    face_swap?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PersonOverride(source);
@@ -317,6 +318,7 @@ export namespace generation {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
+	        this.face_swap = source["face_swap"];
 	    }
 	}
 	export class PresetOverrides {
@@ -483,6 +485,7 @@ export namespace generation {
 	    effective_negative_prompt: string;
 	    detected_object?: string;
 	    session_item_id?: number;
+	    face_swap?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateImageResult(source);
@@ -503,6 +506,7 @@ export namespace generation {
 	        this.effective_negative_prompt = source["effective_negative_prompt"];
 	        this.detected_object = source["detected_object"];
 	        this.session_item_id = source["session_item_id"];
+	        this.face_swap = source["face_swap"];
 	    }
 	}
 	export class GenerateSDPromptParams {
@@ -2070,6 +2074,7 @@ export namespace serverclient {
 	    base: string;
 	    lora: string;
 	    steps: number;
+	    identity: boolean;
 	    // Go type: time
 	    created_at?: any;
 	
@@ -2085,6 +2090,7 @@ export namespace serverclient {
 	        this.base = source["base"];
 	        this.lora = source["lora"];
 	        this.steps = source["steps"];
+	        this.identity = source["identity"];
 	        this.created_at = this.convertValues(source["created_at"], null);
 	    }
 	

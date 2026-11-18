@@ -198,3 +198,7 @@ func (e *xrEnv) ideaJob(t *testing.T) int64 {
 	}
 	return id
 }
+
+func (*xrSD) FaceSwap(context.Context, string, string, float64) (*sd.FaceSwapResult, error) {
+	return nil, nil
+}

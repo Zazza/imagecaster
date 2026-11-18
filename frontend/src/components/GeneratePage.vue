@@ -11,7 +11,7 @@ import { parseLoras } from '../loraOverride.js'
 import { newCustomStep, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
 import { fastGeneration, loadFastGeneration, saveFastGeneration, fastCacheFor } from '../fastMode.js'
-import { peopleState, personOverride, peopleForStyle, peopleStyleBase } from '../people.js'
+import { peopleState, personOverride, peopleForStyle, peopleStyleBase, canFaceSwap } from '../people.js'
 import { people, loadPeople } from '../peopleStore.js'
 import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
@@ -108,6 +108,8 @@ function setOpenSection(name) {
 
 const presetOverrides = ref(null)
 const selectedPerson = ref('')
+const faceSwapOn = ref(false)
+const faceSwapFeature = ref(false)
 const overridesPanel = ref(null)
 
 const customSteps = ref([newCustomStep()])
@@ -163,9 +165,24 @@ const fastUnsupported = computed(() => {
   return !fastCacheFor(modelCatalog.value, model)
 })
 
+const pickedPerson = computed(() => stylePeople.value.find(p => p.name === selectedPerson.value) || null)
+
+const showFaceSwap = computed(() => showPeople.value && canFaceSwap(pickedPerson.value, faceSwapFeature.value))
+
+watch(selectedPerson, () => { faceSwapOn.value = false })
+watch(showFaceSwap, v => { if (!v) faceSwapOn.value = false })
+
+async function loadFaceSwapFeature() {
+  try {
+    faceSwapFeature.value = (await api.faceSwapStatus()) === 'ok'
+  } catch (e) {
+    faceSwapFeature.value = false
+  }
+}
+
 function withPerson(ov) {
   if (!showPeople.value) return ov
-  const person = personOverride(modelCatalog.value, selectedPreset.value, ov, people.value, selectedPerson.value)
+  const person = personOverride(modelCatalog.value, selectedPreset.value, ov, people.value, selectedPerson.value, showFaceSwap.value && faceSwapOn.value)
   return person ? { ...(ov || {}), person } : ov
 }
 
@@ -594,6 +611,7 @@ let offSessionAdded = () => {}
 
 onMounted(async () => {
   loadPeople()
+  loadFaceSwapFeature()
   const isReset = props.resetting
   loadFastGeneration()
   loadModelCatalog()
@@ -850,6 +868,11 @@ function onKeydown(e) {
                     <option v-for="p in stylePeople" :key="p.name" :value="p.name">{{ p.name }}</option>
                   </select>
                   <div class="form-hint">{{ t('people.pick_hint') }}</div>
+                  <label v-if="showFaceSwap" class="gen-face-swap" data-testid="gen-face-swap">
+                    <input type="checkbox" v-model="faceSwapOn" data-testid="gen-face-swap-input" />
+                    {{ t('people.face_swap') }}
+                  </label>
+                  <div v-if="showFaceSwap" class="form-hint">{{ t('people.face_swap_hint') }}</div>
                 </div>
                 <div v-else class="form-hint" data-testid="gen-person-off">{{ peopleOffText }}</div>
               </div>
@@ -942,6 +965,7 @@ function onKeydown(e) {
 </template>
 
 <style scoped>
+.gen-face-swap { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
 .gen-page {
   padding: 12px;
   height: 100%;

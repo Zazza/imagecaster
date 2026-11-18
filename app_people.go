@@ -120,3 +120,32 @@ func (a *App) DeletePerson(name string) error {
 	defer cancel()
 	return a.peopleSvc().Delete(ctx, name)
 }
+
+func (a *App) AddPersonIdentity(folder, name string) (*serverclient.Person, error) {
+	if a.serverClient.GetBaseURL() == "" {
+		return nil, errors.New("сервер Imagecaster не настроен")
+	}
+	ctx, cancel := a.peopleCtx(0)
+	defer cancel()
+	p, err := a.peopleSvc().AddIdentity(ctx, folder, name)
+	if err != nil {
+		a.log.Warn("people: identity %q: %s", name, err)
+	}
+	return p, err
+}
+
+func (a *App) FaceSwapStatus() string {
+	if a.serverClient.GetBaseURL() == "" {
+		return "no_server"
+	}
+	info, err := serverclient.Probe(a.serverClient.GetBaseURL())
+	if err != nil {
+		return "unreachable"
+	}
+	for _, f := range info.Features {
+		if f == "face_swap" {
+			return "ok"
+		}
+	}
+	return "not_installed"
+}

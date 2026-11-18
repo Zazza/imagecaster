@@ -27,10 +27,15 @@ export function peopleForStyle(catalog, preset, overrides, people) {
   return people.filter(p => personBase(p) === base)
 }
 
-export function personOverride(catalog, preset, overrides, people, selectedName) {
+export function canFaceSwap(person, featureOn) {
+  return !!(featureOn && person?.identity)
+}
+
+export function personOverride(catalog, preset, overrides, people, selectedName, faceSwap = false) {
   if (!selectedName || peopleState(catalog, 'preset', preset, overrides, people) !== 'ok') return null
   const p = peopleForStyle(catalog, preset, overrides, people).find(p => p.name === selectedName)
-  return p ? { name: p.name } : null
+  if (!p) return null
+  return faceSwap && p.identity ? { name: p.name, face_swap: true } : { name: p.name }
 }
 
 export function peopleState(catalog, mode, preset, overrides, people) {

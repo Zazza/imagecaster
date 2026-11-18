@@ -18,6 +18,9 @@ const busy = ref(false)
 const error = ref('')
 const renaming = ref('')
 const renameValue = ref('')
+const faceStatus = ref('')
+const faceReady = computed(() => faceStatus.value === 'ok')
+const identityBusy = ref('')
 let timer = null
 let closed = false
 
@@ -70,9 +73,35 @@ async function init() {
   } catch (e) {
     status.value = 'unreachable'
   }
+  try {
+    faceStatus.value = await api.faceSwapStatus()
+  } catch (e) {
+    faceStatus.value = 'unreachable'
+  }
   await loadBases()
   await loadPeople()
   await refresh()
+}
+
+async function addIdentity(p) {
+  error.value = ''
+  let dir = ''
+  try {
+    dir = await api.pickPeopleFolder()
+  } catch (e) {
+    error.value = errorText(e)
+    return
+  }
+  if (!dir) return
+  identityBusy.value = p.name
+  try {
+    await api.addPersonIdentity(dir, p.name)
+    await loadPeople()
+  } catch (e) {
+    error.value = errorText(e)
+  } finally {
+    identityBusy.value = ''
+  }
 }
 
 async function loadBases() {
@@ -234,8 +263,9 @@ onUnmounted(() => {
           <p class="text-dim people-hint">{{ t('people.rename_prompt', { name: p.name }) }}</p>
         </div>
         <div v-else class="people-row">
-          <span><b>{{ p.name }}</b> <span class="text-dim">{{ trainBaseLabel(p.base || 'Z-Image') }}</span> <span class="mono text-dim">{{ p.trigger }}</span></span>
+          <span><b>{{ p.name }}</b> <span class="text-dim">{{ trainBaseLabel(p.base || 'Z-Image') }}</span> <span class="mono text-dim">{{ p.trigger }}</span> <span class="people-badge" :class="{ 'people-badge-on': p.identity }" data-testid="people-identity">{{ p.identity ? t('people.identity_yes') : t('people.identity_no') }}</span></span>
           <span class="people-actions">
+            <button class="btn btn-sm btn-secondary" :disabled="!available || !faceReady || !!identityBusy" :title="faceReady ? t('people.identity_hint') : t('people.identity_unavailable')" data-testid="people-identity-add" @click="addIdentity(p)">{{ identityBusy === p.name ? t('people.uploading') : t('people.identity_add') }}</button>
             <button class="btn btn-sm btn-secondary" @click="startRename(p)">{{ t('people.rename') }}</button>
             <button class="btn btn-sm btn-secondary" @click="remove(p)">{{ t('people.delete') }}</button>
           </span>
@@ -261,6 +291,8 @@ onUnmounted(() => {
 .people-item { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .people-hint { margin: 4px 0 8px; font-size: 12px; }
 .people-error { color: var(--danger, #e5484d); }
+.people-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border); color: var(--text-dim, inherit); }
+.people-badge-on { border-color: var(--accent); color: var(--accent); }
 .people-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 8px; }
 .people-bar-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; }
 </style>

@@ -34,6 +34,7 @@ type ShootFrameParams struct {
 	GarmentBase64 string `json:"garment_base64,omitempty"`
 	Outfit        string `json:"outfit,omitempty"`
 	FacePass      bool   `json:"face_pass"`
+	FaceSwap      bool   `json:"face_swap,omitempty"`
 	Width         int    `json:"width,omitempty"`
 	Height        int    `json:"height,omitempty"`
 }
@@ -44,6 +45,7 @@ type ShootFrameResult struct {
 	Prompt   string `json:"prompt"`
 	FacePass string `json:"face_pass"`
 	Garment  string `json:"garment,omitempty"`
+	FaceSwap string `json:"face_swap,omitempty"`
 }
 
 func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
@@ -53,7 +55,7 @@ func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
 		p := ShootFrameParams{
 			Person: plan.name, Base: plan.person.Base, Model: plan.m.model, Shot: shot, Prompt: plan.prompts[i],
 			Index: i + 1, Total: total, Seed: plan.frameSeed(i),
-			GarmentBase64: plan.garment, Outfit: plan.outfit, FacePass: plan.refineOn,
+			GarmentBase64: plan.garment, Outfit: plan.outfit, FacePass: plan.refineOn, FaceSwap: plan.faceSwap,
 			Width: plan.w, Height: plan.h,
 		}
 		raw, err := json.Marshal(p)
@@ -109,12 +111,13 @@ func runShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngi
 		}
 		return nil, errors.New(faceSkipReason(err))
 	}
+	shootFaceSwap(eng, &out, p.Person, p.FaceSwap)
 	if out.stopped || (stopped != nil && stopped()) {
 		return nil, generation.ErrInterrupted
 	}
 	meta := &preset.GenerationMeta{Model: m.model, Label: truncateLabel("Стилист: " + p.Person + ", " + p.Shot)}
 	id := sessions.AddToNamedSession(StylistSessionName, out.img, out.info, "stylist", meta)
-	return &ShootFrameResult{ID: id, Shot: p.Shot, Prompt: p.Prompt, FacePass: out.facePass, Garment: out.garment}, nil
+	return &ShootFrameResult{ID: id, Shot: p.Shot, Prompt: p.Prompt, FacePass: out.facePass, Garment: out.garment, FaceSwap: out.faceSwap}, nil
 }
 
 func NewShootFrameHandler(sessions AppSessions) queue.Handler {
@@ -177,6 +180,10 @@ func shootStatus(q ShootQueue, ids []int64) (string, error) {
 				if fr.Garment != "" {
 					f["garment"] = fr.Garment
 				}
+				f["face_swap"] = shootSwapOff
+				if fr.FaceSwap != "" {
+					f["face_swap"] = fr.FaceSwap
+				}
 			}
 		}
 		if job.Error != "" {
@@ -195,7 +202,7 @@ func registerShootQueueTools(s *Server) {
 	s.Register(Tool{
 		Name: "stylist_shoot_status",
 		Description: "Стилист: состояние кадров фотосессии, поставленных stylist_shoot в очередь приложения. job_ids — номера из ответа stylist_shoot. " +
-			"По каждому: status (pending — ждёт, running — рисуется, completed — готов, failed — не получился или отменён, cancelled — снят, paused — повторы исчерпаны, not_found — нет такого кадра), shot, index/total, у готового — id в сессии «Стилист», face_pass и garment, у неудачного — error. Картинок и путей нет.",
+			"По каждому: status (pending — ждёт, running — рисуется, completed — готов, failed — не получился или отменён, cancelled — снят, paused — повторы исчерпаны, not_found — нет такого кадра), shot, index/total, у готового — id в сессии «Стилист», face_pass, face_swap и garment, у неудачного — error. Картинок и путей нет.",
 		InputSchema: props(map[string]any{
 			"job_ids": prop("номера заданий из ответа stylist_shoot", "array", map[string]any{"items": map[string]any{"type": "integer"}}),
 		}, "job_ids"),

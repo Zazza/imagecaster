@@ -13,6 +13,8 @@ import {queue} from '../models';
 import {sd} from '../models';
 import {finish} from '../models';
 
+export function AddPersonIdentity(arg1:string,arg2:string):Promise<serverclient.Person>;
+
 export function AnalyzeImage(arg1:string,arg2:string):Promise<string>;
 
 export function ApplyLookDirect(arg1:string,arg2:string,arg3:number,arg4:any):Promise<generation.GenerateImageResult>;
@@ -98,6 +100,8 @@ export function EnqueueLook(arg1:generation.ApplyLookParams):Promise<number>;
 export function EnqueueTxt2Img(arg1:generation.GenerateImageParams):Promise<number>;
 
 export function ExportImage(arg1:importexport.ExportImageParams):Promise<string>;
+
+export function FaceSwapStatus():Promise<string>;
 
 export function GenerateCompoundImage(arg1:generation.GenerateCompoundImageParams):Promise<generation.GenerateImageResult>;
 
