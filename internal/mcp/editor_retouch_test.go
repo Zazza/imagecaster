@@ -29,7 +29,7 @@ var erGray = color.NRGBA{R: 128, G: 128, B: 128, A: 255}
 
 type fakeRetoucher struct {
 	mu      sync.Mutex
-	calls   []generation.DetailParams
+	calls   []erUpCall
 	faces   []string
 	outs    []string
 	err     error
@@ -37,14 +37,19 @@ type fakeRetoucher struct {
 	resized bool
 }
 
-func (f *fakeRetoucher) UpscaleDetail(p generation.DetailParams) (*generation.DetailResult, error) {
+type erUpCall struct {
+	ImageBase64 string
+	TargetLong  int
+}
+
+func (f *fakeRetoucher) UpscaleLong(imageBase64 string, targetLong int) (*generation.UpscaleResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, p)
+	f.calls = append(f.calls, erUpCall{ImageBase64: imageBase64, TargetLong: targetLong})
 	if f.err != nil {
 		return nil, f.err
 	}
-	raw, err := base64.StdEncoding.DecodeString(p.ImageBase64)
+	raw, err := base64.StdEncoding.DecodeString(imageBase64)
 	if err != nil {
 		return nil, err
 	}
@@ -53,17 +58,13 @@ func (f *fakeRetoucher) UpscaleDetail(p generation.DetailParams) (*generation.De
 		return nil, err
 	}
 	w, h := cfg.Width, cfg.Height
-	upscaled := p.TargetLong > 0 && max(w, h) < p.TargetLong
+	upscaled := targetLong > 0 && max(w, h) < targetLong
 	if upscaled {
 		w, h = w*2, h*2
 	}
 	out := base64.StdEncoding.EncodeToString(edSolidPNG(w, h, erGray))
 	f.outs = append(f.outs, out)
-	res := &generation.DetailResult{Image: out, Width: w, Height: h, Upscaled: upscaled, Resized: upscaled && f.resized, Detailed: p.Detail > 0}
-	if res.Detailed {
-		res.Tiles = 1
-	}
-	return res, nil
+	return &generation.UpscaleResult{Image: out, Width: w, Height: h, Upscaled: upscaled, Resized: upscaled && f.resized}, nil
 }
 
 func (f *fakeRetoucher) FaceLandmarks(imageBase64 string) ([]faceguard.Point, error) {
@@ -76,10 +77,10 @@ func (f *fakeRetoucher) FaceLandmarks(imageBase64 string) ([]faceguard.Point, er
 	return styFace(), nil
 }
 
-func (f *fakeRetoucher) detailCalls() []generation.DetailParams {
+func (f *fakeRetoucher) upCalls() []erUpCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]generation.DetailParams(nil), f.calls...)
+	return append([]erUpCall(nil), f.calls...)
 }
 
 func (f *fakeRetoucher) faceCalls() []string {
@@ -167,26 +168,16 @@ func TestRunRetouch_ItemWithGenerationData(t *testing.T) {
 	eng := &fakeRetoucher{}
 	sess := erItemSess()
 
-	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25, Label: "Ретушь: Портрет в студии (1 из 1)", Index: 1, Total: 1})
+	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Label: "Ретушь: Портрет в студии (1 из 1)", Index: 1, Total: 1})
 
-	calls := eng.detailCalls()
+	calls := eng.upCalls()
 	require.Len(t, calls, 1)
 	p := calls[0]
 	assert.Equal(t, 3840, p.TargetLong)
-	assert.InDelta(t, 0.25, p.Detail, 1e-9)
-	assert.Equal(t, erGenModel, p.Model)
-	assert.Equal(t, erGenPrompt, p.Prompt, "same prompt with the LoRA as the source")
-	assert.Equal(t, erGenNegative, p.NegativePrompt)
-	assert.Equal(t, "euler_a", p.Sampler)
-	assert.Equal(t, 30, p.Steps)
-	assert.InDelta(t, 5.5, p.CfgScale, 1e-9)
-	require.NotNil(t, p.Seed)
-	assert.Equal(t, int64(12345), *p.Seed)
 	srcImg, err := sess.GetSessionImage(erGenItem)
 	require.NoError(t, err)
 	assert.Equal(t, srcImg, p.ImageBase64)
 	assert.Equal(t, "done", res.Upscale)
-	assert.Equal(t, "done", res.Detail)
 	assert.False(t, res.Adjust)
 	assert.Empty(t, res.Retouch)
 	assert.Equal(t, 400, res.Width)
@@ -198,7 +189,7 @@ func TestRunRetouch_ItemSavedToItsSession(t *testing.T) {
 	eng := &fakeRetoucher{}
 	sess := erItemSess()
 
-	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erShootFrame, Size: "4k", Detail: 0.25, Index: 1, Total: 1})
+	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erShootFrame, Size: "4k", Index: 1, Total: 1})
 
 	assert.Empty(t, sess.namedCalls(), "item result goes to the item's session, not a named one")
 	adds := sess.idCalls()
@@ -223,7 +214,7 @@ func TestRunRetouch_PhotoSavedToEditorSession(t *testing.T) {
 	sess := &fakeSessions{}
 	src := base64.StdEncoding.EncodeToString(styPhotoPNG(150, 100, erGray))
 
-	res := erRun(t, eng, sess, RetouchJobParams{ImageBase64: src, Size: "4k", Detail: 0, Index: 1, Total: 1})
+	res := erRun(t, eng, sess, RetouchJobParams{ImageBase64: src, Size: "4k", Index: 1, Total: 1})
 
 	calls := sess.namedCalls()
 	require.Len(t, calls, 1)
@@ -235,20 +226,20 @@ func TestRunRetouch_PhotoSavedToEditorSession(t *testing.T) {
 	saved := edDecode(t, calls[0].image)
 	assert.Equal(t, 300, saved.Bounds().Dx())
 	assert.Equal(t, 200, saved.Bounds().Dy())
-	assert.Equal(t, "off", res.Detail)
 }
 
-func TestRunRetouch_NoGenerationDataSkipsDetail(t *testing.T) {
+func TestRunRetouch_AnySourceUpscaled(t *testing.T) {
 	t.Parallel()
 	photo := base64.StdEncoding.EncodeToString(styPhotoPNG(150, 100, erGray))
 	tests := []struct {
 		name string
 		p    RetouchJobParams
 	}{
-		{name: "camera photo by path", p: RetouchJobParams{ImageBase64: photo, Size: "4k", Detail: 0.25}},
-		{name: "item without generation data", p: RetouchJobParams{ItemID: erPhotoItem, Size: "4k", Detail: 0.25}},
-		{name: "item without prompt", p: RetouchJobParams{ItemID: erNoPrompt, Size: "4k", Detail: 0.25}},
-		{name: "item without model", p: RetouchJobParams{ItemID: erNoModel, Size: "4k", Detail: 0.25}},
+		{name: "camera photo by path", p: RetouchJobParams{ImageBase64: photo, Size: "4k"}},
+		{name: "item without generation data", p: RetouchJobParams{ItemID: erPhotoItem, Size: "4k"}},
+		{name: "item without prompt", p: RetouchJobParams{ItemID: erNoPrompt, Size: "4k"}},
+		{name: "item without model", p: RetouchJobParams{ItemID: erNoModel, Size: "4k"}},
+		{name: "generated item", p: RetouchJobParams{ItemID: erGenItem, Size: "4k"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -258,14 +249,10 @@ func TestRunRetouch_NoGenerationDataSkipsDetail(t *testing.T) {
 
 			res := erRun(t, eng, sess, tt.p)
 
-			for i, c := range eng.detailCalls() {
-				assert.Zero(t, c.Detail, "call %d: no redraw without generation data", i)
-				assert.Equal(t, 3840, c.TargetLong, "call %d: upscale still done", i)
-			}
-			require.NotEmpty(t, eng.detailCalls(), "upscale is still done")
+			calls := eng.upCalls()
+			require.Len(t, calls, 1)
+			assert.Equal(t, 3840, calls[0].TargetLong)
 			assert.Equal(t, "done", res.Upscale)
-			require.True(t, strings.HasPrefix(res.Detail, "skipped:"), "detail: %q", res.Detail)
-			assert.NotEmpty(t, strings.TrimSpace(strings.TrimPrefix(res.Detail, "skipped:")), "skip reason must be given")
 			assert.Positive(t, res.ID)
 		})
 	}
@@ -289,12 +276,14 @@ func TestRunRetouch_Size(t *testing.T) {
 			eng := &fakeRetoucher{}
 			sess := erItemSess()
 
-			res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: tt.size, Detail: 0.25})
+			res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: tt.size, Retouch: &faceguard.Retouch{Light: true}})
 
-			calls := eng.detailCalls()
-			require.NotEmpty(t, calls)
-			for i, c := range calls {
-				assert.Equal(t, tt.wantTarget, c.TargetLong, "call %d", i)
+			calls := eng.upCalls()
+			if tt.wantTarget == 0 {
+				assert.Empty(t, calls, "size off: no upscale call")
+			} else {
+				require.Len(t, calls, 1)
+				assert.Equal(t, tt.wantTarget, calls[0].TargetLong)
 			}
 			assert.Equal(t, tt.wantUpscale, res.Upscale)
 		})
@@ -318,20 +307,6 @@ func TestRunRetouch_AlreadyAboveTargetNotShrunk(t *testing.T) {
 	assert.True(t, strings.HasPrefix(res.Upscale, "skipped:"), "upscale: %q", res.Upscale)
 }
 
-func TestRunRetouch_DetailZeroOff(t *testing.T) {
-	t.Parallel()
-	eng := &fakeRetoucher{}
-	sess := erItemSess()
-
-	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0})
-
-	for i, c := range eng.detailCalls() {
-		assert.Zero(t, c.Detail, "call %d", i)
-	}
-	assert.Equal(t, "off", res.Detail)
-	assert.Equal(t, "done", res.Upscale)
-}
-
 func TestRunRetouch_Adjust(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -350,7 +325,7 @@ func TestRunRetouch_Adjust(t *testing.T) {
 			eng := &fakeRetoucher{}
 			sess := erItemSess()
 
-			res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25, Adjust: tt.adj})
+			res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Adjust: tt.adj})
 
 			assert.Equal(t, tt.wantAdj, res.Adjust)
 			adds := sess.idCalls()
@@ -360,7 +335,7 @@ func TestRunRetouch_Adjust(t *testing.T) {
 			got := erMeanR(t, adds[0].image)
 			base := erMeanR(t, outs[len(outs)-1])
 			if tt.brighter {
-				assert.Greater(t, got, base+10, "adjust is applied after upscale and detail")
+				assert.Greater(t, got, base+10, "adjust is applied after upscale")
 				return
 			}
 			assert.InDelta(t, base, got, 1.0)
@@ -373,7 +348,7 @@ func TestRunRetouch_RetouchLandmarksFromSource(t *testing.T) {
 	eng := &fakeRetoucher{}
 	sess := erItemSess()
 
-	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25, Retouch: &faceguard.Retouch{UnderEyes: true, EyeWhites: true}})
+	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Retouch: &faceguard.Retouch{UnderEyes: true, EyeWhites: true}})
 
 	src, err := sess.GetSessionImage(erGenItem)
 	require.NoError(t, err)
@@ -398,7 +373,7 @@ func TestRunRetouch_RetouchFaceNotFound(t *testing.T) {
 	eng := &fakeRetoucher{faceErr: errors.New("no face found")}
 	sess := erItemSess()
 
-	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25, Retouch: &faceguard.Retouch{UnderEyes: true}})
+	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Retouch: &faceguard.Retouch{UnderEyes: true}})
 
 	assert.NotEqual(t, "done", res.Retouch)
 	assert.NotEmpty(t, strings.TrimSpace(res.Retouch), "a note explains why retouch was not done")
@@ -410,7 +385,7 @@ func TestRunRetouch_ZeroRetouchNotApplied(t *testing.T) {
 	eng := &fakeRetoucher{}
 	sess := erItemSess()
 
-	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25, Retouch: &faceguard.Retouch{}})
+	res := erRun(t, eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Retouch: &faceguard.Retouch{}})
 
 	assert.Empty(t, res.Retouch)
 	assert.Empty(t, eng.faceCalls())
@@ -421,7 +396,7 @@ func TestRunRetouch_StoppedNotSaved(t *testing.T) {
 	eng := &fakeRetoucher{}
 	sess := erItemSess()
 
-	_, err := RunRetouch(eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25}, func() bool { return true })
+	_, err := RunRetouch(eng, sess, RetouchJobParams{ItemID: erGenItem, Size: "4k"}, func() bool { return true })
 
 	require.Error(t, err)
 	assert.True(t, generation.IsInterrupted(err), "got %v", err)
@@ -439,11 +414,11 @@ func TestRunRetouch_Errors(t *testing.T) {
 		interrupted bool
 		contains    string
 	}{
-		{name: "interrupted upscale", engErr: fmt.Errorf("tile 3: %w", generation.ErrInterrupted), p: RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25}, interrupted: true},
-		{name: "server unreachable", engErr: urlErr, p: RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25}, contains: "connection refused"},
+		{name: "interrupted upscale", engErr: fmt.Errorf("tile 3: %w", generation.ErrInterrupted), p: RetouchJobParams{ItemID: erGenItem, Size: "4k"}, interrupted: true},
+		{name: "server unreachable", engErr: urlErr, p: RetouchJobParams{ItemID: erGenItem, Size: "4k"}, contains: "connection refused"},
 		{name: "server unreachable for photo", engErr: urlErr, p: RetouchJobParams{ImageBase64: base64.StdEncoding.EncodeToString(styPhotoPNG(60, 60, erGray)), Size: "4k"}, contains: "connection refused"},
-		{name: "unknown item", p: RetouchJobParams{ItemID: 9999, Size: "4k", Detail: 0.25}},
-		{name: "no image at all", p: RetouchJobParams{Size: "4k", Detail: 0.25}},
+		{name: "unknown item", p: RetouchJobParams{ItemID: 9999, Size: "4k"}},
+		{name: "no image at all", p: RetouchJobParams{Size: "4k"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -506,7 +481,7 @@ func erJob(t *testing.T, store *queue.Store, id int64) (*queue.Job, RetouchJobPa
 
 func erNoSyncWork(t *testing.T, env *erEnv) {
 	t.Helper()
-	assert.Empty(t, env.eng.detailCalls(), "editor_retouch must not upscale itself")
+	assert.Empty(t, env.eng.upCalls(), "editor_retouch must not upscale itself")
 	assert.Empty(t, env.eng.faceCalls(), "editor_retouch must not retouch itself")
 	assert.Empty(t, env.sess.idCalls(), "editor_retouch must not save itself")
 	assert.Empty(t, env.sess.namedCalls(), "editor_retouch must not save itself")
@@ -545,7 +520,6 @@ func TestEditorRetouch_ItemsOneJobEach(t *testing.T) {
 		assert.Equal(t, items[i], p.ItemID, "job %d", i)
 		assert.Empty(t, p.ImageBase64, "job %d: item jobs carry the id, not the image", i)
 		assert.Equal(t, "4k", p.Size, "job %d: default size", i)
-		assert.InDelta(t, 0.25, p.Detail, 1e-9, "job %d: default detail", i)
 		assert.Equal(t, i+1, p.Index, "job %d", i)
 		assert.Equal(t, 3, p.Total, "job %d", i)
 	}
@@ -574,7 +548,7 @@ func TestEditorRetouch_PhotoPathJob(t *testing.T) {
 	data := styPhotoPNG(80, 120, erGray)
 	photo := edWritePhoto(t, data)
 
-	m, _ := styCall(t, env.s, "editor_retouch", map[string]any{"photo_path": photo, "size": "2x", "detail": float64(0)})
+	m, _ := styCall(t, env.s, "editor_retouch", map[string]any{"photo_path": photo, "size": "2x"})
 
 	ids := sqJobIDs(t, m)
 	require.Len(t, ids, 1)
@@ -584,7 +558,6 @@ func TestEditorRetouch_PhotoPathJob(t *testing.T) {
 	require.NotEmpty(t, p.ImageBase64)
 	assert.Equal(t, data, styDecodeB64(t, p.ImageBase64))
 	assert.Equal(t, "2x", p.Size)
-	assert.Zero(t, p.Detail)
 	label := sqLabel(t, job)
 	assert.True(t, strings.HasPrefix(label, "Ретушь: "), label)
 	assert.True(t, strings.HasSuffix(label, " (1 из 1)"), label)
@@ -627,7 +600,6 @@ func TestEditorRetouch_AdjustAndRetouchPassedToJob(t *testing.T) {
 	m, out := styCall(t, env.s, "editor_retouch", map[string]any{
 		"item":    "active",
 		"size":    "off",
-		"detail":  float64(0.4),
 		"adjust":  map[string]any{"brightness": float64(10), "saturation": float64(-5)},
 		"retouch": map[string]any{"under_eyes": true, "teeth": true, "eye_whites": true, "light": true},
 	})
@@ -636,7 +608,6 @@ func TestEditorRetouch_AdjustAndRetouchPassedToJob(t *testing.T) {
 	require.Len(t, ids, 1, out)
 	_, p := erJob(t, env.store, ids[0])
 	assert.Equal(t, "off", p.Size)
-	assert.InDelta(t, 0.4, p.Detail, 1e-9, "0.4 is the inclusive upper bound")
 	require.NotNil(t, p.Adjust)
 	assert.InDelta(t, 10, p.Adjust.Brightness, 1e-9)
 	assert.InDelta(t, -5, p.Adjust.Saturation, 1e-9)
@@ -651,7 +622,7 @@ func TestEditorRetouch_OnlyAdjustIsEnough(t *testing.T) {
 	t.Parallel()
 	env := erNewEnv(t, nil)
 
-	m, out := styCall(t, env.s, "editor_retouch", map[string]any{"item": "active", "size": "off", "detail": float64(0), "adjust": map[string]any{"contrast": float64(15)}})
+	m, out := styCall(t, env.s, "editor_retouch", map[string]any{"item": "active", "size": "off", "adjust": map[string]any{"contrast": float64(15)}})
 
 	assert.Len(t, sqJobIDs(t, m), 1, out)
 }
@@ -687,13 +658,11 @@ func TestEditorRetouch_ValidationNoJobs(t *testing.T) {
 		}},
 		{name: "size 8k", args: func(*testing.T) map[string]any { return map[string]any{"item": "active", "size": "8k"} }},
 		{name: "size 3x", args: func(*testing.T) map[string]any { return map[string]any{"item": "active", "size": "3x"} }},
-		{name: "detail negative", args: func(*testing.T) map[string]any { return map[string]any{"item": "active", "detail": float64(-0.1)} }},
-		{name: "detail above 0.4", args: func(*testing.T) map[string]any { return map[string]any{"item": "active", "detail": float64(0.5)} }},
 		{name: "nothing to do", args: func(*testing.T) map[string]any {
-			return map[string]any{"item": "active", "size": "off", "detail": float64(0)}
+			return map[string]any{"item": "active", "size": "off"}
 		}},
 		{name: "nothing to do with neutral adjust and empty retouch", args: func(*testing.T) map[string]any {
-			return map[string]any{"item": "active", "size": "off", "detail": float64(0), "adjust": map[string]any{}, "retouch": map[string]any{}}
+			return map[string]any{"item": "active", "size": "off", "adjust": map[string]any{}, "retouch": map[string]any{}}
 		}},
 		{name: "adjust out of range", args: func(*testing.T) map[string]any {
 			return map[string]any{"item": "active", "adjust": map[string]any{"brightness": float64(500)}}
@@ -834,13 +803,13 @@ func TestEditorRetouchStatus(t *testing.T) {
 		require.NoError(t, err)
 		return id
 	}
-	done := mk(RetouchJobParams{ItemID: erGenItem, Size: "4k", Detail: 0.25, Index: 1, Total: 5})
-	doneMin := mk(RetouchJobParams{ItemID: erPhotoItem, Size: "4k", Detail: 0.25, Index: 2, Total: 5})
-	failed := mk(RetouchJobParams{ImageBase64: b64, Size: "4k", Detail: 0.25, Index: 3, Total: 5})
-	running := mk(RetouchJobParams{ItemID: erShootFrame, Size: "4k", Detail: 0.25, Index: 4, Total: 5})
+	done := mk(RetouchJobParams{ItemID: erGenItem, Size: "4k", Index: 1, Total: 5})
+	doneMin := mk(RetouchJobParams{ItemID: erPhotoItem, Size: "4k", Index: 2, Total: 5})
+	failed := mk(RetouchJobParams{ImageBase64: b64, Size: "4k", Index: 3, Total: 5})
+	running := mk(RetouchJobParams{ItemID: erShootFrame, Size: "4k", Index: 4, Total: 5})
 	pending := mk(RetouchJobParams{ImageBase64: b64, Size: "2x", Index: 5, Total: 5})
-	require.NoError(t, env.store.UpdateCompleted(done, `{"session_item_id":601,"frame":{"id":601,"width":2560,"height":3840,"upscale":"done","detail":"done","adjust":true,"retouch":"done"}}`))
-	require.NoError(t, env.store.UpdateCompleted(doneMin, `{"session_item_id":602,"frame":{"id":602,"width":3840,"height":2560,"upscale":"done","detail":"skipped:нет данных генерации"}}`))
+	require.NoError(t, env.store.UpdateCompleted(done, `{"session_item_id":601,"frame":{"id":601,"width":2560,"height":3840,"upscale":"done","adjust":true,"retouch":"done"}}`))
+	require.NoError(t, env.store.UpdateCompleted(doneMin, `{"session_item_id":602,"frame":{"id":602,"width":3840,"height":2560,"upscale":"done:обычный ресайз — на сервере нет ESRGAN или он не сработал"}}`))
 	require.NoError(t, env.store.UpdateStatus(failed, queue.StatusFailed, "upscale failed: out of memory"))
 	require.NoError(t, env.store.UpdateStatus(running, queue.StatusRunning, ""))
 	other, err := env.store.CreateLabeled(queue.JobStylistFrame, `{"shot":"front","index":1,"total":1}`, "stylist", "Стилист: anna, front (1 из 1)")
@@ -860,7 +829,7 @@ func TestEditorRetouchStatus(t *testing.T) {
 	assert.Equal(t, float64(2560), jobs[0]["width"])
 	assert.Equal(t, float64(3840), jobs[0]["height"])
 	assert.Equal(t, "done", jobs[0]["upscale"])
-	assert.Equal(t, "done", jobs[0]["detail"])
+	assert.NotContains(t, jobs[0], "detail")
 	assert.Equal(t, true, jobs[0]["adjust"])
 	assert.Equal(t, "done", jobs[0]["retouch"])
 	assert.Equal(t, float64(1), jobs[0]["index"])
@@ -868,7 +837,7 @@ func TestEditorRetouchStatus(t *testing.T) {
 
 	assert.Equal(t, "completed", jobs[1]["status"])
 	assert.Equal(t, float64(602), jobs[1]["id"])
-	assert.Equal(t, "skipped:нет данных генерации", jobs[1]["detail"])
+	assert.Contains(t, jobs[1]["upscale"], "ресайз")
 	assert.NotContains(t, jobs[1], "retouch")
 
 	assert.Equal(t, "failed", jobs[2]["status"])
@@ -945,12 +914,12 @@ func erPromptText(t *testing.T, name string) string {
 func TestRetouchPrompts(t *testing.T) {
 	t.Parallel()
 
-	t.Run("photo editor knows editor_retouch and strong detail", func(t *testing.T) {
+	t.Run("photo editor knows editor_retouch without redraw", func(t *testing.T) {
 		t.Parallel()
 		text := erPromptText(t, "photo_editor")
 		assert.Contains(t, text, "editor_retouch")
 		assert.Contains(t, text, "editor_retouch_status")
-		assert.Contains(t, text, "0.4")
+		assert.NotContains(t, text, "detail")
 	})
 
 	t.Run("stylist offers retouch after a series", func(t *testing.T) {

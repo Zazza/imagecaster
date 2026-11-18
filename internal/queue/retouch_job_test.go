@@ -13,7 +13,7 @@ import (
 
 const rjLabel = "Ретушь: Портрет в студии (1 из 2)"
 
-const rjPhotoParams = `{"image_base64":"SU1H","size":"4k","detail":0.25,"label":"Ретушь: фото","index":1,"total":2}`
+const rjPhotoParams = `{"image_base64":"SU1H","size":"4k","label":"Ретушь: фото","index":1,"total":2}`
 
 func TestJobRetouchType(t *testing.T) {
 	t.Parallel()
@@ -65,7 +65,7 @@ func TestService_HandleRetouch(t *testing.T) {
 	t.Parallel()
 	store, svc := sfNewService(t)
 	rec := &sfRecorder{}
-	frame := json.RawMessage(`{"id":601,"width":2560,"height":3840,"upscale":"done","detail":"done"}`)
+	frame := json.RawMessage(`{"id":601,"width":2560,"height":3840,"upscale":"done"}`)
 	svc.Handle(JobRetouch, func(gen *generation.Service, job *Job) (*JobResult, error) {
 		rec.add(gen, job)
 		return &JobResult{SessionItemID: 601, Frame: frame}, nil

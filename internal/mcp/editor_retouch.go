@@ -9,7 +9,6 @@ import (
 	"image"
 	_ "image/jpeg"
 	"image/png"
-	_ "image/png"
 	"math"
 	"strconv"
 	"strings"
@@ -21,21 +20,18 @@ import (
 	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/queue"
-	"github.com/Zazza/imagecaster/internal/serverclient"
 )
 
 const (
-	retouchTarget4K      = 3840
-	retouchDefaultDetail = 0.25
-	retouchMaxDetail     = 0.4
-	retouchMaxItems      = 12
-	retouchMax2x         = 7680
-	retouchMaxSource     = 8192
-	retouchQueueHint     = "Ретушь выполнит приложение Imagecaster по очереди: прогресс, пауза и отмена — в панели очереди приложения; если приложение закрыто, задания начнутся при его запуске. Один кадр в 4K — 1–3 минуты. Готовность — editor_retouch_status с этими job_ids."
+	retouchTarget4K  = 3840
+	retouchMaxItems  = 12
+	retouchMax2x     = 7680
+	retouchMaxSource = 8192
+	retouchQueueHint = "Ретушь выполнит приложение Imagecaster по очереди: прогресс, пауза и отмена — в панели очереди приложения; если приложение закрыто, задания начнутся при его запуске. Один кадр в 4K — около 30 секунд. Готовность — editor_retouch_status с этими job_ids."
 )
 
 type RetouchEngine interface {
-	UpscaleDetail(p generation.DetailParams) (*generation.DetailResult, error)
+	UpscaleLong(imageBase64 string, targetLong int) (*generation.UpscaleResult, error)
 	FaceLandmarks(imageBase64 string) ([]faceguard.Point, error)
 }
 
@@ -43,7 +39,6 @@ type RetouchJobParams struct {
 	ItemID      int64              `json:"item_id,omitempty"`
 	ImageBase64 string             `json:"image_base64,omitempty"`
 	Size        string             `json:"size"`
-	Detail      float64            `json:"detail"`
 	Adjust      *adjust.Params     `json:"adjust,omitempty"`
 	Retouch     *faceguard.Retouch `json:"retouch,omitempty"`
 	Label       string             `json:"label"`
@@ -56,7 +51,6 @@ type RetouchResult struct {
 	Width   int    `json:"width"`
 	Height  int    `json:"height"`
 	Upscale string `json:"upscale"`
-	Detail  string `json:"detail"`
 	Adjust  bool   `json:"adjust,omitempty"`
 	Retouch string `json:"retouch,omitempty"`
 }
@@ -95,38 +89,6 @@ func retouchSource(sessions AppSessions, p RetouchJobParams) (string, *preset.Se
 	return img, item, nil
 }
 
-func detailSkipReason(item *preset.SessionItem) string {
-	switch {
-	case item == nil:
-		return "skipped:фото не из генерации — лицо без LoRA поплывёт"
-	case item.Meta == nil || strings.TrimSpace(item.Meta.Model) == "":
-		return "skipped:у кадра нет модели генерации"
-	case strings.TrimSpace(item.Prompt) == "":
-		return "skipped:у кадра нет промпта генерации"
-	}
-	base := modelBase(item.Meta.Model)
-	switch base {
-	case "SDXL", "Z-Image":
-		return ""
-	case "Flux.2":
-		return "skipped:у Flux.2 Klein перерисовка меняет лицо — только увеличение"
-	case "":
-		return "skipped:модели кадра нет в каталоге — перерисовка не проверена"
-	}
-	return "skipped:перерисовка проверена только на SDXL и Z-Image, у кадра " + base
-}
-
-func modelBase(model string) string {
-	c, err := serverclient.LoadCatalog()
-	if err != nil {
-		return ""
-	}
-	if m := c.FindSDModelOrVariant(model); m != nil {
-		return m.Base
-	}
-	return ""
-}
-
 func RunRetouch(eng RetouchEngine, sessions AppSessions, p RetouchJobParams, stopped func() bool) (*RetouchResult, error) {
 	if eng == nil || sessions == nil {
 		return nil, errors.New("ретушь: нет генерации или сессий")
@@ -147,32 +109,17 @@ func RunRetouch(eng RetouchEngine, sessions AppSessions, p RetouchJobParams, sto
 	if err != nil {
 		return nil, err
 	}
-	res := &RetouchResult{Upscale: "off", Detail: "off", Width: sw, Height: sh}
+	res := &RetouchResult{Upscale: "off", Width: sw, Height: sh}
 	if target > 0 && max(sw, sh) >= target {
 		res.Upscale = "skipped:фото уже не меньше цели"
 		target = 0
-	}
-	dp := generation.DetailParams{ImageBase64: src, TargetLong: target}
-	if p.Detail > 0 {
-		if why := detailSkipReason(item); why != "" {
-			res.Detail = why
-		} else {
-			dp.Detail = p.Detail
-			dp.Model = item.Meta.Model
-			dp.Prompt = item.Prompt
-			dp.NegativePrompt = item.NegativePrompt
-			dp.Sampler = item.Sampler
-			dp.Steps = item.Steps
-			dp.CfgScale = item.CfgScale
-			dp.Seed = item.Seed
-		}
 	}
 	if stopped() {
 		return nil, generation.ErrInterrupted
 	}
 	cur := src
-	if dp.TargetLong > 0 || dp.Detail > 0 {
-		out, err := eng.UpscaleDetail(dp)
+	if target > 0 {
+		out, err := eng.UpscaleLong(src, target)
 		if err != nil {
 			if generation.IsInterrupted(err) {
 				return nil, err
@@ -185,11 +132,8 @@ func RunRetouch(eng RetouchEngine, sessions AppSessions, p RetouchJobParams, sto
 			if out.Resized {
 				res.Upscale = "done:обычный ресайз — на сервере нет ESRGAN или он не сработал"
 			}
-		} else if dp.TargetLong > 0 {
+		} else {
 			res.Upscale = "skipped:увеличение не сделано"
-		}
-		if out.Detailed {
-			res.Detail = "done"
 		}
 	}
 	if p.Adjust != nil && !p.Adjust.IsNeutral() {
@@ -406,14 +350,6 @@ func retouchOptions(args map[string]any) (RetouchJobParams, error) {
 			return p, errors.New("size: \"4k\", \"2x\" или \"off\"")
 		}
 	}
-	p.Detail = retouchDefaultDetail
-	if v, ok := args["detail"]; ok && v != nil {
-		f, isNum := v.(float64)
-		if !isNum || math.IsNaN(f) || f < 0 || f > retouchMaxDetail {
-			return p, fmt.Errorf("detail: число от 0 до %.1f", retouchMaxDetail)
-		}
-		p.Detail = f
-	}
 	adj, hasAdj, err := parseEditorAdjust(args["adjust"])
 	if err != nil {
 		return p, err
@@ -427,7 +363,7 @@ func retouchOptions(args map[string]any) (RetouchJobParams, error) {
 	}
 	if r != nil {
 		if r.Skin() {
-			return p, errors.New("retouch: skin_tone и skin_lightness в ретуши не применяются — кожу чистит detail")
+			return p, errors.New("retouch: skin_tone и skin_lightness в ретуши не применяются")
 		}
 		if err := r.Validate(); err != nil {
 			return p, fmt.Errorf("retouch: %w", err)
@@ -436,8 +372,8 @@ func retouchOptions(args map[string]any) (RetouchJobParams, error) {
 			p.Retouch = r
 		}
 	}
-	if p.Size == "off" && p.Detail == 0 && p.Adjust == nil && p.Retouch == nil {
-		return p, errors.New("нечего делать: укажи size, detail, adjust или retouch")
+	if p.Size == "off" && p.Adjust == nil && p.Retouch == nil {
+		return p, errors.New("нечего делать: укажи size, adjust или retouch")
 	}
 	return p, nil
 }
@@ -485,7 +421,7 @@ func retouchStatus(q ShootQueue, ids []int64) (string, error) {
 			var rr RetouchResult
 			if json.Unmarshal([]byte(job.Result), &r) == nil && json.Unmarshal(r.Frame, &rr) == nil {
 				f["id"], f["width"], f["height"] = rr.ID, rr.Width, rr.Height
-				f["upscale"], f["detail"] = rr.Upscale, rr.Detail
+				f["upscale"] = rr.Upscale
 				if rr.Adjust {
 					f["adjust"] = true
 				}
@@ -509,14 +445,13 @@ func retouchStatus(q ShootQueue, ids []int64) (string, error) {
 func registerRetouchTools(s *Server) {
 	s.Register(Tool{
 		Name: "editor_retouch",
-		Description: "Фоторедактор: ретушь кадров — увеличение до 4K, перерисовка мелких деталей и кожи той же моделью, LoRA и промптом, что у кадра (лицо держится), затем свет/цвет (adjust) и ретушь глаз и зубов (retouch). Каждое фото — задание очереди приложения; ответ сразу — job_ids, готовность — editor_retouch_status. " +
-			"Фото — photo_path, item (\"active\" или id) или items (список id, до 12; кадры стилиста тоже можно). size: \"4k\" (по умолчанию, длинная сторона 3840), \"2x\" или \"off\". detail: 0–0.4, по умолчанию 0.25; 0.4 — чище, но лицо и линия волос могут уплыть; 0 — без перерисовки. Перерисовка — только для кадров SDXL и Z-Image; фото с камеры и кадры других моделей не перерисовываются — только увеличение, adjust и retouch (detail в статусе — skipped с причиной). Результат — новый кадр рядом с исходником. Ответ без картинок и путей.",
+		Description: "Фоторедактор: ретушь кадров — увеличение до 4K, свет/цвет (adjust) и ретушь глаз и зубов (retouch); кадр не перерисовывается, лицо не меняется, работает на кадрах любой модели и на фото с камеры. Каждое фото — задание очереди приложения; ответ сразу — job_ids, готовность — editor_retouch_status. " +
+			"Фото — photo_path, item (\"active\" или id) или items (список id, до 12; кадры стилиста тоже можно). size: \"4k\" (по умолчанию, длинная сторона 3840), \"2x\" или \"off\". Результат — новый кадр рядом с исходником. Ответ без картинок и путей.",
 		InputSchema: props(map[string]any{
 			"photo_path": prop("путь к фото (или item / items)", "string"),
 			"item":       itemSchema,
 			"items":      prop("id кадров из приложения (до 12)", "array", map[string]any{"items": map[string]any{"type": "integer"}}),
 			"size":       prop("\"4k\" (по умолчанию), \"2x\" или \"off\"", "string"),
-			"detail":     prop("сила перерисовки деталей 0–0.4, по умолчанию 0.25", "number"),
 			"adjust":     prop("свет и цвет числами — как adjust в editor_apply", "object"),
 			"retouch":    prop("under_eyes, teeth, eye_whites, eye_color, light, face_width — как retouch у стилиста (без skin_tone и skin_lightness)", "object"),
 		}),
@@ -540,7 +475,7 @@ func registerRetouchTools(s *Server) {
 	})
 	s.Register(Tool{
 		Name:        "editor_retouch_status",
-		Description: "Фоторедактор: состояние заданий ретуши из ответа editor_retouch. По каждому: status (pending, running, completed, failed, cancelled, paused, not_found), index/total, у готового — id нового кадра, width/height, upscale и detail (done | off | skipped:<причина>), adjust, retouch; у неудачного — error. Картинок и путей нет.",
+		Description: "Фоторедактор: состояние заданий ретуши из ответа editor_retouch. По каждому: status (pending, running, completed, failed, cancelled, paused, not_found), index/total, у готового — id нового кадра, width/height, upscale (done | off | skipped:<причина>), adjust, retouch; у неудачного — error. Картинок и путей нет.",
 		InputSchema: props(map[string]any{
 			"job_ids": prop("номера заданий из ответа editor_retouch", "array", map[string]any{"items": map[string]any{"type": "integer"}}),
 		}, "job_ids"),
