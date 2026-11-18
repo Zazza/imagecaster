@@ -21,6 +21,7 @@ func RegisterTools(s *Server) {
 	registerStylistTools(s)
 	registerShootTools(s)
 	registerShootQueueTools(s)
+	registerRetouchTools(s)
 	registerEditorTools(s)
 }
 

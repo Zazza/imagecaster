@@ -30,6 +30,7 @@ const typeLabelKeys = {
   batch_item: 'queue.type_batch_item',
   compound: 'queue.type_compound',
   stylist_frame: 'queue.type_stylist_frame',
+  retouch: 'queue.type_retouch',
 }
 
 function typeLabel(type) {

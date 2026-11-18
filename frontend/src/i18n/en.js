@@ -1004,6 +1004,7 @@ export const en = {
   'queue.type_batch_item': 'Batch',
   'queue.type_compound': 'Compound',
   'queue.type_stylist_frame': 'Stylist frame',
+  'queue.type_retouch': 'Retouch',
 
   // PipelineImportModal.vue
   'pipeline_import.title': 'Import Workflows ({count} found)',

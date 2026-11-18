@@ -977,6 +977,7 @@ export const ru = {
   'queue.type_batch_item': 'Пакет',
   'queue.type_compound': 'Рабочий процесс',
   'queue.type_stylist_frame': 'Кадр стилиста',
+  'queue.type_retouch': 'Ретушь',
 
   'pipeline_import.title': 'Импорт рабочих процессов (найдено: {count})',
   'pipeline_import.select_all': 'Выбрать все',

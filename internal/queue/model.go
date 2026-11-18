@@ -11,6 +11,7 @@ const (
 	JobLook         JobType = "look"
 	JobEdit         JobType = "edit"
 	JobStylistFrame JobType = "stylist_frame"
+	JobRetouch      JobType = "retouch"
 )
 
 type JobStatus string

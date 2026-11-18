@@ -27,21 +27,22 @@ type Tool struct {
 }
 
 type Deps struct {
-	DB       *preset.DB
-	Gen      *generation.Service
-	SD       sd.Service
-	LLM      llm.Service
-	Settings *settings.Service
-	Kids     *kids.Manager
-	Cfg      *config.Config
-	OutDir   string
-	Stylist  StylistEngine
-	Editor   EditorEngine
-	Sessions AppSessions
-	People   StylistPeople
-	Shooter  StylistShooter
-	Refiner  FaceRefiner
-	Queue    ShootQueue
+	DB        *preset.DB
+	Gen       *generation.Service
+	SD        sd.Service
+	LLM       llm.Service
+	Settings  *settings.Service
+	Kids      *kids.Manager
+	Cfg       *config.Config
+	OutDir    string
+	Stylist   StylistEngine
+	Editor    EditorEngine
+	Sessions  AppSessions
+	People    StylistPeople
+	Shooter   StylistShooter
+	Refiner   FaceRefiner
+	Queue     ShootQueue
+	Retoucher RetouchEngine
 
 	NoImageBytes bool
 }
