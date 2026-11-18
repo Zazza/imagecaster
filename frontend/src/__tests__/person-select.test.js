@@ -27,23 +27,23 @@ const noModelPreset = { id: 5, name: 'Default', model_name: '' }
 const unknownPreset = { id: 6, name: 'Unknown', model_name: 'unknown-model.gguf' }
 
 describe('personOverride', () => {
-  it('z-image style and known person → name and trigger', () => {
-    expect(personOverride(catalog, zPreset, {}, PEOPLE, 'zkv')).toEqual({ name: 'zkv', trigger: 'zkv_man' })
+  it('z-image style and known person → name only', () => {
+    expect(personOverride(catalog, zPreset, {}, PEOPLE, 'zkv')).toEqual({ name: 'zkv' })
   })
 
-  it('returns only name and trigger of the selected person', () => {
+  it('returns only name of the selected person', () => {
     const r = personOverride(catalog, zPreset, {}, PEOPLE, 'anna')
-    expect(r).toEqual({ name: 'anna', trigger: 'anna_woman' })
-    expect(Object.keys(r).sort()).toEqual(['name', 'trigger'])
+    expect(r).toEqual({ name: 'anna' })
+    expect(Object.keys(r).sort()).toEqual(['name'])
   })
 
   it('z-image variant model → override', () => {
-    expect(personOverride(catalog, zVariantPreset, {}, PEOPLE, 'zkv')).toEqual({ name: 'zkv', trigger: 'zkv_man' })
+    expect(personOverride(catalog, zVariantPreset, {}, PEOPLE, 'zkv')).toEqual({ name: 'zkv' })
   })
 
   it('flux style overridden to z-image → override', () => {
     const overrides = { model_name: 'z_image_turbo_bf16.safetensors' }
-    expect(personOverride(catalog, fluxPreset, overrides, PEOPLE, 'zkv')).toEqual({ name: 'zkv', trigger: 'zkv_man' })
+    expect(personOverride(catalog, fluxPreset, overrides, PEOPLE, 'zkv')).toEqual({ name: 'zkv' })
   })
 
   it.each([
@@ -188,11 +188,11 @@ describe('peopleForStyle', () => {
 
 describe('personOverride: training bases', () => {
   it('moss style and moss person → override', () => {
-    expect(personOverride(catalog, mossPreset, {}, MIXED, 'mila')).toEqual({ name: 'mila', trigger: 'mila_woman' })
+    expect(personOverride(catalog, mossPreset, {}, MIXED, 'mila')).toEqual({ name: 'mila' })
   })
 
   it('z-image style and person without base → override', () => {
-    expect(personOverride(catalog, zPreset, {}, MIXED, 'old')).toEqual({ name: 'old', trigger: 'old_man' })
+    expect(personOverride(catalog, zPreset, {}, MIXED, 'old')).toEqual({ name: 'old' })
   })
 
   it.each([

@@ -16,13 +16,25 @@ const basesLoaded = ref(false)
 const base = ref('')
 const busy = ref(false)
 const error = ref('')
+const renaming = ref('')
+const renameValue = ref('')
 let timer = null
 let closed = false
 
 const ACTIVE = ['queued', 'running']
+const SHOWN = [...ACTIVE, 'paused']
 const activeJobs = computed(() => jobs.value.filter(j => ACTIVE.includes(j.status)))
-const finishedJobs = computed(() => jobs.value.filter(j => !ACTIVE.includes(j.status)).slice(-5).reverse())
-const canTrain = computed(() => available.value && folder.value && /^[A-Za-z0-9_ -]{2,32}$/.test(name.value.trim()) && !!base.value && !busy.value)
+const shownJobs = computed(() => jobs.value.filter(j => SHOWN.includes(j.status)))
+const finishedJobs = computed(() => jobs.value.filter(j => !SHOWN.includes(j.status)).slice(-5).reverse())
+const NAME_RE = /^[A-Za-z0-9_ -]{2,32}$/
+const canTrain = computed(() => available.value && folder.value && NAME_RE.test(name.value.trim()) && !!base.value && !busy.value)
+const SERVER_CODES = ['name_taken', 'invalid_request', 'not_found', 'not_running', 'not_paused', 'busy']
+
+function errorText(e) {
+  const msg = String(e)
+  const code = msg.match(/\((\w+)\)\s*$/)?.[1]
+  return SERVER_CODES.includes(code) ? t('people.err_' + code) : msg
+}
 
 function percent(j) {
   const s = j.progress?.steps || 0
@@ -30,7 +42,7 @@ function percent(j) {
 }
 
 function statusText(j) {
-  if (j.status === 'running') return t('people.status_running', { step: j.progress?.step || 0, steps: j.progress?.steps || 0 })
+  if (j.status === 'running' || j.status === 'paused') return t('people.status_' + j.status, { step: j.progress?.step || 0, steps: j.progress?.steps || 0 })
   return t('people.status_' + j.status)
 }
 
@@ -103,7 +115,42 @@ async function cancel(j) {
     await api.cancelTraining(j.id)
     await refresh()
   } catch (e) {
-    error.value = String(e)
+    error.value = errorText(e)
+  }
+}
+
+async function jobAction(call, j) {
+  try {
+    await call(j.id)
+    await refresh()
+  } catch (e) {
+    error.value = errorText(e)
+  }
+}
+
+function startRename(p) {
+  error.value = ''
+  renaming.value = p.name
+  renameValue.value = p.name
+}
+
+async function saveRename() {
+  const from = renaming.value
+  const next = renameValue.value.trim()
+  if (!next || next === from) {
+    renaming.value = ''
+    return
+  }
+  if (!NAME_RE.test(next)) {
+    error.value = t('people.err_invalid_request')
+    return
+  }
+  try {
+    await api.renamePerson(from, next)
+    renaming.value = ''
+    await loadPeople()
+  } catch (e) {
+    error.value = errorText(e)
   }
 }
 
@@ -113,7 +160,7 @@ async function remove(p) {
     await api.deletePerson(p.name)
     await loadPeople()
   } catch (e) {
-    error.value = String(e)
+    error.value = errorText(e)
   }
 }
 
@@ -161,21 +208,38 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div v-for="j in activeJobs" :key="j.id" class="card" data-testid="people-job">
+    <div v-for="j in shownJobs" :key="j.id" class="card" data-testid="people-job">
       <div class="people-row people-job-head">
         <span><b>{{ j.name }}</b> — {{ statusText(j) }}</span>
-        <button class="btn btn-sm btn-secondary" @click="cancel(j)">{{ t('people.cancel') }}</button>
+        <span class="people-actions">
+          <button class="btn btn-sm btn-secondary" @click="cancel(j)">{{ t('people.cancel') }}</button>
+          <button v-if="j.status === 'running'" class="btn btn-sm btn-secondary" @click="jobAction(api.pauseTraining, j)">{{ t('people.pause') }}</button>
+          <button v-if="j.status === 'paused'" class="btn btn-sm btn-primary" @click="jobAction(api.resumeTraining, j)">{{ t('people.resume') }}</button>
+        </span>
       </div>
       <div class="people-bar"><div class="people-bar-fill" :style="{ width: percent(j) + '%' }"></div></div>
-      <p class="text-dim people-hint">{{ t('people.gpu_busy') }}</p>
+      <p class="text-dim people-hint">{{ j.status === 'paused' ? t('people.paused_hint') : t('people.gpu_busy') }}</p>
     </div>
 
     <div class="card">
       <div class="card-title">{{ t('people.list_title') }}</div>
       <div v-if="people.length === 0" class="text-dim">{{ t('people.empty') }}</div>
-      <div v-for="p in people" :key="p.name" class="people-row people-item" data-testid="people-item">
-        <span><b>{{ p.name }}</b> <span class="text-dim">{{ trainBaseLabel(p.base || 'Z-Image') }}</span> <span class="mono text-dim">{{ p.trigger }}</span></span>
-        <button class="btn btn-sm btn-secondary" @click="remove(p)">{{ t('people.delete') }}</button>
+      <div v-for="p in people" :key="p.name" class="people-item" data-testid="people-item">
+        <div v-if="renaming === p.name" class="people-rename">
+          <div class="people-row">
+            <input class="form-input" type="text" v-model="renameValue" maxlength="32" data-testid="people-rename-input" @keyup.enter="saveRename" @keyup.esc="renaming = ''" />
+            <button class="btn btn-sm btn-primary" data-testid="people-rename-save" @click="saveRename">{{ t('people.rename_save') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="renaming = ''">{{ t('people.rename_cancel') }}</button>
+          </div>
+          <p class="text-dim people-hint">{{ t('people.rename_prompt', { name: p.name }) }}</p>
+        </div>
+        <div v-else class="people-row">
+          <span><b>{{ p.name }}</b> <span class="text-dim">{{ trainBaseLabel(p.base || 'Z-Image') }}</span> <span class="mono text-dim">{{ p.trigger }}</span></span>
+          <span class="people-actions">
+            <button class="btn btn-sm btn-secondary" @click="startRename(p)">{{ t('people.rename') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="remove(p)">{{ t('people.delete') }}</button>
+          </span>
+        </div>
       </div>
     </div>
 
@@ -193,6 +257,7 @@ onUnmounted(() => {
 .people-form { display: flex; flex-direction: column; gap: 6px; max-width: 520px; }
 .people-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .people-row .form-input { flex: 1; }
+.people-actions { display: flex; gap: 6px; }
 .people-item { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .people-hint { margin: 4px 0 8px; font-size: 12px; }
 .people-error { color: var(--danger, #e5484d); }

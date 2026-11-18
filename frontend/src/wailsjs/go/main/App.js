@@ -386,6 +386,10 @@ export function PauseQueue() {
   return window['go']['main']['App']['PauseQueue']();
 }
 
+export function PauseTraining(arg1) {
+  return window['go']['main']['App']['PauseTraining'](arg1);
+}
+
 export function PickPeopleFolder() {
   return window['go']['main']['App']['PickPeopleFolder']();
 }
@@ -434,6 +438,10 @@ export function RemoveQueueJob(arg1) {
   return window['go']['main']['App']['RemoveQueueJob'](arg1);
 }
 
+export function RenamePerson(arg1, arg2) {
+  return window['go']['main']['App']['RenamePerson'](arg1, arg2);
+}
+
 export function RenameSession(arg1, arg2) {
   return window['go']['main']['App']['RenameSession'](arg1, arg2);
 }
@@ -452,6 +460,10 @@ export function ResumePausedQueueJobs() {
 
 export function ResumeQueue() {
   return window['go']['main']['App']['ResumeQueue']();
+}
+
+export function ResumeTraining(arg1) {
+  return window['go']['main']['App']['ResumeTraining'](arg1);
 }
 
 export function RetryQueueJob(arg1) {

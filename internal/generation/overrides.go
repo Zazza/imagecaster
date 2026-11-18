@@ -27,21 +27,13 @@ type PresetOverrides struct {
 }
 
 type PersonOverride struct {
-	Name    string `json:"name"`
-	Trigger string `json:"trigger"`
+	Name string `json:"name"`
 }
 
 var personNameRe = regexp.MustCompile(`^[a-z0-9_]{2,32}$`)
 
 func validPerson(p *PersonOverride) bool {
-	if p == nil || !personNameRe.MatchString(p.Name) {
-		return false
-	}
-	switch p.Trigger {
-	case p.Name + "_man", p.Name + "_woman", p.Name + "_person":
-		return true
-	}
-	return false
+	return p != nil && personNameRe.MatchString(p.Name)
 }
 
 func addPersonLora(lorasJSON string, p *PersonOverride) (string, bool) {
@@ -51,7 +43,7 @@ func addPersonLora(lorasJSON string, p *PersonOverride) (string, bool) {
 			return lorasJSON, false
 		}
 	}
-	loras = append(loras, preset.LoRAEntry{Name: p.Name, Weight: 1, Trigger: p.Trigger})
+	loras = append(loras, preset.LoRAEntry{Name: p.Name, Weight: 1})
 	data, err := json.Marshal(loras)
 	if err != nil {
 		return lorasJSON, false

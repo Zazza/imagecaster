@@ -88,6 +88,24 @@ func (a *App) CancelTraining(id string) (*serverclient.TrainJob, error) {
 	return a.peopleSvc().Cancel(ctx, id)
 }
 
+func (a *App) PauseTraining(id string) (*serverclient.TrainJob, error) {
+	ctx, cancel := a.peopleCtx(peopleCallTimeout)
+	defer cancel()
+	return a.peopleSvc().Pause(ctx, id)
+}
+
+func (a *App) ResumeTraining(id string) (*serverclient.TrainJob, error) {
+	ctx, cancel := a.peopleCtx(peopleCallTimeout)
+	defer cancel()
+	return a.peopleSvc().Resume(ctx, id)
+}
+
+func (a *App) RenamePerson(oldName, newName string) error {
+	ctx, cancel := a.peopleCtx(peopleCallTimeout)
+	defer cancel()
+	return a.peopleSvc().Rename(ctx, oldName, newName)
+}
+
 func (a *App) ListPeople() ([]serverclient.Person, error) {
 	if a.serverClient.GetBaseURL() == "" {
 		return []serverclient.Person{}, nil

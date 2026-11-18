@@ -35,25 +35,25 @@ func TestApplyPresetOverrides_PersonAddsLora(t *testing.T) {
 		{
 			name: "style lora kept, person appended",
 			base: personStyleLoras,
-			ov:   &PresetOverrides{Person: &PersonOverride{Name: "zkv", Trigger: "zkv_man"}},
+			ov:   &PresetOverrides{Person: &PersonOverride{Name: "zkv"}},
 			want: []preset.LoRAEntry{
 				{Name: "style-lora", Weight: 0.8},
-				{Name: "zkv", Weight: 1, Trigger: "zkv_man"},
+				{Name: "zkv", Weight: 1},
 			},
 		},
 		{
 			name: "style without loras",
 			base: "",
-			ov:   &PresetOverrides{Person: &PersonOverride{Name: "anna_k", Trigger: "anna_k_woman"}},
-			want: []preset.LoRAEntry{{Name: "anna_k", Weight: 1, Trigger: "anna_k_woman"}},
+			ov:   &PresetOverrides{Person: &PersonOverride{Name: "anna_k"}},
+			want: []preset.LoRAEntry{{Name: "anna_k", Weight: 1}},
 		},
 		{
 			name: "gender person",
 			base: personStyleLoras,
-			ov:   &PresetOverrides{Person: &PersonOverride{Name: "kid01", Trigger: "kid01_person"}},
+			ov:   &PresetOverrides{Person: &PersonOverride{Name: "kid01"}},
 			want: []preset.LoRAEntry{
 				{Name: "style-lora", Weight: 0.8},
-				{Name: "kid01", Weight: 1, Trigger: "kid01_person"},
+				{Name: "kid01", Weight: 1},
 			},
 		},
 		{
@@ -61,18 +61,18 @@ func TestApplyPresetOverrides_PersonAddsLora(t *testing.T) {
 			base: personStyleLoras,
 			ov: &PresetOverrides{
 				Loras:  strPtr(`[{"name":"user-lora","weight":0.5}]`),
-				Person: &PersonOverride{Name: "zkv", Trigger: "zkv_woman"},
+				Person: &PersonOverride{Name: "zkv"},
 			},
 			want: []preset.LoRAEntry{
 				{Name: "user-lora", Weight: 0.5},
-				{Name: "zkv", Weight: 1, Trigger: "zkv_woman"},
+				{Name: "zkv", Weight: 1},
 			},
 		},
 		{
 			name: "name at max length",
 			base: "",
-			ov:   &PresetOverrides{Person: &PersonOverride{Name: strings.Repeat("a", 32), Trigger: strings.Repeat("a", 32) + "_man"}},
-			want: []preset.LoRAEntry{{Name: strings.Repeat("a", 32), Weight: 1, Trigger: strings.Repeat("a", 32) + "_man"}},
+			ov:   &PresetOverrides{Person: &PersonOverride{Name: strings.Repeat("a", 32)}},
+			want: []preset.LoRAEntry{{Name: strings.Repeat("a", 32), Weight: 1}},
 		},
 	}
 	for _, tt := range tests {
@@ -93,17 +93,13 @@ func TestApplyPresetOverrides_InvalidPersonIgnored(t *testing.T) {
 		name   string
 		person PersonOverride
 	}{
-		{name: "lora tag injection in name", person: PersonOverride{Name: "x><lora:evil", Trigger: "x><lora:evil_man"}},
-		{name: "unknown gender in trigger", person: PersonOverride{Name: "zkv", Trigger: "zkv_dog"}},
-		{name: "trigger for another name", person: PersonOverride{Name: "zkv", Trigger: "other_man"}},
-		{name: "trigger with extra suffix", person: PersonOverride{Name: "zkv", Trigger: "zkv_man, nsfw"}},
+		{name: "lora tag injection in name", person: PersonOverride{Name: "x><lora:evil"}},
 		{name: "empty", person: PersonOverride{}},
-		{name: "empty trigger", person: PersonOverride{Name: "zkv"}},
-		{name: "name too short", person: PersonOverride{Name: "z", Trigger: "z_man"}},
-		{name: "name too long", person: PersonOverride{Name: strings.Repeat("a", 33), Trigger: strings.Repeat("a", 33) + "_man"}},
-		{name: "uppercase name", person: PersonOverride{Name: "ZKV", Trigger: "ZKV_man"}},
-		{name: "name with dash", person: PersonOverride{Name: "zk-v", Trigger: "zk-v_man"}},
-		{name: "name with space", person: PersonOverride{Name: "zk v", Trigger: "zk v_man"}},
+		{name: "name too short", person: PersonOverride{Name: "z"}},
+		{name: "name too long", person: PersonOverride{Name: strings.Repeat("a", 33)}},
+		{name: "uppercase name", person: PersonOverride{Name: "ZKV"}},
+		{name: "name with dash", person: PersonOverride{Name: "zk-v"}},
+		{name: "name with space", person: PersonOverride{Name: "zk v"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -123,23 +119,45 @@ func TestApplyPresetOverrides_InvalidPersonKeepsLorasOverride(t *testing.T) {
 	p := personPreset(personStyleLoras)
 	override := `[{"name":"user-lora","weight":0.5}]`
 
-	ApplyPresetOverrides(p, &PresetOverrides{Loras: strPtr(override), Person: &PersonOverride{Name: "zkv", Trigger: "zkv_dog"}})
+	ApplyPresetOverrides(p, &PresetOverrides{Loras: strPtr(override), Person: &PersonOverride{Name: "x><lora:evil"}})
 
 	assert.Equal(t, override, p.Loras)
 }
 
-func TestPresetOverrides_PersonFromJSON(t *testing.T) {
+func TestPresetOverrides_PersonFromJSON_LegacyTriggerIgnored(t *testing.T) {
 	t.Parallel()
 	var ov PresetOverrides
 	require.NoError(t, json.Unmarshal([]byte(`{"person":{"name":"zkv","trigger":"zkv_man"}}`), &ov))
-
 	require.NotNil(t, ov.Person)
 	assert.Equal(t, "zkv", ov.Person.Name)
-	assert.Equal(t, "zkv_man", ov.Person.Trigger)
+
+	p := personPreset(personStyleLoras)
+	ApplyPresetOverrides(p, &ov)
+	assert.Equal(t, []preset.LoRAEntry{{Name: "style-lora", Weight: 0.8}, {Name: "zkv", Weight: 1}}, decodeLoras(t, p.Loras))
+	assert.NotContains(t, p.Loras, "zkv_man")
+	assert.NotContains(t, p.Prompt, "zkv_man")
+
+	got := appendLorasToPrompt("a man in a cafe", p.Loras)
+	assert.NotContains(t, got, "zkv_man")
+	assert.Equal(t, "a man in a cafe <lora:style-lora:0.8> <lora:zkv:1>", got)
 
 	out, err := json.Marshal(PresetOverrides{})
 	require.NoError(t, err)
 	assert.NotContains(t, string(out), "person")
+}
+
+func TestPersonOverride_SameAsManualLora(t *testing.T) {
+	t.Parallel()
+	viaPerson := personPreset(personStyleLoras)
+	ApplyPresetOverrides(viaPerson, &PresetOverrides{Person: &PersonOverride{Name: "zkv"}})
+
+	manual := personPreset(personStyleLoras)
+	manualLoras, err := json.Marshal([]preset.LoRAEntry{{Name: "style-lora", Weight: 0.8}, {Name: "zkv", Weight: 1}})
+	require.NoError(t, err)
+	ApplyPresetOverrides(manual, &PresetOverrides{Loras: strPtr(string(manualLoras))})
+
+	assert.Equal(t, decodeLoras(t, manual.Loras), decodeLoras(t, viaPerson.Loras))
+	assert.Equal(t, appendLorasToPrompt("a man in a cafe", manual.Loras), appendLorasToPrompt("a man in a cafe", viaPerson.Loras))
 }
 
 func TestLoRAEntry_TriggerJSON(t *testing.T) {
@@ -198,10 +216,11 @@ func TestPersonOverride_EndToEndPrompt(t *testing.T) {
 	t.Parallel()
 	p := personPreset(personStyleLoras)
 
-	ApplyPresetOverrides(p, &PresetOverrides{Person: &PersonOverride{Name: "zkv", Trigger: "zkv_man"}})
+	ApplyPresetOverrides(p, &PresetOverrides{Person: &PersonOverride{Name: "zkv"}})
 	got := appendLorasToPrompt("a man in a cafe", p.Loras)
 
-	assert.True(t, strings.HasPrefix(got, "zkv_man, "), "prompt %q", got)
+	assert.Equal(t, "a man in a cafe <lora:style-lora:0.8> <lora:zkv:1>", got)
+	assert.NotContains(t, got, "zkv_man")
 	assert.Contains(t, got, "<lora:zkv:1>")
 	assert.Contains(t, got, "<lora:style-lora:0.8>")
 	assert.True(t, strings.HasSuffix(got, ">"), "lora tags must be at the end: %q", got)
@@ -211,7 +230,7 @@ func TestPersonOverride_InvalidLeavesPromptClean(t *testing.T) {
 	t.Parallel()
 	p := personPreset(personStyleLoras)
 
-	ApplyPresetOverrides(p, &PresetOverrides{Person: &PersonOverride{Name: "x><lora:evil", Trigger: "x><lora:evil_man"}})
+	ApplyPresetOverrides(p, &PresetOverrides{Person: &PersonOverride{Name: "x><lora:evil"}})
 	got := appendLorasToPrompt("a man in a cafe", p.Loras)
 
 	assert.Equal(t, "a man in a cafe <lora:style-lora:0.8>", got)

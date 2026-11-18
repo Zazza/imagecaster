@@ -40,6 +40,15 @@ type fakeAPI struct {
 	basesCalls int
 	bases      []string
 	basesErr   error
+
+	pauses    []string
+	resumes   []string
+	renames   [][2]string
+	pauseJob  *serverclient.TrainJob
+	pauseErr  error
+	resumeJob *serverclient.TrainJob
+	resumeErr error
+	renameErr error
 }
 
 func (f *fakeAPI) SubmitTraining(_ context.Context, req serverclient.TrainRequest) (*serverclient.TrainJob, error) {

@@ -1,6 +1,7 @@
 package serverclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -186,6 +187,36 @@ func (c *Client) CancelTraining(ctx context.Context, id string) (*TrainJob, erro
 		return nil, err
 	}
 	return &job, nil
+}
+
+func (c *Client) PauseTraining(ctx context.Context, id string) (*TrainJob, error) {
+	return c.trainJobAction(ctx, id, "pause")
+}
+
+func (c *Client) ResumeTraining(ctx context.Context, id string) (*TrainJob, error) {
+	return c.trainJobAction(ctx, id, "resume")
+}
+
+func (c *Client) trainJobAction(ctx context.Context, id, action string) (*TrainJob, error) {
+	var job TrainJob
+	if err := c.trainDo(ctx, http.MethodPost, "/api/train/jobs/"+url.PathEscape(id)+"/"+action, nil, "", &job); err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+func (c *Client) RenamePerson(ctx context.Context, oldName, newName string) (*Person, error) {
+	body, err := json.Marshal(map[string]string{"name": newName})
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Person Person `json:"person"`
+	}
+	if err := c.trainDo(ctx, http.MethodPost, "/api/train/people/"+url.PathEscape(oldName)+"/rename", bytes.NewReader(body), "application/json", &out); err != nil {
+		return nil, err
+	}
+	return &out.Person, nil
 }
 
 func (c *Client) People(ctx context.Context) ([]Person, error) {

@@ -25,7 +25,7 @@ import {
   SetKidsMode, SetLastImage, StartServerProcess, StopServerProcess, SwitchSession, SyncPresets,
   UpdateCompoundPreset, UpdateDescription, UpdateHiresProfile, UpdatePreset, UpdateResolution,
   UpdateSettings, UpscaleImage, Version,
-  TrainingStatus, TrainingBases, PickPeopleFolder, TrainPerson, ListTrainingJobs, CancelTraining, ListPeople, DeletePerson,
+  TrainingStatus, TrainingBases, PickPeopleFolder, TrainPerson, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -160,6 +160,9 @@ export const api = {
   trainPerson: (folder, name, gender, base) => TrainPerson(folder, name, gender, base),
   listTrainingJobs: () => ListTrainingJobs(),
   cancelTraining: (id) => CancelTraining(id),
+  pauseTraining: (id) => PauseTraining(id),
+  resumeTraining: (id) => ResumeTraining(id),
+  renamePerson: (oldName, newName) => RenamePerson(oldName, newName),
   listPeople: () => ListPeople(),
   deletePerson: (name) => DeletePerson(name),
   syncPresets: () => SyncPresets(),

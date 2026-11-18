@@ -205,6 +205,8 @@ export function OpenInHistory(arg1:number):Promise<void>;
 
 export function PauseQueue():Promise<void>;
 
+export function PauseTraining(arg1:string):Promise<serverclient.TrainJob>;
+
 export function PickPeopleFolder():Promise<string>;
 
 export function PrepareCompoundPresetsExport(arg1:Array<number>):Promise<string>;
@@ -229,6 +231,8 @@ export function ReadThumbnail(arg1:string):Promise<string>;
 
 export function RemoveQueueJob(arg1:number):Promise<void>;
 
+export function RenamePerson(arg1:string,arg2:string):Promise<void>;
+
 export function RenameSession(arg1:number,arg2:string):Promise<void>;
 
 export function RepairImage(arg1:generation.RepairParams):Promise<generation.GenerateImageResult>;
@@ -238,6 +242,8 @@ export function RestartServerProcess(arg1:string):Promise<void>;
 export function ResumePausedQueueJobs():Promise<number>;
 
 export function ResumeQueue():Promise<void>;
+
+export function ResumeTraining(arg1:string):Promise<serverclient.TrainJob>;
 
 export function RetryQueueJob(arg1:number):Promise<void>;
 

@@ -30,7 +30,7 @@ export function peopleForStyle(catalog, preset, overrides, people) {
 export function personOverride(catalog, preset, overrides, people, selectedName) {
   if (!selectedName || peopleState(catalog, 'preset', preset, overrides, people) !== 'ok') return null
   const p = peopleForStyle(catalog, preset, overrides, people).find(p => p.name === selectedName)
-  return p ? { name: p.name, trigger: p.trigger } : null
+  return p ? { name: p.name } : null
 }
 
 export function peopleState(catalog, mode, preset, overrides, people) {

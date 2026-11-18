@@ -59,7 +59,7 @@ describe('generate: person picker', () => {
     await sel.setValue('anna')
     await generate(w)
     expect(EnqueueTxt2Img).toHaveBeenCalledTimes(1)
-    expect(EnqueueTxt2Img.mock.calls[0][0].overrides).toMatchObject({ person: { name: 'anna', trigger: 'anna_woman' } })
+    expect(EnqueueTxt2Img.mock.calls[0][0].overrides.person).toEqual({ name: 'anna' })
   })
 
   it('Z-Image style without a pick: no person in overrides', async () => {
@@ -160,7 +160,7 @@ describe('generate: person picker by training base', () => {
     await w.find('[data-testid="gen-person-select"]').setValue('mila')
     await generate(w)
     expect(EnqueueTxt2Img).toHaveBeenCalledTimes(1)
-    expect(EnqueueTxt2Img.mock.calls[0][0].overrides).toMatchObject({ person: { name: 'mila', trigger: 'mila_woman' } })
+    expect(EnqueueTxt2Img.mock.calls[0][0].overrides.person).toEqual({ name: 'mila' })
   })
 
   it('Moss style without Moss people: section inactive, reason names the model, no person in the job', async () => {
@@ -203,7 +203,7 @@ describe('generate: person picker by training base', () => {
     expect(optionValues(w)).toEqual(['kira'])
     await w.find('[data-testid="gen-person-select"]').setValue('kira')
     await generate(w)
-    expect(EnqueueTxt2Img.mock.calls[0][0].overrides).toMatchObject({ person: { name: 'kira', trigger: 'kira_woman' } })
+    expect(EnqueueTxt2Img.mock.calls[0][0].overrides.person).toEqual({ name: 'kira' })
   })
 
   it('kids mode: section hidden for Moss style too', async () => {

@@ -29,6 +29,9 @@ type API interface {
 	SubmitTraining(ctx context.Context, r serverclient.TrainRequest) (*serverclient.TrainJob, error)
 	TrainingJobs(ctx context.Context, client string) ([]serverclient.TrainJob, error)
 	CancelTraining(ctx context.Context, id string) (*serverclient.TrainJob, error)
+	PauseTraining(ctx context.Context, id string) (*serverclient.TrainJob, error)
+	ResumeTraining(ctx context.Context, id string) (*serverclient.TrainJob, error)
+	RenamePerson(ctx context.Context, oldName, newName string) (*serverclient.Person, error)
 	People(ctx context.Context) ([]serverclient.Person, error)
 	DeletePerson(ctx context.Context, name string) error
 	TrainingBases(ctx context.Context) ([]string, error)
@@ -90,6 +93,19 @@ func (s *Service) Jobs(ctx context.Context) ([]serverclient.TrainJob, error) {
 
 func (s *Service) Cancel(ctx context.Context, id string) (*serverclient.TrainJob, error) {
 	return s.api.CancelTraining(ctx, id)
+}
+
+func (s *Service) Pause(ctx context.Context, id string) (*serverclient.TrainJob, error) {
+	return s.api.PauseTraining(ctx, id)
+}
+
+func (s *Service) Resume(ctx context.Context, id string) (*serverclient.TrainJob, error) {
+	return s.api.ResumeTraining(ctx, id)
+}
+
+func (s *Service) Rename(ctx context.Context, oldName, newName string) error {
+	_, err := s.api.RenamePerson(ctx, oldName, strings.ToLower(strings.TrimSpace(newName)))
+	return err
 }
 
 func (s *Service) List(ctx context.Context) ([]serverclient.Person, error) {

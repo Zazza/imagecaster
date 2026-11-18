@@ -2,6 +2,11 @@
 
 All notable changes to Imagecaster are documented here.
 
+## [Unreleased]
+
+### Added
+- People: Pause and Resume for training (resumes from the last save, made every 250 steps; a server restart pauses training instead of losing it) and Rename for a trained person. Needs sd-ai-server with training pause.
+
 ## [2.0.1] — 2026-11-16
 
 ### Fixed

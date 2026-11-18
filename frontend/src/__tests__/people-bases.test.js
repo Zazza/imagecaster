@@ -82,11 +82,11 @@ describe('peopleState: SDXL and Flux.2', () => {
 
 describe('personOverride: SDXL and Flux.2', () => {
   it('SDXL style and SDXL person → override', () => {
-    expect(personOverride(catalog, sdxlPreset, {}, ALL, 'xena')).toEqual({ name: 'xena', trigger: 'xena_woman' })
+    expect(personOverride(catalog, sdxlPreset, {}, ALL, 'xena')).toEqual({ name: 'xena' })
   })
 
   it('Flux.2 style and Flux.2 person → override', () => {
-    expect(personOverride(catalog, fluxPreset, {}, ALL, 'kira')).toEqual({ name: 'kira', trigger: 'kira_woman' })
+    expect(personOverride(catalog, fluxPreset, {}, ALL, 'kira')).toEqual({ name: 'kira' })
   })
 
   it.each([
