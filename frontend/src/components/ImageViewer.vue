@@ -18,6 +18,7 @@ const props = defineProps({
   position: { type: Number, default: 0 },
   total: { type: Number, default: 0 },
   title: { type: String, default: '' },
+  itemNumber: { type: Number, default: 0 },
 })
 const emit = defineEmits(['close', 'prev', 'next', 'export', 'delete'])
 
@@ -141,6 +142,7 @@ onUnmounted(() => {
     <div class="iv-toolbar">
       <div class="iv-toolbar-side">
         <span v-if="showCounter" class="iv-counter">{{ t('viewer.counter', { n: position, total }) }}</span>
+        <span v-if="itemNumber > 0" class="iv-number" data-testid="viewer-item-number" :title="t('viewer.item_number_hint')">#{{ itemNumber }}</span>
         <span v-if="title" class="iv-title" :title="title">{{ title }}</span>
       </div>
       <ZoomControls :zoom="zoom" prefix="image-viewer-zoom" :limit-max="false" />

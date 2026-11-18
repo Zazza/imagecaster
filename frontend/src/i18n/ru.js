@@ -929,6 +929,7 @@ export const ru = {
   'pin.error_digits': 'PIN должен состоять из 4 цифр',
   'pin.error_mismatch': 'PIN-коды не совпадают',
 
+  'viewer.item_number_hint': 'Номер кадра — по нему ИИ-агент найдёт этот кадр',
   'viewer.counter': '{n} из {total}',
   'viewer.close': 'Закрыть (Esc)',
   'viewer.prev': 'Предыдущее',

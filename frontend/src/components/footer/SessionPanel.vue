@@ -86,6 +86,7 @@ function itemTitle(item) {
   }
   if (item.seed != null) lines.push(t('footer.tooltip_seed', { seed: item.seed }))
   if (count > 1) lines.push(t('footer.tooltip_steps', { count }))
+  if (item.id > 0) lines.push(`#${item.id}`)
   return lines.join('\n')
 }
 
@@ -413,6 +414,7 @@ onUnmounted(() => {
     :position="viewerIndex + 1"
     :total="items.length"
     :item="viewerItem"
+    :itemNumber="viewerItem?.id || 0"
     :showActions="true"
     :confirmDelete="confirmDeleteViewer"
     @close="closeViewer"

@@ -562,6 +562,7 @@ onUnmounted(() => {
       :position="viewerIndex + 1"
       :total="total"
       :item="viewerItem"
+      :itemNumber="viewerItem?.id || 0"
       :title="viewerTitle"
       :showActions="true"
       :confirmDelete="confirmDeleteViewer"

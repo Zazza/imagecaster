@@ -954,6 +954,7 @@ export const en = {
   'pin.error_mismatch': 'PINs do not match',
 
   // ImageViewer.vue
+  'viewer.item_number_hint': 'Frame number — an AI agent finds this frame by it',
   'viewer.counter': '{n} of {total}',
   'viewer.close': 'Close (Esc)',
   'viewer.prev': 'Previous',

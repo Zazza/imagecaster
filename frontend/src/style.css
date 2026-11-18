@@ -1304,6 +1304,14 @@ details.cat-extra summary {
   font-variant-numeric: tabular-nums;
 }
 
+.iv-number {
+  flex: none;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+}
+
 .iv-title {
   font-size: var(--fs-sm);
   color: var(--text-dim);
