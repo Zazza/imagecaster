@@ -5,6 +5,7 @@ All notable changes to Imagecaster are documented here.
 ## [Unreleased]
 
 ### Added
+- History: **Move to…** in Select mode moves the selected photos to another history folder — same frame number, generation data and caption; the file and thumbnail move with it. A failed move leaves the photo where it was.
 - The frame number (`#33190`) is shown in the History thumbnail tooltip and in the full-screen viewer from History and Gallery, so you can tell an AI agent exactly which frame to process («ретушь 33190») — MCP tools take it as `item`.
 - **MCP photo editor: retouch.** New `editor_retouch` tool: on request («сделай ретушь») each photo or frame (one, `items` up to 12, stylist frames included) becomes an app queue job «Ретушь: … (N из M)». The job upscales to 4K (long side 3840; `size` 2x or off), then applies light/colour (`adjust`) and eye/teeth retouch; the frame is not redrawn, so the face never changes and any model or camera photo works (a tiled redraw at strength 0.25 was tried and dropped: Klein and Moss changed the face). The result is a new item next to the original; `editor_retouch_status` reports each job; a plain resize instead of ESRGAN is marked in `upscale`. The stylist offers retouch after a finished series. Local server only.
 - MCP stylist photoshoot: when neither an outfit nor a garment photo is given, frames get simple casual clothes (an SDXL frame without any outfit came out nude).

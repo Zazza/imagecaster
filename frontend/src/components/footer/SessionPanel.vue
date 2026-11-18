@@ -23,6 +23,11 @@ const { setPostQueue } = useRemixQueue()
 const selectMode = ref(false)
 const selectedIds = ref([])
 const selectedCount = computed(() => items.value.filter(i => selectedIds.value.includes(i.id)).length)
+const showMoveList = ref(false)
+const moveListStyle = ref({})
+const moving = ref(false)
+let moveErrorShown = false
+const moveTargets = computed(() => (sessions.value || []).filter(s => s.id !== activeSessionId.value))
 
 const newSessionName = ref('')
 const showNewSession = ref(false)
@@ -110,8 +115,53 @@ function toggleSelectItem(item) {
 }
 
 function exitSelectMode() {
+  moveErrorShown = false
   selectMode.value = false
   selectedIds.value = []
+  showMoveList.value = false
+}
+
+function toggleMoveList(e) {
+  if (showMoveList.value) {
+    showMoveList.value = false
+    return
+  }
+  const r = e.currentTarget.getBoundingClientRect()
+  const below = window.innerHeight - r.bottom
+  moveListStyle.value = below >= 200 || below >= r.top
+    ? { left: r.left + 'px', top: (r.bottom + 4) + 'px', maxHeight: Math.max(below - 12, 80) + 'px' }
+    : { left: r.left + 'px', bottom: (window.innerHeight - r.top + 4) + 'px', maxHeight: Math.max(r.top - 12, 80) + 'px' }
+  showMoveList.value = true
+}
+
+function closeMoveListOutside(e) {
+  if (showMoveList.value && !e.target.closest?.('.session-move')) showMoveList.value = false
+}
+
+function closeMoveList() {
+  showMoveList.value = false
+}
+
+async function moveSelected(sessionId) {
+  const ids = items.value.filter(i => selectedIds.value.includes(i.id)).map(i => i.id)
+  showMoveList.value = false
+  if (!ids.length || moving.value) return
+  moving.value = true
+  moveErrorShown = false
+  try {
+    await api.moveSessionItems(ids, sessionId)
+    exitSelectMode()
+    await loadItems()
+    await loadSessions()
+  } catch (e) {
+    await loadItems()
+    await loadSessions()
+    selectedIds.value = selectedIds.value.filter(id => items.value.some(i => i.id === id))
+    moveErrorShown = true
+    emit('error', t('footer.move_failed', { error: String(e?.message || e) }))
+  } finally {
+    moving.value = false
+  }
 }
 
 function onSessionCardClick(item) {
@@ -137,7 +187,7 @@ async function loadSessions() {
     sessions.value = result || []
     const active = sessions.value.find(s => s.is_active) || sessions.value[0]
     activeSessionId.value = active ? active.id : 0
-    emit('error', '')
+    if (!moveErrorShown) emit('error', '')
   } catch (e) {
     emit('error', 'loadSessions: ' + String(e))
     sessions.value = []
@@ -322,11 +372,15 @@ onMounted(async () => {
     EventsOn('session:deleted', () => { loadSessions(); loadItems() }),
     EventsOn('session:created', () => { loadSessions(); loadItems() }),
   )
+  document.addEventListener('mousedown', closeMoveListOutside)
+  window.addEventListener('resize', closeMoveList)
   await loadSessions()
   await loadItems()
 })
 
 onUnmounted(() => {
+  document.removeEventListener('mousedown', closeMoveListOutside)
+  window.removeEventListener('resize', closeMoveList)
   eventOffs.forEach(off => off?.())
   eventOffs = []
 })
@@ -373,6 +427,12 @@ onUnmounted(() => {
     <div v-if="selectMode" class="session-select-bar">
       <span>{{ t('footer.selected_count', { n: selectedCount }) }}</span>
       <button class="session-tool-btn text-btn" :disabled="!selectedCount" @click="sendSelectedToPostProcess">{{ t('footer.send_to_postprocess', { n: selectedCount }) }}</button>
+      <div class="session-move">
+        <button class="session-tool-btn text-btn" :disabled="!selectedCount || !moveTargets.length || moving" :title="moveTargets.length ? '' : t('footer.move_no_targets')" @click="toggleMoveList">{{ t('footer.move_to', { n: selectedCount }) }}</button>
+        <div v-if="showMoveList" class="session-move-list" role="menu" :style="moveListStyle">
+          <button v-for="s in moveTargets" :key="s.id" class="session-move-item" role="menuitem" @click="moveSelected(s.id)">{{ s.name }}</button>
+        </div>
+      </div>
       <button class="session-tool-btn text-btn" @click="exitSelectMode">{{ t('footer.cancel_select') }}</button>
     </div>
 
@@ -582,6 +642,39 @@ onUnmounted(() => {
   padding: 4px 8px;
   font-size: var(--fs-sm);
   color: var(--text-dim);
+}
+
+.session-move {
+  position: relative;
+}
+
+.session-move-list {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.session-move-item {
+  padding: 4px 8px;
+  text-align: left;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.session-move-item:hover {
+  background: var(--surface-2);
 }
 
 .si-selected {

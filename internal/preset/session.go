@@ -207,6 +207,17 @@ func (d *DB) DeleteSessionItem(id int64) error {
 	return err
 }
 
+func (d *DB) SessionExists(id int64) (bool, error) {
+	var n int
+	err := d.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE id = ?`, id).Scan(&n)
+	return n > 0, err
+}
+
+func (d *DB) MoveSessionItem(id, sessionID int64) error {
+	_, err := d.db.Exec(`UPDATE session_items SET session_id = ?, is_active = 0 WHERE id = ?`, sessionID, id)
+	return err
+}
+
 func (d *DB) ClearSessionItems(sessionID int64) error {
 	_, err := d.db.Exec(`DELETE FROM session_items WHERE session_id = ?`, sessionID)
 	return err

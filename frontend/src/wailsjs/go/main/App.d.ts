@@ -197,6 +197,8 @@ export function ListSessions():Promise<Array<preset.SessionInfo>>;
 
 export function ListTrainingJobs():Promise<Array<serverclient.TrainJob>>;
 
+export function MoveSessionItems(arg1:Array<number>,arg2:number):Promise<number>;
+
 export function OpenImportCompoundFile():Promise<importexport.CompoundImportPreview>;
 
 export function OpenImportFile():Promise<importexport.ImportPreview>;

@@ -764,6 +764,10 @@ func (a *App) DeleteHistoryItems(ids []int64) (int, error) {
 	return a.sessions.DeleteSessionItems(ids)
 }
 
+func (a *App) MoveSessionItems(ids []int64, sessionID int64) (int, error) {
+	return a.sessions.MoveSessionItems(ids, sessionID)
+}
+
 func (a *App) OpenInHistory(id int64) error {
 	return a.sessions.OpenInHistory(id)
 }

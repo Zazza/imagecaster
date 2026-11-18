@@ -370,6 +370,10 @@ export function ListTrainingJobs() {
   return window['go']['main']['App']['ListTrainingJobs']();
 }
 
+export function MoveSessionItems(arg1, arg2) {
+  return window['go']['main']['App']['MoveSessionItems'](arg1, arg2);
+}
+
 export function OpenImportCompoundFile() {
   return window['go']['main']['App']['OpenImportCompoundFile']();
 }

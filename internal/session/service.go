@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/Zazza/imagecaster/internal/imgformat"
@@ -29,6 +31,7 @@ type Service struct {
 	db      *preset.DB
 	dataDir string
 	emit    EventEmitter
+	moveMu  sync.Mutex
 }
 
 func New(db *preset.DB, dataDir string, emit EventEmitter) *Service {
@@ -503,6 +506,8 @@ func (s *Service) RenameSession(id int64, name string) error {
 }
 
 func (s *Service) DeleteSession(id int64) error {
+	s.moveMu.Lock()
+	defer s.moveMu.Unlock()
 	sessions, err := s.db.ListSessions()
 	if err != nil {
 		return err
@@ -608,6 +613,110 @@ func (s *Service) DeleteSessionItems(ids []int64) (int, error) {
 	return n, firstErr
 }
 
+func (s *Service) MoveSessionItems(ids []int64, sessionID int64) (int, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("не выбрано ни одного фото")
+	}
+	s.moveMu.Lock()
+	defer s.moveMu.Unlock()
+	ok, err := s.db.SessionExists(sessionID)
+	if err != nil {
+		return 0, err
+	}
+	if sessionID <= 0 || !ok {
+		return 0, errors.New("папки истории нет")
+	}
+	var items []*preset.SessionItem
+	seen := map[int64]bool{}
+	sameFolder := false
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		item, err := s.db.GetSessionItem(id)
+		if err != nil {
+			return 0, err
+		}
+		if item == nil {
+			continue
+		}
+		if item.SessionID == sessionID {
+			sameFolder = true
+			continue
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		if sameFolder {
+			return 0, errors.New("фото уже в этой папке")
+		}
+		return 0, nil
+	}
+	if err := ensureStoredDir(s.sessionDir(sessionID)); err != nil {
+		return 0, fmt.Errorf("папка истории не создана: %w", err)
+	}
+	if err := ensureStoredDir(s.thumbDir(sessionID)); err != nil {
+		return 0, fmt.Errorf("папка миниатюр не создана: %w", err)
+	}
+	n := 0
+	var moved []int64
+	for _, item := range items {
+		if err := s.moveItem(item, sessionID); err != nil {
+			log.Printf("[session] move item %d to session %d: %v", item.ID, sessionID, err)
+			if n > 0 {
+				s.emit.Emit("session:removed", map[string]any{"ids": moved, "moved_to": sessionID})
+			}
+			if n > 0 {
+				return n, fmt.Errorf("перенесено %d из %d, фото %d не перенесено: %w", n, len(items), item.ID, err)
+			}
+			return n, fmt.Errorf("фото %d не перенесено: %w", item.ID, err)
+		}
+		n++
+		moved = append(moved, item.ID)
+	}
+	s.emit.Emit("session:removed", map[string]any{"ids": moved, "moved_to": sessionID})
+	return n, nil
+}
+
+func (s *Service) moveItem(item *preset.SessionItem, sessionID int64) error {
+	type move struct{ from, to string }
+	var done []move
+	undo := func() {
+		for i := len(done) - 1; i >= 0; i-- {
+			if err := os.Rename(done[i].to, done[i].from); err != nil {
+				log.Printf("[session] move back %s: %v", done[i].to, err)
+			}
+		}
+	}
+	plan := []move{}
+	if item.FileName != "" {
+		plan = append(plan, move{filepath.Join(s.sessionDir(item.SessionID), item.FileName), filepath.Join(s.sessionDir(sessionID), item.FileName)})
+	}
+	if item.ThumbName != "" {
+		plan = append(plan, move{filepath.Join(s.thumbDir(item.SessionID), item.ThumbName), filepath.Join(s.thumbDir(sessionID), item.ThumbName)})
+	}
+	for _, m := range plan {
+		if _, err := os.Stat(m.from); os.IsNotExist(err) {
+			continue
+		}
+		if _, err := os.Stat(m.to); err == nil {
+			undo()
+			return fmt.Errorf("в папке назначения уже есть %s", filepath.Base(m.to))
+		}
+		if err := os.Rename(m.from, m.to); err != nil {
+			undo()
+			return err
+		}
+		done = append(done, m)
+	}
+	if err := s.db.MoveSessionItem(item.ID, sessionID); err != nil {
+		undo()
+		return err
+	}
+	return nil
+}
+
 func (s *Service) removeSessionItem(id int64) (bool, error) {
 	item, err := s.db.GetSessionItem(id)
 	if err != nil {
@@ -629,6 +738,8 @@ func (s *Service) removeSessionItem(id int64) (bool, error) {
 }
 
 func (s *Service) ClearSession() error {
+	s.moveMu.Lock()
+	defer s.moveMu.Unlock()
 	sessionID, err := s.db.GetActiveSessionID()
 	if err != nil {
 		return err
