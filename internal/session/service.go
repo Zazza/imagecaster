@@ -292,15 +292,41 @@ func makeThumb(img *encodedImage) ([]byte, string, error) {
 	return buf.Bytes(), ".jpg", nil
 }
 
+const (
+	storedDirMode  = os.ModeSetgid | 0o770
+	storedFileMode = 0o640
+)
+
+func ensureStoredDir(dir string) error {
+	if _, err := os.Stat(dir); err == nil {
+		return nil
+	}
+	if parent := filepath.Dir(dir); parent != dir {
+		if err := ensureStoredDir(parent); err != nil {
+			return err
+		}
+	}
+	if err := os.Mkdir(dir, 0o770); err != nil {
+		if os.IsExist(err) {
+			return nil
+		}
+		return err
+	}
+	return os.Chmod(dir, storedDirMode)
+}
+
 func writeTemp(dir string, data []byte) (string, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := ensureStoredDir(dir); err != nil {
 		return "", err
 	}
 	f, err := os.CreateTemp(dir, ".tmp-*")
 	if err != nil {
 		return "", err
 	}
-	_, werr := f.Write(data)
+	werr := f.Chmod(storedFileMode)
+	if werr == nil {
+		_, werr = f.Write(data)
+	}
 	cerr := f.Close()
 	if werr == nil {
 		werr = cerr
