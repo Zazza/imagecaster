@@ -103,6 +103,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	scoper, _ := sdClient.(sd.QueueScoper)
 	queueProc := queue.NewProcessor(a.gen, scoper, queueStore, a.dataDir, &a.emitter)
 	a.queueSvc = queue.NewService(queueStore, queueProc, &a.emitter)
+	a.queueSvc.Handle(queue.JobStylistFrame, stylistFrameHandler(a.sessions, cfg))
 	if scoper == nil {
 		a.queueSvc.SetInterruptFn(func() { _ = a.gen.InterruptGeneration() })
 	} else {

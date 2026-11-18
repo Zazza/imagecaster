@@ -18,6 +18,7 @@ import (
 
 const (
 	kleinLookModel        = "flux-2-klein-4b"
+	tryOnTemplate         = "Replace the clothes of the person in the first image with the clothes shown in the second image, reproducing their exact color, pattern, material, length, cut and details; remove any of the old clothes that the new ones replace. Keep the face, hair, body, pose and background of the first image unchanged. Do not take the face or hair from the second image."
 	editSampler           = "euler"
 	editScheduler         = "simple"
 	editDenoise           = 1.0
@@ -357,10 +358,15 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 	batchCount := 1
 	denoise := editDenoise
 
+	editPrompt := prompt
+	if params.ReferenceImageBase64 != "" {
+		editPrompt = tryOnTemplate + " " + prompt
+	}
 	baseReq := sd.Img2ImgRequest{
 		Model:             refSpec,
 		InitImages:        []string{params.ImageBase64},
-		Prompt:            prompt,
+		RefImage:          params.ReferenceImageBase64,
+		Prompt:            editPrompt,
 		NegativePrompt:    s.kids.ApplyNegative(""),
 		SamplerName:       editSampler,
 		Scheduler:         editScheduler,
@@ -446,7 +452,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		Image:                   finalImage,
 		Parameters:              resp.Parameters,
 		Info:                    finalInfo,
-		EffectivePrompt:         prompt,
+		EffectivePrompt:         editPrompt,
 		QualityUpscaleSkipped:   upscaleSkipped,
 		QualityRedenoiseSkipped: redenoiseSkipped,
 	}

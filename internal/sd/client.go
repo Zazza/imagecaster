@@ -258,6 +258,7 @@ type Img2ImgRequest struct {
 	BatchSize         *int
 	BatchCount        *int
 	Mask              string
+	RefImage          string
 	CacheMode         string
 }
 

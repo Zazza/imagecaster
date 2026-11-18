@@ -23,6 +23,10 @@ type StylistEngine interface {
 	FaceLandmarks(imageBase64 string) ([]faceguard.Point, error)
 }
 
+type StylistGarmentEngine interface {
+	KleinTryOn(imageBase64, garmentBase64, instruction string, seed *int64) (*generation.GenerateImageResult, error)
+}
+
 type AppSessions interface {
 	AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64
 }
@@ -70,6 +74,7 @@ const (
 	stylistLabelMax     = 80
 	stylistSkinLiftMax  = 5
 	stylistMaxTries     = 3
+	stylistGarmentLabel = "вещь по фото"
 	stylistBgShiftMax   = 30
 	stylistTextureMin   = 0.1
 	stylistTextureTie   = 0.05
@@ -79,7 +84,7 @@ const (
 	stylistNote         = "Варианты — в приложении, сессия «Стилист»; человек открывает их там. Файлы не открывай: фото не покидают локальную сеть, результат описан в check."
 	stylistFolderNote   = "Это разные снимки одного человека: устойчивое (волосы, стиль, черты) сведи в общий разбор, а то, что меняется от снимка к снимку (свет, тени под глазами), считай последствием съёмки. Примерять — stylist_try с item = id нужного фото; на нескольких фото — по вызову на каждое. Файлы не открывай."
 	stylistItemNote     = "Варианты — в приложении, в той же сессии, что и исходное фото; человек открывает их там. Для уточнения снова передай item = source_item (не id варианта). Файлы не открывай: фото не покидают локальную сеть."
-	stylistDescribe     = "Describe the person's current styling for a stylist, in short lines:\nHair: length (where it ends), cut, color, texture, parting.\nEyewear: none, or frame shape and color.\nClothing: each visible garment with type, color, material.\nAccessories: jewelry, hats, bags, or none.\nMakeup: lips and eyes, or none.\nBackground and lighting: one line.\nDescribe only what is visible. Do not guess age, face shape or skin tone."
+	stylistDescribe     = "Describe this photo for a stylist, in short lines, using neutral factual words.\nBody: build and visible proportions (shoulders, waist, hips, legs) as they appear; how much of the body is visible.\nSkin: skin tone as it appears in this photo, and note that the lighting may change how it looks.\nHair: length (where it ends), cut, color, texture, parting, how it is styled now.\nEyewear: none, or frame shape and color.\nClothing: each visible garment on its own line with type, silhouette and fit, length, neckline, sleeves, fabric and texture, exact colors, print or pattern and its scale, fastenings (buttons, zip, ties), details (pockets, seams, trims).\nAccessories: jewelry, hats, bags, shoes, or none.\nMakeup: lips and eyes, or none.\nBackground and lighting: one line.\nIf the photo shows only a garment with no person, skip Body, Skin, Hair and Makeup and describe the garment alone in the same detail.\nDescribe only what is visible. Do not guess age, face shape or skin undertone."
 	stylistNoStrands    = "No loose strands of hair across the cheeks or eyes."
 	faceOriginal        = "original"
 	faceNotProtected    = "not protected: "
@@ -311,15 +316,35 @@ func stylistJudge(eng StylistEngine, photo string, res *generation.GenerateImage
 	return a
 }
 
-func stylistTry(eng StylistEngine, sessions AppSessions, src photoSource, look Look, retouch faceguard.Retouch, count int) (string, error) {
+func readGarmentArg(args map[string]any, eng StylistEngine) (string, StylistGarmentEngine, error) {
+	path := argString(args, "garment_path")
+	if path == "" {
+		return "", nil, nil
+	}
+	ge, ok := eng.(StylistGarmentEngine)
+	if !ok {
+		return "", nil, errors.New("примерка вещи по фото недоступна в этой сборке imagecaster-mcp")
+	}
+	img, err := filebrowser.ReadFileAsBase64(path)
+	if err != nil {
+		return "", nil, errors.New("не удалось прочитать фото вещи по garment_path — проверь путь и формат")
+	}
+	return img, ge, nil
+}
+
+func stylistTry(eng StylistEngine, sessions AppSessions, src photoSource, look Look, retouch faceguard.Retouch, count int, garment string, ge StylistGarmentEngine) (string, error) {
 	photo := src.img
-	if look == (Look{}) {
+	if look == (Look{}) && garment == "" {
 		return stylistRetouchOnly(eng, sessions, src, retouch)
 	}
 	instruction := buildLookInstruction(look)
 	pts, face := faceLandmarksFor(eng, photo, look)
 	protect := pts != nil
-	meta := stylistMeta(src, lookLabel(look))
+	label := lookLabel(look)
+	if garment != "" {
+		label = strings.TrimSuffix(stylistGarmentLabel+", "+label, ", ")
+	}
+	meta := stylistMeta(src, label)
 	var retouchNotes []string
 	used := map[int64]bool{}
 	var made []map[string]any
@@ -333,7 +358,13 @@ func stylistTry(eng StylistEngine, sessions AppSessions, src photoSource, look L
 				seed = rand.Int64N(1 << 31)
 			}
 			used[seed] = true
-			res, err := eng.KleinEdit(photo, instruction, &seed)
+			var res *generation.GenerateImageResult
+			var err error
+			if garment != "" {
+				res, err = ge.KleinTryOn(photo, garment, instruction, &seed)
+			} else {
+				res, err = eng.KleinEdit(photo, instruction, &seed)
+			}
 			if err != nil {
 				genErr = err
 				break
@@ -730,16 +761,18 @@ func registerStylistTools(s *Server) {
 		Name: "stylist_try",
 		Description: "Стилист: примерить образ на фото. Каждый вариант — одна правка ИСХОДНОГО фото flux-2-klein (держит позу и поворот головы), 10–30 с на вариант; варианты сразу появляются в приложении в сессии «Стилист». " +
 			"Фото — photo_path (варианты в сессию «Стилист») или item: \"active\" — открытое в приложении, либо id элемента (варианты в ту же сессию). " +
+			"Вещь по фото — garment_path: фото вещи уходит в правку второй картинкой, вещь переносится с фото (цвет, узор, длина); фото лучше давать НА ЧЕЛОВЕКЕ — лежащий без тела комплект модель собирает сама и может слить предметы. Цвет/узор текстом НЕ описывать; но СТРУКТУРУ комплекта указать можно и нужно (напр. «a two-piece set: a separate top and separate bottoms»); look можно не указывать. " +
 			"Варианты различаются сидом (слабо) — разные идеи давай разными вызовами. Уточнение — снова stylist_try с тем же photo_path или item = source_item и полным изменённым look (правка поверх правки не делается). " +
 			"retouch — честная ретушь после правки: тени под глазами, зубы, белки, цвет глаз, свет, ширина лица (face_width); тон кожи (skin_tone=\"original\" — как на исходном фото, skin_lightness — темнее/светлее) — только по просьбе человека и только вместе с look; без look — только ретушь, один вариант, без генерации. " +
 			"Черты лица (глаза, нос, рот) после правки вклеиваются с исходного фото по точкам лица в тоне правки, кожа лица — от правки; с очками (glasses) лицо не вклеивается — поле face в ответе говорит, защищено ли лицо. Если лицо не совпало (модель повернула голову), на правке другой человек (не совпали мелкие детали кожи) или фон сменился (модель не опиралась на фото), вариант перегенерируется, до 3 попыток (поле attempts); не вышло — поле problem, скажи человеку. Поле skin у варианта — правка заметно осветлила кожу: скажи человеку и предложи retouch.skin_tone=\"original\". " +
 			"Ответ: id элементов сессии и check — короткое описание результата локальной vision-моделью (тонировку стёкол не различает). Картинок и путей в ответе нет.",
 		InputSchema: props(map[string]any{
-			"photo_path": prop("путь к исходному фото человека (или item)", "string"),
-			"item":       itemSchema,
-			"look":       lookSchema,
-			"retouch":    retouchSchema,
-			"variants":   prop("сколько вариантов 1–4 (по умолчанию 2); при одной ретуши без look — всегда 1", "integer"),
+			"photo_path":   prop("путь к исходному фото человека (или item)", "string"),
+			"item":         itemSchema,
+			"look":         lookSchema,
+			"garment_path": prop("путь к фото вещи для примерки (вещь отдельно или на другом человеке); с ним look.outfit не описывать — вещь целиком с фото", "string"),
+			"retouch":      retouchSchema,
+			"variants":     prop("сколько вариантов 1–4 (по умолчанию 2); при одной ретуши без look — всегда 1", "integer"),
 		}),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			eng, sessions, err := s.stylistDeps()
@@ -760,13 +793,17 @@ func registerStylistTools(s *Server) {
 			if retouch == nil {
 				retouch = &faceguard.Retouch{}
 			}
-			if *look == (Look{}) && retouch.IsZero() {
+			garment, ge, err := readGarmentArg(args, eng)
+			if err != nil {
+				return "", err
+			}
+			if *look == (Look{}) && retouch.IsZero() && garment == "" {
 				return "", errors.New("look и retouch пусты — укажи хотя бы одно изменение")
 			}
 			if err := retouch.Validate(); err != nil {
 				return "", err
 			}
-			if *look == (Look{}) && retouch.Skin() {
+			if *look == (Look{}) && garment == "" && retouch.Skin() {
 				return "", errors.New("skin_tone и skin_lightness — только вместе с look: тон кожи меняет правка Klein")
 			}
 			if c := strings.TrimSpace(retouch.EyeColor); c != "" {
@@ -782,7 +819,7 @@ func registerStylistTools(s *Server) {
 			if err != nil {
 				return "", err
 			}
-			return stylistTry(eng, sessions, src, *look, *retouch, count)
+			return stylistTry(eng, sessions, src, *look, *retouch, count, garment, ge)
 		},
 	})
 }

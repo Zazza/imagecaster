@@ -52,6 +52,12 @@ func (s *Service) SetJobCleanup(fn func(jobID int64)) {
 	s.worker.SetCleanup(fn)
 }
 
+func (s *Service) Handle(t JobType, h Handler) {
+	if r, ok := s.worker.processor.(handlerRegistry); ok {
+		r.handle(t, h)
+	}
+}
+
 func (s *Service) cleanupJob(id int64) {
 	if f, ok := s.worker.processor.(forgetter); ok {
 		f.Forget(id)

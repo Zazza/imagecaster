@@ -132,6 +132,7 @@ type Img2ImgParams struct {
 	Txt2ImgParams
 	InitImage         string  `json:"init_image"`
 	Mask              string  `json:"mask"`
+	RefImage          string  `json:"ref_image,omitempty"`
 	DenoisingStrength float64 `json:"denoising_strength"`
 }
 
@@ -501,7 +502,8 @@ func img2imgParams(req Img2ImgRequest) Img2ImgParams {
 			BatchSize:      batchOf(req.BatchSize, req.BatchCount),
 			CacheMode:      req.CacheMode,
 		},
-		Mask: req.Mask,
+		Mask:     req.Mask,
+		RefImage: req.RefImage,
 	}
 	if len(req.InitImages) > 0 {
 		p.InitImage = req.InitImages[0]

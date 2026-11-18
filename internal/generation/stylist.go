@@ -60,14 +60,24 @@ func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd
 }
 
 func (s *Service) KleinEdit(imageBase64, instruction string, seed *int64) (*GenerateImageResult, error) {
-	return s.kleinEdit(imageBase64, instruction, seed, nil)
+	return s.kleinEdit(imageBase64, "", instruction, seed, nil)
+}
+
+func (s *Service) KleinTryOn(imageBase64, garmentBase64, instruction string, seed *int64) (*GenerateImageResult, error) {
+	if garmentBase64 == "" {
+		return nil, errors.New("garment image is required")
+	}
+	if len(garmentBase64) > MaxImageBase64Len {
+		return nil, config.ImageTooLarge("garment image")
+	}
+	return s.kleinEdit(imageBase64, garmentBase64, strings.TrimSpace(tryOnTemplate+" "+instruction), seed, nil)
 }
 
 func (s *Service) KleinEffect(imageBase64, prompt string, strength float64) (*GenerateImageResult, error) {
 	if strength <= 0 || strength > 1 {
 		return nil, errors.New("effect strength must be in (0, 1]")
 	}
-	res, err := s.kleinEdit(imageBase64, prompt, nil, &strength)
+	res, err := s.kleinEdit(imageBase64, "", prompt, nil, &strength)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +89,7 @@ func (s *Service) KleinEffect(imageBase64, prompt string, strength float64) (*Ge
 	return res, nil
 }
 
-func (s *Service) kleinEdit(imageBase64, instruction string, seed *int64, denoise *float64) (*GenerateImageResult, error) {
+func (s *Service) kleinEdit(imageBase64, refBase64, instruction string, seed *int64, denoise *float64) (*GenerateImageResult, error) {
 	if imageBase64 == "" {
 		return nil, errors.New("image is required")
 	}
@@ -106,6 +116,7 @@ func (s *Service) kleinEdit(imageBase64, instruction string, seed *int64, denois
 
 	resp, err := s.kleinReferenceImg2Img("stylist", nil, sd.Img2ImgRequest{
 		InitImages:        []string{imageBase64},
+		RefImage:          refBase64,
 		Prompt:            instruction,
 		NegativePrompt:    s.kids.ApplyNegative(""),
 		Width:             width,

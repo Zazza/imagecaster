@@ -38,6 +38,10 @@ type Deps struct {
 	Stylist  StylistEngine
 	Editor   EditorEngine
 	Sessions AppSessions
+	People   StylistPeople
+	Shooter  StylistShooter
+	Refiner  FaceRefiner
+	Queue    ShootQueue
 
 	NoImageBytes bool
 }

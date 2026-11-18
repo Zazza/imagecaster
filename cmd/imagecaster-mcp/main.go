@@ -13,6 +13,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/mcp"
 	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/queue"
 	"github.com/Zazza/imagecaster/internal/sd"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 	"github.com/Zazza/imagecaster/internal/session"
@@ -92,6 +93,10 @@ func main() {
 		Stylist:  gen,
 		Editor:   mcp.EditorAdapter{Gen: gen, DB: db},
 		Sessions: appSessions,
+		People:   srvClient,
+		Shooter:  gen.WithSessions(mcp.DiscardSessions{}),
+		Refiner:  gen,
+		Queue:    queue.NewStore(db.DB()),
 
 		NoImageBytes: env("NO_IMAGE_BYTES") == "1",
 	})

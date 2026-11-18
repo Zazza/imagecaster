@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/Zazza/imagecaster/internal/generation"
 	"github.com/Zazza/imagecaster/internal/sd"
@@ -17,12 +18,20 @@ type EventEmitter interface {
 	Emit(event string, data ...any)
 }
 
+type Handler func(gen *generation.Service, job *Job) (*JobResult, error)
+
+type handlerRegistry interface {
+	handle(t JobType, h Handler)
+}
+
 type processor struct {
-	gen     *generation.Service
-	scoper  sd.QueueScoper
-	store   *Store
-	dataDir string
-	emit    EventEmitter
+	handlersMu sync.RWMutex
+	handlers   map[JobType]Handler
+	gen        *generation.Service
+	scoper     sd.QueueScoper
+	store      *Store
+	dataDir    string
+	emit       EventEmitter
 }
 
 func NewProcessor(gen *generation.Service, scoper sd.QueueScoper, store *Store, dataDir string, emit EventEmitter) Processor {
@@ -63,7 +72,27 @@ func (p *processor) ProcessJob(ctx context.Context, job *Job) (*JobResult, error
 	return res, err
 }
 
+func (p *processor) handle(t JobType, h Handler) {
+	p.handlersMu.Lock()
+	defer p.handlersMu.Unlock()
+	if p.handlers == nil {
+		p.handlers = map[JobType]Handler{}
+	}
+	p.handlers[t] = h
+}
+
+func (p *processor) handler(t JobType) Handler {
+	p.handlersMu.RLock()
+	defer p.handlersMu.RUnlock()
+	return p.handlers[t]
+}
+
 func (p *processor) dispatch(gen *generation.Service, job *Job) (*JobResult, error) {
+	if h := p.handler(job.Type); h != nil {
+		p.emit.Emit("sd:progress:start")
+		defer p.emit.Emit("sd:progress:stop")
+		return h(gen, job)
+	}
 	switch job.Type {
 	case JobTxt2Img:
 		return p.processTxt2Img(gen, job)

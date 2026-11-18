@@ -172,7 +172,7 @@ func (w *Worker) processNext(parentCtx context.Context) {
 		if r := recover(); r != nil {
 			log.Printf("[queue] panic in processNext: %v", r)
 			w.setStatus(job.ID, StatusFailed, fmt.Sprintf("panic: %v", r))
-			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: fmt.Sprintf("panic: %v", r)})
+			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Type: job.Type, Error: fmt.Sprintf("panic: %v", r)})
 			w.emit.Emit(EventQueueChanged)
 			w.runCleanup(job.ID)
 		}
@@ -202,7 +202,7 @@ func (w *Worker) processNext(parentCtx context.Context) {
 		if current != nil && current.Status == StatusRunning {
 			w.setStatus(job.ID, StatusFailed, "cancelled")
 		}
-		w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: "cancelled"})
+		w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Type: job.Type, Error: "cancelled"})
 		w.runCleanup(job.ID)
 	} else if procErr != nil {
 		errMsg := procErr.Error()
@@ -219,7 +219,7 @@ func (w *Worker) processNext(parentCtx context.Context) {
 			w.Notify()
 		} else {
 			w.setStatus(job.ID, StatusFailed, errMsg)
-			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Error: errMsg})
+			w.emit.Emit(EventQueueFailed, EventPayload{JobID: job.ID, Type: job.Type, Error: errMsg})
 			w.runCleanup(job.ID)
 		}
 	} else {

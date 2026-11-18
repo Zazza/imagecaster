@@ -282,6 +282,12 @@ func (s *Service) WithSD(sdSvc sd.Service) *Service {
 	return &c
 }
 
+func (s *Service) WithSessions(sessions SessionAdder) *Service {
+	c := *s
+	c.sessions = sessions
+	return &c
+}
+
 type ctxSessions struct {
 	ctx     context.Context
 	inner   SessionAdder
@@ -298,6 +304,10 @@ func (g *ctxSessions) AddToSession(imageBase64 string, info json.RawMessage, sou
 		return 0
 	}
 	return g.inner.AddToSession(imageBase64, info, source, meta)
+}
+
+func (s *Service) Stopped() bool {
+	return s.ctx != nil && s.ctx.Err() != nil
 }
 
 func (s *Service) LLM() llm.Service {
@@ -371,12 +381,19 @@ func (s *Service) InterruptGeneration() error {
 	return s.sd.Interrupt()
 }
 
+var ErrInterrupted = errors.New("interrupted")
+
+func IsInterrupted(err error) bool {
+	return err != nil && (errors.Is(err, ErrInterrupted) ||
+		errors.Is(err, sd.ErrUserCancel) || errors.Is(err, sd.ErrJobCancelled))
+}
+
 func (s *Service) checkSDInterrupted() error {
 	s.progress.mu.Lock()
 	interrupted := s.progress.interrupted
 	s.progress.mu.Unlock()
 	if interrupted {
-		return fmt.Errorf("interrupted")
+		return ErrInterrupted
 	}
 	return nil
 }

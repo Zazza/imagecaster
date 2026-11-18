@@ -1,13 +1,16 @@
 package queue
 
+import "encoding/json"
+
 type JobType string
 
 const (
-	JobTxt2Img   JobType = "txt2img"
-	JobFromImage JobType = "from_image"
-	JobCompound  JobType = "compound"
-	JobLook      JobType = "look"
-	JobEdit      JobType = "edit"
+	JobTxt2Img      JobType = "txt2img"
+	JobFromImage    JobType = "from_image"
+	JobCompound     JobType = "compound"
+	JobLook         JobType = "look"
+	JobEdit         JobType = "edit"
+	JobStylistFrame JobType = "stylist_frame"
 )
 
 type JobStatus string
@@ -40,12 +43,13 @@ type Job struct {
 }
 
 type JobResult struct {
-	ImageBase64             string `json:"image_base64,omitempty"`
-	FilePath                string `json:"file_path,omitempty"`
-	SessionItemID           int64  `json:"session_item_id,omitempty"`
-	Info                    string `json:"info,omitempty"`
-	QualityUpscaleSkipped   bool   `json:"quality_upscale_skipped,omitempty"`
-	QualityRedenoiseSkipped bool   `json:"quality_redenoise_skipped,omitempty"`
-	IdeaPrompt              string `json:"idea_prompt,omitempty"`
-	IdeaNegativePrompt      string `json:"idea_negative_prompt,omitempty"`
+	ImageBase64             string          `json:"image_base64,omitempty"`
+	FilePath                string          `json:"file_path,omitempty"`
+	SessionItemID           int64           `json:"session_item_id,omitempty"`
+	Info                    string          `json:"info,omitempty"`
+	QualityUpscaleSkipped   bool            `json:"quality_upscale_skipped,omitempty"`
+	QualityRedenoiseSkipped bool            `json:"quality_redenoise_skipped,omitempty"`
+	IdeaPrompt              string          `json:"idea_prompt,omitempty"`
+	IdeaNegativePrompt      string          `json:"idea_negative_prompt,omitempty"`
+	Frame                   json.RawMessage `json:"frame,omitempty"`
 }

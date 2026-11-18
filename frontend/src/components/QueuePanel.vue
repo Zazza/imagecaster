@@ -29,11 +29,22 @@ const typeLabelKeys = {
   from_image: 'queue.type_from_image',
   batch_item: 'queue.type_batch_item',
   compound: 'queue.type_compound',
+  stylist_frame: 'queue.type_stylist_frame',
 }
 
 function typeLabel(type) {
   const key = typeLabelKeys[type]
   return key ? t(key) : type
+}
+
+function jobLabel(job) {
+  try {
+    const label = JSON.parse(job.progress_detail || '{}').label
+    if (typeof label === 'string' && label) return label
+  } catch (e) {
+    return typeLabel(job.type)
+  }
+  return typeLabel(job.type)
 }
 
 async function removeJob(id) {
@@ -152,7 +163,7 @@ function formatTime(ts) {
 
         <div class="qi-content">
           <div class="qi-header">
-            <span class="qi-type">{{ typeLabel(job.type) }}</span>
+            <span class="qi-type" :title="jobLabel(job)">{{ jobLabel(job) }}</span>
             <span class="qi-time">{{ formatTime(job.created_at) }}</span>
           </div>
 
@@ -359,9 +370,15 @@ export default { name: 'QueuePanel' }
 .qi-type {
   font-weight: 500;
   color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .qi-time {
+  flex-shrink: 0;
+  margin-left: 6px;
   color: var(--text-dim);
   font-size: var(--fs-2xs);
 }

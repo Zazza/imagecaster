@@ -1003,6 +1003,7 @@ export const en = {
   'queue.type_from_image': 'From Image',
   'queue.type_batch_item': 'Batch',
   'queue.type_compound': 'Compound',
+  'queue.type_stylist_frame': 'Stylist frame',
 
   // PipelineImportModal.vue
   'pipeline_import.title': 'Import Workflows ({count} found)',

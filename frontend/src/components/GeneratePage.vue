@@ -510,6 +510,7 @@ function onQueueCompleted(data, result) {
 
 function onQueueFailed(data, { tracked, paused }) {
   if (paused && !tracked) return
+  if (!tracked && data.type === 'stylist_frame') return
   if (data.error) error.value = data.error
 }
 

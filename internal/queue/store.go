@@ -2,6 +2,7 @@ package queue
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -20,7 +21,7 @@ const jobColumns = `id, type, status, params, progress, progress_detail, result,
 
 const panelColumns = `id, type, status, progress, progress_detail, error, source, created_at, started_at, completed_at, retry_count, max_retries, next_retry_at`
 
-const stripImageParams = `CASE WHEN json_valid(params) THEN json_remove(params, '$.image_base64', '$.mask_base64', '$.reference_image_base64') ELSE params END`
+const stripImageParams = `CASE WHEN json_valid(params) THEN json_remove(params, '$.image_base64', '$.mask_base64', '$.reference_image_base64', '$.garment_base64') ELSE params END`
 
 func scanJob(scanner interface{ Scan(...any) error }, j *Job) error {
 	var nextRetry sql.NullString
@@ -65,6 +66,21 @@ func (s *Store) Create(jobType JobType, params, source string) (int64, error) {
 	return result.LastInsertId()
 }
 
+func (s *Store) CreateLabeled(jobType JobType, params, source, label string) (int64, error) {
+	detail, err := json.Marshal(map[string]string{"label": label})
+	if err != nil {
+		return 0, err
+	}
+	result, err := s.db.Exec(
+		`INSERT INTO job_queue (type, status, params, source, progress_detail) VALUES (?, 'pending', ?, ?, ?)`,
+		jobType, params, source, string(detail),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
 func (s *Store) ClaimNext() (*Job, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -75,7 +91,7 @@ func (s *Store) ClaimNext() (*Job, error) {
 	err = scanJob(tx.QueryRow(
 		fmt.Sprintf(`SELECT %s FROM job_queue
 			WHERE status = 'pending' AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
-			ORDER BY (started_at IS NULL), created_at ASC LIMIT 1`, jobColumns),
+			ORDER BY (started_at IS NULL), created_at ASC, id ASC LIMIT 1`, jobColumns),
 	), &job)
 
 	if err == sql.ErrNoRows {
@@ -304,7 +320,7 @@ func (s *Store) ResumePausedJobs() (int, error) {
 
 func (s *Store) RetryFailed(id int64) (bool, error) {
 	result, err := s.db.Exec(
-		`UPDATE job_queue SET status = 'pending', retry_count = 0, next_retry_at = NULL, error = '', progress = 0, progress_detail = '', result = '', started_at = NULL, completed_at = NULL WHERE id = ? AND status = 'failed'`,
+		`UPDATE job_queue SET status = 'pending', retry_count = 0, next_retry_at = NULL, error = '', progress = 0, progress_detail = CASE WHEN json_valid(progress_detail) AND json_type(progress_detail, '$.label') = 'text' THEN json_object('label', json_extract(progress_detail, '$.label')) ELSE '' END, result = '', started_at = NULL, completed_at = NULL WHERE id = ? AND status = 'failed'`,
 		id,
 	)
 	if err != nil {
