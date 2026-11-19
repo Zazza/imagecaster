@@ -58,6 +58,7 @@ type TrainRequest struct {
 	Base      string
 	Client    string
 	ClientRef string
+	Hold      bool
 	Photos    []string
 }
 
@@ -136,6 +137,11 @@ func (c *Client) SubmitTraining(ctx context.Context, r TrainRequest) (*TrainJob,
 func writeTrainForm(mw *multipart.Writer, r TrainRequest) error {
 	for _, f := range [][2]string{{"name", r.Name}, {"gender", r.Gender}, {"base", r.Base}, {"client", r.Client}, {"client_ref", r.ClientRef}} {
 		if err := mw.WriteField(f[0], f[1]); err != nil {
+			return err
+		}
+	}
+	if r.Hold {
+		if err := mw.WriteField("start", "false"); err != nil {
 			return err
 		}
 	}

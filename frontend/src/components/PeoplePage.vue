@@ -15,6 +15,8 @@ const bases = ref([])
 const basesLoaded = ref(false)
 const base = ref('')
 const busy = ref(false)
+const hold = ref(false)
+const holdIgnored = ref(false)
 const error = ref('')
 const renaming = ref('')
 const renameValue = ref('')
@@ -44,7 +46,12 @@ function percent(j) {
   return s ? Math.min(100, Math.round((j.progress.step / s) * 100)) : 0
 }
 
+function notStarted(j) {
+  return j.status === 'paused' && !j.started_at
+}
+
 function statusText(j) {
+  if (notStarted(j)) return t('people.status_not_started')
   if (j.status === 'running' || j.status === 'paused') return t('people.status_' + j.status, { step: j.progress?.step || 0, steps: j.progress?.steps || 0 })
   return t('people.status_' + j.status)
 }
@@ -127,8 +134,10 @@ async function pickFolder() {
 async function train() {
   busy.value = true
   error.value = ''
+  holdIgnored.value = false
   try {
-    await api.trainPerson(folder.value, name.value.trim(), gender.value, base.value)
+    const job = await api.trainPerson(folder.value, name.value.trim(), gender.value, base.value, hold.value)
+    holdIgnored.value = hold.value && job?.status !== 'paused'
     folder.value = ''
     name.value = ''
     await refresh()
@@ -207,6 +216,7 @@ onUnmounted(() => {
     </div>
     <div v-if="status && status !== 'ok'" class="card people-note" data-testid="people-unavailable">{{ t('people.unavailable_' + status) }}</div>
     <div v-if="error" class="card people-error" data-testid="people-error">{{ error }}</div>
+    <div v-if="holdIgnored" class="card people-note" data-testid="people-hold-ignored">{{ t('people.hold_ignored') }}</div>
 
     <div class="card">
       <div class="card-title">{{ t('people.train_title') }}</div>
@@ -231,6 +241,10 @@ onUnmounted(() => {
         </select>
         <div v-if="basesLoaded && !bases.length" class="form-hint" data-testid="people-no-bases">{{ t('people.no_bases') }}</div>
         <div v-else class="form-hint">{{ t('people.base_hint') }}</div>
+        <label class="people-check">
+          <input type="checkbox" v-model="hold" class="accent-check" data-testid="people-hold" />
+          <span>{{ t('people.hold') }}</span>
+        </label>
         <div>
           <button class="btn btn-primary" :disabled="!canTrain" data-testid="people-train" @click="train">{{ busy ? t('people.uploading') : t('people.train') }}</button>
         </div>
@@ -243,11 +257,11 @@ onUnmounted(() => {
         <span class="people-actions">
           <button class="btn btn-sm btn-secondary" @click="cancel(j)">{{ t('people.cancel') }}</button>
           <button v-if="j.status === 'running'" class="btn btn-sm btn-secondary" @click="jobAction(api.pauseTraining, j)">{{ t('people.pause') }}</button>
-          <button v-if="j.status === 'paused'" class="btn btn-sm btn-primary" @click="jobAction(api.resumeTraining, j)">{{ t('people.resume') }}</button>
+          <button v-if="j.status === 'paused'" class="btn btn-sm btn-primary" @click="jobAction(api.resumeTraining, j)">{{ notStarted(j) ? t('people.start') : t('people.resume') }}</button>
         </span>
       </div>
       <div class="people-bar"><div class="people-bar-fill" :style="{ width: percent(j) + '%' }"></div></div>
-      <p class="text-dim people-hint">{{ j.status === 'paused' ? t('people.paused_hint') : t('people.gpu_busy') }}</p>
+      <p class="text-dim people-hint">{{ notStarted(j) ? t('people.not_started_hint') : j.status === 'paused' ? t('people.paused_hint') : t('people.gpu_busy') }}</p>
     </div>
 
     <div class="card">
@@ -290,6 +304,7 @@ onUnmounted(() => {
 .people-actions { display: flex; gap: 6px; }
 .people-item { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .people-hint { margin: 4px 0 8px; font-size: 12px; }
+.people-check { display: flex; align-items: center; gap: 8px; }
 .people-error { color: var(--danger, #e5484d); }
 .people-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border); color: var(--text-dim, inherit); }
 .people-badge-on { border-color: var(--accent); color: var(--accent); }

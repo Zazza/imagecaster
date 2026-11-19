@@ -310,7 +310,7 @@ func TestTrain_NotLocalServer(t *testing.T) {
 			api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 			s := New(api, func() string { return tt.serverURL }, func() string { return "inst-1" })
 
-			job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
+			job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image", false)
 
 			require.Error(t, err)
 			assert.True(t, errors.Is(err, ErrNotLocal), "want ErrNotLocal, got %v", err)
@@ -325,7 +325,7 @@ func TestTrain_NotLocalCheckedBeforePhotos(t *testing.T) {
 	api := &fakeAPI{}
 	s := New(api, func() string { return "http://8.8.8.8:8080" }, func() string { return "inst-1" })
 
-	_, err := s.Train(context.Background(), filepath.Join(t.TempDir(), "absent"), "anna", "woman", "Z-Image")
+	_, err := s.Train(context.Background(), filepath.Join(t.TempDir(), "absent"), "anna", "woman", "Z-Image", false)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNotLocal), "want ErrNotLocal, got %v", err)
@@ -339,7 +339,7 @@ func TestTrain_TooFewPhotos(t *testing.T) {
 	api := &fakeAPI{}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
+	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image", false)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrPhotoCount), "want ErrPhotoCount, got %v", err)
@@ -355,7 +355,7 @@ func TestTrain_SubmitsRequest(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1", Status: "queued"}}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
+	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image", false)
 
 	require.NoError(t, err)
 	require.NotNil(t, job)
@@ -376,11 +376,11 @@ func TestTrain_ClientRefStableAndLowercase(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 	s := New(api, func() string { return "http://localhost:8080" }, func() string { return "inst-7" })
 
-	_, err := s.Train(context.Background(), dir, "Anna", "woman", "Z-Image")
+	_, err := s.Train(context.Background(), dir, "Anna", "woman", "Z-Image", false)
 	require.NoError(t, err)
-	_, err = s.Train(context.Background(), dir, "Anna", "woman", "Z-Image")
+	_, err = s.Train(context.Background(), dir, "Anna", "woman", "Z-Image", false)
 	require.NoError(t, err)
-	_, err = s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
+	_, err = s.Train(context.Background(), dir, "anna", "woman", "Z-Image", false)
 	require.NoError(t, err)
 
 	require.Len(t, api.submits, 3)
@@ -397,9 +397,9 @@ func TestTrain_DifferentNamesDifferentClientRef(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 	s := New(api, func() string { return "http://127.0.0.1:8080" }, func() string { return "inst-1" })
 
-	_, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
+	_, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image", false)
 	require.NoError(t, err)
-	_, err = s.Train(context.Background(), dir, "boris", "man", "Z-Image")
+	_, err = s.Train(context.Background(), dir, "boris", "man", "Z-Image", false)
 	require.NoError(t, err)
 
 	require.Len(t, api.submits, 2)
@@ -416,7 +416,7 @@ func TestTrain_SubmitErrorReturned(t *testing.T) {
 	api := &fakeAPI{submitErr: apiErr}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image")
+	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image", false)
 
 	require.Error(t, err)
 	assert.Nil(t, job)

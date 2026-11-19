@@ -43,6 +43,7 @@ type Deps struct {
 	Refiner   FaceRefiner
 	Queue     ShootQueue
 	Retoucher RetouchEngine
+	Trainer   PeopleTrainer
 
 	NoImageBytes bool
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/llm"
 	"github.com/Zazza/imagecaster/internal/logger"
 	"github.com/Zazza/imagecaster/internal/mcp"
+	"github.com/Zazza/imagecaster/internal/people"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/queue"
 	"github.com/Zazza/imagecaster/internal/sd"
@@ -19,6 +20,16 @@ import (
 	"github.com/Zazza/imagecaster/internal/session"
 	"github.com/Zazza/imagecaster/internal/settings"
 )
+
+func installID(db *preset.DB) func() string {
+	return func() string {
+		id, err := db.InstallID()
+		if err != nil {
+			log.Printf("install id: %v", err)
+		}
+		return id
+	}
+}
 
 func env(name string) string {
 	if v := os.Getenv("IMAGECASTER_MCP_" + name); v != "" {
@@ -98,6 +109,7 @@ func main() {
 		Refiner:   gen,
 		Queue:     queue.NewStore(db.DB()),
 		Retoucher: gen,
+		Trainer:   people.New(srvClient, srvClient.GetBaseURL, installID(db)),
 
 		NoImageBytes: env("NO_IMAGE_BYTES") == "1",
 	})

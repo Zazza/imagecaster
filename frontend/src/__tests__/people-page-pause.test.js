@@ -12,7 +12,7 @@ enableAutoUnmount(afterEach)
 afterEach(() => vi.unstubAllGlobals())
 
 const RUNNING = { id: 't1', name: 'anna', status: 'running', progress: { step: 120, steps: 2000 } }
-const PAUSED = { id: 't2', name: 'boris', status: 'paused', progress: { step: 750, steps: 2000 } }
+const PAUSED = { id: 't2', name: 'boris', status: 'paused', started_at: '2026-11-19T10:00:00Z', progress: { step: 750, steps: 2000 } }
 const ANNA = { name: 'anna', trigger: 'anna_woman', gender: 'woman', base: 'Z-Image', lora: 'anna', steps: 2000 }
 
 function button(wrapper, text) {

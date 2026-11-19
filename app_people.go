@@ -53,13 +53,13 @@ func (a *App) PickPeopleFolder() (string, error) {
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Папка с фото человека"})
 }
 
-func (a *App) TrainPerson(folder, name, gender, base string) (*serverclient.TrainJob, error) {
+func (a *App) TrainPerson(folder, name, gender, base string, hold bool) (*serverclient.TrainJob, error) {
 	if a.serverClient.GetBaseURL() == "" {
 		return nil, errors.New("сервер Imagecaster не настроен")
 	}
 	ctx, cancel := a.peopleCtx(0)
 	defer cancel()
-	job, err := a.peopleSvc().Train(ctx, folder, name, gender, base)
+	job, err := a.peopleSvc().Train(ctx, folder, name, gender, base, hold)
 	if err != nil {
 		a.log.Warn("people: train %q: %s", name, err)
 	}

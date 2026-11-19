@@ -84,7 +84,7 @@ func (s *Service) local() bool {
 	return lanonly.IsLocalURL(u) && !lanonly.ViaProxy(u)
 }
 
-func (s *Service) Train(ctx context.Context, folder, name, gender, base string) (*serverclient.TrainJob, error) {
+func (s *Service) Train(ctx context.Context, folder, name, gender, base string, hold bool) (*serverclient.TrainJob, error) {
 	if !s.local() {
 		return nil, ErrNotLocal
 	}
@@ -100,6 +100,7 @@ func (s *Service) Train(ctx context.Context, folder, name, gender, base string) 
 		Base:      base,
 		Client:    id,
 		ClientRef: id + ":train:" + name,
+		Hold:      hold,
 		Photos:    photos,
 	})
 }

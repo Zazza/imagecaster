@@ -23,6 +23,7 @@ func RegisterTools(s *Server) {
 	registerShootQueueTools(s)
 	registerRetouchTools(s)
 	registerEditorTools(s)
+	registerPeopleTrainTools(s)
 }
 
 func registerStatusTools(s *Server) {
