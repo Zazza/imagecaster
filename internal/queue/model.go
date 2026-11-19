@@ -13,6 +13,7 @@ const (
 	JobStylistFrame JobType = "stylist_frame"
 	JobRetouch      JobType = "retouch"
 	JobPostSave     JobType = "post_save"
+	JobUpscale4K    JobType = "upscale_4k"
 )
 
 type JobStatus string

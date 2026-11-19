@@ -101,6 +101,8 @@ export function EnqueueFromImage(arg1:generation.GenerateFromImageParams):Promis
 
 export function EnqueueLook(arg1:generation.ApplyLookParams):Promise<number>;
 
+export function EnqueuePost4K(arg1:string):Promise<number>;
+
 export function EnqueuePostSave(arg1:importexport.ExportImageParams):Promise<number>;
 
 export function EnqueueTxt2Img(arg1:generation.GenerateImageParams):Promise<number>;

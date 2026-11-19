@@ -32,6 +32,7 @@ const typeLabelKeys = {
   stylist_frame: 'queue.type_stylist_frame',
   retouch: 'queue.type_retouch',
   post_save: 'queue.type_post_save',
+  upscale_4k: 'queue.type_upscale_4k',
 }
 
 function typeLabel(type) {

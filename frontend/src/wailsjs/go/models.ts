@@ -113,6 +113,8 @@ export namespace faceguard {
 	    skin_tone?: string;
 	    skin_lightness?: number;
 	    face_width?: number;
+	    head_size?: number;
+	    head_shift?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Retouch(source);
@@ -128,6 +130,8 @@ export namespace faceguard {
 	        this.skin_tone = source["skin_tone"];
 	        this.skin_lightness = source["skin_lightness"];
 	        this.face_width = source["face_width"];
+	        this.head_size = source["head_size"];
+	        this.head_shift = source["head_shift"];
 	    }
 	}
 

@@ -101,6 +101,8 @@ var retouchSchema = prop("ретушь после правки (или без lo
 		"skin_tone":      prop("\"original\" — тон кожи как на исходном фото", "string"),
 		"skin_lightness": prop("кожа темнее (минус) или светлее (плюс), %, −30…+30", "number"),
 		"face_width":     prop("лицо уже (минус) или шире (плюс), %, −10…+10", "number"),
+		"head_size":      prop("голова меньше (минус) или больше (плюс), %, −15…+15", "number"),
+		"head_shift":     prop("голова ниже (минус) или выше (плюс), % от расстояния глаза→подбородок, −20…+20", "number"),
 	}})
 
 var lookSchema = prop("образ (по-английски): hair_cut, hair_color, outfit, headwear, glasses (\"none\" — снять; для очков пиши \"clear lenses\", иначе стёкла тонируются), makeup, free — любые поля", "object",
@@ -539,6 +541,12 @@ func retouchLabel(r faceguard.Retouch) string {
 	}
 	if r.FaceWidth != 0 {
 		parts = append(parts, fmt.Sprintf("ширина лица %+.0f%%", r.FaceWidth))
+	}
+	if r.HeadSize != 0 {
+		parts = append(parts, fmt.Sprintf("размер головы %+.0f%%", r.HeadSize))
+	}
+	if r.HeadShift != 0 {
+		parts = append(parts, fmt.Sprintf("голова выше/ниже %+.0f%%", r.HeadShift))
 	}
 	return "ретушь: " + strings.Join(parts, ", ")
 }

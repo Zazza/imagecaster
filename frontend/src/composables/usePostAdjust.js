@@ -27,9 +27,11 @@ export const FINISH_RATIOS = ['1:1', '4:5', '3:4', '9:16', '16:9', '3:2']
 
 export const EYE_COLORS = ['blue', 'light blue', 'green', 'grey', 'hazel', 'brown', 'amber', 'violet']
 
-export const RETOUCH_DEFAULTS = { under_eyes: false, teeth: false, eye_whites: false, eye_color: '', light: false, face_width: 0 }
+export const RETOUCH_DEFAULTS = { under_eyes: false, teeth: false, eye_whites: false, eye_color: '', light: false, face_width: 0, head_size: 0, head_shift: 0 }
 
 export const FACE_WIDTH_MAX = 10
+export const HEAD_SIZE_MAX = 15
+export const HEAD_SHIFT_MAX = 20
 
 export const BODY_WIDTH_MAX = 10
 
@@ -46,7 +48,7 @@ export function retouchObjectActive(r) {
 
 export function retouchObjectLocal(r) {
   if (!r || typeof r !== 'object') return false
-  return !!(r.under_eyes || r.teeth || r.eye_whites || (r.eye_color || '').trim() || (r.face_width || 0) !== 0)
+  return !!(r.under_eyes || r.teeth || r.eye_whites || (r.eye_color || '').trim() || (r.face_width || 0) !== 0 || (r.head_size || 0) !== 0 || (r.head_shift || 0) !== 0)
 }
 
 export function splitRecipeAdjust(obj) {
@@ -135,6 +137,8 @@ export function usePostAdjust({ currentB64, error }) {
         if (r[k] !== undefined) next[k] = r[k]
       }
       next.face_width = Math.max(-FACE_WIDTH_MAX, Math.min(FACE_WIDTH_MAX, Number(next.face_width) || 0))
+      next.head_size = Math.max(-HEAD_SIZE_MAX, Math.min(HEAD_SIZE_MAX, Number(next.head_size) || 0))
+      next.head_shift = Math.max(-HEAD_SHIFT_MAX, Math.min(HEAD_SHIFT_MAX, Number(next.head_shift) || 0))
       Object.assign(retouch, next)
     }
     if (extras.upscale4k !== undefined) upscale4k.value = !!extras.upscale4k
@@ -338,7 +342,7 @@ export function usePostAdjust({ currentB64, error }) {
     sliderMeta: SLIDER_META, adjustGroups: ADJUST_GROUPS, finishRatios: FINISH_RATIOS,
     adjust, finish, adjustNeutral, finishActive, autoAdjusting, previewB64, previewing,
     adjustParams, finishParams, resetFinish, resetAdjustKey, resetAdjustAll, formatAdjust, applyAutoAdjust, stopPreview,
-    retouch, upscale4k, face, retouchActive, retouchLocal, eyeColors: EYE_COLORS, faceWidthMax: FACE_WIDTH_MAX,
+    retouch, upscale4k, face, retouchActive, retouchLocal, eyeColors: EYE_COLORS, faceWidthMax: FACE_WIDTH_MAX, headSizeMax: HEAD_SIZE_MAX, headShiftMax: HEAD_SHIFT_MAX,
     retouchParams, resetRetouch, recipeExtras, applyRecipeExtras, facePoints, retryFace, retouchFor,
     body, bodyState, bodyActive, bodyWidthMax: BODY_WIDTH_MAX, bodyHeightMax: BODY_HEIGHT_MAX, bodyParams, resetBody, retryBody, bodyPoints,
   }

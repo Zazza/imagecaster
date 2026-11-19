@@ -106,6 +106,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	a.queueSvc.Handle(queue.JobStylistFrame, stylistFrameHandler(a.sessions, cfg))
 	a.queueSvc.Handle(queue.JobRetouch, retouchHandler(a.sessions, cfg))
 	a.queueSvc.Handle(queue.JobPostSave, postSaveHandler(a.ieSvc, cfg))
+	a.queueSvc.Handle(queue.JobUpscale4K, post4KHandler(cfg))
 	if scoper == nil {
 		a.queueSvc.SetInterruptFn(func() { _ = a.gen.InterruptGeneration() })
 	} else {

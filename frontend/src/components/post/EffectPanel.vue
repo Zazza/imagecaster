@@ -118,8 +118,12 @@ async function onEffectJobDone(jobId, outcome, entry) {
   const b64 = await jobImage(outcome)
   if (!effectJobIds.value.has(jobId)) return
   effectJobIds.value.delete(jobId)
-  if (b64) {
+  const up = entry?.upscale_4k ? outcome.result?.info?.upscale : ''
+  if (b64 && up === 'skipped') {
+    successMsg.value = t('post.fx4k_skipped')
+  } else if (b64) {
     emit('applied', b64, entry)
+    if (up === 'resized') successMsg.value = t('post.fx4k_resized')
   } else if (outcome.error) {
     error.value = outcome.error
   }
@@ -236,6 +240,33 @@ async function applyEffect() {
     if (jobId) {
       effectJobIds.value.add(jobId)
       props.queueJobs.track(jobId).then(outcome => onEffectJobDone(jobId, outcome, { preset_id: presetId, strength }))
+    } else {
+      setApplying(false)
+    }
+  } catch (e) {
+    error.value = String(e)
+    setApplying(false)
+  }
+}
+
+async function apply4K() {
+  if (applyingEffect.value || batchBusy.value || batchExporting.value || props.blocked || !props.source) return
+  if (batchActive.value) {
+    await props.batch.runBatchStep(async (b64) => {
+      const job = await props.batch.trackBatchJob(api.enqueuePost4K(b64))
+      return job ? () => job.wait : ''
+    })
+    return
+  }
+  setApplying(true)
+  error.value = ''
+  successMsg.value = ''
+  effectJobIds.value = new Set()
+  try {
+    const jobId = await api.enqueuePost4K(props.source)
+    if (jobId) {
+      effectJobIds.value.add(jobId)
+      props.queueJobs.track(jobId).then(outcome => onEffectJobDone(jobId, outcome, { upscale_4k: true }))
     } else {
       setApplying(false)
     }
@@ -429,11 +460,24 @@ defineExpose({
     ><X :size="14" /></button>
   </div>
   <div class="form-hint">{{ t('post.effect_hint') }}</div>
+  <div class="fx-4k">
+    <button
+      class="btn btn-secondary btn-block"
+      data-testid="fx-4k"
+      :disabled="!source || applyingEffect || batchBusy || batchExporting || blocked"
+      @click="apply4K"
+    >{{ batchActive ? t('post.fx4k_btn_all', { n: batchState.items.length }) : t('post.fx4k_btn') }}</button>
+    <div class="form-hint">{{ t('post.fx4k_hint') }}</div>
+  </div>
 </template>
 
 <style scoped src="./post-shared.css"></style>
 
 <style scoped>
+.fx-4k {
+  margin-top: 12px;
+}
+
 .fx-mask {
   display: flex;
   flex-direction: column;

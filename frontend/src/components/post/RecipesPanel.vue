@@ -77,9 +77,11 @@ async function saveRecipe() {
   try {
     await api.savePostRecipe({
       name: recipeName.value,
-      steps: JSON.stringify(props.appliedEffects.map(e => e.preset_id
-        ? { preset_id: e.preset_id, strength: e.strength }
-        : { prompt: e.prompt || '', strength: e.strength })),
+      steps: JSON.stringify(props.appliedEffects.map(e => e.upscale_4k
+        ? { upscale_4k: true }
+        : e.preset_id
+          ? { preset_id: e.preset_id, strength: e.strength }
+          : { prompt: e.prompt || '', strength: e.strength })),
       adjust: JSON.stringify({ ...props.post.adjustParams(), ...props.post.recipeExtras() }),
     })
     recipeName.value = ''
@@ -127,6 +129,7 @@ function recipeJobParams(presetId, strength, b64) {
 }
 
 function enqueueRecipeStep(step, img) {
+  if (step.upscale_4k) return api.enqueuePost4K(img)
   if (step.prompt && !step.preset_id) {
     const strength = typeof step.strength === 'number' ? step.strength : 0.5
     return api.enqueueLook({ image_base64: img, text: step.prompt, strength, seed: null })
@@ -211,7 +214,7 @@ async function applyRecipe(r) {
       }
       let jobId = 0
       try {
-        jobId = await api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img))
+        jobId = await (step.upscale_4k ? api.enqueuePost4K(img) : api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img)))
       } catch (e) {
         abortReason = String(e)
       }
@@ -235,7 +238,7 @@ async function applyRecipe(r) {
         abortReason = outcome.error || t(outcome.status === 'cancelled' ? 'post.recipe_reason_cancelled' : 'post.recipe_reason_no_image')
         break
       }
-      emit('result', res, { preset_id: step.preset_id, strength: step.strength })
+      emit('result', res, step.upscale_4k ? { upscale_4k: true } : { preset_id: step.preset_id, strength: step.strength })
       img = res
     }
   } finally {

@@ -7,7 +7,7 @@ const props = defineProps({
   source: { type: String, default: '' },
 })
 
-const { retouch, face, retouchActive, retouchLocal, eyeColors, faceWidthMax } = props.post
+const { retouch, face, retouchActive, retouchLocal, eyeColors, faceWidthMax, headSizeMax, headShiftMax } = props.post
 
 const faceNote = computed(() => {
   if (!retouchLocal.value || !props.source) return ''
@@ -38,6 +38,14 @@ const checks = ['under_eyes', 'teeth', 'eye_whites', 'light']
   <div class="form-group" @dblclick="retouch.face_width = 0">
     <label class="form-label">{{ t('post.retouch_face_width', { value: retouch.face_width }) }}</label>
     <input type="range" class="form-range" :min="-faceWidthMax" :max="faceWidthMax" step="1" v-model.number="retouch.face_width" data-testid="retouch-face_width" />
+  </div>
+  <div class="form-group" @dblclick="retouch.head_size = 0">
+    <label class="form-label">{{ t('post.retouch_head_size', { value: retouch.head_size }) }}</label>
+    <input type="range" class="form-range" :min="-headSizeMax" :max="headSizeMax" step="1" v-model.number="retouch.head_size" data-testid="retouch-head_size" />
+  </div>
+  <div class="form-group" @dblclick="retouch.head_shift = 0">
+    <label class="form-label">{{ t('post.retouch_head_shift', { value: retouch.head_shift }) }}</label>
+    <input type="range" class="form-range" :min="-headShiftMax" :max="headShiftMax" step="1" v-model.number="retouch.head_shift" data-testid="retouch-head_shift" />
   </div>
   <div v-if="faceNote" class="form-hint retouch-note" data-testid="retouch-face-note" :title="face.error || null">{{ faceNote }}</div>
   <div class="adj-actions">

@@ -664,6 +664,11 @@ export const en = {
   'post.effect_add_lora': '+ LoRA',
   'post.effect_hint': 'The effect re-draws the current photo with the face preserved; applied to the current layer, so effects can be chained',
   'post.btn_apply_effect': 'Apply effect',
+  'post.fx4k_btn': 'Up to 4K without redrawing',
+  'post.fx4k_btn_all': 'Up to 4K without redrawing — all ({n})',
+  'post.fx4k_hint': 'Enlarges the photo to 3840 px on the long side without redrawing (ESRGAN on the server). Best as the last step: further effects on 4K are slower',
+  'post.fx4k_skipped': 'The photo is already 4K or larger — unchanged',
+  'post.fx4k_resized': 'No ESRGAN on the server — the photo was enlarged by plain resizing',
   'post.applying': 'Applying effect...',
   'post.error_no_effect': 'Choose an effect first',
   'post.autostyle': 'Auto-style',
@@ -754,6 +759,8 @@ export const en = {
   'post.retouch_eye_amber': 'Amber',
   'post.retouch_eye_violet': 'Violet',
   'post.retouch_face_width': 'Face width: {value}%',
+  'post.retouch_head_size': 'Head size: {value}%',
+  'post.retouch_head_shift': 'Head lower/higher: {value}%',
   'post.retouch_face_loading': 'Looking for a face…',
   'post.retouch_face_none': 'No face found — face retouch is not applied (light still works).',
   'post.retouch_face_not_local': 'The server is not on the local network — the photo is not sent, face retouch is unavailable (light still works).',
@@ -1079,6 +1086,7 @@ export const en = {
   'queue.type_stylist_frame': 'Stylist frame',
   'queue.type_retouch': 'Retouch',
   'queue.type_post_save': 'Save in 4K',
+  'queue.type_upscale_4k': 'Up to 4K',
 
   // PipelineImportModal.vue
   'pipeline_import.title': 'Import Workflows ({count} found)',

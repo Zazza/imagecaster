@@ -41,6 +41,8 @@ type Retouch struct {
 	SkinTone      string  `json:"skin_tone,omitempty"`
 	SkinLightness float64 `json:"skin_lightness,omitempty"`
 	FaceWidth     float64 `json:"face_width,omitempty"`
+	HeadSize      float64 `json:"head_size,omitempty"`
+	HeadShift     float64 `json:"head_shift,omitempty"`
 }
 
 const (
@@ -50,7 +52,7 @@ const (
 )
 
 func (r Retouch) Local() bool {
-	return r.UnderEyes || r.Teeth || r.EyeWhites || strings.TrimSpace(r.EyeColor) != "" || r.FaceWidth != 0
+	return r.UnderEyes || r.Teeth || r.EyeWhites || strings.TrimSpace(r.EyeColor) != "" || r.FaceWidth != 0 || r.HeadSize != 0 || r.HeadShift != 0
 }
 
 func (r Retouch) Skin() bool { return r.SkinTone != "" || r.SkinLightness != 0 }
@@ -66,6 +68,12 @@ func (r Retouch) Validate() error {
 	}
 	if math.Abs(r.FaceWidth) > maxFaceWidth {
 		return fmt.Errorf("face_width: от −%d до +%d", maxFaceWidth, maxFaceWidth)
+	}
+	if math.Abs(r.HeadSize) > maxHeadSize {
+		return fmt.Errorf("head_size: от −%d до +%d", maxHeadSize, maxHeadSize)
+	}
+	if math.Abs(r.HeadShift) > maxHeadShift {
+		return fmt.Errorf("head_shift: от −%d до +%d", maxHeadShift, maxHeadShift)
 	}
 	return nil
 }
@@ -202,6 +210,9 @@ func ApplyRetouch(img image.Image, pts []Point, r Retouch) (*image.RGBA, error) 
 	}
 	if r.FaceWidth != 0 {
 		out = widenFace(out, px, r.FaceWidth)
+	}
+	if r.HeadSize != 0 || r.HeadShift != 0 {
+		out = reshapeHead(out, px, r.HeadSize, r.HeadShift)
 	}
 	return out, nil
 }

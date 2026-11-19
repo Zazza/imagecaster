@@ -170,6 +170,10 @@ export function EnqueueLook(arg1) {
   return window['go']['main']['App']['EnqueueLook'](arg1);
 }
 
+export function EnqueuePost4K(arg1) {
+  return window['go']['main']['App']['EnqueuePost4K'](arg1);
+}
+
 export function EnqueuePostSave(arg1) {
   return window['go']['main']['App']['EnqueuePostSave'](arg1);
 }
