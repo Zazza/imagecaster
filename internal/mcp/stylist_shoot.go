@@ -12,6 +12,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/generation"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/serverclient"
+	"github.com/Zazza/imagecaster/internal/stylist"
 )
 
 type StylistPeople interface {
@@ -28,31 +29,20 @@ func (DiscardSessions) AddToSession(string, json.RawMessage, string, *preset.Gen
 	return 0
 }
 
-type shootModel struct {
-	model       string
-	sampler     string
-	steps       int
-	cfg         float64
-	faceDenoise float64
-}
+type shootModel = stylist.Model
 
-var shootModels = map[string]shootModel{
-	"Z-Image":    {model: "z-image-turbo-fp8-aio", sampler: "euler", steps: 8, cfg: 1, faceDenoise: 0.4},
-	"Moss-Image": {model: "moss_image_sft_bf16", sampler: "euler", steps: 30, cfg: 3, faceDenoise: 0.5},
-	"SDXL":       {model: "juggernautXL_ragnarokBy", sampler: "dpm++2m_sde", steps: 30, cfg: 6, faceDenoise: 0.5},
-	"Flux.2":     {model: "flux-2-klein-4b", sampler: "euler", steps: 4, cfg: 1, faceDenoise: 0.6},
-}
+var shootModels = stylist.Models
 
 const (
-	shootWidth         = 1024
-	shootHeight        = 1536
+	shootWidth         = stylist.Width
+	shootHeight        = stylist.Height
 	shootMaxShots      = 6
 	shootPeopleWait    = 20 * time.Second
-	shootBackground    = "plain light grey studio backdrop, soft even studio light"
-	shootQuality       = "BREAK, a candid photograph with natural proportions and honest imperfections: realistic skin texture, natural light, documentary framing, no stylization"
-	shootQualityStudio = "BREAK, a professional studio portrait with realistic skin texture and natural pores, sharp focus, straight symmetrical framing, no stylization"
+	shootBackground    = stylist.DefaultBackground
+	shootQuality       = stylist.Quality
+	shootQualityStudio = stylist.QualityStudio
 	shootNegative      = "deformed, extra limbs, extra fingers, blurry, text, watermark"
-	shootDefaultOutfit = "wearing simple casual everyday clothes"
+	shootDefaultOutfit = stylist.DefaultOutfit
 	shootNoLoraPrompt  = "LoRA нет — работай правкой фото (stylist_try)"
 )
 
@@ -115,18 +105,8 @@ func shootPrompt(p serverclient.Person, appearance string, look Look, shot, back
 		parts = append(parts, shootDefaultOutfit)
 	}
 	parts = append(parts, lookParts(look)...)
-	quality := shootQuality
-	if strings.Contains(strings.ToLower(background), "studio") {
-		quality = shootQualityStudio
-	}
-	parts = append(parts, shot, background, quality)
-	clean := make([]string, 0, len(parts))
-	for _, v := range parts {
-		if v = strings.TrimSpace(v); v != "" {
-			clean = append(clean, v)
-		}
-	}
-	return strings.Join(clean, ", ") + fmt.Sprintf(" <lora:%s:1>", p.Lora)
+	parts = append(parts, shot)
+	return stylist.ComposePrompt(p.Lora, parts, background)
 }
 
 func unknownPerson(list []serverclient.Person, name string) error {
@@ -245,12 +225,12 @@ type frameOut struct {
 func shootFrame(shooter StylistShooter, eng StylistEngine, ge StylistGarmentEngine, refiner FaceRefiner, m shootModel, prompt string, seed *int64, garment, outfit string, refineOn bool, w, h int) (frameOut, error) {
 	img, info, frameSeed, err := shootOne(shooter, generation.TestGenerateParams{
 		Mode:           "models",
-		SelectedModels: []string{m.model},
+		SelectedModels: []string{m.Model},
 		Prompt:         prompt,
 		NegativePrompt: shootNegative,
-		Sampler:        m.sampler,
-		Steps:          m.steps,
-		CfgScale:       m.cfg,
+		Sampler:        m.Sampler,
+		Steps:          m.Steps,
+		CfgScale:       m.CFG,
 		Width:          w,
 		Height:         h,
 		Seed:           seed,
@@ -312,7 +292,7 @@ func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSess
 		}
 		shootFaceSwap(eng, &out, plan.name, plan.faceSwap)
 		stopped = out.stopped
-		meta := &preset.GenerationMeta{Model: plan.m.model, Label: truncateLabel("Стилист: " + plan.name + ", " + shot)}
+		meta := &preset.GenerationMeta{Model: plan.m.Model, Label: truncateLabel("Стилист: " + plan.name + ", " + shot)}
 		id := sessions.AddToNamedSession(StylistSessionName, out.img, out.info, "stylist", meta)
 		saved = append(saved, fmt.Sprint(id))
 		v := map[string]any{"id": id, "shot": shot, "prompt": prompt, "face_pass": out.facePass, "face_swap": out.faceSwap}
@@ -327,7 +307,7 @@ func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSess
 	res := map[string]any{
 		"person":   plan.name,
 		"base":     plan.person.Base,
-		"model":    plan.m.model,
+		"model":    plan.m.Model,
 		"variants": variants,
 	}
 	if stopped {

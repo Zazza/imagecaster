@@ -534,12 +534,48 @@ export function SetLastImage(arg1) {
   return window['go']['main']['App']['SetLastImage'](arg1);
 }
 
+export function SetStylistAppearance(arg1, arg2) {
+  return window['go']['main']['App']['SetStylistAppearance'](arg1, arg2);
+}
+
 export function StartServerProcess(arg1) {
   return window['go']['main']['App']['StartServerProcess'](arg1);
 }
 
 export function StopServerProcess(arg1) {
   return window['go']['main']['App']['StopServerProcess'](arg1);
+}
+
+export function StylistAppearance(arg1) {
+  return window['go']['main']['App']['StylistAppearance'](arg1);
+}
+
+export function StylistFrames(arg1) {
+  return window['go']['main']['App']['StylistFrames'](arg1);
+}
+
+export function StylistPickGarment() {
+  return window['go']['main']['App']['StylistPickGarment']();
+}
+
+export function StylistPlan(arg1) {
+  return window['go']['main']['App']['StylistPlan'](arg1);
+}
+
+export function StylistPresets() {
+  return window['go']['main']['App']['StylistPresets']();
+}
+
+export function StylistRegenerateSeries(arg1, arg2) {
+  return window['go']['main']['App']['StylistRegenerateSeries'](arg1, arg2);
+}
+
+export function StylistShoot(arg1) {
+  return window['go']['main']['App']['StylistShoot'](arg1);
+}
+
+export function StylistTranslate(arg1) {
+  return window['go']['main']['App']['StylistTranslate'](arg1);
 }
 
 export function SwitchSession(arg1) {

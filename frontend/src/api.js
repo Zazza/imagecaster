@@ -28,6 +28,7 @@ import {
   TrainingStatus, TrainingBases, PickPeopleFolder, TrainPerson, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson,
   AddPersonIdentity, FaceSwapStatus,
   PostFaceLandmarks, PreviewPostRetouch, EnqueuePostSave,
+  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, SetStylistAppearance, StylistTranslate,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -173,6 +174,15 @@ export const api = {
   deletePerson: (name) => DeletePerson(name),
   addPersonIdentity: (folder, name) => AddPersonIdentity(folder, name),
   faceSwapStatus: () => FaceSwapStatus(),
+  stylistPresets: () => StylistPresets(),
+  stylistPlan: (req) => StylistPlan(req),
+  stylistRegenerateSeries: (req, index) => StylistRegenerateSeries(req, index),
+  stylistPickGarment: () => StylistPickGarment(),
+  stylistShoot: (req) => StylistShoot(req),
+  stylistAppearance: (name) => StylistAppearance(name),
+  stylistFrames: (ids) => StylistFrames(ids),
+  setStylistAppearance: (name, text) => SetStylistAppearance(name, text),
+  stylistTranslate: (texts) => StylistTranslate(texts),
   syncPresets: () => SyncPresets(),
   getModelPresets: () => GetModelPresets(),
   installPresetDeps: (id) => InstallPresetDeps(id),

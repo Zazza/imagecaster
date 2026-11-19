@@ -544,6 +544,10 @@ func (s *Service) getMaxTokens() int {
 	return maxTokens
 }
 
+func (s *Service) GenerateModel() string {
+	return s.getGenerateModel()
+}
+
 func (s *Service) getGenerateModel() string {
 	generateModel := s.cfg.SDPromptModel
 	if v, err := s.db.GetSetting("llm_generate_model"); err == nil && v != "" {

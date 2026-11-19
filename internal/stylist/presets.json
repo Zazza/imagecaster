@@ -1,0 +1,1359 @@
+{
+ "version": 2,
+ "themes": [
+  {
+   "id": "glamour",
+   "name": "Гламур"
+  },
+  {
+   "id": "casual",
+   "name": "Повседневное"
+  },
+  {
+   "id": "boho",
+   "name": "Бохо"
+  },
+  {
+   "id": "beach",
+   "name": "Пляж"
+  },
+  {
+   "id": "lingerie",
+   "name": "Бельё"
+  },
+  {
+   "id": "business",
+   "name": "Деловое"
+  },
+  {
+   "id": "winter",
+   "name": "Зима"
+  },
+  {
+   "id": "party",
+   "name": "Вечеринка"
+  },
+  {
+   "id": "sport",
+   "name": "Спорт"
+  },
+  {
+   "id": "evening",
+   "name": "Романтический вечер"
+  },
+  {
+   "id": "street",
+   "name": "Город, стрит"
+  },
+  {
+   "id": "retro",
+   "name": "Ретро"
+  }
+ ],
+ "outfit": [
+  {
+   "id": "o01",
+   "theme": "glamour",
+   "name": "Чёрное атласное платье в пол",
+   "prompt": "floor-length black satin evening gown, thin straps, open back, high leg slit, fitted silhouette"
+  },
+  {
+   "id": "o02",
+   "theme": "glamour",
+   "name": "Платье в пайетках, золото",
+   "prompt": "gold sequin maxi dress, deep V-neck, long sleeves, fitted silhouette"
+  },
+  {
+   "id": "o03",
+   "theme": "glamour",
+   "name": "Белый смокинг на голое тело",
+   "prompt": "white tailored tuxedo blazer worn as a dress, satin lapels, sheer black tights"
+  },
+  {
+   "id": "o04",
+   "theme": "glamour",
+   "name": "Изумрудное бархатное платье",
+   "prompt": "emerald green velvet midi dress, off-shoulder neckline, long sleeves, fitted waist"
+  },
+  {
+   "id": "o05",
+   "theme": "casual",
+   "name": "Джинсы, белая футболка, джинсовка",
+   "prompt": "high-waisted light blue straight jeans, plain white cotton t-shirt, oversized denim jacket, white sneakers"
+  },
+  {
+   "id": "o06",
+   "theme": "casual",
+   "name": "Свитер оверсайз и легинсы",
+   "prompt": "oversized soft beige knit sweater, black leggings, white sneakers"
+  },
+  {
+   "id": "o07",
+   "theme": "casual",
+   "name": "Льняная рубашка и шорты",
+   "prompt": "loose white linen shirt with rolled sleeves, beige linen shorts, leather sandals"
+  },
+  {
+   "id": "o08",
+   "theme": "casual",
+   "name": "Худи и спортивные брюки",
+   "prompt": "grey cotton hoodie, matching grey joggers, white sneakers"
+  },
+  {
+   "id": "o09",
+   "theme": "boho",
+   "name": "Макси-платье в цветочек",
+   "prompt": "flowy boho maxi dress, cream with small terracotta floral print, puff sleeves, V-neck, tiered skirt, brown leather belt"
+  },
+  {
+   "id": "o10",
+   "theme": "boho",
+   "name": "Кружевной топ и юбка-макси",
+   "prompt": "white crochet lace crop top, long flowy rust skirt, layered beaded necklaces, suede ankle boots"
+  },
+  {
+   "id": "o11",
+   "theme": "boho",
+   "name": "Кимоно и шорты",
+   "prompt": "long sheer printed kimono, white tank top, denim shorts, fringe bag"
+  },
+  {
+   "id": "o12",
+   "theme": "beach",
+   "name": "Чёрный слитный купальник",
+   "prompt": "black one-piece swimsuit with a square neckline, open white linen shirt over it, straw sun hat"
+  },
+  {
+   "id": "o13",
+   "theme": "beach",
+   "name": "Бикини и парео",
+   "prompt": "white bikini, sheer floral sarong tied at the hip"
+  },
+  {
+   "id": "o14",
+   "theme": "beach",
+   "name": "Сарафан-рубашка",
+   "prompt": "light blue striped cotton shirt dress, knee length, belted, flat sandals"
+  },
+  {
+   "id": "o15",
+   "theme": "lingerie",
+   "name": "Чёрное кружевное бельё",
+   "prompt": "black lace lingerie set: lace bralette and high-waisted lace briefs, sheer black stockings, open black silk robe"
+  },
+  {
+   "id": "o16",
+   "theme": "lingerie",
+   "name": "Шёлковая комбинация",
+   "prompt": "champagne silk slip nightgown, thin straps, lace trim, mid-thigh length"
+  },
+  {
+   "id": "o17",
+   "theme": "lingerie",
+   "name": "Красное бельё",
+   "prompt": "deep red lace lingerie set: balconette bra and briefs, garter belt, sheer stockings"
+  },
+  {
+   "id": "o18",
+   "theme": "lingerie",
+   "name": "Мужская рубашка на голое тело",
+   "prompt": "oversized white men's dress shirt, unbuttoned at the top, sleeves rolled up, bare legs"
+  },
+  {
+   "id": "o19",
+   "theme": "lingerie",
+   "name": "Белое кружевное боди",
+   "prompt": "white lace bodysuit, long sleeves, deep neckline"
+  },
+  {
+   "id": "o20",
+   "theme": "business",
+   "name": "Бежевый брючный костюм",
+   "prompt": "tailored beige pantsuit: single-breasted blazer and wide-leg trousers, white silk camisole, nude pumps"
+  },
+  {
+   "id": "o21",
+   "theme": "business",
+   "name": "Платье-футляр",
+   "prompt": "navy sheath dress, knee length, cap sleeves, thin belt, black pumps"
+  },
+  {
+   "id": "o22",
+   "theme": "business",
+   "name": "Блузка и юбка-карандаш",
+   "prompt": "white silk blouse with a bow collar, black high-waisted pencil skirt, black pumps"
+  },
+  {
+   "id": "o23",
+   "theme": "winter",
+   "name": "Вязаный свитер и пальто",
+   "prompt": "cream chunky knit turtleneck sweater, long camel wool coat, dark slim jeans, brown knee-high boots, knitted beanie"
+  },
+  {
+   "id": "o24",
+   "theme": "winter",
+   "name": "Пуховик и шапка",
+   "prompt": "white puffer jacket, black ski pants, fluffy knitted hat with a pompom, mittens"
+  },
+  {
+   "id": "o25",
+   "theme": "winter",
+   "name": "Шуба и платье",
+   "prompt": "faux fur coat, black knit midi dress, tall black boots"
+  },
+  {
+   "id": "o26",
+   "theme": "party",
+   "name": "Серебряное мини в пайетках",
+   "prompt": "silver sequin mini dress, long sleeves, short fitted cut, strappy silver heels"
+  },
+  {
+   "id": "o27",
+   "theme": "party",
+   "name": "Кожаные брюки и топ",
+   "prompt": "black leather trousers, satin camisole top, statement earrings, heeled sandals"
+  },
+  {
+   "id": "o28",
+   "theme": "party",
+   "name": "Красное мини-платье",
+   "prompt": "red bodycon mini dress, one shoulder, strappy heels"
+  },
+  {
+   "id": "o29",
+   "theme": "sport",
+   "name": "Спортивный топ и легинсы",
+   "prompt": "black sports bra, high-waisted black leggings, running shoes"
+  },
+  {
+   "id": "o30",
+   "theme": "sport",
+   "name": "Теннисный костюм",
+   "prompt": "white pleated tennis skirt, white polo shirt, white sneakers, sweatband"
+  },
+  {
+   "id": "o31",
+   "theme": "evening",
+   "name": "Красное атласное платье-комбинация",
+   "prompt": "deep red satin slip dress, thin straps, midi length, bias cut"
+  },
+  {
+   "id": "o32",
+   "theme": "evening",
+   "name": "Маленькое чёрное платье",
+   "prompt": "little black dress, knee length, sleeveless, square neckline, black heels, pearl earrings"
+  },
+  {
+   "id": "o33",
+   "theme": "evening",
+   "name": "Пастельное платье с открытыми плечами",
+   "prompt": "dusty pink chiffon dress, off-shoulder, midi length, flowing skirt"
+  },
+  {
+   "id": "o34",
+   "theme": "street",
+   "name": "Кожаная куртка и джинсы",
+   "prompt": "black leather biker jacket, white tank top, black skinny jeans, black ankle boots"
+  },
+  {
+   "id": "o35",
+   "theme": "street",
+   "name": "Тренч",
+   "prompt": "beige trench coat, belted, black turtleneck, straight jeans, loafers"
+  },
+  {
+   "id": "o36",
+   "theme": "street",
+   "name": "Бомбер и юбка-мини",
+   "prompt": "olive bomber jacket, black mini skirt, chunky sneakers, white socks"
+  },
+  {
+   "id": "o37",
+   "theme": "retro",
+   "name": "Платье в горошек 50-х",
+   "prompt": "1950s polka dot swing dress, red with white dots, fitted bodice, full skirt, petticoat, red heels"
+  },
+  {
+   "id": "o38",
+   "theme": "retro",
+   "name": "Наряд 70-х",
+   "prompt": "1970s high-waisted flared jeans, tucked-in patterned blouse with wide collar, platform shoes"
+  },
+  {
+   "id": "o39",
+   "theme": "retro",
+   "name": "Платье 20-х с бахромой",
+   "prompt": "1920s flapper dress with fringe and beads, drop waist, pearl necklace, T-strap heels"
+  },
+  {
+   "id": "o40",
+   "theme": "retro",
+   "name": "Комбинезон 80-х",
+   "prompt": "1980s bright metallic jumpsuit with shoulder pads, wide belt"
+  }
+ ],
+ "hair": [
+  {
+   "id": "h01",
+   "name": "Голливудские волны",
+   "prompt": "glamorous Hollywood waves, side part"
+  },
+  {
+   "id": "h02",
+   "name": "Распущенные естественные",
+   "prompt": "loose natural hair"
+  },
+  {
+   "id": "h03",
+   "name": "Пляжные волны",
+   "prompt": "beach waves"
+  },
+  {
+   "id": "h04",
+   "name": "Гладкий низкий хвост",
+   "prompt": "sleek low ponytail"
+  },
+  {
+   "id": "h05",
+   "name": "Высокий хвост",
+   "prompt": "high sleek ponytail"
+  },
+  {
+   "id": "h06",
+   "name": "Небрежный пучок",
+   "prompt": "messy bun with loose strands"
+  },
+  {
+   "id": "h07",
+   "name": "Элегантный низкий пучок",
+   "prompt": "elegant low chignon"
+  },
+  {
+   "id": "h08",
+   "name": "Высокий гладкий пучок",
+   "prompt": "sleek high bun"
+  },
+  {
+   "id": "h09",
+   "name": "Коса на бок",
+   "prompt": "loose side braid"
+  },
+  {
+   "id": "h10",
+   "name": "Французская коса",
+   "prompt": "French braid"
+  },
+  {
+   "id": "h11",
+   "name": "Две косы",
+   "prompt": "two braids"
+  },
+  {
+   "id": "h12",
+   "name": "Коса-корона",
+   "prompt": "braided crown"
+  },
+  {
+   "id": "h13",
+   "name": "Полураспущенные",
+   "prompt": "half-up half-down hairstyle"
+  },
+  {
+   "id": "h14",
+   "name": "Гладкие прямые",
+   "prompt": "sleek straight hair"
+  },
+  {
+   "id": "h15",
+   "name": "Объёмные локоны",
+   "prompt": "voluminous curls"
+  },
+  {
+   "id": "h16",
+   "name": "Мокрый эффект",
+   "prompt": "wet look slicked back hair"
+  },
+  {
+   "id": "h17",
+   "name": "Растрёпанные, ветер",
+   "prompt": "loose windswept hair"
+  },
+  {
+   "id": "h18",
+   "name": "Ретро-укладка 50-х",
+   "prompt": "1950s pin curls vintage hairstyle"
+  },
+  {
+   "id": "h19",
+   "name": "Волны 20-х",
+   "prompt": "1920s finger waves"
+  },
+  {
+   "id": "h20",
+   "name": "Начёс 70-х",
+   "prompt": "1970s feathered hair"
+  },
+  {
+   "id": "h21",
+   "name": "Косынка на волосах",
+   "prompt": "hair tied with a silk headscarf"
+  },
+  {
+   "id": "h22",
+   "name": "Ободок",
+   "prompt": "hair with a wide headband"
+  },
+  {
+   "id": "h23",
+   "name": "Цветы в волосах",
+   "prompt": "loose hair with small flowers"
+  },
+  {
+   "id": "h24",
+   "name": "Пучок-пончик",
+   "prompt": "ballerina bun"
+  },
+  {
+   "id": "h25",
+   "name": "Короткий боб (парик)",
+   "prompt": "short bob haircut"
+  }
+ ],
+ "makeup": [
+  {
+   "id": "m01",
+   "name": "Без макияжа",
+   "prompt": "no makeup, natural skin"
+  },
+  {
+   "id": "m02",
+   "name": "Натуральный",
+   "prompt": "natural light makeup"
+  },
+  {
+   "id": "m03",
+   "name": "Нюдовый",
+   "prompt": "nude makeup, soft matte lips"
+  },
+  {
+   "id": "m04",
+   "name": "Красные губы",
+   "prompt": "classic red lips, winged eyeliner"
+  },
+  {
+   "id": "m05",
+   "name": "Смоки",
+   "prompt": "smoky eyes, nude lips"
+  },
+  {
+   "id": "m06",
+   "name": "Вечерний гламур",
+   "prompt": "evening glam makeup, contour, glossy lips"
+  },
+  {
+   "id": "m07",
+   "name": "Блестки",
+   "prompt": "glitter eyeshadow, glossy lips"
+  },
+  {
+   "id": "m08",
+   "name": "Летний, с бронзером",
+   "prompt": "sun-kissed bronzed makeup, freckles"
+  },
+  {
+   "id": "m09",
+   "name": "Розовый румяный",
+   "prompt": "rosy cheeks, pink lip tint"
+  },
+  {
+   "id": "m10",
+   "name": "Стрелки",
+   "prompt": "graphic eyeliner, neutral lips"
+  },
+  {
+   "id": "m11",
+   "name": "Ягодные губы",
+   "prompt": "berry lips, soft eyes"
+  },
+  {
+   "id": "m12",
+   "name": "Ретро 50-х",
+   "prompt": "1950s pin-up makeup, red lips, cat eye"
+  },
+  {
+   "id": "m13",
+   "name": "Ретро 20-х",
+   "prompt": "1920s makeup, dark lips, smoky eyes"
+  },
+  {
+   "id": "m14",
+   "name": "Неон",
+   "prompt": "bright neon eyeliner"
+  },
+  {
+   "id": "m15",
+   "name": "Мокрый блеск",
+   "prompt": "dewy glowing skin, clear gloss"
+  }
+ ],
+ "background": [
+  {
+   "id": "b01",
+   "theme": "glamour",
+   "name": "Красная дорожка",
+   "prompt": "red carpet event at night, photographers' flashes",
+   "place": "urban"
+  },
+  {
+   "id": "b02",
+   "theme": "glamour",
+   "name": "Оперный театр",
+   "prompt": "grand opera house foyer, marble stairs, chandeliers",
+   "place": "indoor"
+  },
+  {
+   "id": "b03",
+   "theme": "glamour",
+   "name": "Студия, тёмный фон",
+   "prompt": "professional photo studio, dark grey seamless backdrop, dramatic light",
+   "place": "studio"
+  },
+  {
+   "id": "b04",
+   "theme": "glamour",
+   "name": "Студия, светлый фон",
+   "prompt": "professional photo studio, light seamless backdrop, soft light",
+   "place": "studio"
+  },
+  {
+   "id": "b05",
+   "theme": "casual",
+   "name": "Кафе утром",
+   "prompt": "cozy city coffee shop by a large window, morning daylight",
+   "place": "indoor"
+  },
+  {
+   "id": "b06",
+   "theme": "casual",
+   "name": "Парк",
+   "prompt": "green city park, sunny afternoon",
+   "place": "nature"
+  },
+  {
+   "id": "b07",
+   "theme": "casual",
+   "name": "Дома, гостиная",
+   "prompt": "bright scandinavian living room, sofa, plants, daylight",
+   "place": "indoor"
+  },
+  {
+   "id": "b08",
+   "theme": "casual",
+   "name": "Кухня утром",
+   "prompt": "sunny kitchen, morning light, coffee",
+   "place": "indoor"
+  },
+  {
+   "id": "b09",
+   "theme": "boho",
+   "name": "Луг на закате",
+   "prompt": "wildflower meadow at golden hour, warm backlight, soft haze",
+   "place": "nature"
+  },
+  {
+   "id": "b10",
+   "theme": "boho",
+   "name": "Пшеничное поле",
+   "prompt": "golden wheat field at sunset",
+   "place": "nature"
+  },
+  {
+   "id": "b11",
+   "theme": "boho",
+   "name": "Лес",
+   "prompt": "sunlit pine forest, light rays",
+   "place": "nature"
+  },
+  {
+   "id": "b12",
+   "theme": "beach",
+   "name": "Тропический пляж",
+   "prompt": "tropical sandy beach, turquoise sea, bright sunny day",
+   "place": "beach"
+  },
+  {
+   "id": "b13",
+   "theme": "beach",
+   "name": "Пирс на закате",
+   "prompt": "wooden pier at sunset over the sea",
+   "place": "beach"
+  },
+  {
+   "id": "b14",
+   "theme": "beach",
+   "name": "Бассейн отеля",
+   "prompt": "luxury hotel pool, palm trees, sunny",
+   "place": "beach"
+  },
+  {
+   "id": "b15",
+   "theme": "lingerie",
+   "name": "Номер отеля",
+   "prompt": "elegant hotel bedroom, soft window light, white linen bed",
+   "place": "bed"
+  },
+  {
+   "id": "b16",
+   "theme": "lingerie",
+   "name": "Спальня при свечах",
+   "prompt": "dim bedroom lit by candles, warm glow",
+   "place": "bed"
+  },
+  {
+   "id": "b17",
+   "theme": "lingerie",
+   "name": "Ванная, мрамор",
+   "prompt": "marble bathroom, freestanding bathtub, soft light",
+   "place": "indoor"
+  },
+  {
+   "id": "b18",
+   "theme": "business",
+   "name": "Стеклянный офис",
+   "prompt": "modern glass office lobby, city skyline outside, daylight",
+   "place": "indoor"
+  },
+  {
+   "id": "b19",
+   "theme": "business",
+   "name": "Переговорная",
+   "prompt": "modern meeting room, large table, window light",
+   "place": "indoor"
+  },
+  {
+   "id": "b20",
+   "theme": "winter",
+   "name": "Рождественская ярмарка",
+   "prompt": "Christmas market in a snowy old town at dusk, string lights, light snowfall",
+   "place": "urban"
+  },
+  {
+   "id": "b21",
+   "theme": "winter",
+   "name": "Заснеженный лес",
+   "prompt": "snowy forest, soft winter light",
+   "place": "nature"
+  },
+  {
+   "id": "b22",
+   "theme": "winter",
+   "name": "У камина",
+   "prompt": "cozy cabin interior by a fireplace",
+   "place": "indoor"
+  },
+  {
+   "id": "b23",
+   "theme": "party",
+   "name": "Ночной клуб",
+   "prompt": "nightclub with neon pink and blue lights, dance floor, haze",
+   "place": "indoor"
+  },
+  {
+   "id": "b24",
+   "theme": "party",
+   "name": "Бар на крыше",
+   "prompt": "rooftop bar at night, city lights",
+   "place": "urban"
+  },
+  {
+   "id": "b25",
+   "theme": "sport",
+   "name": "Спортзал",
+   "prompt": "modern gym, natural light",
+   "place": "indoor"
+  },
+  {
+   "id": "b26",
+   "theme": "sport",
+   "name": "Теннисный корт",
+   "prompt": "tennis court, sunny day",
+   "place": "urban"
+  },
+  {
+   "id": "b27",
+   "theme": "evening",
+   "name": "Терраса со свечами",
+   "prompt": "rooftop terrace restaurant at night, candles, city lights bokeh",
+   "place": "urban"
+  },
+  {
+   "id": "b28",
+   "theme": "street",
+   "name": "Улица старого города",
+   "prompt": "sunny old town street with cafe terraces, warm afternoon light",
+   "place": "urban"
+  },
+  {
+   "id": "b29",
+   "theme": "street",
+   "name": "Ночной город, неон",
+   "prompt": "city street at night, neon signs, wet asphalt",
+   "place": "urban"
+  },
+  {
+   "id": "b30",
+   "theme": "retro",
+   "name": "Американская закусочная",
+   "prompt": "1950s american diner, red booths",
+   "place": "indoor"
+  }
+ ],
+ "pose": [
+  {
+   "id": "p01",
+   "name": "Анфас, лицо крупно",
+   "prompt": "close-up portrait, facing camera, soft smile",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p02",
+   "name": "Вполоборота, лицо крупно",
+   "prompt": "three-quarter view close-up portrait, slight smile",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p03",
+   "name": "Рука у лица",
+   "prompt": "close-up, hand gently touching the face, looking at camera",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p04",
+   "name": "Смеётся, крупно",
+   "prompt": "close-up, laughing, eyes on camera",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p05",
+   "name": "Взгляд в сторону, крупно",
+   "prompt": "close-up, looking away to the side, thoughtful",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p06",
+   "name": "Через плечо, крупно",
+   "prompt": "close-up, looking back over the shoulder",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p07",
+   "name": "Профиль, крупно",
+   "prompt": "close-up side profile, eyes closed, serene",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p08",
+   "name": "Рука в волосах",
+   "prompt": "waist-up, hand running through the hair, smiling at camera",
+   "framing": "waist",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p09",
+   "name": "Руки скрещены",
+   "prompt": "waist-up, arms crossed, confident smile",
+   "framing": "waist",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p10",
+   "name": "Опирается на стол",
+   "prompt": "waist-up, leaning on a table, looking at camera",
+   "framing": "waist",
+   "places": [
+    "indoor"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p11",
+   "name": "С чашкой кофе",
+   "prompt": "waist-up, holding a coffee cup, smiling",
+   "framing": "waist",
+   "places": [
+    "indoor",
+    "urban"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p12",
+   "name": "С бокалом",
+   "prompt": "waist-up, holding a wine glass, smiling at camera",
+   "framing": "waist",
+   "places": [
+    "indoor",
+    "urban"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p13",
+   "name": "Смеётся, по пояс",
+   "prompt": "waist-up, laughing, looking to the side",
+   "framing": "waist",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p14",
+   "name": "Через плечо, по пояс",
+   "prompt": "waist-up, over-the-shoulder look back",
+   "framing": "waist",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p15",
+   "name": "У окна",
+   "prompt": "waist-up, standing by the window, soft light on the face, looking outside",
+   "framing": "waist",
+   "places": [
+    "indoor",
+    "bed"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p16",
+   "name": "Поправляет серьгу",
+   "prompt": "waist-up, touching her earring, looking at camera",
+   "framing": "waist",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p17",
+   "name": "Руки на талии",
+   "prompt": "knee-up, hands on the waist, confident pose",
+   "framing": "knee",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p18",
+   "name": "Опирается на стену",
+   "prompt": "knee-up, leaning against a wall, one leg bent",
+   "framing": "knee",
+   "places": [
+    "urban",
+    "indoor",
+    "studio"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p19",
+   "name": "Сидит нога на ногу",
+   "prompt": "sitting on a chair, legs crossed, looking at camera",
+   "framing": "knee",
+   "places": [
+    "indoor",
+    "studio"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p20",
+   "name": "Сидит на ступеньках",
+   "prompt": "sitting on steps, elbows on knees, smiling",
+   "framing": "knee",
+   "places": [
+    "urban",
+    "indoor"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p21",
+   "name": "Сидит на траве",
+   "prompt": "sitting in the grass, hugging knees, looking at camera",
+   "framing": "knee",
+   "places": [
+    "nature"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p22",
+   "name": "Сидит на песке",
+   "prompt": "sitting on the sand, leaning back on hands",
+   "framing": "knee",
+   "places": [
+    "beach"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p23",
+   "name": "Сидит на краю кровати",
+   "prompt": "sitting on the edge of the bed, facing camera, soft smile",
+   "framing": "knee",
+   "places": [
+    "bed"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p24",
+   "name": "Лежит на боку",
+   "prompt": "lying on the bed on her side, propped on an elbow, looking at camera",
+   "framing": "knee",
+   "places": [
+    "bed"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p25",
+   "name": "Лежит на животе",
+   "prompt": "lying on her stomach on the bed, chin on hands, feet up",
+   "framing": "knee",
+   "places": [
+    "bed"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p26",
+   "name": "Стоит на коленях на кровати",
+   "prompt": "kneeling on the bed, looking over the shoulder",
+   "framing": "knee",
+   "places": [
+    "bed"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p27",
+   "name": "Лежит на траве",
+   "prompt": "lying on the grass, hair spread out, looking up at camera",
+   "framing": "knee",
+   "places": [
+    "nature"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p28",
+   "name": "Лежит у бассейна",
+   "prompt": "lying on a sun lounger, sunglasses in hand",
+   "framing": "knee",
+   "places": [
+    "beach"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p29",
+   "name": "В ванне",
+   "prompt": "relaxing in the bathtub, arms on the edge",
+   "framing": "waist",
+   "places": [
+    "indoor"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p30",
+   "name": "У камина на пледе",
+   "prompt": "sitting on a blanket by the fireplace, holding a mug",
+   "framing": "knee",
+   "places": [
+    "indoor"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p31",
+   "name": "Анфас в рост",
+   "prompt": "standing facing camera, hand on hip, confident smile, full body",
+   "framing": "full",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p32",
+   "name": "Идёт к камере",
+   "prompt": "walking towards camera, full body, natural stride",
+   "framing": "full",
+   "places": [
+    "urban",
+    "nature",
+    "beach"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p33",
+   "name": "Идёт, вполоборота",
+   "prompt": "walking, three-quarter view, looking at camera, full body",
+   "framing": "full",
+   "places": [
+    "urban",
+    "nature",
+    "beach"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p34",
+   "name": "Уходит, оглядывается",
+   "prompt": "walking away and looking back over the shoulder, full body",
+   "framing": "full",
+   "places": [
+    "urban",
+    "nature",
+    "beach"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p35",
+   "name": "Кружится с юбкой",
+   "prompt": "twirling the skirt, laughing, full body",
+   "framing": "full",
+   "places": [
+    "urban",
+    "nature",
+    "studio",
+    "indoor"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p36",
+   "name": "Танцует",
+   "prompt": "dancing with arms up, laughing, full body",
+   "framing": "full",
+   "places": [
+    "indoor",
+    "urban",
+    "nature"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p37",
+   "name": "Прыжок",
+   "prompt": "jumping in the air, joyful, full body",
+   "framing": "full",
+   "places": [
+    "nature",
+    "beach"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p38",
+   "name": "Опирается на перила",
+   "prompt": "leaning on a railing, facing camera, full body",
+   "framing": "full",
+   "places": [
+    "urban",
+    "indoor"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p39",
+   "name": "Стоит у машины",
+   "prompt": "leaning against a car door, arms crossed, full body",
+   "framing": "full",
+   "places": [
+    "urban"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p40",
+   "name": "Сидит на капоте",
+   "prompt": "sitting on the car hood, smiling at camera",
+   "framing": "full",
+   "places": [
+    "urban"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p41",
+   "name": "В воде по колено",
+   "prompt": "standing knee-deep in the sea, looking over the shoulder",
+   "framing": "full",
+   "places": [
+    "beach"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p42",
+   "name": "У кромки воды",
+   "prompt": "standing at the waterline, holding a hat, full body",
+   "framing": "full",
+   "places": [
+    "beach"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p43",
+   "name": "Лестница, сверху вниз",
+   "prompt": "standing on grand stairs, one hand on the banister, full body",
+   "framing": "full",
+   "places": [
+    "indoor"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p44",
+   "name": "В дверном проёме",
+   "prompt": "leaning against the door frame, full body",
+   "framing": "full",
+   "places": [
+    "indoor",
+    "bed"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p45",
+   "name": "Сидит на полу",
+   "prompt": "sitting on the floor, legs to the side, leaning on one hand",
+   "framing": "full",
+   "places": [
+    "indoor",
+    "studio",
+    "bed"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p46",
+   "name": "Сидит в кресле боком",
+   "prompt": "sitting sideways in an armchair, legs over the armrest",
+   "framing": "full",
+   "places": [
+    "indoor",
+    "studio"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p47",
+   "name": "Студия, шаг",
+   "prompt": "fashion pose mid-stride, full body, studio",
+   "framing": "full",
+   "places": [
+    "studio"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p48",
+   "name": "Студия, со спины",
+   "prompt": "standing with her back to camera, looking over the shoulder, full body",
+   "framing": "full",
+   "places": [
+    "studio",
+    "indoor",
+    "bed"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p49",
+   "name": "Руки над головой",
+   "prompt": "standing, stretching arms above the head, full body",
+   "framing": "full",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p50",
+   "name": "Сидит на барном стуле",
+   "prompt": "sitting on a bar stool, one foot on the rail",
+   "framing": "full",
+   "places": [
+    "indoor"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p51",
+   "name": "Спорт: растяжка",
+   "prompt": "stretching, one leg forward, full body",
+   "framing": "full",
+   "places": [
+    "indoor",
+    "urban",
+    "nature"
+   ],
+   "themes": [
+    "sport"
+   ],
+   "orientation": "landscape"
+  },
+  {
+   "id": "p52",
+   "name": "Спорт: с ракеткой",
+   "prompt": "holding a tennis racket, ready stance, full body",
+   "framing": "full",
+   "places": [
+    "urban"
+   ],
+   "themes": [
+    "sport"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p53",
+   "name": "Читает книгу",
+   "prompt": "sitting with legs crossed, reading a book",
+   "framing": "knee",
+   "places": [
+    "indoor",
+    "nature"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p54",
+   "name": "С букетом",
+   "prompt": "holding a bouquet of flowers near the face",
+   "framing": "waist",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p55",
+   "name": "Со шляпой",
+   "prompt": "holding a wide-brim hat with both hands, smiling",
+   "framing": "waist",
+   "places": [
+    "nature",
+    "beach",
+    "urban"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p56",
+   "name": "Под зонтом",
+   "prompt": "under a clear umbrella, rain, looking at camera",
+   "framing": "waist",
+   "places": [
+    "urban"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p57",
+   "name": "Снег в руках",
+   "prompt": "blowing snow from her palms, smiling",
+   "framing": "waist",
+   "places": [
+    "nature",
+    "urban"
+   ],
+   "themes": [
+    "winter"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p58",
+   "name": "С кружкой глинтвейна",
+   "prompt": "holding a cup of mulled wine, smiling at camera",
+   "framing": "waist",
+   "places": [
+    "urban",
+    "indoor"
+   ],
+   "themes": [
+    "winter"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p59",
+   "name": "Смотрит вверх на огни",
+   "prompt": "looking up at the lights, laughing",
+   "framing": "waist",
+   "places": [
+    "urban",
+    "indoor"
+   ],
+   "orientation": "portrait"
+  },
+  {
+   "id": "p60",
+   "name": "Селфи-ракурс",
+   "prompt": "high-angle close-up, looking up at camera, playful",
+   "framing": "close",
+   "places": [
+    "any"
+   ],
+   "orientation": "portrait"
+  }
+ ]
+}

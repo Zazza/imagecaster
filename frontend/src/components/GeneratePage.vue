@@ -966,91 +966,16 @@ function onKeydown(e) {
 
 <style scoped>
 .gen-face-swap { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
-.gen-page {
-  padding: 12px;
-  height: 100%;
-  overflow-y: auto;
-}
-
-.gen-workspace {
-  display: flex;
-  gap: 10px;
-  height: calc(100vh - 124px - var(--titlebar-h, 32px) - var(--frame-pad, 6px));
-  min-height: 480px;
-}
-
-.gen-preview-col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow-y: auto;
-}
-
-.gen-controls {
-  width: 360px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.gen-sections {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.gen-actions {
-  flex-shrink: 0;
-  padding: 10px 12px;
-  border-top: 1px solid var(--border);
-}
-
-.gen-actions-row {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
 
 .card-collapse.collapsed {
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.15s ease;
 }
 
-@media (max-width: 900px) {
-  .gen-workspace {
-    flex-direction: column;
-    height: auto;
-  }
-  .gen-controls {
-    width: auto;
-  }
-}
-.gen-controls .btn-generate {
-  flex: 0 1 auto;
-  min-width: 0;
-  justify-content: center;
-  padding: 8px 16px;
-  font-size: var(--fs-md);
-  font-weight: 600;
-}
 .card-collapse.collapsed > .card-body {
   padding-top: 0;
   padding-bottom: 0;
   overflow: clip;
-}
-
-.gen-preview-col .generate-image-area {
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  align-items: stretch;
 }
 
 .gen-result {

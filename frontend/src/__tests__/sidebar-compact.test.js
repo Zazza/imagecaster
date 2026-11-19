@@ -13,8 +13,8 @@ describe('sidebar works when collapsed to icons', () => {
     const w = mount(App, { shallow: false, global: { stubs: { SettingsPage: true, UnifiedGeneratePage: true, AppFooter: true, WelcomeModal: true } } })
     await flushPromises()
     const links = w.findAll('.sidebar-link')
-    expect(links).toHaveLength(8)
-    const keys = ['app.nav_generate', 'app.nav_postprocess', 'app.nav_gallery', 'app.nav_my_images', 'app.nav_styles', 'app.nav_catalog', 'app.nav_people', 'app.nav_settings']
+    expect(links).toHaveLength(9)
+    const keys = ['app.nav_generate', 'app.nav_stylist', 'app.nav_postprocess', 'app.nav_gallery', 'app.nav_my_images', 'app.nav_styles', 'app.nav_catalog', 'app.nav_people', 'app.nav_settings']
     links.forEach((l, i) => {
       expect(l.find('svg').exists()).toBe(true)
       expect(l.find('.sidebar-label').text()).toBe(t(keys[i]))

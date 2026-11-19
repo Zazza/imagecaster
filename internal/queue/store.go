@@ -186,6 +186,31 @@ func (s *Store) ListForPanel(finishedLimit int) ([]*Job, error) {
 	return jobs, rows.Err()
 }
 
+func (s *Store) Results(ids []int64) ([]*Job, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	marks := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.Query(`SELECT id, type, status, result, error FROM job_queue WHERE id IN (`+marks+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var jobs []*Job
+	for rows.Next() {
+		var j Job
+		if err := rows.Scan(&j.ID, &j.Type, &j.Status, &j.Result, &j.Error); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, &j)
+	}
+	return jobs, rows.Err()
+}
+
 func (s *Store) Get(id int64) (*Job, error) {
 	var j Job
 	err := s.db.QueryRow(

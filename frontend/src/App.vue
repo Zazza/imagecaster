@@ -11,6 +11,8 @@ import PostProcessPage from './components/PostProcessPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import CatalogPage from './components/CatalogPage.vue'
 import PeoplePage from './components/PeoplePage.vue'
+import StylistPage from './components/StylistPage.vue'
+import { Shirt } from 'lucide-vue-next'
 import GalleryPage from './components/GalleryPage.vue'
 import AppFooter from './components/AppFooter.vue'
 import FileBrowserPage from './components/FileBrowserPage.vue'
@@ -248,6 +250,9 @@ onUnmounted(() => {
         <a class="sidebar-link" :class="{ active: page === 'generate' }" @click="page = 'generate'" :title="t('app.nav_generate')">
           <Sparkles :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_generate') }}</span>
         </a>
+        <a class="sidebar-link" :class="{ active: page === 'stylist' }" @click="page = 'stylist'" :title="t('app.nav_stylist')" data-testid="nav-stylist">
+          <Shirt :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_stylist') }}</span>
+        </a>
         <a class="sidebar-link" :class="{ active: page === 'postprocess' }" @click="page = 'postprocess'" :title="t('app.nav_postprocess')">
           <SlidersHorizontal :size="16" class="icon" /> <span class="sidebar-label">{{ t('app.nav_postprocess') }}</span>
         </a>
@@ -300,6 +305,7 @@ onUnmounted(() => {
       <PeoplePage v-if="page === 'people'" />
       <template v-if="page !== 'settings' && page !== 'catalog' && page !== 'people'">
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
+        <StylistPage v-else-if="page === 'stylist'" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />
         <GalleryPage v-else-if="page === 'gallery'" @navigate="onNavigate" />

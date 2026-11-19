@@ -199,6 +199,10 @@ func (s *Service) GetQueue() ([]*Job, error) {
 	return s.store.ListForPanel(panelFinishedLimit)
 }
 
+func (s *Service) Results(ids []int64) ([]*Job, error) {
+	return s.store.Results(ids)
+}
+
 func (s *Service) ActiveCount() (int, error) {
 	return s.store.ActiveCount()
 }

@@ -14,6 +14,7 @@ import {sd} from '../models';
 import {finish} from '../models';
 import {faceguard} from '../models';
 import {main} from '../models';
+import {stylist} from '../models';
 
 export function AddPersonIdentity(arg1:string,arg2:string):Promise<serverclient.Person>;
 
@@ -281,9 +282,27 @@ export function SetKidsMode(arg1:boolean,arg2:string):Promise<void>;
 
 export function SetLastImage(arg1:string):Promise<void>;
 
+export function SetStylistAppearance(arg1:string,arg2:string):Promise<void>;
+
 export function StartServerProcess(arg1:string):Promise<void>;
 
 export function StopServerProcess(arg1:string):Promise<void>;
+
+export function StylistAppearance(arg1:string):Promise<string>;
+
+export function StylistFrames(arg1:Array<number>):Promise<Array<main.StylistFrame>>;
+
+export function StylistPickGarment():Promise<string>;
+
+export function StylistPlan(arg1:stylist.PlanRequest):Promise<main.StylistPlanResult>;
+
+export function StylistPresets():Promise<stylist.Base>;
+
+export function StylistRegenerateSeries(arg1:stylist.PlanRequest,arg2:number):Promise<main.StylistSeriesResult>;
+
+export function StylistShoot(arg1:main.StylistShootRequest):Promise<Array<number>>;
+
+export function StylistTranslate(arg1:Array<string>):Promise<Array<string>>;
 
 export function SwitchSession(arg1:number):Promise<void>;
 

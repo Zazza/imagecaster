@@ -1010,6 +1010,139 @@ export namespace main {
 		}
 	}
 
+	export class StylistFrame {
+	    job_id: number;
+	    status: string;
+	    item_id: number;
+	    error: string;
+	    shot: string;
+	    face_swap: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StylistFrame(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.job_id = source["job_id"];
+	        this.status = source["status"];
+	        this.item_id = source["item_id"];
+	        this.error = source["error"];
+	        this.shot = source["shot"];
+	        this.face_swap = source["face_swap"];
+	    }
+	}
+	export class StylistPlanResult {
+	    series: stylist.Series[];
+	    warnings: string[];
+	    used_llm: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StylistPlanResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.series = this.convertValues(source["series"], stylist.Series);
+	        this.warnings = source["warnings"];
+	        this.used_llm = source["used_llm"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StylistSeriesResult {
+	    series: stylist.Series;
+	    warnings: string[];
+	    used_llm: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StylistSeriesResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.series = this.convertValues(source["series"], stylist.Series);
+	        this.warnings = source["warnings"];
+	        this.used_llm = source["used_llm"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StylistShootRequest {
+	    person: string;
+	    appearance: string;
+	    garment: string;
+	    garment_outfit: string;
+	    series: stylist.Series[];
+	    face_swap: boolean;
+	    seed?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StylistShootRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.person = source["person"];
+	        this.appearance = source["appearance"];
+	        this.garment = source["garment"];
+	        this.garment_outfit = source["garment_outfit"];
+	        this.series = this.convertValues(source["series"], stylist.Series);
+	        this.face_swap = source["face_swap"];
+	        this.seed = source["seed"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
 }
 
 export namespace preset {
@@ -2533,3 +2666,256 @@ export namespace settings {
 
 }
 
+export namespace stylist {
+	
+	export class AspectChoice {
+	    mode: string;
+	    ids: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AspectChoice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.ids = source["ids"];
+	    }
+	}
+	export class Background {
+	    id: string;
+	    theme?: string;
+	    name: string;
+	    prompt: string;
+	    place: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Background(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.theme = source["theme"];
+	        this.name = source["name"];
+	        this.prompt = source["prompt"];
+	        this.place = source["place"];
+	    }
+	}
+	export class Pose {
+	    id: string;
+	    name: string;
+	    prompt: string;
+	    framing: string;
+	    places: string[];
+	    orientation: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Pose(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.prompt = source["prompt"];
+	        this.framing = source["framing"];
+	        this.places = source["places"];
+	        this.orientation = source["orientation"];
+	    }
+	}
+	export class Item {
+	    id: string;
+	    theme?: string;
+	    name: string;
+	    prompt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Item(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.theme = source["theme"];
+	        this.name = source["name"];
+	        this.prompt = source["prompt"];
+	    }
+	}
+	export class Theme {
+	    id: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Theme(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
+	export class Base {
+	    version: number;
+	    themes: Theme[];
+	    outfit: Item[];
+	    hair: Item[];
+	    makeup: Item[];
+	    background: Background[];
+	    pose: Pose[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Base(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.themes = this.convertValues(source["themes"], Theme);
+	        this.outfit = this.convertValues(source["outfit"], Item);
+	        this.hair = this.convertValues(source["hair"], Item);
+	        this.makeup = this.convertValues(source["makeup"], Item);
+	        this.background = this.convertValues(source["background"], Background);
+	        this.pose = this.convertValues(source["pose"], Pose);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class PlanRequest {
+	    person: string;
+	    gender: string;
+	    wish: string;
+	    frames: number;
+	    themes: string[];
+	    aspects: Record<string, AspectChoice>;
+	    garment: boolean;
+	    seed: number;
+	    locale?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlanRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.person = source["person"];
+	        this.gender = source["gender"];
+	        this.wish = source["wish"];
+	        this.frames = source["frames"];
+	        this.themes = source["themes"];
+	        this.aspects = this.convertValues(source["aspects"], AspectChoice, true);
+	        this.garment = source["garment"];
+	        this.seed = source["seed"];
+	        this.locale = source["locale"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Shot {
+	    pose: string;
+	    prompt: string;
+	    prompt_ru?: string;
+	    landscape: boolean;
+	    framing?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Shot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pose = source["pose"];
+	        this.prompt = source["prompt"];
+	        this.prompt_ru = source["prompt_ru"];
+	        this.landscape = source["landscape"];
+	        this.framing = source["framing"];
+	    }
+	}
+	export class Series {
+	    outfit: string;
+	    hair: string;
+	    makeup: string;
+	    background: string;
+	    place: string;
+	    outfit_ru?: string;
+	    hair_ru?: string;
+	    makeup_ru?: string;
+	    background_ru?: string;
+	    ru_ai?: string[];
+	    shots: Shot[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Series(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.outfit = source["outfit"];
+	        this.hair = source["hair"];
+	        this.makeup = source["makeup"];
+	        this.background = source["background"];
+	        this.place = source["place"];
+	        this.outfit_ru = source["outfit_ru"];
+	        this.hair_ru = source["hair_ru"];
+	        this.makeup_ru = source["makeup_ru"];
+	        this.background_ru = source["background_ru"];
+	        this.ru_ai = source["ru_ai"];
+	        this.shots = this.convertValues(source["shots"], Shot);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+
+}

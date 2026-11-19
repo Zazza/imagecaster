@@ -53,7 +53,7 @@ func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
 	ids := make([]int64, 0, total)
 	for i, shot := range plan.shots {
 		p := ShootFrameParams{
-			Person: plan.name, Base: plan.person.Base, Model: plan.m.model, Shot: shot, Prompt: plan.prompts[i],
+			Person: plan.name, Base: plan.person.Base, Model: plan.m.Model, Shot: shot, Prompt: plan.prompts[i],
 			Index: i + 1, Total: total, Seed: plan.frameSeed(i),
 			GarmentBase64: plan.garment, Outfit: plan.outfit, FacePass: plan.refineOn, FaceSwap: plan.faceSwap,
 			Width: plan.w, Height: plan.h,
@@ -75,7 +75,7 @@ func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
 	return toJSON(map[string]any{
 		"person": plan.name,
 		"base":   plan.person.Base,
-		"model":  plan.m.model,
+		"model":  plan.m.Model,
 		"jobs":   ids,
 		"hint":   shootQueueHint,
 	}), nil
@@ -115,7 +115,7 @@ func runShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngi
 	if out.stopped || (stopped != nil && stopped()) {
 		return nil, generation.ErrInterrupted
 	}
-	meta := &preset.GenerationMeta{Model: m.model, Label: truncateLabel("Стилист: " + p.Person + ", " + p.Shot)}
+	meta := &preset.GenerationMeta{Model: m.Model, Label: truncateLabel("Стилист: " + p.Person + ", " + p.Shot)}
 	id := sessions.AddToNamedSession(StylistSessionName, out.img, out.info, "stylist", meta)
 	return &ShootFrameResult{ID: id, Shot: p.Shot, Prompt: p.Prompt, FacePass: out.facePass, Garment: out.garment, FaceSwap: out.faceSwap}, nil
 }

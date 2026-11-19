@@ -127,11 +127,11 @@ func refineShootFace(eng StylistEngine, refiner FaceRefiner, frameB64, prompt, n
 		ImageBase64:       crop,
 		Prompt:            prompt,
 		NegativePrompt:    negative,
-		Model:             m.model,
-		Sampler:           m.sampler,
-		Steps:             m.steps,
-		CfgScale:          m.cfg,
-		DenoisingStrength: m.faceDenoise,
+		Model:             m.Model,
+		Sampler:           m.Sampler,
+		Steps:             m.Steps,
+		CfgScale:          m.CFG,
+		DenoisingStrength: m.FaceDenoise,
 		Seed:              seed,
 	})
 	if err != nil {
