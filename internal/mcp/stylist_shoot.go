@@ -189,7 +189,7 @@ func planShoot(people StylistPeople, eng StylistEngine, args map[string]any) (*s
 	}
 	m, ok := shootModels[person.Base]
 	if !ok {
-		return nil, fmt.Errorf("LoRA %q обучена под %s — фотосессия умеет только Z-Image, Moss-Image, SDXL и Flux.2", name, person.Base)
+		return nil, fmt.Errorf("LoRA %q обучена под %s — фотосессия умеет только Z-Image, Moss-Image, SDXL, Flux.2 и Flux.1", name, person.Base)
 	}
 	plan := &shootPlan{
 		name: name, person: person, m: m, shots: shots, seed: optInt(args, "seed"),

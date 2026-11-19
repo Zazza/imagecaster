@@ -18,6 +18,7 @@ var Models = map[string]Model{
 	"Moss-Image": {Model: "moss_image_sft_bf16", Sampler: "euler", Steps: 30, CFG: 3, FaceDenoise: 0.5},
 	"SDXL":       {Model: "juggernautXL_ragnarokBy", Sampler: "dpm++2m_sde", Steps: 30, CFG: 6, FaceDenoise: 0.5},
 	"Flux.2":     {Model: "flux-2-klein-4b", Sampler: "euler", Steps: 4, CFG: 1, FaceDenoise: 0.6},
+	"Flux.1":     {Model: "flux1-dev-fp8", Sampler: "euler", Steps: 20, CFG: 1, FaceDenoise: 0.5},
 }
 
 const (

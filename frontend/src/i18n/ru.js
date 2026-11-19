@@ -1208,7 +1208,7 @@ export const ru = {
   'server.banner_fix': "Настроить",
   'server.need_server': "Нужен сервер Imagecaster Server — подключите его вверху окна («Настроить»).",
   'app.nav_stylist': "Стилист",
-  'stylist.no_people': "Нет людей с обученной LoRA под Z-Image, Moss-Image, SDXL или Flux.2 — обучите человека на странице «Люди».",
+  'stylist.no_people': "Нет людей с обученной LoRA под Z-Image, Moss-Image, SDXL, Flux.2 или Flux.1 — обучите человека на странице «Люди».",
   'stylist.person': "Человек",
   'stylist.appearance': "Внешность",
   'stylist.appearance_hint': "По-английски, только чего нет на фото для обучения: рост, телосложение, тату. Без возраста, цвета кожи и волос. Запоминается для человека.",

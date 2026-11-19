@@ -1236,7 +1236,7 @@ export const en = {
   'server.banner_fix': "Set up",
   'server.need_server': "Imagecaster Server is needed — connect it at the top of the window (\"Set up\").",
   'app.nav_stylist': "Stylist",
-  'stylist.no_people': "No people with a LoRA trained for Z-Image, Moss-Image, SDXL or Flux.2 — train a person on the People page.",
+  'stylist.no_people': "No people with a LoRA trained for Z-Image, Moss-Image, SDXL, Flux.2 or Flux.1 — train a person on the People page.",
   'stylist.person': "Person",
   'stylist.appearance': "Appearance",
   'stylist.appearance_hint': "In English, only what the training photos lack: height, build, tattoos. No age, skin or hair colour. Remembered per person.",
