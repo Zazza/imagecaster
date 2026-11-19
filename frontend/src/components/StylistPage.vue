@@ -5,7 +5,8 @@ import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { people } from '../peopleStore.js'
-import { canFaceSwap, trainBaseLabel } from '../people.js'
+import { canFaceSwap, trainBaseLabel, peopleGroups, groupBases, groupLoraForBase, pipelinePerson, pipelineOverride } from '../people.js'
+import { usePresets } from '../composables/usePresets.js'
 import { b64Url } from '../imageDataUrl.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { useStylistPlan, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
@@ -38,8 +39,35 @@ const pickedItemId = ref(0)
 const bigImage = ref('')
 const showViewer = ref(false)
 
+const { presets, compoundPresets, loadPresets } = usePresets()
+const modelCatalog = ref(null)
 const persons = computed(() => stylistPeople(people.value))
-const person = computed(() => persons.value.find(p => p.name === form.person) || null)
+const groups = computed(() => peopleGroups(persons.value))
+const group = computed(() => groups.value.find(g => g.key === form.person) || null)
+const stepModels = (c) => (c?.steps || []).map(s => presets.value.find(p => p.id === s.preset_id)?.model_name || '')
+const targets = computed(() => {
+  if (!group.value) return []
+  const out = groupBases(group.value).map(b => ({ id: 'base:' + b, label: trainBaseLabel(b) }))
+  if (Array.isArray(modelCatalog.value?.sd_models)) {
+    for (const c of compoundPresets.value) {
+      if (pipelinePerson(modelCatalog.value, stepModels(c), group.value).available) out.push({ id: 'pipe:' + c.id, label: t('stylist.target_pipeline', { name: c.name }) })
+    }
+  }
+  return out
+})
+const targetPipeline = computed(() => (form.target.startsWith('pipe:') ? compoundPresets.value.find(c => 'pipe:' + c.id === form.target) || null : null))
+const person = computed(() => {
+  if (!group.value) return null
+  if (targetPipeline.value) {
+    const ov = pipelineOverride(modelCatalog.value, stepModels(targetPipeline.value), group.value, true)
+    return group.value.loras.find(p => p.name === (ov?.face_swap_name || ov?.name)) || group.value.loras[0]
+  }
+  return groupLoraForBase(group.value, form.target.replace(/^base:/, '')) || group.value.loras[0]
+})
+const pipelineMissing = computed(() => (targetPipeline.value && group.value ? pipelinePerson(modelCatalog.value, stepModels(targetPipeline.value), group.value).missing : []))
+watch(targets, (list) => {
+  if (!list.some(x => x.id === form.target)) form.target = list[0]?.id || ''
+})
 const swapAvailable = computed(() => canFaceSwap(person.value, faceSwapOn.value))
 const faceSwapNote = computed(() => {
   if (swapAvailable.value) return t('stylist.face_swap_on')
@@ -135,7 +163,11 @@ async function loadAppearance(name) {
   form.appearance = ''
   if (!name) return
   try {
-    const text = (await api.stylistAppearance(name)) || ''
+    let text = (await api.stylistAppearance(name)) || ''
+    for (const p of groups.value.find(g => g.key === name)?.loras || []) {
+      if (text || p.name === name) continue
+      text = (await api.stylistAppearance(p.name)) || ''
+    }
     if (form.person === name) form.appearance = text
   } catch (e) {
     console.warn('stylistAppearance:', e)
@@ -153,8 +185,8 @@ async function saveAppearance() {
 
 watch(() => form.person, (name, old) => {
   if (name === old) return
-  const p = persons.value.find(x => x.name === name)
-  form.gender = p?.gender || ''
+  const g = groups.value.find(x => x.key === name)
+  form.gender = g?.loras[0]?.gender || ''
   loadAppearance(name)
 })
 
@@ -194,7 +226,7 @@ async function pickGarment() {
 
 async function onShoot() {
   shotNotice.value = ''
-  const ids = await shoot(swapAvailable.value)
+  const ids = await shoot(swapAvailable.value, person.value?.name)
   if (ids.length) {
     pickedItemId.value = 0
     shotNotice.value = t('stylist.shot_queued', { n: ids.length })
@@ -260,8 +292,15 @@ onMounted(async () => {
   } finally {
     peopleLoaded.value = true
   }
-  if (!form.person && persons.value.length) form.person = persons.value[0].name
+  if (form.person && !groups.value.some(g => g.key === form.person)) form.person = persons.value.find(p => p.name === form.person) ? groups.value.find(g => g.loras.some(p => p.name === form.person))?.key || '' : ''
+  if (!form.person && groups.value.length) form.person = groups.value[0].key
   else if (form.person) loadAppearance(form.person)
+  loadPresets()
+  try {
+    modelCatalog.value = await api.getModelCatalog()
+  } catch (e) {
+    console.warn('getModelCatalog:', e)
+  }
   try {
     faceSwapStatus.value = (await api.faceSwapStatus()) || ''
   } catch (e) {
@@ -348,8 +387,15 @@ onUnmounted(() => {
                 <div class="form-group">
                   <label class="form-label">{{ t('stylist.person') }}</label>
                   <select class="form-select" v-model="form.person" data-testid="stylist-person">
-                    <option v-for="p in persons" :key="p.name" :value="p.name">{{ p.name }} · {{ trainBaseLabel(p.base) }}</option>
+                    <option v-for="g in groups" :key="g.key" :value="g.key">{{ g.key }}</option>
                   </select>
+                </div>
+                <div v-if="targets.length" class="form-group">
+                  <label class="form-label">{{ t('stylist.target') }}</label>
+                  <select class="form-select" v-model="form.target" data-testid="stylist-target">
+                    <option v-for="o in targets" :key="o.id" :value="o.id">{{ o.label }}</option>
+                  </select>
+                  <div v-if="pipelineMissing.length" class="form-hint" data-testid="stylist-target-missing">{{ t('people.pipeline_missing', { steps: pipelineMissing.join(', ') }) }}</div>
                 </div>
                 <div class="form-group">
                   <label class="form-label">{{ t('stylist.appearance') }}</label>

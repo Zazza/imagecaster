@@ -572,6 +572,7 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 			return nil, fmt.Errorf("step %d: preset not found: %w", stepIdx+1, err)
 		}
 		ApplyPresetOverrides(p, &PresetOverrides{Loras: step.Loras})
+		applyStepPerson(p, fromImagePerson(params.Overrides))
 		chain = append(chain, stepMeta(stepIdx, p, step))
 		lastModel = p.ModelName
 
@@ -636,6 +637,8 @@ func (s *Service) generateFromImageCompound(params GenerateFromImageParams, tags
 		EffectivePrompt:         promptResult.Prompt,
 		EffectiveNegativePrompt: promptResult.NegativePrompt,
 	}
+	img.Image, img.FaceSwap = s.pipelineFaceSwap(fromImagePerson(params.Overrides), img.Image)
+	lastImage = img.Image
 	img.SessionItemID = s.sessions.AddToSession(lastImage, lastInfo, "compound-from-image", &preset.GenerationMeta{
 		Label: cp.Name,
 		Model: lastModel,
@@ -706,7 +709,9 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 	lastModel := ""
 
 	var userScenePrompt, userSceneNeg string
-	if strings.TrimSpace(params.ExtraPrompt) != "" {
+	if sp := strings.TrimSpace(params.ScenePrompt); sp != "" {
+		userScenePrompt, userSceneNeg = sp, strings.TrimSpace(params.ExtraNegativePrompt)
+	} else if strings.TrimSpace(params.ExtraPrompt) != "" {
 		firstPreset, err := s.db.Get(steps[0].PresetID)
 		if err != nil {
 			return nil, fmt.Errorf("step 1: preset not found: %w", err)
@@ -731,6 +736,7 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 			p.Seed = params.Seed
 		}
 		ApplyPresetOverrides(p, &PresetOverrides{Loras: step.Loras})
+		applyStepPerson(p, params.Person)
 		chain = append(chain, stepMeta(stepIdx, p, step))
 		lastModel = p.ModelName
 
@@ -750,6 +756,9 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 		s.guard.EnsureHeadroom(p.ModelName, fmt.Sprintf("compound step %d", stepIdx+1))
 		samplerName := p.Sampler
 		width, height := s.resolveStepResolution(step, p, params.ResolutionID)
+		if params.Width > 0 && params.Height > 0 && (step.ResolutionID == nil || *step.ResolutionID <= 0) && (params.ResolutionID == nil || *params.ResolutionID <= 0) {
+			width, height = params.Width, params.Height
+		}
 
 		clipSkip := *presetClipSkip(p)
 
@@ -785,6 +794,8 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 	if ideaResolved {
 		img.IdeaPrompt, img.IdeaNegativePrompt = params.ExtraPrompt, params.ExtraNegativePrompt
 	}
+	img.Image, img.FaceSwap = s.pipelineFaceSwap(params.Person, img.Image)
+	lastImage = img.Image
 	img.SessionItemID = s.sessions.AddToSession(lastImage, lastInfo, "compound", &preset.GenerationMeta{
 		Label: label,
 		Model: lastModel,

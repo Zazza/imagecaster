@@ -19,6 +19,10 @@ const hold = ref(false)
 const holdIgnored = ref(false)
 const error = ref('')
 const renaming = ref('')
+const displayName = ref('')
+const naming = ref('')
+const namingValue = ref('')
+const knownNames = computed(() => [...new Set(people.value.map(p => (p.display_name || '').trim()).filter(Boolean))])
 const renameValue = ref('')
 const faceStatus = ref('')
 const faceReady = computed(() => faceStatus.value === 'ok')
@@ -33,7 +37,7 @@ const shownJobs = computed(() => jobs.value.filter(j => SHOWN.includes(j.status)
 const finishedJobs = computed(() => jobs.value.filter(j => !SHOWN.includes(j.status)).slice(-5).reverse())
 const NAME_RE = /^[A-Za-z0-9_ -]{2,32}$/
 const canTrain = computed(() => available.value && folder.value && NAME_RE.test(name.value.trim()) && !!base.value && !busy.value)
-const SERVER_CODES = ['name_taken', 'invalid_request', 'not_found', 'not_running', 'not_paused', 'busy']
+const SERVER_CODES = ['name_taken', 'display_taken', 'invalid_request', 'not_found', 'not_running', 'not_paused', 'busy']
 
 function errorText(e) {
   const msg = String(e)
@@ -136,13 +140,21 @@ async function train() {
   error.value = ''
   holdIgnored.value = false
   try {
-    const job = await api.trainPerson(folder.value, name.value.trim(), gender.value, base.value, hold.value)
+    const args = [folder.value, name.value.trim(), displayName.value.trim(), gender.value, base.value, hold.value]
+    let job
+    try {
+      job = await api.trainPerson(...args)
+    } catch (e) {
+      if (!args[2] || !/\(display_taken\)\s*$/.test(String(e)) || !window.confirm(t('people.display_replace_confirm', { name: args[2] }))) throw e
+      job = await api.trainPerson(...args, true)
+    }
     holdIgnored.value = hold.value && job?.status !== 'paused'
     folder.value = ''
     name.value = ''
+    displayName.value = ''
     await refresh()
   } catch (e) {
-    error.value = String(e)
+    error.value = /\(display_taken\)\s*$/.test(String(e)) ? t('people.err_display_taken') : String(e)
   } finally {
     busy.value = false
   }
@@ -192,6 +204,34 @@ async function saveRename() {
   }
 }
 
+function startNaming(p) {
+  error.value = ''
+  naming.value = p.name
+  namingValue.value = p.display_name || ''
+}
+
+async function saveNaming() {
+  const lora = naming.value
+  const next = namingValue.value.trim()
+  try {
+    await api.setPersonDisplay(lora, next, false)
+  } catch (e) {
+    if (!/\(display_taken\)\s*$/.test(String(e))) {
+      error.value = errorText(e)
+      return
+    }
+    if (!window.confirm(t('people.display_replace_confirm', { name: next }))) return
+    try {
+      await api.setPersonDisplay(lora, next, true)
+    } catch (e2) {
+      error.value = errorText(e2)
+      return
+    }
+  }
+  naming.value = ''
+  await loadPeople()
+}
+
 async function remove(p) {
   if (!window.confirm(t('people.delete_confirm', { name: p.name }))) return
   try {
@@ -229,6 +269,9 @@ onUnmounted(() => {
         </div>
         <label class="form-label">{{ t('people.name') }}</label>
         <input class="form-input" type="text" v-model="name" maxlength="32" :placeholder="t('people.name_hint')" data-testid="people-name" />
+        <label class="form-label">{{ t('people.display') }}</label>
+        <input class="form-input" type="text" v-model="displayName" maxlength="40" list="people-known-names" :placeholder="t('people.display_hint')" data-testid="people-display" />
+        <datalist id="people-known-names"><option v-for="n in knownNames" :key="n" :value="n" /></datalist>
         <label class="form-label">{{ t('people.gender') }}</label>
         <select class="form-select" v-model="gender" data-testid="people-gender">
           <option value="man">{{ t('people.gender_man') }}</option>
@@ -276,10 +319,19 @@ onUnmounted(() => {
           </div>
           <p class="text-dim people-hint">{{ t('people.rename_prompt', { name: p.name }) }}</p>
         </div>
+        <div v-else-if="naming === p.name" class="people-rename">
+          <div class="people-row">
+            <input class="form-input" type="text" v-model="namingValue" maxlength="40" list="people-known-names" data-testid="people-display-input" @keyup.enter="saveNaming" @keyup.esc="naming = ''" />
+            <button class="btn btn-sm btn-primary" data-testid="people-display-save" @click="saveNaming">{{ t('people.rename_save') }}</button>
+            <button class="btn btn-sm btn-secondary" @click="naming = ''">{{ t('people.rename_cancel') }}</button>
+          </div>
+          <p class="text-dim people-hint">{{ t('people.display_prompt', { name: p.name }) }}</p>
+        </div>
         <div v-else class="people-row">
-          <span><b>{{ p.name }}</b> <span class="text-dim">{{ trainBaseLabel(p.base || 'Z-Image') }}</span> <span class="mono text-dim">{{ p.trigger }}</span> <span class="people-badge" :class="{ 'people-badge-on': p.identity }" data-testid="people-identity">{{ p.identity ? t('people.identity_yes') : t('people.identity_no') }}</span></span>
+          <span><b v-if="p.display_name" data-testid="people-display-name">{{ p.display_name }}</b> <b :class="{ 'text-dim': p.display_name }">{{ p.name }}</b> <span class="text-dim">{{ trainBaseLabel(p.base || 'Z-Image') }}</span> <span class="mono text-dim">{{ p.trigger }}</span> <span class="people-badge" :class="{ 'people-badge-on': p.identity }" data-testid="people-identity">{{ p.identity ? t('people.identity_yes') : t('people.identity_no') }}</span></span>
           <span class="people-actions">
             <button class="btn btn-sm btn-secondary" :disabled="!available || !faceReady || !!identityBusy" :title="faceReady ? t('people.identity_hint') : t('people.identity_unavailable')" data-testid="people-identity-add" @click="addIdentity(p)">{{ identityBusy === p.name ? t('people.uploading') : t('people.identity_add') }}</button>
+            <button class="btn btn-sm btn-secondary" data-testid="people-display-edit" @click="startNaming(p)">{{ t('people.display_edit') }}</button>
             <button class="btn btn-sm btn-secondary" @click="startRename(p)">{{ t('people.rename') }}</button>
             <button class="btn btn-sm btn-secondary" @click="remove(p)">{{ t('people.delete') }}</button>
           </span>

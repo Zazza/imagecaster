@@ -20,7 +20,7 @@ func TestTrain_PassesBase(t *testing.T) {
 			api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1", Status: "queued", Base: base}}
 			s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-			job, err := s.Train(context.Background(), dir, "anna", "woman", base, false)
+			job, err := s.Train(context.Background(), dir, "anna", "", "woman", base, false)
 
 			require.NoError(t, err)
 			require.NotNil(t, job)
@@ -43,7 +43,7 @@ func TestTrain_NotLocalWithMossBase(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 	s := New(api, func() string { return "http://8.8.8.8:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman", "Moss-Image", false)
+	job, err := s.Train(context.Background(), dir, "anna", "", "woman", "Moss-Image", false)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNotLocal), "want ErrNotLocal, got %v", err)
@@ -58,7 +58,7 @@ func TestTrain_BaseUnavailableReturned(t *testing.T) {
 	api := &fakeAPI{submitErr: &serverclient.TrainAPIError{Status: 400, Code: "base_unavailable", Message: "Moss-Image files are missing"}}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman", "Moss-Image", false)
+	job, err := s.Train(context.Background(), dir, "anna", "", "woman", "Moss-Image", false)
 
 	require.Error(t, err)
 	assert.Nil(t, job)

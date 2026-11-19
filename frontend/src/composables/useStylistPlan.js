@@ -224,6 +224,7 @@ const form = reactive({
   garment: '',
   garmentOutfit: '',
   seed: '',
+  target: '',
 })
 const series = ref([])
 const warnings = ref([])
@@ -243,7 +244,7 @@ let framesSeq = 0
 export function resetStylistPlan() {
   Object.assign(form, {
     person: '', gender: '', appearance: '', wish: '', frames: 8, themes: [],
-    aspects: defaultAspects(), garment: '', garmentOutfit: '', seed: '',
+    aspects: defaultAspects(), garment: '', garmentOutfit: '', seed: '', target: '',
   })
   series.value = []
   warnings.value = []
@@ -360,7 +361,7 @@ export function useStylistPlan() {
     }
   }
 
-  async function shoot(canFaceSwap) {
+  async function shoot(canFaceSwap, lora) {
     if (shooting.value || planning.value || regenerating.value >= 0 || !series.value.length) return []
     shooting.value = true
     error.value = ''
@@ -369,13 +370,15 @@ export function useStylistPlan() {
       if (!(await translateDirty())) return []
       const seed = parseSeedInput(form.seed)
       const req = {
-        person: form.person,
+        person: lora || form.person,
         appearance: form.appearance,
         garment: form.garment,
         garment_outfit: form.garment ? form.garmentOutfit : '',
         series: series.value,
         face_swap: !!canFaceSwap,
       }
+      if (form.target.startsWith('pipe:')) req.pipeline = Number(form.target.slice(5))
+      else if (form.target.startsWith('base:')) req.base = form.target.slice(5)
       if (seed != null) req.seed = seed
       const ids = (await api.stylistShoot(req)) || []
       jobIds.value = [...jobIds.value, ...ids]

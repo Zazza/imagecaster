@@ -724,14 +724,30 @@ func TestStylistShoot_LandscapeOrientation(t *testing.T) {
 	env := shootDefaultEnv(t)
 
 	args := shootArgs("anna", "front full body")
-	plan, err := planShoot(env.people, env.eng, args)
+	plan, err := planShoot(env.people, env.eng, args, nil)
 	require.NoError(t, err)
 	assert.Equal(t, shootWidth, plan.w)
 	assert.Equal(t, shootHeight, plan.h)
 
 	args["orientation"] = "landscape"
-	plan, err = planShoot(env.people, env.eng, args)
+	plan, err = planShoot(env.people, env.eng, args, nil)
 	require.NoError(t, err)
 	assert.Equal(t, shootHeight, plan.w, "landscape width")
 	assert.Equal(t, shootWidth, plan.h, "landscape height")
+}
+
+func TestStylistShoot_EmptyBaseIsZImage(t *testing.T) {
+	t.Parallel()
+	list := []serverclient.Person{{Name: "olga", Lora: "olga", Gender: "woman"}}
+	env := shootNewEnv(t, &fakePeople{people: list}, &fakeShooter{}, nil)
+
+	m, out := styCall(t, env.s, "stylist_people", map[string]any{})
+	got := shootPeopleList(t, m)
+	require.Len(t, got, 1, out)
+	assert.Equal(t, "Z-Image", got[0]["base"])
+
+	plan, err := planShoot(env.people, env.eng, map[string]any{"person": "olga", "base": "Z-Image", "appearance": "a woman"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "olga", plan.name)
+	assert.Equal(t, shootModels["Z-Image"].Model, plan.m.Model)
 }

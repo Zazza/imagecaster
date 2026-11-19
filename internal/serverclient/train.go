@@ -42,24 +42,27 @@ type TrainJob struct {
 }
 
 type Person struct {
-	Name      string     `json:"name"`
-	Trigger   string     `json:"trigger"`
-	Gender    string     `json:"gender"`
-	Base      string     `json:"base"`
-	Lora      string     `json:"lora"`
-	Steps     int        `json:"steps"`
-	Identity  bool       `json:"identity"`
-	CreatedAt *time.Time `json:"created_at"`
+	Name        string     `json:"name"`
+	Trigger     string     `json:"trigger"`
+	Gender      string     `json:"gender"`
+	Base        string     `json:"base"`
+	DisplayName string     `json:"display_name,omitempty"`
+	Lora        string     `json:"lora"`
+	Steps       int        `json:"steps"`
+	Identity    bool       `json:"identity"`
+	CreatedAt   *time.Time `json:"created_at"`
 }
 
 type TrainRequest struct {
-	Name      string
-	Gender    string
-	Base      string
-	Client    string
-	ClientRef string
-	Hold      bool
-	Photos    []string
+	Name           string
+	Gender         string
+	Base           string
+	Client         string
+	ClientRef      string
+	DisplayName    string
+	DisplayReplace bool
+	Hold           bool
+	Photos         []string
 }
 
 type TrainAPIError struct {
@@ -138,6 +141,16 @@ func writeTrainForm(mw *multipart.Writer, r TrainRequest) error {
 	for _, f := range [][2]string{{"name", r.Name}, {"gender", r.Gender}, {"base", r.Base}, {"client", r.Client}, {"client_ref", r.ClientRef}} {
 		if err := mw.WriteField(f[0], f[1]); err != nil {
 			return err
+		}
+	}
+	if r.DisplayName != "" {
+		if err := mw.WriteField("display_name", r.DisplayName); err != nil {
+			return err
+		}
+		if r.DisplayReplace {
+			if err := mw.WriteField("display_replace", "1"); err != nil {
+				return err
+			}
 		}
 	}
 	if r.Hold {
@@ -221,6 +234,20 @@ func (c *Client) RenamePerson(ctx context.Context, oldName, newName string) (*Pe
 		Person Person `json:"person"`
 	}
 	if err := c.trainDo(ctx, http.MethodPost, "/api/train/people/"+url.PathEscape(oldName)+"/rename", bytes.NewReader(body), "application/json", &out); err != nil {
+		return nil, err
+	}
+	return &out.Person, nil
+}
+
+func (c *Client) SetPersonDisplay(ctx context.Context, name, display string, replace bool) (*Person, error) {
+	body, err := json.Marshal(map[string]any{"display_name": display, "replace": replace})
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Person Person `json:"person"`
+	}
+	if err := c.trainDo(ctx, http.MethodPost, "/api/train/people/"+url.PathEscape(name)+"/display", bytes.NewReader(body), "application/json", &out); err != nil {
 		return nil, err
 	}
 	return &out.Person, nil

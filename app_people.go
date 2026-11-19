@@ -53,13 +53,25 @@ func (a *App) PickPeopleFolder() (string, error) {
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Папка с фото человека"})
 }
 
-func (a *App) TrainPerson(folder, name, gender, base string, hold bool) (*serverclient.TrainJob, error) {
+func (a *App) TrainPerson(folder, name, display, gender, base string, hold bool) (*serverclient.TrainJob, error) {
+	return a.trainPerson(folder, name, display, gender, base, hold, false)
+}
+
+func (a *App) TrainPersonReplace(folder, name, display, gender, base string, hold bool) (*serverclient.TrainJob, error) {
+	return a.trainPerson(folder, name, display, gender, base, hold, true)
+}
+
+func (a *App) trainPerson(folder, name, display, gender, base string, hold, replace bool) (*serverclient.TrainJob, error) {
 	if a.serverClient.GetBaseURL() == "" {
 		return nil, errors.New("сервер Imagecaster не настроен")
 	}
 	ctx, cancel := a.peopleCtx(0)
 	defer cancel()
-	job, err := a.peopleSvc().Train(ctx, folder, name, gender, base, hold)
+	train := a.peopleSvc().Train
+	if replace {
+		train = a.peopleSvc().TrainReplace
+	}
+	job, err := train(ctx, folder, name, display, gender, base, hold)
 	if err != nil {
 		a.log.Warn("people: train %q: %s", name, err)
 	}
@@ -104,6 +116,16 @@ func (a *App) RenamePerson(oldName, newName string) error {
 	ctx, cancel := a.peopleCtx(peopleCallTimeout)
 	defer cancel()
 	return a.peopleSvc().Rename(ctx, oldName, newName)
+}
+
+func (a *App) SetPersonDisplay(name, display string, replace bool) (*serverclient.Person, error) {
+	ctx, cancel := a.peopleCtx(peopleCallTimeout)
+	defer cancel()
+	p, err := a.peopleSvc().SetDisplay(ctx, name, display, replace)
+	if err != nil {
+		a.log.Warn("people: display %q: %s", name, err)
+	}
+	return p, err
 }
 
 func (a *App) ListPeople() ([]serverclient.Person, error) {

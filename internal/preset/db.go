@@ -696,6 +696,22 @@ func (d *DB) GetCompoundPresetFull(id int64) (*CompoundPreset, error) {
 	return cp, nil
 }
 
+func (d *DB) CompoundStepModels(id int64) (string, []string, error) {
+	cp, err := d.GetCompoundPresetFull(id)
+	if err != nil {
+		return "", nil, err
+	}
+	models := make([]string, 0, len(cp.Steps))
+	for _, st := range cp.Steps {
+		p, err := d.Get(st.PresetID)
+		if err != nil {
+			return "", nil, fmt.Errorf("шаг %d: %w", st.StepOrder, err)
+		}
+		models = append(models, p.ModelName)
+	}
+	return cp.Name, models, nil
+}
+
 func (d *DB) enrichCompoundSteps(steps []*CompoundPresetStep) error {
 	if len(steps) == 0 {
 		return nil

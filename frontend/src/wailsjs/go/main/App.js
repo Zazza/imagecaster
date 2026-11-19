@@ -166,12 +166,12 @@ export function EnqueueFromImage(arg1) {
   return window['go']['main']['App']['EnqueueFromImage'](arg1);
 }
 
-export function EnqueuePostSave(arg1) {
-  return window['go']['main']['App']['EnqueuePostSave'](arg1);
-}
-
 export function EnqueueLook(arg1) {
   return window['go']['main']['App']['EnqueueLook'](arg1);
+}
+
+export function EnqueuePostSave(arg1) {
+  return window['go']['main']['App']['EnqueuePostSave'](arg1);
 }
 
 export function EnqueueTxt2Img(arg1) {
@@ -410,6 +410,14 @@ export function PickPeopleFolder() {
   return window['go']['main']['App']['PickPeopleFolder']();
 }
 
+export function PostBodyPoints(arg1) {
+  return window['go']['main']['App']['PostBodyPoints'](arg1);
+}
+
+export function PostFaceLandmarks(arg1) {
+  return window['go']['main']['App']['PostFaceLandmarks'](arg1);
+}
+
 export function PrepareCompoundPresetsExport(arg1) {
   return window['go']['main']['App']['PrepareCompoundPresetsExport'](arg1);
 }
@@ -422,20 +430,12 @@ export function PreviewAdjust(arg1, arg2, arg3) {
   return window['go']['main']['App']['PreviewAdjust'](arg1, arg2, arg3);
 }
 
-export function PostBodyPoints(arg1) {
-  return window['go']['main']['App']['PostBodyPoints'](arg1);
-}
-
-export function PostFaceLandmarks(arg1) {
-  return window['go']['main']['App']['PostFaceLandmarks'](arg1);
+export function PreviewPost(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PreviewPost'](arg1, arg2, arg3, arg4);
 }
 
 export function PreviewPostRetouch(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
   return window['go']['main']['App']['PreviewPostRetouch'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-}
-
-export function PreviewPost(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['PreviewPost'](arg1, arg2, arg3, arg4);
 }
 
 export function PullServerLLMModel(arg1) {
@@ -538,6 +538,10 @@ export function SetLastImage(arg1) {
   return window['go']['main']['App']['SetLastImage'](arg1);
 }
 
+export function SetPersonDisplay(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetPersonDisplay'](arg1, arg2, arg3);
+}
+
 export function SetStylistAppearance(arg1, arg2) {
   return window['go']['main']['App']['SetStylistAppearance'](arg1, arg2);
 }
@@ -606,8 +610,12 @@ export function SyncPresets() {
   return window['go']['main']['App']['SyncPresets']();
 }
 
-export function TrainPerson(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['TrainPerson'](arg1, arg2, arg3, arg4, arg5);
+export function TrainPerson(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['TrainPerson'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function TrainPersonReplace(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['TrainPersonReplace'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function TrainingBases() {

@@ -44,5 +44,8 @@ func ComposePrompt(lora string, parts []string, background string) string {
 			clean = append(clean, v)
 		}
 	}
+	if lora == "" {
+		return strings.Join(clean, ", ")
+	}
 	return strings.Join(clean, ", ") + fmt.Sprintf(" <lora:%s:1>", lora)
 }

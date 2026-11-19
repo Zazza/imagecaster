@@ -339,6 +339,24 @@ export namespace generation {
 		    return a;
 		}
 	}
+	export class PersonOverride {
+	    name: string;
+	    face_swap?: boolean;
+	    loras?: Record<string, string>;
+	    face_swap_name?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PersonOverride(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.face_swap = source["face_swap"];
+	        this.loras = source["loras"];
+	        this.face_swap_name = source["face_swap_name"];
+	    }
+	}
 	export class GenerateCompoundImageParams {
 	    compound_preset_id: number;
 	    extra_prompt: string;
@@ -349,6 +367,8 @@ export namespace generation {
 	    seed?: number;
 	    idea?: string;
 	    idea_negative?: string;
+	    person?: PersonOverride;
+	    scene_prompt?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerateCompoundImageParams(source);
@@ -365,6 +385,8 @@ export namespace generation {
 	        this.seed = source["seed"];
 	        this.idea = source["idea"];
 	        this.idea_negative = source["idea_negative"];
+	        this.person = this.convertValues(source["person"], PersonOverride);
+	        this.scene_prompt = source["scene_prompt"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -384,20 +406,6 @@ export namespace generation {
 		    }
 		    return a;
 		}
-	}
-	export class PersonOverride {
-	    name: string;
-	    face_swap?: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new PersonOverride(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.face_swap = source["face_swap"];
-	    }
 	}
 	export class PresetOverrides {
 	    sampler?: string;
@@ -884,6 +892,7 @@ export namespace importexport {
 	    face_points?: faceguard.Point[];
 	    body?: bodyshape.Params;
 	    body_points?: bodyshape.Point[];
+	    overwrite?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ExportImageParams(source);
@@ -906,6 +915,7 @@ export namespace importexport {
 	        this.face_points = this.convertValues(source["face_points"], faceguard.Point);
 	        this.body = this.convertValues(source["body"], bodyshape.Params);
 	        this.body_points = this.convertValues(source["body_points"], bodyshape.Point);
+	        this.overwrite = source["overwrite"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1061,7 +1071,7 @@ export namespace main {
 	        this.skip = source["skip"];
 	        this.error = source["error"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1080,7 +1090,6 @@ export namespace main {
 		    return a;
 		}
 	}
-
 	export class StylistFrame {
 	    job_id: number;
 	    status: string;
@@ -1181,6 +1190,8 @@ export namespace main {
 	    series: stylist.Series[];
 	    face_swap: boolean;
 	    seed?: number;
+	    base?: string;
+	    pipeline?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new StylistShootRequest(source);
@@ -1195,6 +1206,8 @@ export namespace main {
 	        this.series = this.convertValues(source["series"], stylist.Series);
 	        this.face_swap = source["face_swap"];
 	        this.seed = source["seed"];
+	        this.base = source["base"];
+	        this.pipeline = source["pipeline"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2029,6 +2042,40 @@ export namespace sd {
 
 export namespace serverclient {
 	
+	export class CatalogFaceSwap {
+	    note: string;
+	    note_ru?: string;
+	    files: CatalogModule[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CatalogFaceSwap(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.note = source["note"];
+	        this.note_ru = source["note_ru"];
+	        this.files = this.convertValues(source["files"], CatalogModule);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CatalogTrainBase {
 	    base: string;
 	    files: CatalogModule[];
@@ -2120,6 +2167,7 @@ export namespace serverclient {
 	    filename: string;
 	    url: string;
 	    size_gb: number;
+	    sha256?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CatalogModule(source);
@@ -2131,6 +2179,7 @@ export namespace serverclient {
 	        this.filename = source["filename"];
 	        this.url = source["url"];
 	        this.size_gb = source["size_gb"];
+	        this.sha256 = source["sha256"];
 	    }
 	}
 	export class CatalogSDModel {
@@ -2215,6 +2264,7 @@ export namespace serverclient {
 	    sd_models: CatalogSDModel[];
 	    lora: CatalogLoRA[];
 	    train: CatalogTrainBase[];
+	    face_swap: CatalogFaceSwap;
 	
 	    static createFrom(source: any = {}) {
 	        return new Catalog(source);
@@ -2227,6 +2277,7 @@ export namespace serverclient {
 	        this.sd_models = this.convertValues(source["sd_models"], CatalogSDModel);
 	        this.lora = this.convertValues(source["lora"], CatalogLoRA);
 	        this.train = this.convertValues(source["train"], CatalogTrainBase);
+	        this.face_swap = this.convertValues(source["face_swap"], CatalogFaceSwap);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2247,6 +2298,7 @@ export namespace serverclient {
 		    return a;
 		}
 	}
+	
 	
 	
 	
@@ -2366,6 +2418,7 @@ export namespace serverclient {
 	    trigger: string;
 	    gender: string;
 	    base: string;
+	    display_name?: string;
 	    lora: string;
 	    steps: number;
 	    identity: boolean;
@@ -2382,6 +2435,7 @@ export namespace serverclient {
 	        this.trigger = source["trigger"];
 	        this.gender = source["gender"];
 	        this.base = source["base"];
+	        this.display_name = source["display_name"];
 	        this.lora = source["lora"];
 	        this.steps = source["steps"];
 	        this.identity = source["identity"];
@@ -2744,6 +2798,8 @@ export namespace stylist {
 	export class AspectChoice {
 	    mode: string;
 	    ids: string[];
+	    text?: string;
+	    text_ru?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AspectChoice(source);
@@ -2753,6 +2809,8 @@ export namespace stylist {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.mode = source["mode"];
 	        this.ids = source["ids"];
+	        this.text = source["text"];
+	        this.text_ru = source["text_ru"];
 	    }
 	}
 	export class Background {
@@ -2762,6 +2820,7 @@ export namespace stylist {
 	    prompt: string;
 	    prompt_ru?: string;
 	    user?: boolean;
+	    male?: boolean;
 	    place: string;
 	
 	    static createFrom(source: any = {}) {
@@ -2776,6 +2835,7 @@ export namespace stylist {
 	        this.prompt = source["prompt"];
 	        this.prompt_ru = source["prompt_ru"];
 	        this.user = source["user"];
+	        this.male = source["male"];
 	        this.place = source["place"];
 	    }
 	}
@@ -2814,6 +2874,7 @@ export namespace stylist {
 	    prompt: string;
 	    prompt_ru?: string;
 	    user?: boolean;
+	    male?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Item(source);
@@ -2827,6 +2888,7 @@ export namespace stylist {
 	        this.prompt = source["prompt"];
 	        this.prompt_ru = source["prompt_ru"];
 	        this.user = source["user"];
+	        this.male = source["male"];
 	    }
 	}
 	export class Theme {

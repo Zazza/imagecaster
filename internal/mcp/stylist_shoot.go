@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/people"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 	"github.com/Zazza/imagecaster/internal/stylist"
@@ -76,7 +77,8 @@ func allPeople(people StylistPeople) ([]serverclient.Person, error) {
 func onlySupported(all []serverclient.Person) []serverclient.Person {
 	out := make([]serverclient.Person, 0, len(all))
 	for _, p := range all {
-		if _, ok := shootModels[p.Base]; ok {
+		if _, ok := shootModels[people.BaseOf(p)]; ok {
+			p.Base = people.BaseOf(p)
 			out = append(out, p)
 		}
 	}
@@ -110,9 +112,9 @@ func shootPrompt(p serverclient.Person, appearance string, look Look, shot, back
 }
 
 func unknownPerson(list []serverclient.Person, name string) error {
-	names := make([]string, 0, len(list))
-	for _, p := range list {
-		names = append(names, p.Name)
+	names := strings.Split(personNames(list), ", ")
+	if len(list) == 0 {
+		names = nil
 	}
 	sort.Strings(names)
 	if len(names) == 0 {
@@ -134,9 +136,14 @@ type shootPlan struct {
 	refineOn bool
 	faceSwap bool
 	w, h     int
+	label    string
+	pipeline int64
+	pipeName string
+	loras    map[string]string
+	swapName string
 }
 
-func planShoot(people StylistPeople, eng StylistEngine, args map[string]any) (*shootPlan, error) {
+func planShoot(people StylistPeople, eng StylistEngine, args map[string]any, pipes pipelineLookup) (*shootPlan, error) {
 	name := strings.TrimSpace(argString(args, "person"))
 	if name == "" {
 		return nil, errors.New("person — имя обученного человека из stylist_people")
@@ -176,33 +183,35 @@ func planShoot(people StylistPeople, eng StylistEngine, args map[string]any) (*s
 	if err != nil {
 		return nil, err
 	}
-	var person serverclient.Person
-	found := false
-	for _, p := range all {
-		if p.Name == name {
-			person, found = p, true
-			break
-		}
+	person, label, tgt, err := shootTarget(all, name, strings.TrimSpace(argString(args, "base")), int64(argInt(args, "pipeline")), pipes, optBool(args, "face_swap", false))
+	if err != nil {
+		return nil, err
 	}
-	if !found {
-		return nil, unknownPerson(onlySupported(all), name)
-	}
-	m, ok := shootModels[person.Base]
-	if !ok {
-		return nil, fmt.Errorf("LoRA %q обучена под %s — фотосессия умеет только Z-Image, Moss-Image, SDXL, Flux.2 и Flux.1", name, person.Base)
-	}
+	m := shootModels[person.Base]
 	plan := &shootPlan{
-		name: name, person: person, m: m, shots: shots, seed: optInt(args, "seed"),
+		label: label, pipeline: tgt.pipeline, pipeName: tgt.name, loras: tgt.loras, swapName: tgt.swap,
+		name: person.Name, person: person, m: m, shots: shots, seed: optInt(args, "seed"),
 		garment: garment, ge: ge, outfit: strings.TrimSpace(look.Outfit), refineOn: optBool(args, "face_pass", false),
 		faceSwap: optBool(args, "face_swap", false), w: shootWidth, h: shootHeight,
 	}
 	if strings.EqualFold(strings.TrimSpace(argString(args, "orientation")), "landscape") {
 		plan.w, plan.h = shootHeight, shootWidth
 	}
+	promptPerson := person
+	if plan.pipeline > 0 {
+		promptPerson.Lora = ""
+	}
 	for _, shot := range shots {
-		plan.prompts = append(plan.prompts, shootPrompt(person, appearance, *look, shot, background))
+		plan.prompts = append(plan.prompts, shootPrompt(promptPerson, appearance, *look, shot, background))
 	}
 	return plan, nil
+}
+
+func (p *shootPlan) shownName() string {
+	if p.label != "" {
+		return p.label
+	}
+	return p.name
 }
 
 func (p *shootPlan) frameSeed(i int) *int64 {
@@ -222,19 +231,27 @@ type frameOut struct {
 	stopped  bool
 }
 
-func shootFrame(shooter StylistShooter, eng StylistEngine, ge StylistGarmentEngine, refiner FaceRefiner, m shootModel, prompt string, seed *int64, garment, outfit string, refineOn bool, w, h int) (frameOut, error) {
-	img, info, frameSeed, err := shootOne(shooter, generation.TestGenerateParams{
-		Mode:           "models",
-		SelectedModels: []string{m.Model},
-		Prompt:         prompt,
-		NegativePrompt: shootNegative,
-		Sampler:        m.Sampler,
-		Steps:          m.Steps,
-		CfgScale:       m.CFG,
-		Width:          w,
-		Height:         h,
-		Seed:           seed,
-	})
+type frameBase func() (string, json.RawMessage, int64, error)
+
+func txt2imgBase(shooter StylistShooter, m shootModel, prompt string, seed *int64, w, h int) frameBase {
+	return func() (string, json.RawMessage, int64, error) {
+		return shootOne(shooter, generation.TestGenerateParams{
+			Mode:           "models",
+			SelectedModels: []string{m.Model},
+			Prompt:         prompt,
+			NegativePrompt: shootNegative,
+			Sampler:        m.Sampler,
+			Steps:          m.Steps,
+			CfgScale:       m.CFG,
+			Width:          w,
+			Height:         h,
+			Seed:           seed,
+		})
+	}
+}
+
+func shootFrame(base frameBase, eng StylistEngine, ge StylistGarmentEngine, refiner FaceRefiner, m shootModel, prompt string, garment, outfit string, refineOn bool) (frameOut, error) {
+	img, info, frameSeed, err := base()
 	if err != nil {
 		return frameOut{}, err
 	}
@@ -271,7 +288,7 @@ func shootFrame(shooter StylistShooter, eng StylistEngine, ge StylistGarmentEngi
 }
 
 func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSessions, eng StylistEngine, refiner FaceRefiner, args map[string]any) (string, error) {
-	plan, err := planShoot(people, eng, args)
+	plan, err := planShoot(people, eng, args, nil)
 	if err != nil {
 		return "", err
 	}
@@ -280,7 +297,7 @@ func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSess
 	stopped := false
 	for i, shot := range plan.shots {
 		prompt := plan.prompts[i]
-		out, err := shootFrame(shooter, eng, plan.ge, refiner, plan.m, prompt, plan.frameSeed(i), plan.garment, plan.outfit, plan.refineOn, plan.w, plan.h)
+		out, err := shootFrame(txt2imgBase(shooter, plan.m, prompt, plan.frameSeed(i), plan.w, plan.h), eng, plan.ge, refiner, plan.m, prompt, plan.garment, plan.outfit, plan.refineOn)
 		if err != nil {
 			if generation.IsInterrupted(err) {
 				break
@@ -344,22 +361,33 @@ func shootOne(shooter StylistShooter, p generation.TestGenerateParams) (string, 
 func registerShootTools(s *Server) {
 	s.Register(Tool{
 		Name: "stylist_people",
-		Description: "Стилист: список обученных LoRA людей на сервере (name, base — модель, под которую обучена, gender, created_at), только под модели, с которыми умеет stylist_shoot. " +
-			"По имени не всегда понятно, кто это и какую из нескольких брать — покажи список человеку и спроси, какую LoRA использовать; сам не выбирай. Пусто — LoRA нет, работай правкой фото stylist_try.",
+		Description: "Стилист: обученные люди на сервере по Имени (name — Имя человека или имя LoRA, если Имя не задано; base и created_at — его первой LoRA; gender; loras — его LoRA: lora, base — модель, face — есть лицо для подмены; pipelines — пайплайны приложения, где хотя бы один шаг на модели с его LoRA: id, name, steps, steps_with_lora), только под модели, с которыми умеет stylist_shoot. " +
+			"Спроси человека, кого снимать (по Имени) и на чём — модель (base) или пайплайн; сам не выбирай. Пусто — LoRA нет, работай правкой фото stylist_try.",
 		InputSchema: props(map[string]any{}),
 		Handler: func(s *Server, args map[string]any) (string, error) {
-			people, _, _, _, _, err := s.shootDeps()
+			peopleSvc, _, _, _, _, err := s.shootDeps()
 			if err != nil {
 				return "", err
 			}
-			all, err := allPeople(people)
+			all, err := allPeople(peopleSvc)
 			if err != nil {
 				return "", err
 			}
 			list := onlySupported(all)
 			out := make([]map[string]any, 0, len(list))
+			idx := map[string]int{}
 			for _, p := range list {
-				out = append(out, map[string]any{"name": p.Name, "base": p.Base, "gender": p.Gender, "created_at": p.CreatedAt})
+				key := people.Key(p)
+				lora := map[string]any{"lora": p.Name, "base": p.Base, "face": p.Identity, "created_at": p.CreatedAt}
+				if i, ok := idx[strings.ToLower(key)]; ok {
+					out[i]["loras"] = append(out[i]["loras"].([]map[string]any), lora)
+					continue
+				}
+				idx[strings.ToLower(key)] = len(out)
+				out = append(out, map[string]any{"name": key, "base": p.Base, "gender": p.Gender, "created_at": p.CreatedAt, "loras": []map[string]any{lora}})
+			}
+			for _, o := range out {
+				o["pipelines"] = s.personPipelines(list, o["name"].(string))
 			}
 			res := map[string]any{"people": out}
 			if len(out) == 0 {
@@ -371,14 +399,16 @@ func registerShootTools(s *Server) {
 	s.Register(Tool{
 		Name: "stylist_shoot",
 		Description: "Стилист: фотосессия по LoRA человека — новые кадры (не правка фото) на модели, под которую обучена LoRA, без стилей приложения; готовые кадры появляются в приложении в сессии «Стилист». " +
-			"person — имя из stylist_people (какую LoRA брать, решает человек). appearance (по-английски) — только то, чего НЕТ в датасете LoRA: пол, телосложение, рост, татуировки и приметы; НЕ описывай возраст, тон кожи, лысину/бороду/причёску и черты лица — LoRA знает их из фото, промптовые токены искажают (возраст «старит», тон кожи перекрашивает, «bald» раздувает лоб). Совсем пустым appearance оставлять нельзя. " +
+			"person — Имя из stylist_people (старое имя LoRA тоже принимается); base — модель его LoRA или pipeline — id пайплайна из stylist_people (на каждом шаге LoRA человека под модель шага, примерка вещи и подмена лица — после последнего шага; кадр того же размера, что и на модели, с учётом orientation, если у шага пайплайна нет своего разрешения; face_pass не действует); у человека одна LoRA — base можно не передавать. Что выбрать, решает человек. appearance (по-английски) — только то, чего НЕТ в датасете LoRA: пол, телосложение, рост, татуировки и приметы; НЕ описывай возраст, тон кожи, лысину/бороду/причёску и черты лица — LoRA знает их из фото, промптовые токены искажают (возраст «старит», тон кожи перекрашивает, «bald» раздувает лоб). Совсем пустым appearance оставлять нельзя. " +
 			"look — образ, как у stylist_try (одежда подробно: тип, силуэт, длина, вырез, рукава, ткань, цвет, принт, застёжки). shots — до 6 поз/ракурсов по-английски, по кадру на каждый (пусто — 4: спереди, вполоборота, сбоку, со спины); look и appearance одинаковы для всей серии, чтобы вещь была одна. background — фон (по умолчанию светлая студия). " +
 			"face_pass=true — после генерации кадра лицо перерисовывается вторым проходом img2img с той же LoRA (крупный режим), серия идёт дольше; у каждого кадра поле face_pass: done | off | skipped:<причина>. " +
 			"face_swap=true — последним шагом лицо на кадре подменяется лицом человека (нужно лицо для подмены на странице «Люди» приложения и модели подмены на сервере); у кадра поле face_swap: done | off | skipped:<причина> (кадр без подмены). " +
 			"garment_path — фото вещи: на каждый кадр её надевает правка Klein по фото (стороны, которых нет на фото, модель дорисует сама), затем идёт проход лица; поле garment у кадра — done | skipped:<причина> (кадр без вещи), +6–11 с на кадр. Годится для 1–2 вещей; комплект из 3+ предметов примерка НЕ ТЯНЕТ (Klein калечит пропорции на любой базе) — такой лук опиши текстом подробно по каждой вещи (цвет/ткань/фасон с фото через локальную vision), без garment_path. Фото вещи лучше давать НА ЧЕЛОВЕКЕ. Цвет/узор/ткань текстом НЕ описывать — вещь с фото; но СТРУКТУРУ комплекта перечислять ВСЕ предметы поимённо, включая мелочи (a headscarf, stockings, a belt) — неназванный предмет Klein не переносит; если состав неясен — спроси у человека до съёмки. " +
 			"Кадры не рисуются сразу: каждый ставится заданием в очередь приложения Imagecaster (там прогресс, «осталось», пауза и отмена; приложение закрыто — начнёт при запуске). Ответ: jobs — номера заданий по порядку кадров; готовность, id кадров в сессии, face_pass, face_swap и garment — stylist_shoot_status(job_ids). Скажи человеку, что серия идёт в приложении, и проверяй статус, когда он спросит или через пару минут. Картинок и путей нет.",
 		InputSchema: props(map[string]any{
-			"person":       prop("имя обученного человека из stylist_people", "string"),
+			"person":       prop("Имя человека из stylist_people (или имя LoRA)", "string"),
+			"base":         prop("модель LoRA человека из stylist_people (loras[].base); не нужна, если у человека одна LoRA или передан pipeline", "string"),
+			"pipeline":     prop("id пайплайна из stylist_people (pipelines[].id) вместо base", "integer"),
 			"appearance":   prop("по-английски, только то, чего нет в датасете LoRA: пол, телосложение, рост, тату; без возраста, тона кожи и причёски", "string"),
 			"look":         lookSchema,
 			"shots":        prop("позы и ракурсы по-английски, 1–6, по кадру на каждый", "array", map[string]any{"items": map[string]any{"type": "string"}}),
@@ -395,7 +425,7 @@ func registerShootTools(s *Server) {
 				return "", err
 			}
 			if s.deps.Queue != nil {
-				plan, err := planShoot(people, eng, args)
+				plan, err := planShoot(people, eng, args, s.pipelineModels)
 				if err != nil {
 					return "", err
 				}
@@ -404,4 +434,76 @@ func registerShootTools(s *Server) {
 			return stylistShoot(people, shooter, sessions, eng, refiner, args)
 		},
 	})
+}
+
+type shootPipeTarget struct {
+	pipeline int64
+	name     string
+	loras    map[string]string
+	swap     string
+}
+
+func shootTarget(all []serverclient.Person, name, base string, pipeline int64, pipes pipelineLookup, faceSwap bool) (serverclient.Person, string, shootPipeTarget, error) {
+	supported := onlySupported(all)
+	key, ok := personKeyFor(supported, name)
+	if !ok {
+		return serverclient.Person{}, "", shootPipeTarget{}, unknownPerson(supported, name)
+	}
+	var mine []serverclient.Person
+	for _, p := range supported {
+		if strings.EqualFold(people.Key(p), key) {
+			mine = append(mine, p)
+		}
+	}
+	if pipeline > 0 {
+		if pipes == nil {
+			return serverclient.Person{}, "", shootPipeTarget{}, errors.New("пайплайн в фотосессии — только через очередь приложения")
+		}
+		title, models, err := pipes(pipeline)
+		if err != nil {
+			return serverclient.Person{}, "", shootPipeTarget{}, err
+		}
+		ov, err := resolvePerson(supported, name, models, faceSwap)
+		if err != nil {
+			return serverclient.Person{}, "", shootPipeTarget{}, err
+		}
+		person := mine[0]
+		for _, p := range mine {
+			if p.Name == ov.Name {
+				person = p
+			}
+		}
+		return person, key, shootPipeTarget{pipeline: pipeline, name: title, loras: ov.Loras, swap: ov.FaceSwapName}, nil
+	}
+	if p, ok := pickByBase(mine, name, base); ok {
+		return p, key, shootPipeTarget{}, nil
+	}
+	bases := make([]string, 0, len(mine))
+	for _, p := range mine {
+		bases = append(bases, p.Base)
+	}
+	if base != "" {
+		return serverclient.Person{}, "", shootPipeTarget{}, fmt.Errorf("«%s»: нет LoRA для %s; есть: %s", key, base, strings.Join(bases, ", "))
+	}
+	return serverclient.Person{}, "", shootPipeTarget{}, fmt.Errorf("«%s»: несколько LoRA (%s) — передай base или pipeline; что выбрать, решает человек", key, strings.Join(bases, ", "))
+}
+
+func pickByBase(mine []serverclient.Person, name, base string) (serverclient.Person, bool) {
+	if base != "" {
+		for _, p := range mine {
+			if p.Base == base {
+				return p, true
+			}
+		}
+		return serverclient.Person{}, false
+	}
+	for _, p := range mine {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	if len(mine) == 1 {
+		return mine[0], true
+	}
+	return serverclient.Person{}, false
 }

@@ -136,7 +136,11 @@ async function usePeople(list) {
 }
 
 function optionValues(w) {
-  return w.find('[data-testid="gen-person-select"]').findAll('option').map(o => o.element.value).filter(v => v !== '').sort()
+  return w.find('[data-testid="gen-person-select"]').findAll('option').filter(o => !o.element.disabled).map(o => o.element.value).filter(v => v !== '').sort()
+}
+
+function disabledOptions(w) {
+  return w.find('[data-testid="gen-person-select"]').findAll('option').filter(o => o.element.disabled).map(o => o.text())
 }
 
 describe('generate: person picker by training base', () => {
@@ -146,6 +150,7 @@ describe('generate: person picker by training base', () => {
     const card = w.find('[data-testid="gen-person"]')
     expect(card.classes()).not.toContain('card-inactive')
     expect(optionValues(w)).toEqual(['mila'])
+    expect(disabledOptions(w)).toContain('anna — нет LoRA для Moss-Image')
   })
 
   it('Z-Image style: select lists Z-Image people and people without base', async () => {

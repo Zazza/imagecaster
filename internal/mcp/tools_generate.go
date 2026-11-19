@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/Zazza/imagecaster/internal/generation"
+	"github.com/Zazza/imagecaster/internal/serverclient"
 )
 
 func registerGenerateTools(s *Server) {
@@ -44,6 +46,24 @@ func registerGenerateTools(s *Server) {
 				overrides, err := decodeArg[generation.PresetOverrides](args, "overrides")
 				if err != nil {
 					return "", err
+				}
+				if overrides != nil && overrides.Person != nil && overrides.Person.Name != "" {
+					list, err := s.personList()
+					if err != nil {
+						return "", err
+					}
+					model := p.ModelName
+					if overrides.ModelName != nil && *overrides.ModelName != "" {
+						model = *overrides.ModelName
+					}
+					ov, err := resolvePerson(list, overrides.Person.Name, []string{model}, overrides.Person.FaceSwap)
+					if err != nil && modelBaseOf(model) == "" && slices.ContainsFunc(list, func(p serverclient.Person) bool { return p.Name == overrides.Person.Name }) {
+						ov, err = &generation.PersonOverride{Name: overrides.Person.Name, FaceSwap: overrides.Person.FaceSwap}, nil
+					}
+					if err != nil {
+						return "", err
+					}
+					overrides.Person = &generation.PersonOverride{Name: ov.Name, FaceSwap: ov.FaceSwap}
 				}
 				extraPrompt, extraNeg := "", ""
 				description := argString(args, "description")

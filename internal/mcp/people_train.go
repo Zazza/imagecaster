@@ -17,7 +17,7 @@ const (
 )
 
 type PeopleTrainer interface {
-	Train(ctx context.Context, folder, name, gender, base string, hold bool) (*serverclient.TrainJob, error)
+	Train(ctx context.Context, folder, name, display, gender, base string, hold bool) (*serverclient.TrainJob, error)
 	Jobs(ctx context.Context) ([]serverclient.TrainJob, error)
 	Resume(ctx context.Context, id string) (*serverclient.TrainJob, error)
 	Bases(ctx context.Context) ([]string, error)
@@ -59,11 +59,12 @@ func registerPeopleTrainTools(s *Server) {
 			"Задание видно на странице «Люди» приложения. start=false — создать без запуска (на паузе, запустить позже people_train_start или кнопкой «Запустить»); по умолчанию запускается сразу. " +
 			"base — модель из bases в people_train_jobs; какую брать, решает человек.",
 		InputSchema: props(map[string]any{
-			"folder": prop("абсолютный путь к папке с фото человека", "string"),
-			"name":   prop("имя LoRA: 2–32 символа, латиница, цифры, _", "string"),
-			"gender": prop("man | woman | person", "string", map[string]any{"enum": []string{"man", "woman", "person"}}),
-			"base":   prop("модель обучения из bases (people_train_jobs)", "string"),
-			"start":  prop("запустить сразу (по умолчанию true)", "boolean"),
+			"folder":       prop("абсолютный путь к папке с фото человека", "string"),
+			"name":         prop("имя LoRA: 2–32 символа, латиница, цифры, _", "string"),
+			"display_name": prop("Имя человека (Наташа, Дима; до 40 символов): по нему человек выбирается на Генерации, в Стилисте и в stylist_shoot; у одного Имени одна LoRA на модель", "string"),
+			"gender":       prop("man | woman | person", "string", map[string]any{"enum": []string{"man", "woman", "person"}}),
+			"base":         prop("модель обучения из bases (people_train_jobs)", "string"),
+			"start":        prop("запустить сразу (по умолчанию true)", "boolean"),
 		}, "folder", "name", "gender", "base"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			t, err := s.trainer()
@@ -87,7 +88,7 @@ func registerPeopleTrainTools(s *Server) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), peopleTrainUpload)
 			defer cancel()
-			job, err := t.Train(ctx, argString(args, "folder"), argString(args, "name"), argString(args, "gender"), base, hold)
+			job, err := t.Train(ctx, argString(args, "folder"), argString(args, "name"), argString(args, "display_name"), argString(args, "gender"), base, hold)
 			if err != nil {
 				return "", err
 			}

@@ -57,7 +57,7 @@ describe('people page', () => {
     await w.find('[data-testid="people-gender"]').setValue('woman')
     await w.find('[data-testid="people-train"]').trigger('click')
     await settle()
-    expect(TrainPerson).toHaveBeenCalledWith('/photos/anna', 'anna', 'woman', 'Z-Image', false)
+    expect(TrainPerson).toHaveBeenCalledWith('/photos/anna', 'anna', '', 'woman', 'Z-Image', false)
   })
 
   it('leaving the page while a poll is in flight stops polling', async () => {
@@ -114,7 +114,7 @@ describe('people page: training base', () => {
     await fillAndTrain(w)
     await w.find('[data-testid="people-train"]').trigger('click')
     await settle()
-    expect(TrainPerson).toHaveBeenCalledWith('/photos/mila', 'mila', 'woman', 'Z-Image', false)
+    expect(TrainPerson).toHaveBeenCalledWith('/photos/mila', 'mila', '', 'woman', 'Z-Image', false)
   })
 
   it('picked Moss-Image goes as the 4th argument of TrainPerson', async () => {
@@ -126,7 +126,7 @@ describe('people page: training base', () => {
     await w.find('[data-testid="people-train"]').trigger('click')
     await settle()
     expect(TrainPerson).toHaveBeenCalledTimes(1)
-    expect(TrainPerson).toHaveBeenCalledWith('/photos/mila', 'mila', 'woman', 'Moss-Image', false)
+    expect(TrainPerson).toHaveBeenCalledWith('/photos/mila', 'mila', '', 'woman', 'Moss-Image', false)
   })
 
   it('people list shows each person base', async () => {

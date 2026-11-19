@@ -9,7 +9,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/preset"
 )
 
-var overridesSchema = prop("разовые переопределения пресета: {sampler, schedule_type, steps, cfg_scale, clip_skip, model_name, loras} — loras JSON-строкой [{\"name\":\"x\",\"weight\":0.6}], \"[]\" — без лор", "object")
+var overridesSchema = prop("разовые переопределения пресета: {sampler, schedule_type, steps, cfg_scale, clip_skip, model_name, loras, person} — person {name: Имя человека или имя LoRA, face_swap?} подставит LoRA этого человека под модель стиля (вес 1) и подменит лицо, если есть; loras JSON-строкой [{\"name\":\"x\",\"weight\":0.6}], \"[]\" — без лор", "object")
 
 var customStepsSchema = prop("своя цепочка вместо compound_preset_id: [{preset_id, denoising_strength (0 для первого шага, >0 для следующих), loras?, resolution_id?}], до 8 шагов", "array",
 	map[string]any{"items": map[string]any{"type": "object"}})

@@ -89,7 +89,7 @@ func TestStylistShoot_EnqueuesFrames(t *testing.T) {
 		},
 	}
 	q := &spQueue{}
-	ids, err := stylistShoot(context.Background(), spPeopleList(), q, false, req)
+	ids, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, req)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{101, 102, 103}, ids)
 	require.Len(t, q.jobs, 3)
@@ -130,7 +130,7 @@ func TestStylistShoot_FaceSwapOnlyWithIdentity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &spQueue{}
-			_, err := stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+			_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, StylistShootRequest{
 				Person: tt.person, FaceSwap: tt.faceSwap, Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "front"})},
 			})
 			require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestStylistShoot_Refuses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &spQueue{}
-			_, err := stylistShoot(context.Background(), tt.people, q, tt.notLocal, tt.req)
+			_, err := stylistShoot(context.Background(), tt.people, nil, q, tt.notLocal, tt.req)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.want)
 			assert.Empty(t, q.jobs, "nothing is enqueued")
@@ -203,7 +203,7 @@ func TestStylistShoot_DefaultAppearanceAndGarment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &spQueue{}
-			_, err := stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+			_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, StylistShootRequest{
 				Person: "ivan", Garment: small, GarmentOutfit: tt.outfit, Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "front"})},
 			})
 			require.NoError(t, err)
@@ -244,7 +244,7 @@ func TestShrinkGarment(t *testing.T) {
 	_, err = shrinkGarment("not base64!")
 	assert.Error(t, err)
 	q := &spQueue{}
-	_, err = stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+	_, err = stylistShoot(context.Background(), spPeopleList(), nil, q, false, StylistShootRequest{
 		Person: "anna", Garment: spImage(t, 3000, 1500, false), GarmentOutfit: "a dress", Series: []stylist.Series{spSeries(stylist.Shot{}, stylist.Shot{})},
 	})
 	require.NoError(t, err)
@@ -257,7 +257,7 @@ func TestShrinkGarment(t *testing.T) {
 
 func TestStylistShoot_PartialEnqueueReportsIDs(t *testing.T) {
 	q := &spQueue{failAt: 2}
-	ids, err := stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+	ids, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, StylistShootRequest{
 		Person: "anna", Series: []stylist.Series{spSeries(stylist.Shot{}, stylist.Shot{})},
 	})
 	require.Error(t, err)
@@ -545,7 +545,7 @@ func TestStylistShoot_EditedShotHasNoFramingLead(t *testing.T) {
 		{"pose":"Анфас","prompt":"sitting on the stairs, full length","prompt_ru":"сидит на лестнице, в полный рост"}
 	]}]}`), &req))
 	q := &spQueue{}
-	_, err := stylistShoot(context.Background(), spPeopleList(), q, false, req)
+	_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, req)
 	require.NoError(t, err)
 	require.Len(t, q.jobs, 2)
 	assert.True(t, strings.HasPrefix(q.jobs[0].params.Prompt, "close-up portrait, head and shoulders, facing camera"), q.jobs[0].params.Prompt)
@@ -568,14 +568,14 @@ func TestStylistShoot_GarmentNeedsItemNames(t *testing.T) {
 	small := spImage(t, 64, 96, true)
 	for _, outfit := range []string{"", "   "} {
 		q := &spQueue{}
-		_, err := stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+		_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, StylistShootRequest{
 			Person: "ivan", Garment: small, GarmentOutfit: outfit, Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "front"})},
 		})
 		require.ErrorIs(t, err, errStylistGarmentUnnamed)
 		assert.Empty(t, q.jobs, "nothing is enqueued")
 	}
 	q := &spQueue{}
-	_, err := stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+	_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, StylistShootRequest{
 		Person: "ivan", Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "front"})},
 	})
 	require.NoError(t, err, "without a garment photo the field is not needed")

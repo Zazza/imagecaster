@@ -27,8 +27,10 @@ type PresetOverrides struct {
 }
 
 type PersonOverride struct {
-	Name     string `json:"name"`
-	FaceSwap bool   `json:"face_swap,omitempty"`
+	Name         string            `json:"name"`
+	FaceSwap     bool              `json:"face_swap,omitempty"`
+	Loras        map[string]string `json:"loras,omitempty"`
+	FaceSwapName string            `json:"face_swap_name,omitempty"`
 }
 
 var personNameRe = regexp.MustCompile(`^[a-z0-9_]{2,32}$`)

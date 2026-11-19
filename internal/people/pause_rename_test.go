@@ -25,6 +25,10 @@ func (f *fakeAPI) ResumeTraining(_ context.Context, id string) (*serverclient.Tr
 	return f.resumeJob, f.resumeErr
 }
 
+func (f *fakeAPI) SetPersonDisplay(_ context.Context, name, display string, replace bool) (*serverclient.Person, error) {
+	return &serverclient.Person{Name: name, DisplayName: display}, nil
+}
+
 func (f *fakeAPI) RenamePerson(_ context.Context, oldName, newName string) (*serverclient.Person, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

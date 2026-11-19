@@ -27,7 +27,7 @@ func TestTrain_HoldPassedToAPI(t *testing.T) {
 			api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1", Status: "paused"}}
 			s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-			job, err := s.Train(context.Background(), dir, "Anna", "woman", "Z-Image", tt.hold)
+			job, err := s.Train(context.Background(), dir, "Anna", "", "woman", "Z-Image", tt.hold)
 
 			require.NoError(t, err)
 			require.NotNil(t, job)
@@ -50,7 +50,7 @@ func TestTrain_HoldStillRequiresLocalServer(t *testing.T) {
 	api := &fakeAPI{submitJob: &serverclient.TrainJob{ID: "j1"}}
 	s := New(api, func() string { return "http://8.8.8.8:8080" }, func() string { return "inst-1" })
 
-	job, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image", true)
+	job, err := s.Train(context.Background(), dir, "anna", "", "woman", "Z-Image", true)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNotLocal), "want ErrNotLocal, got %v", err)
@@ -65,7 +65,7 @@ func TestTrain_HoldStillChecksPhotoCount(t *testing.T) {
 	api := &fakeAPI{}
 	s := New(api, func() string { return "http://192.168.1.184:8080" }, func() string { return "inst-1" })
 
-	_, err := s.Train(context.Background(), dir, "anna", "woman", "Z-Image", true)
+	_, err := s.Train(context.Background(), dir, "anna", "", "woman", "Z-Image", true)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrPhotoCount), "want ErrPhotoCount, got %v", err)

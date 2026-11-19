@@ -67,6 +67,8 @@ func registerCompoundTools(s *Server) {
 			"resolution_id":      prop("id разрешения", "integer"),
 			"hires_profile_id":   prop("id hires-профиля для последнего шага", "integer"),
 			"seed":               prop("фиксированный сид (на каждом шаге)", "integer"),
+			"person":             prop("Имя человека (или имя LoRA): на каждом шаге добавится его LoRA под модель шага, шаги без LoRA — без неё", "string"),
+			"face_swap":          prop("подменить лицо человека после последнего шага (если у его LoRA есть лицо)", "boolean"),
 		}),
 		Handler: func(s *Server, args map[string]any) (string, error) {
 			id := argInt(args, "compound_preset_id")
@@ -108,6 +110,13 @@ func registerCompoundTools(s *Server) {
 			if hid := optInt(args, "hires_profile_id"); hid != nil && *hid > 0 {
 				gp.HiresProfileID = hid
 			}
+			if who := strings.TrimSpace(argString(args, "person")); who != "" {
+				ov, err := s.compoundPerson(who, gp, argBool(args, "face_swap"))
+				if err != nil {
+					return "", err
+				}
+				gp.Person = ov
+			}
 			res, err := s.deps.Gen.GenerateCompoundImage(gp)
 			if err != nil {
 				return "", err
@@ -116,12 +125,19 @@ func registerCompoundTools(s *Server) {
 			if err != nil {
 				return "", err
 			}
-			return toJSON(map[string]any{
+			out := map[string]any{
 				"path":   path,
 				"prompt": res.EffectivePrompt,
 				"seed":   infoSeed(res.Info),
 				"steps":  stepCount,
-			}), nil
+			}
+			if gp.Person != nil && argBool(args, "face_swap") {
+				out["face_swap"] = res.FaceSwap
+				if !gp.Person.FaceSwap {
+					out["face_swap"] = "skipped:no_identity"
+				}
+			}
+			return toJSON(out), nil
 		},
 	})
 }

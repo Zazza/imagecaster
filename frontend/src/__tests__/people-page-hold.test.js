@@ -52,7 +52,7 @@ describe('people page: create training without starting', () => {
     await w.find('[data-testid="people-train"]').trigger('click')
     await settle()
     expect(TrainPerson).toHaveBeenCalledTimes(1)
-    expect(TrainPerson).toHaveBeenCalledWith('/photos/kira', 'kira', 'woman', 'Z-Image', false)
+    expect(TrainPerson).toHaveBeenCalledWith('/photos/kira', 'kira', '', 'woman', 'Z-Image', false)
     expect(w.find('[data-testid="people-hold-ignored"]').exists()).toBe(false)
   })
 
@@ -65,7 +65,7 @@ describe('people page: create training without starting', () => {
     await w.find('[data-testid="people-train"]').trigger('click')
     await settle()
     expect(TrainPerson).toHaveBeenCalledTimes(1)
-    expect(TrainPerson).toHaveBeenCalledWith('/photos/kira', 'kira', 'woman', 'Z-Image', true)
+    expect(TrainPerson).toHaveBeenCalledWith('/photos/kira', 'kira', '', 'woman', 'Z-Image', true)
     expect(w.find('[data-testid="people-hold-ignored"]').exists()).toBe(false)
   })
 

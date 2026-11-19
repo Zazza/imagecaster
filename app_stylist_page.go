@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/png"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 	"github.com/Zazza/imagecaster/internal/imgformat"
 	"github.com/Zazza/imagecaster/internal/lanonly"
 	"github.com/Zazza/imagecaster/internal/mcp"
+	"github.com/Zazza/imagecaster/internal/people"
+	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/queue"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 	"github.com/Zazza/imagecaster/internal/stylist"
@@ -47,6 +50,99 @@ var errStylistPageNotLocal = errors.New("Стилист: сервер не в л
 
 type stylistPeople interface {
 	List(ctx context.Context) ([]serverclient.Person, error)
+}
+
+type stylistPipelines interface {
+	PipelineModels(id int64) (string, []string, error)
+}
+
+type shootTarget struct {
+	person       serverclient.Person
+	base         string
+	model        string
+	lora         string
+	pipeline     int64
+	pipelineName string
+	loras        map[string]string
+	faceSwapName string
+}
+
+func resolveShootTarget(all []serverclient.Person, pipes stylistPipelines, req StylistShootRequest) (*shootTarget, error) {
+	name := strings.TrimSpace(req.Person)
+	key, ok := people.Find(all, name)
+	if !ok {
+		return nil, fmt.Errorf("человек %q не найден на сервере", name)
+	}
+	var mine []serverclient.Person
+	for _, p := range all {
+		if strings.EqualFold(people.Key(p), key) {
+			mine = append(mine, p)
+		}
+	}
+	if req.Pipeline > 0 {
+		if pipes == nil {
+			return nil, errors.New("пайплайны недоступны")
+		}
+		title, models, err := pipes.PipelineModels(req.Pipeline)
+		if err != nil {
+			return nil, fmt.Errorf("пайплайн: %w", err)
+		}
+		byBase := people.LorasByBase(all, key)
+		loras := map[string]string{}
+		var bases []string
+		for _, m := range models {
+			b := generation.ModelBase(m)
+			if l, ok := byBase[b]; ok && b != "" {
+				if _, dup := loras[b]; !dup {
+					bases = append(bases, b)
+				}
+				loras[b] = l
+			}
+		}
+		if len(loras) == 0 {
+			return nil, fmt.Errorf("«%s»: нет LoRA ни для одного шага пайплайна «%s»", key, title)
+		}
+		t := &shootTarget{person: mine[0], pipeline: req.Pipeline, pipelineName: title, loras: loras}
+		if req.FaceSwap {
+			t.faceSwapName = people.FaceSwapName(all, key, bases)
+		}
+		return t, nil
+	}
+	var picked *serverclient.Person
+	switch {
+	case req.Base != "":
+		for i := range mine {
+			if people.BaseOf(mine[i]) == req.Base {
+				picked = &mine[i]
+			}
+		}
+		if picked == nil {
+			return nil, fmt.Errorf("«%s»: нет LoRA для %s", key, req.Base)
+		}
+	case len(mine) == 1:
+		picked = &mine[0]
+	case slices.ContainsFunc(mine, func(p serverclient.Person) bool { return p.Name == name }):
+		for i := range mine {
+			if mine[i].Name == name {
+				picked = &mine[i]
+			}
+		}
+	default:
+		bases := make([]string, 0, len(mine))
+		for _, p := range mine {
+			bases = append(bases, people.BaseOf(p))
+		}
+		return nil, fmt.Errorf("«%s»: несколько LoRA (%s) — выберите модель", key, strings.Join(bases, ", "))
+	}
+	m, ok := stylist.Models[people.BaseOf(*picked)]
+	if !ok || picked.Lora == "" {
+		return nil, fmt.Errorf("LoRA %q обучена под %s — съёмка умеет только Z-Image, Moss-Image, SDXL, Flux.2 и Flux.1", picked.Name, picked.Base)
+	}
+	t := &shootTarget{person: *picked, base: people.BaseOf(*picked), model: m.Model, lora: picked.Lora}
+	if req.FaceSwap && picked.Identity {
+		t.faceSwapName = picked.Name
+	}
+	return t, nil
 }
 
 type stylistQueue interface {
@@ -82,6 +178,8 @@ type StylistShootRequest struct {
 	Series        []stylist.Series `json:"series"`
 	FaceSwap      bool             `json:"face_swap"`
 	Seed          *int64           `json:"seed"`
+	Base          string           `json:"base,omitempty"`
+	Pipeline      int64            `json:"pipeline,omitempty"`
 }
 
 type StylistFrame struct {
@@ -286,7 +384,7 @@ func (a *App) StylistShoot(req StylistShootRequest) ([]int64, error) {
 	}
 	ctx, cancel := a.peopleCtx(stylistPagePeopleWait)
 	defer cancel()
-	return stylistShoot(ctx, a.peopleSvc(), a.queueSvc, sdNotLocal(a.config), req)
+	return stylistShoot(ctx, a.peopleSvc(), appPipelines{a.presets}, a.queueSvc, sdNotLocal(a.config), req)
 }
 
 func defaultStylistAppearance(gender string) string {
@@ -310,7 +408,7 @@ func stylistPageLabel(name, pose string, i, total int) string {
 	return s + fmt.Sprintf(" (%d из %d)", i, total)
 }
 
-func stylistShoot(ctx context.Context, people stylistPeople, q stylistQueue, notLocal bool, req StylistShootRequest) ([]int64, error) {
+func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPipelines, q stylistQueue, notLocal bool, req StylistShootRequest) ([]int64, error) {
 	if notLocal {
 		return nil, errStylistPageNotLocal
 	}
@@ -331,27 +429,17 @@ func stylistShoot(ctx context.Context, people stylistPeople, q stylistQueue, not
 	if name == "" {
 		return nil, errors.New("не выбран человек")
 	}
-	all, err := people.List(ctx)
+	all, err := peopleSvc.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("список людей с сервера: %w", err)
 	}
-	var person *serverclient.Person
-	for i := range all {
-		if all[i].Name == name {
-			person = &all[i]
-			break
-		}
-	}
-	if person == nil {
-		return nil, fmt.Errorf("человек %q не найден на сервере", name)
-	}
-	m, ok := stylist.Models[person.Base]
-	if !ok || person.Lora == "" {
-		return nil, fmt.Errorf("LoRA %q обучена под %s — съёмка умеет только Z-Image, Moss-Image, SDXL и Flux.2", name, person.Base)
+	target, err := resolveShootTarget(all, pipes, req)
+	if err != nil {
+		return nil, err
 	}
 	appearance := strings.TrimSpace(req.Appearance)
 	if appearance == "" {
-		appearance = defaultStylistAppearance(person.Gender)
+		appearance = defaultStylistAppearance(target.person.Gender)
 	}
 	garmentOutfit := strings.TrimSpace(req.GarmentOutfit)
 	if req.Garment != "" && garmentOutfit == "" {
@@ -377,12 +465,14 @@ func stylistShoot(ctx context.Context, people stylistPeople, q stylistQueue, not
 		}
 		for _, sh := range s.Shots {
 			p := mcp.ShootFrameParams{
-				Person: name, Base: person.Base, Model: m.Model, Shot: sh.Pose,
-				Prompt: stylist.FramePrompt(person.Lora, appearance, s, sh),
+				Person: target.person.Name, Base: target.base, Model: target.model, Shot: sh.Pose,
+				Prompt: stylist.FramePrompt(target.lora, appearance, s, sh),
 				Index:  i + 1, Total: total,
 				GarmentBase64: garment, Outfit: outfit,
-				FaceSwap: req.FaceSwap && person.Identity,
+				FaceSwap: target.faceSwapName != "",
 				Width:    stylist.Width, Height: stylist.Height,
+				Pipeline: target.pipeline, PipelineName: target.pipelineName,
+				PersonLoras: target.loras, FaceSwapName: target.faceSwapName,
 			}
 			if sh.Landscape {
 				p.Width, p.Height = stylist.Height, stylist.Width
@@ -538,4 +628,13 @@ func (a *App) StylistDescribeGarment(garment string) (string, error) {
 		d = a.gen
 	}
 	return stylistDescribeGarment(d, llmNotLocal(a.config), garment)
+}
+
+type appPipelines struct{ db *preset.DB }
+
+func (p appPipelines) PipelineModels(id int64) (string, []string, error) {
+	if p.db == nil {
+		return "", nil, errors.New("база пресетов недоступна")
+	}
+	return p.db.CompoundStepModels(id)
 }

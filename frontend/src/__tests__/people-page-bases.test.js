@@ -45,7 +45,7 @@ describe('people page: SDXL and Flux.2 bases', () => {
     await w.find('[data-testid="people-train"]').trigger('click')
     await settle()
     expect(TrainPerson).toHaveBeenCalledTimes(1)
-    expect(TrainPerson).toHaveBeenCalledWith('/photos/kira', 'kira', 'woman', 'Flux.2', false)
+    expect(TrainPerson).toHaveBeenCalledWith('/photos/kira', 'kira', '', 'woman', 'Flux.2', false)
   })
 
   it('only SDXL on the server: default base is SDXL', async () => {

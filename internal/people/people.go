@@ -36,6 +36,7 @@ type API interface {
 	PauseTraining(ctx context.Context, id string) (*serverclient.TrainJob, error)
 	ResumeTraining(ctx context.Context, id string) (*serverclient.TrainJob, error)
 	RenamePerson(ctx context.Context, oldName, newName string) (*serverclient.Person, error)
+	SetPersonDisplay(ctx context.Context, name, display string, replace bool) (*serverclient.Person, error)
 	People(ctx context.Context) ([]serverclient.Person, error)
 	DeletePerson(ctx context.Context, name string) error
 	UploadIdentity(ctx context.Context, name string, photos []string) (*serverclient.Person, error)
@@ -84,7 +85,15 @@ func (s *Service) local() bool {
 	return lanonly.IsLocalURL(u) && !lanonly.ViaProxy(u)
 }
 
-func (s *Service) Train(ctx context.Context, folder, name, gender, base string, hold bool) (*serverclient.TrainJob, error) {
+func (s *Service) Train(ctx context.Context, folder, name, display, gender, base string, hold bool) (*serverclient.TrainJob, error) {
+	return s.train(ctx, folder, name, display, gender, base, hold, false)
+}
+
+func (s *Service) TrainReplace(ctx context.Context, folder, name, display, gender, base string, hold bool) (*serverclient.TrainJob, error) {
+	return s.train(ctx, folder, name, display, gender, base, hold, true)
+}
+
+func (s *Service) train(ctx context.Context, folder, name, display, gender, base string, hold, replace bool) (*serverclient.TrainJob, error) {
 	if !s.local() {
 		return nil, ErrNotLocal
 	}
@@ -95,13 +104,15 @@ func (s *Service) Train(ctx context.Context, folder, name, gender, base string, 
 	id := s.installID()
 	name = strings.ToLower(strings.TrimSpace(name))
 	return s.api.SubmitTraining(ctx, serverclient.TrainRequest{
-		Name:      name,
-		Gender:    gender,
-		Base:      base,
-		Client:    id,
-		ClientRef: id + ":train:" + name,
-		Hold:      hold,
-		Photos:    photos,
+		Name:           name,
+		Gender:         gender,
+		Base:           base,
+		Client:         id,
+		ClientRef:      id + ":train:" + name,
+		DisplayName:    strings.Join(strings.Fields(display), " "),
+		DisplayReplace: replace,
+		Hold:           hold,
+		Photos:         photos,
 	})
 }
 
@@ -124,6 +135,10 @@ func (s *Service) Resume(ctx context.Context, id string) (*serverclient.TrainJob
 func (s *Service) Rename(ctx context.Context, oldName, newName string) error {
 	_, err := s.api.RenamePerson(ctx, oldName, strings.ToLower(strings.TrimSpace(newName)))
 	return err
+}
+
+func (s *Service) SetDisplay(ctx context.Context, name, display string, replace bool) (*serverclient.Person, error) {
+	return s.api.SetPersonDisplay(ctx, name, strings.Join(strings.Fields(display), " "), replace)
 }
 
 func (s *Service) List(ctx context.Context) ([]serverclient.Person, error) {

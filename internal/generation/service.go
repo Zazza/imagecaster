@@ -170,15 +170,19 @@ type CustomStep struct {
 }
 
 type GenerateCompoundImageParams struct {
-	CompoundPresetID    int64        `json:"compound_preset_id"`
-	ExtraPrompt         string       `json:"extra_prompt"`
-	ExtraNegativePrompt string       `json:"extra_negative_prompt"`
-	ResolutionID        *int64       `json:"resolution_id,omitempty"`
-	HiresProfileID      *int64       `json:"hires_profile_id,omitempty"`
-	Steps               []CustomStep `json:"steps,omitempty"`
-	Seed                *int64       `json:"seed,omitempty"`
-	Idea                string       `json:"idea,omitempty"`
-	IdeaNegative        string       `json:"idea_negative,omitempty"`
+	CompoundPresetID    int64           `json:"compound_preset_id"`
+	ExtraPrompt         string          `json:"extra_prompt"`
+	ExtraNegativePrompt string          `json:"extra_negative_prompt"`
+	ResolutionID        *int64          `json:"resolution_id,omitempty"`
+	HiresProfileID      *int64          `json:"hires_profile_id,omitempty"`
+	Steps               []CustomStep    `json:"steps,omitempty"`
+	Seed                *int64          `json:"seed,omitempty"`
+	Idea                string          `json:"idea,omitempty"`
+	IdeaNegative        string          `json:"idea_negative,omitempty"`
+	Person              *PersonOverride `json:"person,omitempty"`
+	ScenePrompt         string          `json:"scene_prompt,omitempty"`
+	Width               int             `json:"width,omitempty"`
+	Height              int             `json:"height,omitempty"`
 }
 
 func ValidateCustomSteps(steps []CustomStep) error {

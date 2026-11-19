@@ -29,7 +29,7 @@ type ptFakeTrainer struct {
 	resumes  []string
 }
 
-func (f *ptFakeTrainer) Train(_ context.Context, folder, name, gender, base string, hold bool) (*serverclient.TrainJob, error) {
+func (f *ptFakeTrainer) Train(_ context.Context, folder, name, _, gender, base string, hold bool) (*serverclient.TrainJob, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.trains = append(f.trains, ptTrainCall{folder, name, gender, base, hold})

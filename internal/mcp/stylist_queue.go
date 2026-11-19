@@ -23,20 +23,62 @@ type ShootQueue interface {
 }
 
 type ShootFrameParams struct {
-	Person        string `json:"person"`
-	Base          string `json:"base"`
-	Model         string `json:"model"`
-	Shot          string `json:"shot"`
-	Prompt        string `json:"prompt"`
-	Index         int    `json:"index"`
-	Total         int    `json:"total"`
-	Seed          *int64 `json:"seed,omitempty"`
-	GarmentBase64 string `json:"garment_base64,omitempty"`
-	Outfit        string `json:"outfit,omitempty"`
-	FacePass      bool   `json:"face_pass"`
-	FaceSwap      bool   `json:"face_swap,omitempty"`
-	Width         int    `json:"width,omitempty"`
-	Height        int    `json:"height,omitempty"`
+	Person        string            `json:"person"`
+	Base          string            `json:"base"`
+	Model         string            `json:"model"`
+	Shot          string            `json:"shot"`
+	Prompt        string            `json:"prompt"`
+	Index         int               `json:"index"`
+	Total         int               `json:"total"`
+	Seed          *int64            `json:"seed,omitempty"`
+	GarmentBase64 string            `json:"garment_base64,omitempty"`
+	Outfit        string            `json:"outfit,omitempty"`
+	FacePass      bool              `json:"face_pass"`
+	FaceSwap      bool              `json:"face_swap,omitempty"`
+	Width         int               `json:"width,omitempty"`
+	Height        int               `json:"height,omitempty"`
+	Pipeline      int64             `json:"pipeline,omitempty"`
+	PipelineName  string            `json:"pipeline_name,omitempty"`
+	PersonLoras   map[string]string `json:"person_loras,omitempty"`
+	FaceSwapName  string            `json:"face_swap_name,omitempty"`
+}
+
+type StylistPipelineShooter interface {
+	GenerateCompoundImage(params generation.GenerateCompoundImageParams) (*generation.GenerateImageResult, error)
+}
+
+func pipelineBase(shooter StylistShooter, p ShootFrameParams, w, h int) frameBase {
+	return func() (string, json.RawMessage, int64, error) {
+		ps, ok := shooter.(StylistPipelineShooter)
+		if !ok {
+			return "", nil, 0, errors.New("пайплайны недоступны в этой сборке")
+		}
+		person := &generation.PersonOverride{Loras: p.PersonLoras}
+		for _, l := range p.PersonLoras {
+			person.Name = l
+			break
+		}
+		res, err := ps.GenerateCompoundImage(generation.GenerateCompoundImageParams{
+			CompoundPresetID:    p.Pipeline,
+			ScenePrompt:         p.Prompt,
+			ExtraNegativePrompt: shootNegative,
+			Seed:                p.Seed,
+			Person:              person,
+			Width:               w,
+			Height:              h,
+		})
+		if err != nil {
+			return "", nil, 0, err
+		}
+		if res == nil || res.Image == "" {
+			return "", nil, 0, errors.New("пайплайн не вернул картинку")
+		}
+		var seed int64
+		if p.Seed != nil {
+			seed = *p.Seed
+		}
+		return res.Image, res.Info, seed, nil
+	}
 }
 
 type ShootFrameResult struct {
@@ -57,12 +99,16 @@ func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
 			Index: i + 1, Total: total, Seed: plan.frameSeed(i),
 			GarmentBase64: plan.garment, Outfit: plan.outfit, FacePass: plan.refineOn, FaceSwap: plan.faceSwap,
 			Width: plan.w, Height: plan.h,
+			Pipeline: plan.pipeline, PipelineName: plan.pipeName, PersonLoras: plan.loras, FaceSwapName: plan.swapName,
+		}
+		if plan.pipeline > 0 {
+			p.FaceSwap = plan.faceSwap && plan.swapName != ""
 		}
 		raw, err := json.Marshal(p)
 		if err != nil {
 			return "", err
 		}
-		label := truncateLabel("Стилист: "+plan.name+", "+shot) + fmt.Sprintf(" (%d из %d)", i+1, total)
+		label := truncateLabel("Стилист: "+plan.shownName()+", "+shot) + fmt.Sprintf(" (%d из %d)", i+1, total)
 		id, err := q.CreateLabeled(queue.JobStylistFrame, string(raw), shootQueueSource, label)
 		if err != nil {
 			if len(ids) > 0 {
@@ -72,13 +118,19 @@ func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
 		}
 		ids = append(ids, id)
 	}
-	return toJSON(map[string]any{
-		"person": plan.name,
+	out := map[string]any{
+		"person": plan.shownName(),
+		"lora":   plan.name,
 		"base":   plan.person.Base,
 		"model":  plan.m.Model,
 		"jobs":   ids,
 		"hint":   shootQueueHint,
-	}), nil
+	}
+	if plan.pipeline > 0 {
+		out["pipeline"], out["loras"] = plan.pipeName, plan.loras
+		delete(out, "model")
+	}
+	return toJSON(out), nil
 }
 
 func RunShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngine, refiner FaceRefiner, p ShootFrameParams) (*ShootFrameResult, error) {
@@ -87,7 +139,7 @@ func RunShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngi
 
 func runShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngine, refiner FaceRefiner, p ShootFrameParams, stopped func() bool) (*ShootFrameResult, error) {
 	m, ok := shootModels[p.Base]
-	if !ok {
+	if !ok && p.Pipeline == 0 {
 		return nil, fmt.Errorf("модель %q фотосессия не умеет", p.Base)
 	}
 	if shooter == nil || sessions == nil {
@@ -104,18 +156,22 @@ func runShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngi
 	if w == 0 || h == 0 {
 		w, h = shootWidth, shootHeight
 	}
-	out, err := shootFrame(shooter, eng, ge, refiner, m, p.Prompt, p.Seed, p.GarmentBase64, p.Outfit, p.FacePass, w, h)
+	base, facePass, swapName, model := txt2imgBase(shooter, m, p.Prompt, p.Seed, w, h), p.FacePass, p.Person, m.Model
+	if p.Pipeline > 0 {
+		base, facePass, swapName, model = pipelineBase(shooter, p, w, h), false, p.FaceSwapName, p.PipelineName
+	}
+	out, err := shootFrame(base, eng, ge, refiner, m, p.Prompt, p.GarmentBase64, p.Outfit, facePass)
 	if err != nil {
 		if generation.IsInterrupted(err) {
 			return nil, err
 		}
 		return nil, errors.New(faceSkipReason(err))
 	}
-	shootFaceSwap(eng, &out, p.Person, p.FaceSwap)
+	shootFaceSwap(eng, &out, swapName, p.FaceSwap && swapName != "")
 	if out.stopped || (stopped != nil && stopped()) {
 		return nil, generation.ErrInterrupted
 	}
-	meta := &preset.GenerationMeta{Model: m.Model, Label: truncateLabel("Стилист: " + p.Person + ", " + p.Shot)}
+	meta := &preset.GenerationMeta{Model: model, Label: truncateLabel("Стилист: " + p.Person + ", " + p.Shot)}
 	id := sessions.AddToNamedSession(StylistSessionName, out.img, out.info, "stylist", meta)
 	return &ShootFrameResult{ID: id, Shot: p.Shot, Prompt: p.Prompt, FacePass: out.facePass, Garment: out.garment, FaceSwap: out.faceSwap}, nil
 }

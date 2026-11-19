@@ -11,7 +11,7 @@ import { parseLoras } from '../loraOverride.js'
 import { newCustomStep, customStepsPayload, customStepLoras } from '../customSteps.js'
 import { t } from '../i18n/index.js'
 import { fastGeneration, loadFastGeneration, saveFastGeneration, fastCacheFor } from '../fastMode.js'
-import { peopleState, personOverride, peopleForStyle, peopleStyleBase, canFaceSwap } from '../people.js'
+import { sameKey, peopleState, personOverride, peopleForStyle, peopleStyleBase, canFaceSwap, peopleGroups, groupLoraForBase, pipelinePerson, pipelineOverride, personKey, trainBaseLabel } from '../people.js'
 import { people, loadPeople } from '../peopleStore.js'
 import { isEffectType } from '../effectTypes.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
@@ -151,13 +151,47 @@ const modelCatalog = ref(null)
 
 const selectedPreset = computed(() => presets.value.find(p => p.id === selectedPresetId.value) || null)
 
-const peopleStatus = computed(() => peopleState(modelCatalog.value, genMode.value, selectedPreset.value, presetOverrides.value, people.value))
+const isPipeline = computed(() => genMode.value === 'compound' || genMode.value === 'custom')
+
+const presetModel = (id) => presets.value.find(p => p.id === id)?.model_name || ''
+
+const stepModels = computed(() => {
+  if (genMode.value === 'compound') return (compoundPresets.value.find(c => c.id === selectedCompoundPresetId.value)?.steps || []).map(s => presetModel(s.preset_id))
+  if (genMode.value === 'custom') return customSteps.value.filter(s => s.preset_id).map(s => presetModel(s.preset_id))
+  return []
+})
+
+const personGroups = computed(() => peopleGroups(people.value))
+
+const pipelineGroups = computed(() => personGroups.value.filter(g => pipelinePerson(modelCatalog.value, stepModels.value, g).available))
+
+const peopleStatus = computed(() => {
+  if (!isPipeline.value) return peopleState(modelCatalog.value, genMode.value, selectedPreset.value, presetOverrides.value, people.value)
+  if (!personGroups.value.length) return 'no_people'
+  if (!stepModels.value.length) return 'no_pipeline'
+  if (!Array.isArray(modelCatalog.value?.sd_models)) return 'no_catalog'
+  return pipelineGroups.value.length ? 'ok' : 'no_people_pipeline'
+})
 
 const showPeople = computed(() => !kidsModeActive.value && peopleStatus.value === 'ok')
 
 const stylePeople = computed(() => peopleForStyle(modelCatalog.value, selectedPreset.value, presetOverrides.value, people.value))
 
-const peopleOffText = computed(() => t('people.off_' + peopleStatus.value, { base: peopleStyleBase(modelCatalog.value, selectedPreset.value, presetOverrides.value) }))
+const styleBase = computed(() => peopleStyleBase(modelCatalog.value, selectedPreset.value, presetOverrides.value))
+
+const personOptions = computed(() => {
+  if (isPipeline.value) return pipelineGroups.value.map(g => ({ key: g.key, label: g.key, disabled: false }))
+  return personGroups.value.map(g => {
+    const has = !!groupLoraForBase(g, styleBase.value)
+    return { key: g.key, label: has ? g.key : t('people.no_lora_for_base', { name: g.key, base: trainBaseLabel(styleBase.value) }), disabled: !has }
+  })
+})
+
+const pickedGroup = computed(() => personGroups.value.find(g => g.key === selectedPerson.value) || null)
+
+const pipelineMissing = computed(() => (isPipeline.value && pickedGroup.value ? pipelinePerson(modelCatalog.value, stepModels.value, pickedGroup.value).missing : []))
+
+const peopleOffText = computed(() => t('people.off_' + peopleStatus.value, { base: styleBase.value }))
 
 const fastUnsupported = computed(() => {
   if (genMode.value !== 'preset' || !selectedPreset.value || !modelCatalog.value) return false
@@ -165,9 +199,11 @@ const fastUnsupported = computed(() => {
   return !fastCacheFor(modelCatalog.value, model)
 })
 
-const pickedPerson = computed(() => stylePeople.value.find(p => p.name === selectedPerson.value) || null)
+const pickedPerson = computed(() => stylePeople.value.find(p => sameKey(personKey(p), selectedPerson.value)) || null)
 
-const showFaceSwap = computed(() => showPeople.value && canFaceSwap(pickedPerson.value, faceSwapFeature.value))
+const pipelineSwap = computed(() => (pickedGroup.value ? pipelineOverride(modelCatalog.value, stepModels.value, pickedGroup.value, true) : null))
+
+const showFaceSwap = computed(() => showPeople.value && (isPipeline.value ? !!(faceSwapFeature.value && pipelineSwap.value?.face_swap) : canFaceSwap(pickedPerson.value, faceSwapFeature.value)))
 
 watch(selectedPerson, () => { faceSwapOn.value = false })
 watch(showFaceSwap, v => { if (!v) faceSwapOn.value = false })
@@ -178,6 +214,12 @@ async function loadFaceSwapFeature() {
   } catch (e) {
     faceSwapFeature.value = false
   }
+}
+
+function pipelinePersonFor() {
+  if (!showPeople.value || !isPipeline.value || !pickedGroup.value) return {}
+  const person = pipelineOverride(modelCatalog.value, stepModels.value, pickedGroup.value, showFaceSwap.value && faceSwapOn.value)
+  return person ? { person } : {}
 }
 
 function withPerson(ov) {
@@ -293,6 +335,7 @@ async function sendToSD() {
         extra_negative_prompt: extraNegativePrompt.value,
         resolution_id: selectedResolutionId.value,
         hires_profile_id: selectedHiresProfileId.value,
+        ...pipelinePersonFor(),
       })
     } else if (genMode.value === 'custom') {
       result = await api.generateCompoundImage({
@@ -302,6 +345,7 @@ async function sendToSD() {
         resolution_id: selectedResolutionId.value,
         hires_profile_id: selectedHiresProfileId.value,
         seed: parseSeedInput(seedInput.value),
+        ...pipelinePersonFor(),
       })
     } else {
       const seedVal = parseSeedInput(seedInput.value)
@@ -406,6 +450,7 @@ async function generateImage() {
   const extraP = idea ? '' : extraPrompt.value
   const extraN = idea ? '' : extraNegativePrompt.value
   const ideaFields = idea ? { idea, idea_negative: ideaNegative } : {}
+  const pipelinePerson = pipelinePersonFor()
   const resId = selectedResolutionId.value
   const hiresId = selectedHiresProfileId.value
   const seedVal = parseSeedInput(seedInput.value)
@@ -422,6 +467,7 @@ async function generateImage() {
           extra_negative_prompt: extraN,
           resolution_id: resId,
           hires_profile_id: hiresId,
+          ...pipelinePerson,
           ...ideaFields,
         })
       } else if (mode === 'custom') {
@@ -432,6 +478,7 @@ async function generateImage() {
           resolution_id: resId,
           hires_profile_id: hiresId,
           seed: seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null,
+          ...pipelinePerson,
           ...ideaFields,
         })
       } else {
@@ -865,9 +912,10 @@ function onKeydown(e) {
                 <div v-if="showPeople" class="form-group">
                   <select class="form-select" v-model="selectedPerson" :aria-label="t('people.pick_label')" data-testid="gen-person-select">
                     <option value="">{{ t('people.pick_none') }}</option>
-                    <option v-for="p in stylePeople" :key="p.name" :value="p.name">{{ p.name }}</option>
+                    <option v-for="o in personOptions" :key="o.key" :value="o.key" :disabled="o.disabled">{{ o.label }}</option>
                   </select>
-                  <div class="form-hint">{{ t('people.pick_hint') }}</div>
+                  <div class="form-hint">{{ isPipeline ? t('people.pick_hint_pipeline') : t('people.pick_hint') }}</div>
+                  <div v-if="pipelineMissing.length" class="form-hint" data-testid="gen-person-missing">{{ t('people.pipeline_missing', { steps: pipelineMissing.join(', ') }) }}</div>
                   <label v-if="showFaceSwap" class="gen-face-swap" data-testid="gen-face-swap">
                     <input type="checkbox" v-model="faceSwapOn" data-testid="gen-face-swap-input" />
                     {{ t('people.face_swap') }}
