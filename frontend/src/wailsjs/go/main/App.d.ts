@@ -302,6 +302,8 @@ export function StylistRegenerateSeries(arg1:stylist.PlanRequest,arg2:number):Pr
 
 export function StylistShoot(arg1:main.StylistShootRequest):Promise<Array<number>>;
 
+export function StylistDescribeGarment(arg1:string):Promise<string>;
+
 export function StylistTranslate(arg1:Array<string>):Promise<Array<string>>;
 
 export function SwitchSession(arg1:number):Promise<void>;

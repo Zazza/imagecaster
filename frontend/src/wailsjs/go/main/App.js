@@ -574,6 +574,10 @@ export function StylistShoot(arg1) {
   return window['go']['main']['App']['StylistShoot'](arg1);
 }
 
+export function StylistDescribeGarment(arg1) {
+  return window['go']['main']['App']['StylistDescribeGarment'](arg1);
+}
+
 export function StylistTranslate(arg1) {
   return window['go']['main']['App']['StylistTranslate'](arg1);
 }

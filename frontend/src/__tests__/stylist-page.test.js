@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks, EventsEmit } from './mocks/runtime'
 import {
-  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistShoot, StylistAppearance, StylistPickGarment,
+  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistShoot, StylistAppearance, StylistPickGarment, StylistDescribeGarment,
   ListPeople, FaceSwapStatus, GetQueue, GetSessionThumb, GetSessionImage, SetStylistAppearance, StylistFrames, CancelQueueJob, StylistTranslate,
 } from '../wailsjs/go/main/App.js'
 import { setLocale, t } from '../i18n/index.js'
@@ -102,14 +102,14 @@ describe('useStylistPlan helpers', () => {
   it('maps StylistFrames rows to my frames in job order, missing ones are gone', () => {
     const rows = [
       { job_id: 6, status: 'running', item_id: 0, error: '', shot: '' },
-      { job_id: 5, status: 'completed', item_id: 77, error: '', shot: 'a' },
+      { job_id: 5, status: 'completed', item_id: 77, error: '', shot: 'a', garment: 'done' },
       { job_id: 9, status: 'completed', item_id: 99, error: '', shot: '' },
     ]
     const frames = framesFrom(rows, [5, 6, 8])
     expect(frames).toEqual([
-      { jobId: 5, status: 'completed', itemId: 77, error: '', shot: 'a' },
-      { jobId: 6, status: 'running', itemId: 0, error: '', shot: '' },
-      { jobId: 8, status: 'gone', itemId: 0, error: '', shot: '' },
+      { jobId: 5, status: 'completed', itemId: 77, error: '', shot: 'a', garment: 'done' },
+      { jobId: 6, status: 'running', itemId: 0, error: '', shot: '', garment: '' },
+      { jobId: 8, status: 'gone', itemId: 0, error: '', shot: '', garment: '' },
     ])
     expect(latestDone(frames).itemId).toBe(77)
     expect(latestDone([...frames, { jobId: 10, status: 'completed', itemId: 101 }]).itemId).toBe(101)
@@ -166,9 +166,12 @@ describe('StylistPage', () => {
     await settle()
     expect(w.find(tid('garment-outfit-tab')).exists()).toBe(true)
     expect(w.find(tid('mode-auto')).exists()).toBe(false)
+    expect(w.find(tid('garment-outfit-tab')).text()).toBe(t('stylist.garment_outfit_moved'))
+    expect(w.find(tid('stylist-section-task')).find(tid('stylist-garment-outfit')).exists()).toBe(true)
     await w.find(tid('stylist-garment-outfit')).setValue('a top and a skirt')
     await w.find(tid('tab-hair')).trigger('click')
     expect(w.find(tid('garment-outfit-tab')).exists()).toBe(false)
+    expect(w.find(tid('stylist-garment-outfit')).exists()).toBe(true)
     await w.find(tid('stylist-plan')).trigger('click')
     await settle()
     expect(StylistPlan.mock.calls[0][0].aspects.outfit.mode).toBe('keep')
@@ -311,8 +314,79 @@ describe('StylistPage', () => {
     const imgs = w.find(tid('stylist-results')).findAll('img')
     expect(imgs).toHaveLength(1)
     expect(imgs[0].attributes('src')).toBe('data:image/jpeg;base64,/9j/abc')
+    const caption = imgs[0].element.parentElement.querySelector('[data-testid="stylist-frame-caption"]')
+    expect(caption.textContent).toBe('1 · ' + t('stylist.frame_completed'))
+    expect(caption.classList.contains('on-image')).toBe(true)
     expect(GetSessionImage).toHaveBeenCalledWith(300)
     expect(w.find(tid('stylist-big')).attributes('src')).toBe('data:image/jpeg;base64,/9j/full')
+  })
+
+  it('picking a garment photo fills «Что на фото» from the local model; «Определить» asks again', async () => {
+    StylistPickGarment.mockImplementation(() => Promise.resolve('iVBORw0KGgoAAAA'))
+    StylistDescribeGarment.mockImplementation(() => Promise.resolve('a top and a skirt'))
+    const w = await mountPage()
+    await w.find(tid('stylist-garment-pick')).trigger('click')
+    await settle()
+    expect(StylistDescribeGarment).toHaveBeenCalledWith('iVBORw0KGgoAAAA')
+    expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('a top and a skirt')
+    await w.find(tid('stylist-garment-outfit')).setValue('a blouse and a skirt')
+    StylistDescribeGarment.mockImplementation(() => Promise.resolve('a top, a skirt and a belt'))
+    await w.find(tid('stylist-garment-describe')).trigger('click')
+    await settle()
+    expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('a top, a skirt and a belt')
+  })
+
+  it('a remote model or an error leaves the field for the user with the reason', async () => {
+    StylistPickGarment.mockImplementation(() => Promise.resolve('iVBORw0KGgoAAAA'))
+    StylistDescribeGarment.mockImplementation(() => Promise.reject(new Error('определить вещи можно только локальной моделью ИИ')))
+    const w = await mountPage()
+    await w.find(tid('stylist-garment-pick')).trigger('click')
+    await settle()
+    expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('')
+    expect(w.find(tid('stylist-garment-note')).text()).toContain('только локальной моделью')
+    expect(w.find(tid('stylist-error')).exists()).toBe(false)
+  })
+
+  it('with a garment photo «Снять» waits for the item names', async () => {
+    StylistPickGarment.mockImplementation(() => Promise.resolve('iVBORw0KGgoAAAA'))
+    StylistShoot.mockImplementation(() => Promise.resolve([1]))
+    const w = await mountPage()
+    await w.find(tid('stylist-garment-pick')).trigger('click')
+    await settle()
+    await w.find(tid('stylist-plan')).trigger('click')
+    await settle()
+    expect(w.find(tid('stylist-shoot')).element.disabled).toBe(true)
+    expect(w.find(tid('stylist-garment-unnamed')).text()).toBe(t('stylist.need_garment_outfit'))
+    await w.find(tid('stylist-shoot')).trigger('click')
+    await settle()
+    expect(StylistShoot).not.toHaveBeenCalled()
+    await w.find(tid('tab-outfit')).trigger('click')
+    await w.find(tid('stylist-garment-outfit')).setValue('  ')
+    expect(w.find(tid('stylist-shoot')).element.disabled).toBe(true)
+    await w.find(tid('stylist-garment-outfit')).setValue('a top and a skirt')
+    expect(w.find(tid('stylist-shoot')).element.disabled).toBe(false)
+    expect(w.find(tid('stylist-garment-unnamed')).exists()).toBe(false)
+  })
+
+  it('a frame where the garment was not put on is marked with the reason', async () => {
+    StylistShoot.mockImplementation(() => Promise.resolve([51, 52]))
+    StylistFrames.mockImplementation(() => Promise.resolve([
+      { job_id: 51, status: 'completed', item_id: 0, error: '', shot: 'Анфас', face_swap: '', garment: 'done' },
+      { job_id: 52, status: 'completed', item_id: 0, error: '', shot: 'Сбоку', face_swap: '', garment: 'skipped:примерка не вернула картинку' },
+    ]))
+    const w = await mountPage()
+    await w.find(tid('stylist-plan')).trigger('click')
+    await settle()
+    await w.find(tid('stylist-shoot')).trigger('click')
+    await settle()
+    EventsEmit('queue:changed')
+    await settle()
+    const tiles = w.findAll(tid('stylist-frame'))
+    expect(tiles).toHaveLength(2)
+    expect(tiles[0].find(tid('stylist-frame-no-garment')).exists()).toBe(false)
+    expect(tiles[1].find(tid('stylist-frame-no-garment')).text()).toBe(t('stylist.frame_no_garment'))
+    expect(tiles[1].find(tid('stylist-frame-caption')).text()).toBe('2 · ' + t('stylist.frame_completed'))
+    expect(tiles[1].attributes('title')).toBe(t('stylist.frame_no_garment_title', { reason: 'примерка не вернула картинку' }))
   })
 
   it('switches between plan and frames: plan after planning, frames after shooting', async () => {

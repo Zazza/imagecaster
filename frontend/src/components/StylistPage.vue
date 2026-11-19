@@ -54,7 +54,10 @@ const planBlocked = computed(() => {
   if (!person.value) return t('stylist.need_person')
   return ''
 })
-const canShoot = computed(() => !!person.value && frameCount.value > 0 && frameCount.value <= FRAMES_MAX && !shooting.value && !planning.value && regenerating.value < 0)
+const garmentUnnamed = computed(() => !!form.garment && !(form.garmentOutfit || '').trim())
+const canShoot = computed(() => !!person.value && frameCount.value > 0 && frameCount.value <= FRAMES_MAX && !shooting.value && !planning.value && regenerating.value < 0 && !garmentUnnamed.value)
+const garmentMissed = (f) => !!f.garment && f.garment !== 'done'
+const garmentReason = (f) => f.garment.replace(/^skipped:\s*/, '')
 const runningIndex = computed(() => frames.value.findIndex(f => f.status === 'running'))
 const runningFrame = computed(() => runningIndex.value >= 0 ? frames.value[runningIndex.value] : null)
 const bigItemId = computed(() => {
@@ -119,10 +122,31 @@ function toggleTheme(id) {
   form.themes = form.themes.includes(id) ? form.themes.filter(x => x !== id) : [...form.themes, id]
 }
 
+const describing = ref(false)
+const garmentNote = ref('')
+
+async function describeGarment() {
+  const photo = form.garment
+  if (!photo || describing.value) return
+  describing.value = true
+  garmentNote.value = ''
+  try {
+    const names = await api.stylistDescribeGarment(photo)
+    if (form.garment === photo && names) form.garmentOutfit = names
+  } catch (e) {
+    if (form.garment === photo) garmentNote.value = String(e?.message || e)
+  } finally {
+    describing.value = false
+  }
+}
+
 async function pickGarment() {
   try {
     const b64 = await api.stylistPickGarment()
-    if (b64) form.garment = b64
+    if (!b64) return
+    form.garment = b64
+    form.garmentOutfit = ''
+    await describeGarment()
   } catch (e) {
     error.value = String(e?.message || e)
   }
@@ -257,11 +281,12 @@ onUnmounted(() => {
             <div class="stylist-strip" data-testid="stylist-results">
               <button
                 v-for="(f, i) in frames" :key="f.jobId" type="button" class="stylist-thumb"
-                :class="['is-' + f.status, { active: f.itemId && f.itemId === bigItemId }]"
-                :title="f.error || f.shot" data-testid="stylist-frame" @click="pickFrame(f)"
+                :class="['is-' + f.status, { active: f.itemId && f.itemId === bigItemId, 'no-garment': garmentMissed(f) }]"
+                :title="f.error || (garmentMissed(f) ? t('stylist.frame_no_garment_title', { reason: garmentReason(f) }) : f.shot)" data-testid="stylist-frame" @click="pickFrame(f)"
               >
                 <img v-if="f.itemId && thumbs[f.itemId]" :src="thumbs[f.itemId]" alt="" />
-                <span v-else class="stylist-thumb-text">{{ i + 1 }} · {{ t('stylist.frame_' + f.status) }}</span>
+                <span v-if="garmentMissed(f)" class="stylist-thumb-badge" data-testid="stylist-frame-no-garment">{{ t('stylist.frame_no_garment') }}</span>
+                <span class="stylist-thumb-text" :class="{ 'on-image': f.itemId && thumbs[f.itemId] }" data-testid="stylist-frame-caption">{{ i + 1 }} · {{ t('stylist.frame_' + f.status) }}</span>
               </button>
             </div>
           </div>
@@ -329,6 +354,15 @@ onUnmounted(() => {
                   </div>
                   <div class="form-hint">{{ t('stylist.garment_hint') }}</div>
                 </div>
+                <div v-if="form.garment" class="form-group">
+                  <label class="form-label">{{ t('stylist.garment_outfit') }}</label>
+                  <div class="stylist-garment">
+                    <input class="form-input" :class="{ 'is-invalid': garmentUnnamed && !describing }" type="text" v-model="form.garmentOutfit" maxlength="300" :disabled="describing" :placeholder="describing ? t('stylist.garment_describing') : t('stylist.garment_outfit_placeholder')" data-testid="stylist-garment-outfit" />
+                    <button class="btn btn-secondary btn-sm" :disabled="describing" data-testid="stylist-garment-describe" @click="describeGarment">{{ describing ? t('stylist.garment_describing') : t('stylist.garment_describe') }}</button>
+                  </div>
+                  <div v-if="garmentNote" class="form-hint stylist-face-off" data-testid="stylist-garment-note">{{ garmentNote }}</div>
+                  <div class="form-hint">{{ t('stylist.garment_outfit_hint') }}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -342,11 +376,7 @@ onUnmounted(() => {
                 <div class="tabs stylist-tabs">
                   <button v-for="a in ASPECTS" :key="a" class="tab" :class="{ active: tab === a }" :data-testid="'tab-' + a" @click="tab = a">{{ t('stylist.tab_' + a) }}</button>
                 </div>
-                <div v-if="tab === 'outfit' && outfitLocked" class="form-group" data-testid="garment-outfit-tab">
-                  <label class="form-label">{{ t('stylist.garment_outfit') }}</label>
-                  <input class="form-input" type="text" v-model="form.garmentOutfit" maxlength="300" :placeholder="t('stylist.garment_outfit_placeholder')" data-testid="stylist-garment-outfit" />
-                  <div class="form-hint">{{ t('stylist.garment_outfit_hint') }}</div>
-                </div>
+                <div v-if="tab === 'outfit' && outfitLocked" class="form-hint" data-testid="garment-outfit-tab">{{ t('stylist.garment_outfit_moved') }}</div>
                 <AspectTab v-else :aspect="tab" :choice="form.aspects[tab]" :items="itemsFor(tab)" :themes="base?.themes || []" @update:choice="form.aspects[tab] = $event" />
               </div>
             </div>
@@ -361,6 +391,7 @@ onUnmounted(() => {
           <div v-if="planBlocked" class="form-hint stylist-blocked" data-testid="stylist-plan-blocked">{{ planBlocked }}</div>
           <div v-else-if="frameCount > FRAMES_MAX" class="form-hint stylist-blocked">{{ t('stylist.too_many', { n: FRAMES_MAX }) }}</div>
           <div v-else-if="!series.length" class="form-hint stylist-blocked" data-testid="stylist-shoot-blocked">{{ t('stylist.need_plan') }}</div>
+          <div v-else-if="garmentUnnamed" class="form-hint stylist-blocked" data-testid="stylist-garment-unnamed">{{ describing ? t('stylist.garment_describing') : t('stylist.need_garment_outfit') }}</div>
           <div v-if="shotNotice" class="form-hint stylist-blocked" data-testid="stylist-shot-notice">{{ shotNotice }}</div>
         </div>
       </div>
@@ -375,6 +406,8 @@ onUnmounted(() => {
 .stylist-count { margin-left: 6px; opacity: 0.7; }
 .stylist-narrow { max-width: 120px; }
 .stylist-garment { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.stylist-garment ~ .form-hint + .form-group { margin-top: 8px; }
+.form-input.is-invalid { border-color: var(--warning, var(--danger)); }
 .stylist-garment-img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--radius-sm); }
 .stylist-more { margin-top: 8px; }
 .stylist-face-off { color: var(--warning, var(--text-dim)); }
@@ -391,6 +424,10 @@ onUnmounted(() => {
 .stylist-thumb.is-running { border-color: var(--accent); }
 .stylist-thumb.is-failed { border-color: var(--danger); }
 .stylist-thumb.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.stylist-thumb { position: relative; }
+.stylist-thumb.no-garment { border-color: var(--warning, var(--danger)); }
+.stylist-thumb-badge { position: absolute; left: 2px; right: 2px; top: 2px; padding: 1px 2px; border-radius: var(--radius-sm); background: rgba(0, 0, 0, 0.7); color: var(--warning, #f0b429); font-size: 10px; line-height: 1.3; text-align: center; }
+.stylist-thumb-text.on-image { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 3px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; line-height: 1.4; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stylist-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .stylist-thumb-text { font-size: var(--fs-xs); color: var(--text-dim); text-align: center; padding: 4px; }
 </style>

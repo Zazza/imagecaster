@@ -20,10 +20,13 @@ import (
 	"github.com/Zazza/imagecaster/internal/generation"
 	"github.com/Zazza/imagecaster/internal/imgcodec"
 	"github.com/Zazza/imagecaster/internal/imgformat"
+	"github.com/Zazza/imagecaster/internal/lanonly"
 	"github.com/Zazza/imagecaster/internal/mcp"
 	"github.com/Zazza/imagecaster/internal/queue"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 	"github.com/Zazza/imagecaster/internal/stylist"
+
+	_ "golang.org/x/image/webp"
 )
 
 const (
@@ -88,6 +91,7 @@ type StylistFrame struct {
 	Error    string `json:"error"`
 	Shot     string `json:"shot"`
 	FaceSwap string `json:"face_swap"`
+	Garment  string `json:"garment,omitempty"`
 }
 
 func (a *App) StylistPresets() (*stylist.Base, error) {
@@ -186,7 +190,7 @@ func regenerateStylistSeries(chat stylist.Ideas, model string, req stylist.PlanR
 func (a *App) StylistPickGarment() (string, error) {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   "Фото вещи",
-		Filters: []runtime.FileFilter{{DisplayName: "Images", Pattern: "*.png;*.jpg;*.jpeg"}},
+		Filters: []runtime.FileFilter{{DisplayName: "Images", Pattern: "*.png;*.jpg;*.jpeg;*.webp"}},
 	})
 	if err != nil || path == "" {
 		return "", err
@@ -200,6 +204,8 @@ func (a *App) StylistPickGarment() (string, error) {
 	}
 	return base64.StdEncoding.EncodeToString(data), nil
 }
+
+var errStylistGarmentUnnamed = errors.New("назовите вещи с фото в поле «Что на фото», например: a top and a skirt — без названий модель сливает их в одну вещь")
 
 var errStylistAppearanceCorrupt = errors.New("сохранённые описания внешности повреждены")
 
@@ -341,11 +347,14 @@ func stylistShoot(ctx context.Context, people stylistPeople, q stylistQueue, not
 	if appearance == "" {
 		appearance = defaultStylistAppearance(person.Gender)
 	}
+	garmentOutfit := strings.TrimSpace(req.GarmentOutfit)
+	if req.Garment != "" && garmentOutfit == "" {
+		return nil, errStylistGarmentUnnamed
+	}
 	garment, err := shrinkGarment(req.Garment)
 	if err != nil {
 		return nil, err
 	}
-	garmentOutfit := strings.TrimSpace(req.GarmentOutfit)
 	if r := []rune(garmentOutfit); len(r) > stylistAppearanceMax {
 		garmentOutfit = string(r[:stylistAppearanceMax])
 	}
@@ -399,6 +408,9 @@ func shrinkGarment(b64 string) (string, error) {
 		return "", fmt.Errorf("фото вещи: %w", err)
 	}
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if errors.Is(err, image.ErrFormat) {
+		return imgcodec.StripDataURL(b64), nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("фото вещи: %w", err)
 	}
@@ -456,11 +468,68 @@ func stylistFrames(q stylistFrameResults, ids []int64) ([]StylistFrame, error) {
 				var r queue.JobResult
 				var fr mcp.ShootFrameResult
 				if json.Unmarshal([]byte(j.Result), &r) == nil && json.Unmarshal(r.Frame, &fr) == nil {
-					f.ItemID, f.Shot, f.FaceSwap = fr.ID, fr.Shot, fr.FaceSwap
+					f.ItemID, f.Shot, f.FaceSwap, f.Garment = fr.ID, fr.Shot, fr.FaceSwap, fr.Garment
 				}
 			}
 		}
 		out[i] = f
 	}
 	return out, nil
+}
+
+const stylistGarmentNamesPrompt = "Name only the clothes and worn items in this photo (garments, shoes, belt, hat, scarf, gloves, stockings, a bag worn or carried), by type only, as one short English phrase joined with commas and \"and\", for example: \"a cropped top and a midi skirt\" or \"a blazer, a shirt and wide trousers\". Skip jewelry and anything that is not worn, such as a glass, a phone or flowers. Do not mention colours, fabrics, patterns, the person, the pose or the background. Answer with the phrase only."
+
+var errStylistVisionNotLocal = errors.New("определить вещи можно только локальной моделью ИИ — модель не в локальной сети, фото не отправлено; напишите вещи сами")
+
+type garmentDescriber interface {
+	DescribeImage(imageBase64, prompt string) (string, error)
+}
+
+func stylistDescribeGarment(d garmentDescriber, notLocal bool, garment string) (string, error) {
+	if garment == "" {
+		return "", errors.New("нет фото вещи")
+	}
+	if notLocal {
+		return "", errStylistVisionNotLocal
+	}
+	if d == nil {
+		return "", errors.New("модель ИИ недоступна")
+	}
+	small, err := shrinkGarment(garment)
+	if err != nil {
+		return "", err
+	}
+	text, err := d.DescribeImage(small, stylistGarmentNamesPrompt)
+	if err != nil {
+		return "", fmt.Errorf("не удалось определить вещи: %w", err)
+	}
+	names := cleanGarmentNames(text)
+	if names == "" {
+		return "", errors.New("модель не назвала вещи — напишите их сами")
+	}
+	return names, nil
+}
+
+func cleanGarmentNames(text string) string {
+	line := strings.TrimSpace(text)
+	if i := strings.IndexAny(line, "\r\n"); i >= 0 {
+		line = strings.TrimSpace(line[:i])
+	}
+	line = strings.Trim(line, "\"'`«» .")
+	if r := []rune(line); len(r) > stylistAppearanceMax {
+		line = strings.TrimSpace(string(r[:stylistAppearanceMax]))
+	}
+	return line
+}
+
+func llmNotLocal(cfg *config.Config) bool {
+	return cfg != nil && (!lanonly.IsLocalURL(cfg.LLMUrl) || lanonly.ViaProxy(cfg.LLMUrl))
+}
+
+func (a *App) StylistDescribeGarment(garment string) (string, error) {
+	var d garmentDescriber
+	if a.gen != nil {
+		d = a.gen
+	}
+	return stylistDescribeGarment(d, llmNotLocal(a.config), garment)
 }

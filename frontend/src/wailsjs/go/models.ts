@@ -1017,6 +1017,7 @@ export namespace main {
 	    error: string;
 	    shot: string;
 	    face_swap: string;
+	    garment?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new StylistFrame(source);
@@ -1030,6 +1031,7 @@ export namespace main {
 	        this.error = source["error"];
 	        this.shot = source["shot"];
 	        this.face_swap = source["face_swap"];
+	        this.garment = source["garment"];
 	    }
 	}
 	export class StylistPlanResult {

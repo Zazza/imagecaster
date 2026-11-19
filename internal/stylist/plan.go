@@ -160,6 +160,8 @@ func RegenerateSeries(req PlanRequest, base *Base, idea *Idea, index int) (Serie
 	return s, appendUnique(warnings, w...), nil
 }
 
+const warnCloseGarment = "С фото вещи крупные и поясные позы получаются плохо: примерка втискивает вещь целиком в кадр и ломает пропорции (огромная голова). Лучше по колено и в рост."
+
 var framingLead = map[string]string{
 	"close": "close-up portrait, head and shoulders",
 	"waist": "waist-up shot, upper body",
@@ -292,6 +294,9 @@ func buildShots(req PlanRequest, base *Base, place string, themes []string, n, f
 			}
 		}
 		if len(valid) > 0 {
+			if req.Garment && slices.ContainsFunc(valid, func(p Pose) bool { return garmentTight(p.Framing) }) {
+				warnings = append(warnings, warnCloseGarment)
+			}
 			for j := range n {
 				out = append(out, shotOf(valid[(frame+j)%len(valid)]))
 			}
@@ -299,15 +304,24 @@ func buildShots(req PlanRequest, base *Base, place string, themes []string, n, f
 		}
 		warnings = append(warnings, fmt.Sprintf(warnNoPick, aspectNames[AspectPose]))
 	}
-	return autoShots(base, place, themes, n, rnd), warnings
+	return autoShots(base, place, themes, n, rnd, req.Garment), warnings
 }
 
-func autoShots(base *Base, place string, themes []string, n int, rnd *rand.Rand) []Shot {
+func garmentTight(framing string) bool {
+	return framing == "close" || framing == "waist"
+}
+
+func autoShots(base *Base, place string, themes []string, n int, rnd *rand.Rand, garment bool) []Shot {
 	pool := base.PosesFor(place, themes)
+	cycle := framings
+	if garment {
+		pool = slices.DeleteFunc(slices.Clone(pool), func(p Pose) bool { return garmentTight(p.Framing) })
+		cycle = slices.DeleteFunc(slices.Clone(framings), garmentTight)
+	}
 	used := map[string]bool{}
 	out := make([]Shot, 0, n)
 	for j := range n {
-		f := framings[j%len(framings)]
+		f := cycle[j%len(cycle)]
 		var cands []Pose
 		for _, p := range pool {
 			if p.Framing == f && !used[p.ID] {

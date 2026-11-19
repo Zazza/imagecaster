@@ -149,7 +149,7 @@ export function framesFrom(list, ids) {
   const byId = new Map((list || []).map(f => [f.job_id, f]))
   return ids.map(id => {
     const f = byId.get(id)
-    return { jobId: id, status: f?.status || 'gone', itemId: f?.item_id || 0, error: f?.error || '', shot: f?.shot || '' }
+    return { jobId: id, status: f?.status || 'gone', itemId: f?.item_id || 0, error: f?.error || '', shot: f?.shot || '', garment: f?.garment || '' }
   })
 }
 

@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -197,7 +198,6 @@ func TestStylistShoot_DefaultAppearanceAndGarment(t *testing.T) {
 		wantPrompt string
 		wantOutfit string
 	}{
-		{"no structure", "", "a man, " + stylist.DefaultOutfit + ", low bun", ""},
 		{"structure named", " a top and a skirt ", "a man, a top and a skirt, low bun", "a top and a skirt"},
 	}
 	for _, tt := range tests {
@@ -238,11 +238,14 @@ func TestShrinkGarment(t *testing.T) {
 			assert.Equal(t, tt.wantFormat, f)
 		})
 	}
-	_, err := shrinkGarment("aGVsbG8=")
+	got, err := shrinkGarment("aGVsbG8=")
+	require.NoError(t, err, "a format we cannot read goes to the server as is, like MCP")
+	assert.Equal(t, "aGVsbG8=", got)
+	_, err = shrinkGarment("not base64!")
 	assert.Error(t, err)
 	q := &spQueue{}
 	_, err = stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
-		Person: "anna", Garment: spImage(t, 3000, 1500, false), Series: []stylist.Series{spSeries(stylist.Shot{}, stylist.Shot{})},
+		Person: "anna", Garment: spImage(t, 3000, 1500, false), GarmentOutfit: "a dress", Series: []stylist.Series{spSeries(stylist.Shot{}, stylist.Shot{})},
 	})
 	require.NoError(t, err)
 	for _, j := range q.jobs {
@@ -549,4 +552,82 @@ func TestStylistShoot_EditedShotHasNoFramingLead(t *testing.T) {
 	assert.True(t, strings.HasPrefix(q.jobs[1].params.Prompt, "sitting on the stairs, full length"), q.jobs[1].params.Prompt)
 	assert.NotContains(t, q.jobs[1].params.Prompt, "close-up")
 	assert.NotContains(t, q.jobs[1].params.Prompt, "лестнице")
+}
+
+func TestShrinkGarment_WebP(t *testing.T) {
+	data, err := os.ReadFile("testdata/stylist-garment-3000x1500.webp")
+	require.NoError(t, err)
+	got, err := shrinkGarment(base64.StdEncoding.EncodeToString(data))
+	require.NoError(t, err)
+	w, h, f := spSize(t, got)
+	assert.Equal(t, [2]int{2048, 1024}, [2]int{w, h})
+	assert.Equal(t, "jpeg", f)
+}
+
+func TestStylistShoot_GarmentNeedsItemNames(t *testing.T) {
+	small := spImage(t, 64, 96, true)
+	for _, outfit := range []string{"", "   "} {
+		q := &spQueue{}
+		_, err := stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+			Person: "ivan", Garment: small, GarmentOutfit: outfit, Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "front"})},
+		})
+		require.ErrorIs(t, err, errStylistGarmentUnnamed)
+		assert.Empty(t, q.jobs, "nothing is enqueued")
+	}
+	q := &spQueue{}
+	_, err := stylistShoot(context.Background(), spPeopleList(), q, false, StylistShootRequest{
+		Person: "ivan", Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "front"})},
+	})
+	require.NoError(t, err, "without a garment photo the field is not needed")
+}
+
+type fakeDescriber struct {
+	answer string
+	err    error
+	calls  int
+	prompt string
+}
+
+func (f *fakeDescriber) DescribeImage(_, prompt string) (string, error) {
+	f.calls++
+	f.prompt = prompt
+	return f.answer, f.err
+}
+
+func TestStylistDescribeGarment(t *testing.T) {
+	small := spImage(t, 64, 96, true)
+	tests := []struct {
+		name     string
+		garment  string
+		notLocal bool
+		answer   string
+		err      error
+		want     string
+		wantErr  error
+		wantCall int
+	}{
+		{"names the items", small, false, "a cropped top and a midi skirt", nil, "a cropped top and a midi skirt", nil, 1},
+		{"quotes, dot and extra lines dropped", small, false, "\"a blazer and wide trousers.\"\nThe person is standing.", nil, "a blazer and wide trousers", nil, 1},
+		{"remote model: photo not sent", small, true, "x", nil, "", errStylistVisionNotLocal, 0},
+		{"model error", small, false, "", errors.New("timeout"), "", nil, 1},
+		{"empty answer", small, false, "  ", nil, "", nil, 1},
+		{"no photo", "", false, "x", nil, "", nil, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &fakeDescriber{answer: tt.answer, err: tt.err}
+			got, err := stylistDescribeGarment(d, tt.notLocal, tt.garment)
+			assert.Equal(t, tt.wantCall, d.calls)
+			if tt.want == "" {
+				require.Error(t, err)
+				if tt.wantErr != nil {
+					assert.ErrorIs(t, err, tt.wantErr)
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			assert.Contains(t, d.prompt, "Do not mention colours")
+		})
+	}
 }

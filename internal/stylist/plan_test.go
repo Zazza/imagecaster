@@ -394,3 +394,48 @@ func TestPlan_ShotsShowRussianPoseName(t *testing.T) {
 	assert.Equal(t, p.Prompt, sh.Prompt)
 	assert.NotContains(t, FramePrompt("x", "a woman", series[0], sh), p.Name)
 }
+
+func TestPlan_GarmentAvoidsCloseAndWaistShots(t *testing.T) {
+	b := mustBase(t)
+	for seed := int64(1); seed <= 30; seed++ {
+		series, _, err := Plan(PlanRequest{Frames: 12, Garment: true, Seed: seed}, b, nil)
+		require.NoError(t, err)
+		for _, s := range series {
+			for _, sh := range s.Shots {
+				assert.Contains(t, []string{"knee", "full"}, sh.Framing, "seed %d pose %s", seed, sh.Pose)
+			}
+		}
+	}
+	series, _, err := Plan(PlanRequest{Frames: 12, Seed: 1}, b, nil)
+	require.NoError(t, err)
+	var closeUps int
+	for _, s := range series {
+		for _, sh := range s.Shots {
+			if sh.Framing == "close" {
+				closeUps++
+			}
+		}
+	}
+	assert.Positive(t, closeUps, "without a garment close-ups are still used")
+}
+
+func TestPlan_GarmentWarnsOnPickedCloseUp(t *testing.T) {
+	b := mustBase(t)
+	pick := map[string]AspectChoice{string(AspectPose): {Mode: ModePick, IDs: []string{"p08", "p31"}}}
+	_, warns, err := Plan(PlanRequest{Frames: 8, Garment: true, Aspects: pick, Seed: 1}, b, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, countOf(warns, warnCloseGarment), "one warning, not one per series")
+	_, warns, err = Plan(PlanRequest{Frames: 8, Aspects: pick, Seed: 1}, b, nil)
+	require.NoError(t, err)
+	assert.Zero(t, countOf(warns, warnCloseGarment))
+}
+
+func countOf(list []string, s string) int {
+	n := 0
+	for _, v := range list {
+		if v == s {
+			n++
+		}
+	}
+	return n
+}
