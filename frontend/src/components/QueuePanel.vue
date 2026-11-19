@@ -31,6 +31,7 @@ const typeLabelKeys = {
   compound: 'queue.type_compound',
   stylist_frame: 'queue.type_stylist_frame',
   retouch: 'queue.type_retouch',
+  post_save: 'queue.type_post_save',
 }
 
 function typeLabel(type) {

@@ -166,6 +166,10 @@ export function EnqueueFromImage(arg1) {
   return window['go']['main']['App']['EnqueueFromImage'](arg1);
 }
 
+export function EnqueuePostSave(arg1) {
+  return window['go']['main']['App']['EnqueuePostSave'](arg1);
+}
+
 export function EnqueueLook(arg1) {
   return window['go']['main']['App']['EnqueueLook'](arg1);
 }
@@ -416,6 +420,14 @@ export function PreparePresetsExport(arg1) {
 
 export function PreviewAdjust(arg1, arg2, arg3) {
   return window['go']['main']['App']['PreviewAdjust'](arg1, arg2, arg3);
+}
+
+export function PostFaceLandmarks(arg1) {
+  return window['go']['main']['App']['PostFaceLandmarks'](arg1);
+}
+
+export function PreviewPostRetouch(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['PreviewPostRetouch'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function PreviewPost(arg1, arg2, arg3, arg4) {

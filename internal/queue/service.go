@@ -87,6 +87,23 @@ func (s *Service) Enqueue(jobType JobType, params any, source string) (int64, er
 	return id, nil
 }
 
+func (s *Service) EnqueueLabeled(jobType JobType, params any, source, label string) (int64, error) {
+	if err := validateJobParams(jobType, params); err != nil {
+		return 0, err
+	}
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return 0, fmt.Errorf("marshal params: %w", err)
+	}
+	id, err := s.store.CreateLabeled(jobType, string(paramsJSON), source, label)
+	if err != nil {
+		return 0, err
+	}
+	s.worker.Notify()
+	s.emit.Emit(EventQueueChanged)
+	return id, nil
+}
+
 func (s *Service) RemoveJob(id int64) error {
 	deleted, err := s.store.Delete(id)
 	if err != nil {

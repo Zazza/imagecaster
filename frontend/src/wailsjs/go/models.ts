@@ -55,6 +55,51 @@ export namespace adjust {
 
 }
 
+export namespace faceguard {
+	
+	export class Point {
+	    X: number;
+	    Y: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Point(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.X = source["X"];
+	        this.Y = source["Y"];
+	    }
+	}
+	export class Retouch {
+	    under_eyes?: boolean;
+	    teeth?: boolean;
+	    eye_whites?: boolean;
+	    eye_color?: string;
+	    light?: boolean;
+	    skin_tone?: string;
+	    skin_lightness?: number;
+	    face_width?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Retouch(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.under_eyes = source["under_eyes"];
+	        this.teeth = source["teeth"];
+	        this.eye_whites = source["eye_whites"];
+	        this.eye_color = source["eye_color"];
+	        this.light = source["light"];
+	        this.skin_tone = source["skin_tone"];
+	        this.skin_lightness = source["skin_lightness"];
+	        this.face_width = source["face_width"];
+	    }
+	}
+
+}
+
 export namespace filebrowser {
 	
 	export class FileEntry {
@@ -802,6 +847,8 @@ export namespace importexport {
 	    finish?: finish.Params;
 	    filename: string;
 	    output_dir?: string;
+	    retouch?: faceguard.Retouch;
+	    face_points?: faceguard.Point[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ExportImageParams(source);
@@ -820,6 +867,8 @@ export namespace importexport {
 	        this.finish = this.convertValues(source["finish"], finish.Params);
 	        this.filename = source["filename"];
 	        this.output_dir = source["output_dir"];
+	        this.retouch = this.convertValues(source["retouch"], faceguard.Retouch);
+	        this.face_points = this.convertValues(source["face_points"], faceguard.Point);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -920,6 +969,45 @@ export namespace logger {
 	        this.message = source["message"];
 	        this.timestamp = source["timestamp"];
 	    }
+	}
+
+}
+
+export namespace main {
+	
+	export class PostFace {
+	    points: faceguard.Point[];
+	    skip?: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PostFace(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.points = this.convertValues(source["points"], faceguard.Point);
+	        this.skip = source["skip"];
+	        this.error = source["error"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

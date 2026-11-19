@@ -12,6 +12,8 @@ import {logger} from '../models';
 import {queue} from '../models';
 import {sd} from '../models';
 import {finish} from '../models';
+import {faceguard} from '../models';
+import {main} from '../models';
 
 export function AddPersonIdentity(arg1:string,arg2:string):Promise<serverclient.Person>;
 
@@ -94,6 +96,8 @@ export function EnqueueCompound(arg1:generation.GenerateCompoundImageParams):Pro
 export function EnqueueEdit(arg1:generation.EditImageParams):Promise<number>;
 
 export function EnqueueFromImage(arg1:generation.GenerateFromImageParams):Promise<number>;
+
+export function EnqueuePostSave(arg1:importexport.ExportImageParams):Promise<number>;
 
 export function EnqueueLook(arg1:generation.ApplyLookParams):Promise<number>;
 
@@ -220,6 +224,10 @@ export function PrepareCompoundPresetsExport(arg1:Array<number>):Promise<string>
 export function PreparePresetsExport(arg1:Array<number>):Promise<string>;
 
 export function PreviewAdjust(arg1:string,arg2:adjust.Params,arg3:number):Promise<string>;
+
+export function PostFaceLandmarks(arg1:string):Promise<main.PostFace>;
+
+export function PreviewPostRetouch(arg1:string,arg2:adjust.Params,arg3:faceguard.Retouch,arg4:Array<faceguard.Point>,arg5:finish.Params,arg6:number):Promise<string>;
 
 export function PreviewPost(arg1:string,arg2:adjust.Params,arg3:finish.Params,arg4:number):Promise<string>;
 

@@ -18,6 +18,7 @@ import (
 
 	"github.com/Zazza/imagecaster/internal/adjust"
 	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
 	"github.com/Zazza/imagecaster/internal/finish"
 	"github.com/Zazza/imagecaster/internal/logger"
@@ -60,17 +61,20 @@ type ImportPreview struct {
 }
 
 type ExportImageParams struct {
-	ImageBase64   string         `json:"image_base64"`
-	Format        string         `json:"format"`
-	Width         int            `json:"width"`
-	Height        int            `json:"height"`
-	LockRatio     bool           `json:"lock_ratio"`
-	Quality       int            `json:"quality"`
-	Interpolation string         `json:"interpolation"`
-	Adjust        *adjust.Params `json:"adjust,omitempty"`
-	Finish        *finish.Params `json:"finish,omitempty"`
-	Filename      string         `json:"filename"`
-	OutputDir     string         `json:"output_dir,omitempty"`
+	ImageBase64   string             `json:"image_base64"`
+	Format        string             `json:"format"`
+	Width         int                `json:"width"`
+	Height        int                `json:"height"`
+	LockRatio     bool               `json:"lock_ratio"`
+	Quality       int                `json:"quality"`
+	Interpolation string             `json:"interpolation"`
+	Adjust        *adjust.Params     `json:"adjust,omitempty"`
+	Finish        *finish.Params     `json:"finish,omitempty"`
+	Filename      string             `json:"filename"`
+	OutputDir     string             `json:"output_dir,omitempty"`
+	Retouch       *faceguard.Retouch `json:"retouch,omitempty"`
+	FacePoints    []faceguard.Point  `json:"face_points,omitempty"`
+	Overwrite     bool               `json:"overwrite,omitempty"`
 }
 
 type CompoundExportFile struct {
@@ -356,6 +360,10 @@ func (s *Service) ProcessExportImage(params ExportImageParams) (*ProcessedImage,
 func processDecoded(img image.Image, params ExportImageParams) (*ProcessedImage, error) {
 	if params.Adjust != nil && !params.Adjust.IsNeutral() {
 		img = adjust.Apply(img, *params.Adjust)
+	}
+	img, retouchErr := applyRetouch(img, params.Retouch, params.FacePoints)
+	if retouchErr != nil {
+		return nil, retouchErr
 	}
 
 	const maxDim = 8192

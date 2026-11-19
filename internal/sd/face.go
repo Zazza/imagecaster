@@ -27,6 +27,8 @@ type Point struct {
 	X, Y float64
 }
 
+var ErrNoFace = errors.New("face landmarks: no face found")
+
 type FaceDetector interface {
 	FaceLandmarks(imageBase64 string) ([]Point, error)
 }
@@ -91,7 +93,7 @@ func (c *Client) FaceLandmarks(imageBase64 string) ([]Point, error) {
 		return nil, fmt.Errorf("face landmarks: decode: %w", err)
 	}
 	if len(out.Poses) == 0 || len(out.Poses[0].People) == 0 {
-		return nil, errors.New("face landmarks: no face found")
+		return nil, ErrNoFace
 	}
 	p := out.Poses[0]
 	if p.CanvasWidth <= 0 || p.CanvasHeight <= 0 {
@@ -99,7 +101,7 @@ func (c *Client) FaceLandmarks(imageBase64 string) ([]Point, error) {
 	}
 	raw := p.People[0].Face
 	if len(raw)/3 < faceMinPoints {
-		return nil, fmt.Errorf("face landmarks: %d points, need %d", len(raw)/3, faceMinPoints)
+		return nil, fmt.Errorf("%w: %d points, need %d", ErrNoFace, len(raw)/3, faceMinPoints)
 	}
 	scale := min(p.CanvasWidth/float64(w), p.CanvasHeight/float64(h))
 	cw, ch := float64(w)*scale, float64(h)*scale

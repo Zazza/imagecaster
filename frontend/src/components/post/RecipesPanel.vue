@@ -3,7 +3,7 @@ import { ref, watch, onUnmounted } from 'vue'
 import { X } from 'lucide-vue-next'
 import { api } from '../../api.js'
 import { t } from '../../i18n/index.js'
-import { adjustObjectActive } from '../../composables/usePostAdjust.js'
+import { adjustObjectActive, retouchObjectActive, splitRecipeAdjust } from '../../composables/usePostAdjust.js'
 import { jobImage } from '../../composables/usePostBatch.js'
 
 const props = defineProps({
@@ -49,7 +49,7 @@ function recipeSteps(r) {
 function recipeAdjustActive(r) {
   let a = null
   try { a = JSON.parse(r.adjust || '{}') } catch (e) { console.warn('PostProcessPage.recipeAdjustActive:', e); return false }
-  return adjustObjectActive(a)
+  return adjustObjectActive(a) || retouchObjectActive(a?.retouch) || !!a?.upscale_4k
 }
 
 function recipeMeta(r) {
@@ -80,7 +80,7 @@ async function saveRecipe() {
       steps: JSON.stringify(props.appliedEffects.map(e => e.preset_id
         ? { preset_id: e.preset_id, strength: e.strength }
         : { prompt: e.prompt || '', strength: e.strength })),
-      adjust: JSON.stringify(props.post.adjustParams()),
+      adjust: JSON.stringify({ ...props.post.adjustParams(), ...props.post.recipeExtras() }),
     })
     recipeName.value = ''
     showRecipeForm.value = false
@@ -152,20 +152,25 @@ async function runRecipeChain(img, steps) {
 async function applyRecipe(r) {
   if (recipeRunning.value || props.blocked || batchBusy.value) return
   const steps = recipeSteps(r)
-  let adjustObj = {}
+  let parsed = {}
   try {
-    adjustObj = JSON.parse(r.adjust || '{}') || {}
+    parsed = JSON.parse(r.adjust || '{}') || {}
   } catch (e) {
     console.warn('PostProcessPage.applyRecipe:', e)
   }
+  const { adjust: adjustObj, extras } = splitRecipeAdjust(parsed)
   const adjust = props.post.adjust
-  if (steps.length === 0) {
+  const applyAdjust = () => {
     Object.assign(adjust, adjustObj)
+    props.post.applyRecipeExtras(extras)
+  }
+  if (steps.length === 0) {
+    applyAdjust()
     return
   }
   if (batchActive.value) {
     await props.batch.runBatchStep(b64 => runRecipeChain(b64, steps), (res) => {
-      if (!res.cancelled) Object.assign(adjust, adjustObj)
+      if (!res.cancelled) applyAdjust()
     })
     return
   }
@@ -235,7 +240,7 @@ async function applyRecipe(r) {
     }
   } finally {
     if (aborted) error.value = t('post.recipe_aborted', { i: aborted, reason: abortReason || t('post.recipe_reason_no_image') })
-    else if (!recipeCancelled) Object.assign(adjust, adjustObj)
+    else if (!recipeCancelled) applyAdjust()
     setRecipeRunning(false)
     recipeCurrentId.value = null
   }

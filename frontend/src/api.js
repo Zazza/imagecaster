@@ -27,6 +27,7 @@ import {
   UpdateSettings, UpscaleImage, Version,
   TrainingStatus, TrainingBases, PickPeopleFolder, TrainPerson, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson,
   AddPersonIdentity, FaceSwapStatus,
+  PostFaceLandmarks, PreviewPostRetouch, EnqueuePostSave,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -105,6 +106,9 @@ export const api = {
   exportImage: (params, adjust) => ExportImage(adjust ? { ...params, adjust } : params),
   previewAdjust: (imageBase64, adjust, maxW) => PreviewAdjust(imageBase64, adjust, maxW),
   previewPost: (imageBase64, adjust, finish, maxW) => PreviewPost(imageBase64, adjust, finish, maxW),
+  postFaceLandmarks: (imageBase64) => PostFaceLandmarks(imageBase64),
+  previewPostRetouch: (imageBase64, adjust, retouch, points, finish, maxW) => PreviewPostRetouch(imageBase64, adjust, retouch, points, finish, maxW),
+  enqueuePostSave: (params, adjust) => EnqueuePostSave(adjust ? { ...params, adjust } : params),
   autoAdjust: (imageBase64) => AutoAdjust(imageBase64),
   compilePostStyle: (text) => CompilePostStyle(text),
   describeForStyle: (imageBase64) => DescribeForStyle(imageBase64),

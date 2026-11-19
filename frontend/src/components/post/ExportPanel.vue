@@ -12,10 +12,12 @@ const props = defineProps({
   batch: { type: Object, required: true },
   post: { type: Object, required: true },
   status: { type: Object, required: true },
+  queueJobs: { type: Object, default: null },
 })
 
 const { batch: batchState, batchActive, batchBusy, batchExporting } = props.batch
 const { error, successMsg } = props.status
+const { upscale4k } = props.post
 
 const exportPresets = ref([])
 const selectedPresetId = ref(null)
@@ -210,6 +212,57 @@ async function changeBatchFolder() {
   }
 }
 
+async function withRetouch(params, b64) {
+  return { ...params, ...(await props.post.retouchFor(b64)) }
+}
+
+function upscaleNote(info) {
+  return info && info.upscale === 'resized' ? ' — ' + t('post.up4k_resized') : ''
+}
+
+function track4K(id) {
+  if (!props.queueJobs) return Promise.resolve(null)
+  return props.queueJobs.track(id)
+}
+
+async function enqueue4K(params, b64, adj) {
+  const p = await withRetouch(params, b64)
+  return api.enqueuePostSave({ ...p, width: 0, height: 0 }, adj)
+}
+
+async function export4K() {
+  const id = await enqueue4K(exportParamsFor(filename.value, props.source), props.source, props.post.adjustParams())
+  if (!id) return
+  successMsg.value = t('post.up4k_queued')
+  track4K(id).then(outcome => {
+    if (!outcome) return
+    if (outcome.status === 'completed') {
+      const info = outcome.result?.info
+      if (info?.path) successMsg.value = t('export.saved_to', { path: info.path }) + upscaleNote(info)
+    } else if (outcome.status === 'failed') {
+      error.value = t('post.up4k_failed', { error: outcome.error || '' })
+    }
+  })
+}
+
+async function exportBatch4K() {
+  const ids = []
+  const adj = props.post.adjustParams()
+  await props.batch.exportBatch(resolveBatchFolder, (folder) => async (b64, item) => {
+    const id = await enqueue4K(exportParamsFor(batchFileName(item.name, format.value), b64, folder), b64, adj)
+    if (id) ids.push(id)
+    return id
+  })
+  if (!ids.length) return
+  const folder = batchFolder.value
+  successMsg.value = t('post.up4k_batch_queued', { n: ids.length })
+  Promise.all(ids.map(track4K)).then(outcomes => {
+    if (outcomes.some(o => !o)) return
+    const saved = outcomes.filter(o => o.status === 'completed').length
+    successMsg.value = t('post.up4k_batch_done', { k: saved, n: ids.length, path: folder })
+  })
+}
+
 function batchExporter(folder) {
   const size = batchExportSize({
     width: width.value,
@@ -219,11 +272,15 @@ function batchExporter(folder) {
     previewHeight: props.imageInfo.height,
   })
   const adj = props.post.adjustParams()
-  return (b64, item) => api.exportImage({ ...exportParamsFor(batchFileName(item.name, format.value), b64, folder), width: size.width, height: size.height }, adj)
+  return async (b64, item) => api.exportImage({ ...(await withRetouch(exportParamsFor(batchFileName(item.name, format.value), b64, folder), b64)), width: size.width, height: size.height }, adj)
 }
 
 async function doExport() {
   if (batchActive.value) {
+    if (upscale4k.value) {
+      await exportBatch4K()
+      return
+    }
     await props.batch.exportBatch(resolveBatchFolder, batchExporter)
     return
   }
@@ -234,8 +291,18 @@ async function doExport() {
   exporting.value = true
   error.value = ''
   successMsg.value = ''
+  if (upscale4k.value) {
+    try {
+      await export4K()
+    } catch (e) {
+      error.value = String(e)
+    } finally {
+      exporting.value = false
+    }
+    return
+  }
   try {
-    const path = await api.exportImage(exportParamsFor(filename.value, props.source), props.post.adjustParams())
+    const path = await api.exportImage(await withRetouch(exportParamsFor(filename.value, props.source), props.source), props.post.adjustParams())
     if (path) {
       successMsg.value = t('export.saved_to', { path })
     }
@@ -271,11 +338,11 @@ defineExpose({ updateFilename, load: loadExportPresets })
   <div class="form-row">
     <div class="form-group form-group-half">
       <label class="form-label">{{ t('export.label_width') }}</label>
-      <input class="form-control" type="number" v-model.number="width" min="1" />
+      <input class="form-control" type="number" v-model.number="width" min="1" :disabled="upscale4k" />
     </div>
     <div class="form-group form-group-half">
       <label class="form-label">{{ t('export.label_height') }}</label>
-      <input class="form-control" type="number" v-model.number="height" min="1" />
+      <input class="form-control" type="number" v-model.number="height" min="1" :disabled="upscale4k" />
     </div>
   </div>
 
@@ -296,6 +363,13 @@ defineExpose({ updateFilename, load: loadExportPresets })
     <select class="form-select" v-model="interpolation">
       <option v-for="i in interpolations" :key="i.value" :value="i.value">{{ i.label }}</option>
     </select>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">
+      <input type="checkbox" v-model="upscale4k" data-testid="post-upscale-4k" /> {{ t('post.up4k_label') }}
+    </label>
+    <div v-if="upscale4k" class="form-hint">{{ t('post.up4k_hint') }}</div>
   </div>
 
   <template v-if="batchActive">

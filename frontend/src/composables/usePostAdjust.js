@@ -25,6 +25,29 @@ export const ADJUST_GROUPS = [
 
 export const FINISH_RATIOS = ['1:1', '4:5', '3:4', '9:16', '16:9', '3:2']
 
+export const EYE_COLORS = ['blue', 'light blue', 'green', 'grey', 'hazel', 'brown', 'amber', 'violet']
+
+export const RETOUCH_DEFAULTS = { under_eyes: false, teeth: false, eye_whites: false, eye_color: '', light: false, face_width: 0 }
+
+export const FACE_WIDTH_MAX = 10
+
+const FACE_CACHE_MAX = 4
+
+export function retouchObjectActive(r) {
+  if (!r || typeof r !== 'object') return false
+  return Object.keys(RETOUCH_DEFAULTS).some(k => r[k] !== undefined && r[k] !== RETOUCH_DEFAULTS[k])
+}
+
+export function retouchObjectLocal(r) {
+  if (!r || typeof r !== 'object') return false
+  return !!(r.under_eyes || r.teeth || r.eye_whites || (r.eye_color || '').trim() || (r.face_width || 0) !== 0)
+}
+
+export function splitRecipeAdjust(obj) {
+  const { retouch, upscale_4k: upscale4k, ...adjust } = (obj && typeof obj === 'object') ? obj : {}
+  return { adjust, extras: { retouch, upscale4k } }
+}
+
 const FINISH_DEFAULTS = { ratio: '', fit: 'crop', offset: 0.5, frame: '', caption: '', caption_pos: 'bottom', caption_size: 'm' }
 
 function defaults() {
@@ -47,6 +70,10 @@ export function adjustObjectActive(a) {
 export function usePostAdjust({ currentB64, error }) {
   const adjust = reactive(defaults())
   const finish = reactive({ ...FINISH_DEFAULTS })
+  const retouch = reactive({ ...RETOUCH_DEFAULTS })
+  const upscale4k = ref(false)
+  const face = reactive({ status: 'idle', skip: '', error: '' })
+  const faceCache = new Map()
 
   const adjustNeutral = computed(() =>
     Object.keys(SLIDER_META).every(k => {
@@ -56,6 +83,78 @@ export function usePostAdjust({ currentB64, error }) {
     }))
 
   const finishActive = computed(() => !!finish.ratio || !!finish.frame || !!finish.caption.trim())
+  const retouchActive = computed(() => retouchObjectActive(retouch))
+  const retouchLocal = computed(() => retouchObjectLocal(retouch))
+
+  function retouchParams() {
+    if (!retouchActive.value) return null
+    const p = {}
+    for (const k of Object.keys(RETOUCH_DEFAULTS)) {
+      if (retouch[k] !== RETOUCH_DEFAULTS[k]) p[k] = retouch[k]
+    }
+    return p
+  }
+
+  function resetRetouch() {
+    Object.assign(retouch, RETOUCH_DEFAULTS)
+  }
+
+  function recipeExtras() {
+    return { retouch: retouchParams() || {}, upscale_4k: upscale4k.value }
+  }
+
+  function applyRecipeExtras(extras) {
+    if (!extras) return
+    if (extras.retouch !== undefined) {
+      const r = extras.retouch && typeof extras.retouch === 'object' ? extras.retouch : {}
+      const next = { ...RETOUCH_DEFAULTS }
+      for (const k of Object.keys(RETOUCH_DEFAULTS)) {
+        if (r[k] !== undefined) next[k] = r[k]
+      }
+      next.face_width = Math.max(-FACE_WIDTH_MAX, Math.min(FACE_WIDTH_MAX, Number(next.face_width) || 0))
+      Object.assign(retouch, next)
+    }
+    if (extras.upscale4k !== undefined) upscale4k.value = !!extras.upscale4k
+  }
+
+  function facePoints(b64) {
+    if (!b64) return Promise.resolve({ points: [], skip: '' })
+    let p = faceCache.get(b64)
+    if (!p) {
+      p = Promise.resolve(api.postFaceLandmarks(b64))
+        .then(r => ({ points: r?.points || [], skip: r?.skip || '', error: r?.error || '' }))
+        .catch(e => ({ points: [], skip: 'unavailable', error: String(e) }))
+      faceCache.set(b64, p)
+      if (faceCache.size > FACE_CACHE_MAX) faceCache.delete(faceCache.keys().next().value)
+    }
+    return p
+  }
+
+  async function currentFace() {
+    const cur = currentB64.value
+    face.status = 'loading'
+    const r = await facePoints(cur)
+    if (cur === currentB64.value) {
+      face.status = r.skip ? 'skip' : 'ok'
+      face.skip = r.skip
+      face.error = r.error || ''
+    }
+    return r
+  }
+
+  function retryFace() {
+    faceCache.delete(currentB64.value)
+    face.status = 'idle'
+    schedulePreview()
+  }
+
+  async function retouchFor(b64) {
+    const r = retouchParams()
+    if (!r) return {}
+    if (!retouchLocal.value) return { retouch: r }
+    const f = await facePoints(b64)
+    return { retouch: r, face_points: f.points }
+  }
 
   function adjustParams() {
     return { ...adjust }
@@ -124,7 +223,7 @@ export function usePostAdjust({ currentB64, error }) {
 
   function schedulePreview() {
     clearTimeout(previewTimer)
-    if (adjustNeutral.value && !finishActive.value) {
+    if (adjustNeutral.value && !finishActive.value && !retouchActive.value) {
       previewReqId++
       previewing.value = false
       previewB64.value = currentB64.value
@@ -139,9 +238,17 @@ export function usePostAdjust({ currentB64, error }) {
     previewing.value = true
     try {
       const fp = finishParams()
-      const res = fp
-        ? await api.previewPost(currentB64.value, adjustParams(), fp, 900)
-        : await api.previewAdjust(currentB64.value, adjustParams(), 900)
+      let res
+      if (retouchActive.value) {
+        const cur = currentB64.value
+        const pts = retouchLocal.value ? (await currentFace()).points : []
+        if (reqId !== previewReqId) return
+        res = await api.previewPostRetouch(cur, adjustParams(), retouchParams(), pts, fp || {}, 900)
+      } else {
+        res = fp
+          ? await api.previewPost(currentB64.value, adjustParams(), fp, 900)
+          : await api.previewAdjust(currentB64.value, adjustParams(), 900)
+      }
       if (reqId !== previewReqId) return
       if (res) previewB64.value = res
     } catch (e) {
@@ -157,11 +264,14 @@ export function usePostAdjust({ currentB64, error }) {
 
   watch(adjust, schedulePreview)
   watch(finish, schedulePreview)
+  watch(retouch, schedulePreview)
   watch(currentB64, schedulePreview)
 
   return {
     sliderMeta: SLIDER_META, adjustGroups: ADJUST_GROUPS, finishRatios: FINISH_RATIOS,
     adjust, finish, adjustNeutral, finishActive, autoAdjusting, previewB64, previewing,
     adjustParams, finishParams, resetFinish, resetAdjustKey, resetAdjustAll, formatAdjust, applyAutoAdjust, stopPreview,
+    retouch, upscale4k, face, retouchActive, retouchLocal, eyeColors: EYE_COLORS, faceWidthMax: FACE_WIDTH_MAX,
+    retouchParams, resetRetouch, recipeExtras, applyRecipeExtras, facePoints, retryFace, retouchFor,
   }
 }
