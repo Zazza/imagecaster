@@ -498,6 +498,10 @@ export function RetryQueueJob(arg1) {
   return window['go']['main']['App']['RetryQueueJob'](arg1);
 }
 
+export function SavePostToHistory(arg1) {
+  return window['go']['main']['App']['SavePostToHistory'](arg1);
+}
+
 export function SaveExportPreset(arg1) {
   return window['go']['main']['App']['SaveExportPreset'](arg1);
 }

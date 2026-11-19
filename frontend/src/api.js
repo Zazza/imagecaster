@@ -28,7 +28,7 @@ import {
   TrainingStatus, TrainingBases, PickPeopleFolder, TrainPerson,
   TrainPersonReplace, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson, SetPersonDisplay,
   AddPersonIdentity, FaceSwapStatus,
-  PostFaceLandmarks, PostBodyPoints, PreviewPostRetouch, EnqueuePostSave,
+  PostFaceLandmarks, PostBodyPoints, PreviewPostRetouch, EnqueuePostSave, SavePostToHistory,
   StylistPresets, StylistPlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, SetStylistAppearance, StylistTranslate, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
@@ -110,6 +110,7 @@ export const api = {
   previewPost: (imageBase64, adjust, finish, maxW) => PreviewPost(imageBase64, adjust, finish, maxW),
   postFaceLandmarks: (imageBase64) => PostFaceLandmarks(imageBase64),
   postBodyPoints: (imageBase64) => PostBodyPoints(imageBase64),
+  savePostToHistory: (params, adjust) => SavePostToHistory(adjust ? { ...params, adjust } : params),
   previewPostRetouch: (imageBase64, adjust, retouch, points, body, bodyPoints, finish, maxW) => PreviewPostRetouch(imageBase64, adjust, retouch, points, body, bodyPoints, finish, maxW),
   enqueuePostSave: (params, adjust) => EnqueuePostSave(adjust ? { ...params, adjust } : params),
   autoAdjust: (imageBase64) => AutoAdjust(imageBase64),

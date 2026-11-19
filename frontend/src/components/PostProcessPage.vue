@@ -292,6 +292,33 @@ function loadImageDimensions(base64) {
   img.src = b64Url(base64)
 }
 
+const savingHistory = ref(false)
+
+async function saveToHistory() {
+  const b64 = currentB64.value
+  if (!b64 || batchActive.value || savingHistory.value) return
+  savingHistory.value = true
+  error.value = ''
+  successMsg.value = ''
+  try {
+    const params = {
+      image_base64: b64,
+      format: 'png',
+      width: 0,
+      height: 0,
+      filename: sourceName.value,
+      ...(post.finishActive.value ? { finish: post.finishParams() } : {}),
+      ...(await post.retouchFor(b64)),
+    }
+    await api.savePostToHistory(params, post.adjustParams())
+    successMsg.value = t('post.saved_history')
+  } catch (e) {
+    error.value = String(e)
+  } finally {
+    savingHistory.value = false
+  }
+}
+
 function setSource(b64, name, keepLayerHistory = false) {
   if (batchActive.value) batch.exitBatch(false)
   sourceB64.value = b64
@@ -591,12 +618,24 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+
+        <div class="post-save-history">
+          <button class="btn btn-primary btn-block" data-testid="post-save-history" :disabled="!currentB64 || batchActive || savingHistory" @click="saveToHistory">{{ t('post.save_history') }}</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.post-save-history {
+  margin-top: 12px;
+}
+
+.post-save-history .btn {
+  width: 100%;
+}
+
 .post-page {
   padding: 12px;
   height: 100%;

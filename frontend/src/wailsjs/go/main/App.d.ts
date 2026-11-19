@@ -265,6 +265,7 @@ export function ResumeTraining(arg1:string):Promise<serverclient.TrainJob>;
 
 export function RetryQueueJob(arg1:number):Promise<void>;
 
+export function SavePostToHistory(arg1:importexport.ExportImageParams):Promise<number>;
 
 export function SaveExportPreset(arg1:preset.ExportPreset):Promise<preset.ExportPreset>;
 

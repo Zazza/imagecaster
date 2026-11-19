@@ -771,6 +771,8 @@ export const en = {
   'post.body_unavailable': 'The server did not answer — the figure is not changed',
   'post.body_retry': 'Retry',
   'post.body_reset': 'Reset figure',
+  'post.save_history': 'Save to history',
+  'post.saved_history': 'Saved to history',
   'post.up4k_label': 'Up to 4K on save',
   'post.up4k_hint': 'Long side 3840 (ESRGAN on the server, plain resize without it). Saving runs as a queue job; width and height above are ignored.',
   'post.up4k_queued': 'Saving in 4K is queued — progress is in the queue panel.',
