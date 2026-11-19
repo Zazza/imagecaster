@@ -62,15 +62,15 @@ describe('useStylistPlan helpers', () => {
     aspects.pose = { mode: 'pick', ids: ['p1'] }
     aspects.outfit = { mode: 'pick', ids: ['o1'] }
     const req = buildPlanRequest({ person: 'anna', gender: 'woman', wish: 'sea', frames: 30, themes: ['beach'], aspects, garment: '' }, 7)
-    expect(req.aspects.hair).toEqual({ mode: 'keep', ids: [] })
-    expect(req.aspects.pose).toEqual({ mode: 'pick', ids: ['p1'] })
-    expect(req.aspects.makeup).toEqual({ mode: 'auto', ids: [] })
-    expect(req.aspects.outfit).toEqual({ mode: 'pick', ids: ['o1'] })
+    expect(req.aspects.hair).toEqual({ mode: 'keep', ids: [], text: '' })
+    expect(req.aspects.pose).toEqual({ mode: 'pick', ids: ['p1'], text: '' })
+    expect(req.aspects.makeup).toEqual({ mode: 'auto', ids: [], text: '' })
+    expect(req.aspects.outfit).toEqual({ mode: 'pick', ids: ['o1'], text: '' })
     expect(req.frames).toBe(24)
     expect(req.seed).toBe(7)
     expect(req.garment).toBe(false)
     const withGarment = buildPlanRequest({ aspects, frames: 4, garment: 'abc' }, 1)
-    expect(withGarment.aspects.outfit).toEqual({ mode: 'keep', ids: [] })
+    expect(withGarment.aspects.outfit).toEqual({ mode: 'keep', ids: [], text: '' })
     expect(withGarment.garment).toBe(true)
   })
 
@@ -123,7 +123,7 @@ describe('AspectTab', () => {
   it('switches modes and multi-selects presets grouped by theme', async () => {
     const w = mount(AspectTab, { props: { aspect: 'outfit', choice: { mode: 'auto', ids: [] }, items, themes: BASE.themes } })
     expect(w.find(tid('pick-o1')).exists()).toBe(false)
-    await w.find(tid('mode-keep')).trigger('change')
+    await w.find(tid('mode-keep')).trigger('click')
     expect(w.emitted('update:choice').at(-1)[0]).toEqual({ mode: 'keep', ids: [] })
     await w.setProps({ choice: { mode: 'pick', ids: ['o1'] } })
     expect(w.text()).toContain('Пляж')
@@ -260,7 +260,7 @@ describe('StylistPage', () => {
     }))
     StylistShoot.mockImplementation(() => Promise.resolve([41, 42]))
     const w = await mountPage()
-    await w.find(tid('mode-keep')).trigger('change')
+    await w.find(tid('mode-keep')).trigger('click')
     await w.find(tid('stylist-plan')).trigger('click')
     await settle()
     expect(StylistPlan.mock.calls[0][0]).toMatchObject({ person: 'anna', gender: 'woman', frames: 8 })

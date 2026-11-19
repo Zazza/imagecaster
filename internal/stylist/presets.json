@@ -91,13 +91,15 @@
    "id": "o07",
    "theme": "casual",
    "name": "Льняная рубашка и шорты",
-   "prompt": "loose white linen shirt with rolled sleeves, beige linen shorts, leather sandals"
+   "prompt": "loose white linen shirt with rolled sleeves, beige linen shorts, leather sandals",
+   "male": true
   },
   {
    "id": "o08",
    "theme": "casual",
    "name": "Худи и спортивные брюки",
-   "prompt": "grey cotton hoodie, matching grey joggers, white sneakers"
+   "prompt": "grey cotton hoodie, matching grey joggers, white sneakers",
+   "male": true
   },
   {
    "id": "o09",
@@ -193,7 +195,8 @@
    "id": "o24",
    "theme": "winter",
    "name": "Пуховик и шапка",
-   "prompt": "white puffer jacket, black ski pants, fluffy knitted hat with a pompom, mittens"
+   "prompt": "white puffer jacket, black ski pants, fluffy knitted hat with a pompom, mittens",
+   "male": true
   },
   {
    "id": "o25",
@@ -253,13 +256,15 @@
    "id": "o34",
    "theme": "street",
    "name": "Кожаная куртка и джинсы",
-   "prompt": "black leather biker jacket, white tank top, black skinny jeans, black ankle boots"
+   "prompt": "black leather biker jacket, white tank top, black skinny jeans, black ankle boots",
+   "male": true
   },
   {
    "id": "o35",
    "theme": "street",
    "name": "Тренч",
-   "prompt": "beige trench coat, belted, black turtleneck, straight jeans, loafers"
+   "prompt": "beige trench coat, belted, black turtleneck, straight jeans, loafers",
+   "male": true
   },
   {
    "id": "o36",
@@ -301,7 +306,8 @@
   {
    "id": "h02",
    "name": "Распущенные естественные",
-   "prompt": "loose natural hair"
+   "prompt": "loose natural hair",
+   "male": true
   },
   {
    "id": "h03",
@@ -371,12 +377,14 @@
   {
    "id": "h16",
    "name": "Мокрый эффект",
-   "prompt": "wet look slicked back hair"
+   "prompt": "wet look slicked back hair",
+   "male": true
   },
   {
    "id": "h17",
    "name": "Растрёпанные, ветер",
-   "prompt": "loose windswept hair"
+   "prompt": "loose windswept hair",
+   "male": true
   },
   {
    "id": "h18",
@@ -423,7 +431,8 @@
   {
    "id": "m01",
    "name": "Без макияжа",
-   "prompt": "no makeup, natural skin"
+   "prompt": "no makeup, natural skin",
+   "male": true
   },
   {
    "id": "m02",

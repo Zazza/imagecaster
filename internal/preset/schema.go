@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 36
+const schemaVersion = 37
 
 const legacySchemaVersion = 32
 
@@ -20,6 +20,7 @@ var schemaSteps = []schemaStep{
 	{33, migrateV33PresetsSamplerDefault},
 	{34, migrateV34QueryIndexes},
 	{36, migrateV36DropPresetFastMode},
+	{37, migrateV37StylistPresets},
 }
 
 const presetsTableDDL = `
@@ -48,7 +49,22 @@ CREATE TABLE %s (
 	is_bundled INTEGER NOT NULL DEFAULT 0
 )`
 
-var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + `
+const stylistPresetsDDL = `
+CREATE TABLE IF NOT EXISTS stylist_presets (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	aspect TEXT NOT NULL CHECK (aspect IN ('outfit','hair','makeup','background','pose')),
+	name TEXT NOT NULL,
+	prompt TEXT NOT NULL,
+	prompt_ru TEXT NOT NULL DEFAULT '',
+	place TEXT NOT NULL DEFAULT '',
+	framing TEXT NOT NULL DEFAULT '',
+	places TEXT NOT NULL DEFAULT '[]',
+	orientation TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`
+
+var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + stylistPresetsDDL + ";\n" + `
 CREATE TABLE settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL DEFAULT ''
@@ -436,6 +452,11 @@ func migrateV36DropPresetFastMode(ctx context.Context, conn *sql.Conn) error {
 		}
 	}
 	return nil
+}
+
+func migrateV37StylistPresets(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, stylistPresetsDDL)
+	return err
 }
 
 func tableColumns(ctx context.Context, conn *sql.Conn, table string) ([]string, error) {

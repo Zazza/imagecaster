@@ -95,7 +95,7 @@ type StylistFrame struct {
 }
 
 func (a *App) StylistPresets() (*stylist.Base, error) {
-	return stylist.Load()
+	return a.stylistBase()
 }
 
 func (a *App) stylistModel() string {
@@ -106,7 +106,7 @@ func (a *App) stylistModel() string {
 }
 
 func (a *App) StylistPlan(req stylist.PlanRequest) (*StylistPlanResult, error) {
-	base, err := stylist.Load()
+	base, err := a.stylistBase()
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (a *App) StylistPlan(req stylist.PlanRequest) (*StylistPlanResult, error) {
 }
 
 func (a *App) StylistRegenerateSeries(req stylist.PlanRequest, index int) (*StylistSeriesResult, error) {
-	base, err := stylist.Load()
+	base, err := a.stylistBase()
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +163,9 @@ func planStylist(chat stylist.Ideas, model string, req stylist.PlanRequest, base
 	if err := stylist.CheckFrames(req.Frames); err != nil {
 		return nil, err
 	}
+	if err := stylist.CheckCustom(req); err != nil {
+		return nil, err
+	}
 	ideas, llmWarnings := askStylistIdeas(chat, model, req, base, len(stylist.SeriesSizes(req.Frames)), logf)
 	series, warnings, err := stylist.Plan(req, base, ideas)
 	if err != nil {
@@ -173,6 +176,9 @@ func planStylist(chat stylist.Ideas, model string, req stylist.PlanRequest, base
 
 func regenerateStylistSeries(chat stylist.Ideas, model string, req stylist.PlanRequest, base *stylist.Base, index int, logf func(error)) (*StylistSeriesResult, error) {
 	if err := stylist.CheckFrames(req.Frames); err != nil {
+		return nil, err
+	}
+	if err := stylist.CheckCustom(req); err != nil {
 		return nil, err
 	}
 	ideas, llmWarnings := askStylistIdeas(chat, model, req, base, 1, logf)

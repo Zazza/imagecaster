@@ -290,6 +290,10 @@ export function StopServerProcess(arg1:string):Promise<void>;
 
 export function StylistAppearance(arg1:string):Promise<string>;
 
+export function StylistDeletePreset(arg1:string):Promise<void>;
+
+export function StylistDescribeGarment(arg1:string):Promise<string>;
+
 export function StylistFrames(arg1:Array<number>):Promise<Array<main.StylistFrame>>;
 
 export function StylistPickGarment():Promise<string>;
@@ -300,9 +304,11 @@ export function StylistPresets():Promise<stylist.Base>;
 
 export function StylistRegenerateSeries(arg1:stylist.PlanRequest,arg2:number):Promise<main.StylistSeriesResult>;
 
-export function StylistShoot(arg1:main.StylistShootRequest):Promise<Array<number>>;
+export function StylistRenamePreset(arg1:string,arg2:string):Promise<void>;
 
-export function StylistDescribeGarment(arg1:string):Promise<string>;
+export function StylistSavePreset(arg1:stylist.UserPreset):Promise<string>;
+
+export function StylistShoot(arg1:main.StylistShootRequest):Promise<Array<number>>;
 
 export function StylistTranslate(arg1:Array<string>):Promise<Array<string>>;
 

@@ -8,7 +8,7 @@ import { people } from '../peopleStore.js'
 import { canFaceSwap, trainBaseLabel } from '../people.js'
 import { b64Url } from '../imageDataUrl.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
-import { useStylistPlan, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone } from '../composables/useStylistPlan.js'
+import { useStylistPlan, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import ImageViewer from './ImageViewer.vue'
@@ -17,7 +17,7 @@ import SeriesCard from './stylist/SeriesCard.vue'
 
 const {
   form, series, warnings, usedLLM, planning, regenerating, shooting, translating, error, jobIds, frames, view,
-  frameCount, outfitLocked, makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot, refreshFrames,
+  frameCount, outfitLocked, makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot, refreshFrames, savePreset, planEpoch,
 } = useStylistPlan()
 const { sdProgress } = useGenerationProgress()
 
@@ -84,6 +84,46 @@ function dropWarning(i) {
 
 function clearError() {
   error.value = ''
+}
+
+const presetNotice = ref('')
+const places = computed(() => [...new Set((base.value?.background || []).map(bg => bg.place).filter(Boolean))].sort())
+
+async function reloadBase() {
+  try {
+    base.value = await api.stylistPresets()
+  } catch (e) {
+    error.value = String(e?.message || e)
+  }
+}
+
+async function onSavePreset(payload) {
+  presetNotice.value = ''
+  const id = await savePreset(payload)
+  if (!id) return
+  await reloadBase()
+  presetNotice.value = t('stylist.preset_saved')
+}
+
+async function onRenamePreset(id, name) {
+  try {
+    await api.stylistRenamePreset(id, name)
+  } catch (e) {
+    error.value = String(e?.message || e)
+    return
+  }
+  await reloadBase()
+}
+
+async function onDeletePreset(id) {
+  try {
+    await api.stylistDeletePreset(id)
+  } catch (e) {
+    error.value = String(e?.message || e)
+    return
+  }
+  form.aspects = dropChoiceId(form.aspects, id)
+  await reloadBase()
 }
 
 function itemsFor(aspect) {
@@ -249,10 +289,11 @@ onUnmounted(() => {
 
         <template v-if="view === 'plan'">
           <StatusMessage v-for="(w, i) in warnings" :key="i" kind="warning" data-testid="stylist-warning" @close="dropWarning(i)">{{ w }}</StatusMessage>
+          <StatusMessage v-if="presetNotice" kind="success" :timeout="8000" data-testid="stylist-preset-notice" @close="presetNotice = ''">{{ presetNotice }}</StatusMessage>
           <div v-if="series.length && usedLLM" class="form-hint">{{ t('stylist.used_llm') }}</div>
           <SeriesCard
-            v-for="(s, i) in series" :key="i" :series="s" :index="i" :outfit-locked="outfitLocked" :busy="regenerating === i" :locked="shooting"
-            @update="updateSeries(i, $event)" @regenerate="regenerate" @delete="deleteSeries" @delete-shot="deleteShot"
+            v-for="(s, i) in series" :key="i" :series="s" :index="i" :outfit-locked="outfitLocked" :busy="regenerating === i" :locked="shooting" :places="places" :epoch="planEpoch"
+            @update="updateSeries(i, $event)" @regenerate="regenerate" @delete="deleteSeries" @delete-shot="deleteShot" @save-preset="onSavePreset"
           />
           <div v-if="!series.length" class="generate-image-area empty" data-testid="stylist-plan-empty">
             <div class="generate-placeholder">
@@ -334,6 +375,7 @@ onUnmounted(() => {
                 <div class="form-group">
                   <label class="form-label">{{ t('stylist.wish') }}</label>
                   <textarea class="form-textarea" v-model="form.wish" rows="3" maxlength="1000" :placeholder="t('stylist.wish_hint')" data-testid="stylist-wish"></textarea>
+                  <div class="form-hint" data-testid="stylist-wish-help">{{ t('stylist.wish_help') }}</div>
                 </div>
                 <div class="form-group">
                   <label class="form-label">{{ t('stylist.themes') }}</label>
@@ -377,7 +419,7 @@ onUnmounted(() => {
                   <button v-for="a in ASPECTS" :key="a" class="tab" :class="{ active: tab === a }" :data-testid="'tab-' + a" @click="tab = a">{{ t('stylist.tab_' + a) }}</button>
                 </div>
                 <div v-if="tab === 'outfit' && outfitLocked" class="form-hint" data-testid="garment-outfit-tab">{{ t('stylist.garment_outfit_moved') }}</div>
-                <AspectTab v-else :aspect="tab" :choice="form.aspects[tab]" :items="itemsFor(tab)" :themes="base?.themes || []" @update:choice="form.aspects[tab] = $event" />
+                <AspectTab v-else :aspect="tab" :choice="form.aspects[tab]" :items="itemsFor(tab)" :themes="base?.themes || []" @update:choice="form.aspects[tab] = $event" @rename="onRenamePreset" @delete="onDeletePreset" />
               </div>
             </div>
           </div>

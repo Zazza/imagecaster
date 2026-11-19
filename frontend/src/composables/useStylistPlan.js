@@ -7,9 +7,11 @@ import { locale, t } from '../i18n/index.js'
 export const ASPECTS = ['outfit', 'hair', 'makeup', 'background', 'pose']
 export const FRAMES_MAX = 24
 export const FRAMES_PER_SERIES = 4
+export const PRESET_NAME_MAX = 60
+export const PLACE_ANY = 'any'
 
 export function defaultAspects() {
-  return Object.fromEntries(ASPECTS.map(a => [a, { mode: 'auto', ids: [] }]))
+  return Object.fromEntries(ASPECTS.map(a => [a, { mode: 'auto', ids: [], text: '' }]))
 }
 
 export function stylistPeople(list) {
@@ -31,9 +33,9 @@ export function buildPlanRequest(form, seed = randomSeed()) {
   const aspects = {}
   for (const a of ASPECTS) {
     const c = form.aspects?.[a] || { mode: 'auto', ids: [] }
-    aspects[a] = { mode: c.mode, ids: c.mode === 'pick' ? [...c.ids] : [] }
+    aspects[a] = { mode: c.mode, ids: c.mode === 'pick' ? [...(c.ids || [])] : [], text: c.mode === 'custom' ? (c.text || '') : '' }
   }
-  if (form.garment) aspects.outfit = { mode: 'keep', ids: [] }
+  if (form.garment) aspects.outfit = { mode: 'keep', ids: [], text: '' }
   return {
     person: form.person || '',
     gender: form.gender || '',
@@ -44,6 +46,30 @@ export function buildPlanRequest(form, seed = randomSeed()) {
     garment: !!form.garment,
     seed,
     locale: locale.value,
+  }
+}
+
+const CYRILLIC = /[А-Яа-яЁё]/
+
+export async function translateCustom(req) {
+  if (locale.value !== 'ru') return req
+  const keys = Object.keys(req.aspects).filter(a => req.aspects[a].mode === 'custom' && CYRILLIC.test(req.aspects[a].text || ''))
+  if (!keys.length) return req
+  const english = (await api.stylistTranslate(keys.map(a => req.aspects[a].text))) || []
+  if (english.length !== keys.length) throw new Error(t('stylist.translate_count', { got: english.length, want: keys.length }))
+  const aspects = { ...req.aspects }
+  keys.forEach((a, k) => {
+    aspects[a] = { ...aspects[a], text: english[k], text_ru: req.aspects[a].text }
+  })
+  return { ...req, aspects }
+}
+
+async function withTranslatedCustom(req) {
+  try {
+    return await translateCustom(req)
+  } catch (e) {
+    error.value = t('stylist.custom_translate_failed', { error: errText(e) })
+    return null
   }
 }
 
@@ -141,6 +167,33 @@ export function applyTranslations(series, refs, english) {
   return out
 }
 
+export function presetFromField(series, field, ru) {
+  return {
+    aspect: field,
+    prompt: series[field] || '',
+    prompt_ru: ru ? (series[field + '_ru'] || '') : '',
+    place: field === 'background' ? (series.place || '') : '',
+    dirty: !!ru && dirtyList(series).includes(field),
+  }
+}
+
+export function presetFromShot(series, j, ru) {
+  const shot = series.shots[j]
+  return {
+    aspect: 'pose',
+    prompt: shot.prompt || '',
+    prompt_ru: ru ? (shot.prompt_ru || '') : '',
+    framing: shot.framing || '',
+    orientation: shot.landscape ? 'landscape' : 'portrait',
+    places: [series.place || PLACE_ANY],
+    dirty: !!ru && !!shot.ru_dirty,
+  }
+}
+
+export function dropChoiceId(aspects, id) {
+  return Object.fromEntries(Object.entries(aspects).map(([a, c]) => [a, { ...c, ids: (c.ids || []).filter(x => x !== id) }]))
+}
+
 export function totalShots(series) {
   return (series || []).reduce((n, s) => n + (s.shots?.length || 0), 0)
 }
@@ -184,6 +237,7 @@ const notice = ref('')
 const jobIds = ref([])
 const frames = ref([])
 const view = ref('plan')
+const planEpoch = ref(0)
 let framesSeq = 0
 
 export function resetStylistPlan() {
@@ -232,8 +286,11 @@ export function useStylistPlan() {
     error.value = ''
     notice.value = ''
     try {
-      const res = await api.stylistPlan(buildPlanRequest(form))
+      const req = await withTranslatedCustom(buildPlanRequest(form))
+      if (!req) return
+      const res = await api.stylistPlan(req)
       series.value = res?.series || []
+      planEpoch.value++
       warnings.value = res?.warnings || []
       usedLLM.value = !!res?.used_llm
       view.value = 'plan'
@@ -249,8 +306,13 @@ export function useStylistPlan() {
     regenerating.value = index
     error.value = ''
     try {
-      const res = await api.stylistRegenerateSeries(regenerateRequest(form, series.value, index), index)
-      if (res?.series) series.value = replaceSeries(series.value, index, res.series)
+      const req = await withTranslatedCustom(regenerateRequest(form, series.value, index))
+      if (!req) return
+      const res = await api.stylistRegenerateSeries(req, index)
+      if (res?.series) {
+        series.value = replaceSeries(series.value, index, res.series)
+        planEpoch.value++
+      }
       warnings.value = res?.warnings || []
       usedLLM.value = !!res?.used_llm
     } catch (e) {
@@ -263,11 +325,13 @@ export function useStylistPlan() {
   function deleteSeries(index) {
     if (shooting.value) return
     series.value = removeSeries(series.value, index)
+    planEpoch.value++
   }
 
   function deleteShot(index, shot) {
     if (shooting.value) return
     series.value = removeShot(series.value, index, shot)
+    planEpoch.value++
   }
 
   function updateSeries(index, next) {
@@ -327,7 +391,30 @@ export function useStylistPlan() {
     }
   }
 
+  async function savePreset(payload) {
+    error.value = ''
+    const { dirty, ...preset } = payload
+    const ru = String(preset.prompt_ru || '').trim()
+    try {
+      if (dirty && ru) {
+        const english = (await api.stylistTranslate([ru])) || []
+        if (english.length !== 1 || !String(english[0] || '').trim()) throw new Error(t('stylist.translate_count', { got: english.length, want: 1 }))
+        preset.prompt = english[0]
+      }
+    } catch (e) {
+      error.value = t('stylist.preset_translate_failed', { error: errText(e) })
+      return ''
+    }
+    try {
+      return (await api.stylistSavePreset(preset)) || ''
+    } catch (e) {
+      error.value = errText(e)
+      return ''
+    }
+  }
+
   return {
+    savePreset, planEpoch,
     form, series, warnings, usedLLM, planning, regenerating, shooting, translating, error, notice, jobIds, frames, view,
     frameCount, outfitLocked, refreshFrames,
     makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot,

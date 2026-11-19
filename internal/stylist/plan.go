@@ -12,9 +12,15 @@ import (
 type Mode string
 
 const (
-	ModeAuto Mode = "auto"
-	ModeKeep Mode = "keep"
-	ModePick Mode = "pick"
+	ModeAuto   Mode = "auto"
+	ModeKeep   Mode = "keep"
+	ModePick   Mode = "pick"
+	ModeCustom Mode = "custom"
+)
+
+const (
+	CustomTextMax          = 500
+	customTranslatedFactor = 2
 )
 
 const (
@@ -23,8 +29,12 @@ const (
 )
 
 const (
-	warnNoIdeas = "ИИ не дал идей — взяты случайные заготовки по темам"
-	warnNoPick  = "%s: выбранные заготовки не найдены — взята случайная"
+	warnNoIdeas        = "ИИ не дал идей — взяты случайные заготовки по темам"
+	warnNoPick         = "%s: выбранные заготовки не найдены — взята случайная"
+	warnCustomEmpty    = "%s: в режиме «Своё» пустой текст — в кадре не описывается"
+	warnNoMale         = "%s: для мужчины подходящих заготовок нет — взята женская"
+	warnMaleOtherTheme = "%s: в выбранных темах нет заготовок для мужчины — взята мужская из другой темы"
+	warnPickFemale     = "%s: выбраны женские заготовки, а человек мужского пола — так и задумано?"
 )
 
 var aspectNames = map[Aspect]string{
@@ -36,8 +46,10 @@ var aspectNames = map[Aspect]string{
 }
 
 type AspectChoice struct {
-	Mode Mode     `json:"mode"`
-	IDs  []string `json:"ids"`
+	Mode   Mode     `json:"mode"`
+	IDs    []string `json:"ids"`
+	Text   string   `json:"text,omitempty"`
+	TextRu string   `json:"text_ru,omitempty"`
 }
 
 type PlanRequest struct {
@@ -79,7 +91,8 @@ func (r PlanRequest) Choice(a Aspect) AspectChoice {
 		return AspectChoice{Mode: ModeKeep}
 	}
 	c, ok := r.Aspects[string(a)]
-	if !ok || (c.Mode != ModeKeep && c.Mode != ModePick) {
+	custom := c.Mode == ModeCustom && a != AspectPose
+	if !ok || (c.Mode != ModeKeep && c.Mode != ModePick && !custom) {
 		return AspectChoice{Mode: ModeAuto, IDs: c.IDs}
 	}
 	return c
@@ -105,6 +118,31 @@ func SeriesSizes(frames int) []int {
 	return out
 }
 
+func (r PlanRequest) man() bool {
+	g := strings.ToLower(strings.TrimSpace(r.Gender))
+	return g == "man" || g == "male"
+}
+
+func CheckCustom(req PlanRequest) error {
+	for _, a := range []Aspect{AspectOutfit, AspectHair, AspectMakeup, AspectBackground} {
+		c := req.Choice(a)
+		if c.Mode != ModeCustom {
+			continue
+		}
+		typed := c.Text
+		if c.TextRu != "" {
+			typed = c.TextRu
+		}
+		if len([]rune(typed)) > CustomTextMax {
+			return fmt.Errorf("%s: текст «Своё» — не длиннее %d символов", aspectNames[a], CustomTextMax)
+		}
+		if len([]rune(c.Text)) > CustomTextMax*customTranslatedFactor {
+			return fmt.Errorf("%s: перевод текста «Своё» вышел слишком длинным — сократите текст", aspectNames[a])
+		}
+	}
+	return nil
+}
+
 func CheckFrames(frames int) error {
 	if frames < 1 || frames > MaxFrames {
 		return fmt.Errorf("кадров от 1 до %d, указано %d", MaxFrames, frames)
@@ -117,6 +155,9 @@ func Plan(req PlanRequest, base *Base, ideas []Idea) ([]Series, []string, error)
 		return nil, nil, errors.New("нет базы заготовок")
 	}
 	if err := CheckFrames(req.Frames); err != nil {
+		return nil, nil, err
+	}
+	if err := CheckCustom(req); err != nil {
 		return nil, nil, err
 	}
 	rnd := rand.New(rand.NewSource(req.Seed))
@@ -141,6 +182,9 @@ func RegenerateSeries(req PlanRequest, base *Base, idea *Idea, index int) (Serie
 		return Series{}, nil, errors.New("нет базы заготовок")
 	}
 	if err := CheckFrames(req.Frames); err != nil {
+		return Series{}, nil, err
+	}
+	if err := CheckCustom(req); err != nil {
 		return Series{}, nil, err
 	}
 	sizes := SeriesSizes(req.Frames)
@@ -195,6 +239,13 @@ func FramePrompt(lora, appearance string, s Series, sh Shot) string {
 	return ComposePrompt(lora, []string{framingLead[sh.Framing], sh.Prompt, appearance, outfit, s.Hair, s.Makeup}, s.Background)
 }
 
+func ruText(promptRu, name string) string {
+	if promptRu != "" {
+		return promptRu
+	}
+	return name
+}
+
 func ideaAt(ideas []Idea, i int) *Idea {
 	if i < len(ideas) {
 		return &ideas[i]
@@ -204,13 +255,24 @@ func ideaAt(ideas []Idea, i int) *Idea {
 
 func buildSeries(req PlanRequest, base *Base, idea *Idea, index, shots, frame int, rnd *rand.Rand) (Series, []string) {
 	var warnings, ruAI []string
+	man := req.man()
 	field := func(a Aspect, fromIdea, fromIdeaRu string) Item {
 		c := req.Choice(a)
 		switch c.Mode {
 		case ModeKeep:
 			return Item{}
+		case ModeCustom:
+			text := strings.TrimSpace(c.Text)
+			if text == "" {
+				warnings = append(warnings, fmt.Sprintf(warnCustomEmpty, aspectNames[a]))
+				return Item{}
+			}
+			return Item{Prompt: text, PromptRu: strings.TrimSpace(c.TextRu)}
 		case ModePick:
 			if it, ok := pickRound(base, a, c.IDs, index); ok {
+				if man && gendered(a) && !it.User && !it.Male {
+					warnings = append(warnings, fmt.Sprintf(warnPickFemale, aspectNames[a]))
+				}
 				return it
 			}
 			warnings = append(warnings, fmt.Sprintf(warnNoPick, aspectNames[a]))
@@ -222,6 +284,16 @@ func buildSeries(req PlanRequest, base *Base, idea *Idea, index, shots, frame in
 				return Item{Prompt: fromIdea, Name: fromIdeaRu}
 			}
 		}
+		if man && gendered(a) {
+			it, how := base.pickMale(a, req.Themes, rnd)
+			switch how {
+			case maleOtherTheme:
+				warnings = append(warnings, fmt.Sprintf(warnMaleOtherTheme, aspectNames[a]))
+			case maleNone:
+				warnings = append(warnings, fmt.Sprintf(warnNoMale, aspectNames[a]))
+			}
+			return it
+		}
 		return base.Pick(a, req.Themes, rnd)
 	}
 	var id Idea
@@ -232,9 +304,9 @@ func buildSeries(req PlanRequest, base *Base, idea *Idea, index, shots, frame in
 	hair := field(AspectHair, id.Hair, id.HairRu)
 	makeup := field(AspectMakeup, id.Makeup, id.MakeupRu)
 	s := Series{
-		Outfit: outfit.Prompt, OutfitRu: outfit.Name,
-		Hair: hair.Prompt, HairRu: hair.Name,
-		Makeup: makeup.Prompt, MakeupRu: makeup.Name,
+		Outfit: outfit.Prompt, OutfitRu: ruText(outfit.PromptRu, outfit.Name),
+		Hair: hair.Prompt, HairRu: ruText(hair.PromptRu, hair.Name),
+		Makeup: makeup.Prompt, MakeupRu: ruText(makeup.PromptRu, makeup.Name),
 	}
 	if req.Garment {
 		s.Outfit, s.OutfitRu = DefaultOutfit, ""
@@ -245,7 +317,7 @@ func buildSeries(req PlanRequest, base *Base, idea *Idea, index, shots, frame in
 		bgIdea, bgIdeaRu = id.Background, id.BackgroundRu
 	}
 	bg := field(AspectBackground, bgIdea, bgIdeaRu)
-	s.Background, s.BackgroundRu = bg.Prompt, bg.Name
+	s.Background, s.BackgroundRu = bg.Prompt, ruText(bg.PromptRu, bg.Name)
 	s.RuAI = ruAI
 	if bg.ID != "" {
 		s.Place = base.PlaceOf(bg.ID)
@@ -258,6 +330,10 @@ func buildSeries(req PlanRequest, base *Base, idea *Idea, index, shots, frame in
 	}
 	s.Shots, warnings = buildShots(req, base, s.Place, themes, shots, frame, rnd, warnings)
 	return s, warnings
+}
+
+func gendered(a Aspect) bool {
+	return a == AspectOutfit || a == AspectHair || a == AspectMakeup
 }
 
 func pickRound(base *Base, a Aspect, ids []string, index int) (Item, bool) {
@@ -274,7 +350,7 @@ func pickRound(base *Base, a Aspect, ids []string, index int) (Item, bool) {
 }
 
 func shotOf(p Pose) Shot {
-	return Shot{Pose: p.Name, Prompt: p.Prompt, PromptRu: p.Name, Landscape: p.Orientation == "landscape", Framing: p.Framing}
+	return Shot{Pose: p.Name, Prompt: p.Prompt, PromptRu: ruText(p.PromptRu, p.Name), Landscape: p.Orientation == "landscape", Framing: p.Framing}
 }
 
 func buildShots(req PlanRequest, base *Base, place string, themes []string, n, frame int, rnd *rand.Rand, warnings []string) ([]Shot, []string) {

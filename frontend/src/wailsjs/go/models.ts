@@ -2689,6 +2689,8 @@ export namespace stylist {
 	    theme?: string;
 	    name: string;
 	    prompt: string;
+	    prompt_ru?: string;
+	    user?: boolean;
 	    place: string;
 	
 	    static createFrom(source: any = {}) {
@@ -2701,6 +2703,8 @@ export namespace stylist {
 	        this.theme = source["theme"];
 	        this.name = source["name"];
 	        this.prompt = source["prompt"];
+	        this.prompt_ru = source["prompt_ru"];
+	        this.user = source["user"];
 	        this.place = source["place"];
 	    }
 	}
@@ -2710,7 +2714,10 @@ export namespace stylist {
 	    prompt: string;
 	    framing: string;
 	    places: string[];
+	    themes?: string[];
 	    orientation: string;
+	    prompt_ru?: string;
+	    user?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Pose(source);
@@ -2723,7 +2730,10 @@ export namespace stylist {
 	        this.prompt = source["prompt"];
 	        this.framing = source["framing"];
 	        this.places = source["places"];
+	        this.themes = source["themes"];
 	        this.orientation = source["orientation"];
+	        this.prompt_ru = source["prompt_ru"];
+	        this.user = source["user"];
 	    }
 	}
 	export class Item {
@@ -2731,6 +2741,8 @@ export namespace stylist {
 	    theme?: string;
 	    name: string;
 	    prompt: string;
+	    prompt_ru?: string;
+	    user?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Item(source);
@@ -2742,6 +2754,8 @@ export namespace stylist {
 	        this.theme = source["theme"];
 	        this.name = source["name"];
 	        this.prompt = source["prompt"];
+	        this.prompt_ru = source["prompt_ru"];
+	        this.user = source["user"];
 	    }
 	}
 	export class Theme {
@@ -2919,5 +2933,35 @@ export namespace stylist {
 		}
 	}
 	
+	
+	export class UserPreset {
+	    id: number;
+	    aspect: string;
+	    name: string;
+	    prompt: string;
+	    prompt_ru: string;
+	    place: string;
+	    framing: string;
+	    places: string[];
+	    orientation: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserPreset(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.aspect = source["aspect"];
+	        this.name = source["name"];
+	        this.prompt = source["prompt"];
+	        this.prompt_ru = source["prompt_ru"];
+	        this.place = source["place"];
+	        this.framing = source["framing"];
+	        this.places = source["places"];
+	        this.orientation = source["orientation"];
+	    }
+	}
 
 }
+

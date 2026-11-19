@@ -47,8 +47,10 @@ var forbiddenRe = regexp.MustCompile(`(?i)` + strings.Join([]string{
 	`\blong legs\b`, `\bslender\b`, `\bfull-figured\b`, `\bcurvaceous\b`, `\b(black|brown|red|grey|gray|silver|white|dark|light|golden|copper|pink|blue|purple|dyed|platinum)[- ]hair(ed)?\b`, `\bhair colou?r\b`,
 }, "|"))
 
+var allowedRe = regexp.MustCompile(`(?i)\bman[- ]buns?\b`)
+
 func Forbidden(text string) bool {
-	return forbiddenRe.MatchString(text)
+	return forbiddenRe.MatchString(allowedRe.ReplaceAllString(text, ""))
 }
 
 const ruStart = `(?:^|[^\p{L}])`
@@ -114,7 +116,23 @@ func ideaUserMessage(req PlanRequest, count int) string {
 	if len(req.Themes) > 0 {
 		themes = strings.Join(req.Themes, ", ")
 	}
-	return fmt.Sprintf("Wish: %s\nThemes: %s\nSeries: %d", wish, themes, count)
+	msg := fmt.Sprintf("Wish: %s\nThemes: %s\nSeries: %d", wish, themes, count)
+	if p := personOf(req.Gender); p != "" {
+		msg = "Person: " + p + "\n" + msg
+	}
+	return msg
+}
+
+func personOf(gender string) string {
+	switch strings.ToLower(strings.TrimSpace(gender)) {
+	case "":
+		return ""
+	case "man", "male":
+		return "a man"
+	case "woman", "female":
+		return "a woman"
+	}
+	return "a person"
 }
 
 func AskLLM(chat Ideas, model string, req PlanRequest, base *Base, count int) ([]Idea, []string, error) {

@@ -34,10 +34,13 @@ type Theme struct {
 }
 
 type Item struct {
-	ID     string `json:"id"`
-	Theme  string `json:"theme,omitempty"`
-	Name   string `json:"name"`
-	Prompt string `json:"prompt"`
+	ID       string `json:"id"`
+	Theme    string `json:"theme,omitempty"`
+	Name     string `json:"name"`
+	Prompt   string `json:"prompt"`
+	PromptRu string `json:"prompt_ru,omitempty"`
+	User     bool   `json:"user,omitempty"`
+	Male     bool   `json:"male,omitempty"`
 }
 
 type Background struct {
@@ -53,6 +56,8 @@ type Pose struct {
 	Places      []string `json:"places"`
 	Themes      []string `json:"themes,omitempty"`
 	Orientation string   `json:"orientation"`
+	PromptRu    string   `json:"prompt_ru,omitempty"`
+	User        bool     `json:"user,omitempty"`
 }
 
 type Base struct {
@@ -241,6 +246,34 @@ func (b *Base) Pick(kind Aspect, themes []string, rnd *rand.Rand) Item {
 		match = all
 	}
 	return match[rnd.Intn(len(match))]
+}
+
+type malePick int
+
+const (
+	maleInTheme malePick = iota
+	maleOtherTheme
+	maleNone
+)
+
+func (b *Base) pickMale(kind Aspect, themes []string, rnd *rand.Rand) (Item, malePick) {
+	var themed, male []Item
+	for _, it := range b.Items(kind) {
+		if !it.Male && !it.User {
+			continue
+		}
+		male = append(male, it)
+		if it.Theme == "" || len(themes) == 0 || slices.Contains(themes, it.Theme) {
+			themed = append(themed, it)
+		}
+	}
+	if len(themed) > 0 {
+		return themed[rnd.Intn(len(themed))], maleInTheme
+	}
+	if len(male) > 0 {
+		return male[rnd.Intn(len(male))], maleOtherTheme
+	}
+	return b.Pick(kind, themes, rnd), maleNone
 }
 
 func (b *Base) BackgroundTheme(id string) string {

@@ -550,6 +550,14 @@ export function StylistAppearance(arg1) {
   return window['go']['main']['App']['StylistAppearance'](arg1);
 }
 
+export function StylistDeletePreset(arg1) {
+  return window['go']['main']['App']['StylistDeletePreset'](arg1);
+}
+
+export function StylistDescribeGarment(arg1) {
+  return window['go']['main']['App']['StylistDescribeGarment'](arg1);
+}
+
 export function StylistFrames(arg1) {
   return window['go']['main']['App']['StylistFrames'](arg1);
 }
@@ -570,12 +578,16 @@ export function StylistRegenerateSeries(arg1, arg2) {
   return window['go']['main']['App']['StylistRegenerateSeries'](arg1, arg2);
 }
 
-export function StylistShoot(arg1) {
-  return window['go']['main']['App']['StylistShoot'](arg1);
+export function StylistRenamePreset(arg1, arg2) {
+  return window['go']['main']['App']['StylistRenamePreset'](arg1, arg2);
 }
 
-export function StylistDescribeGarment(arg1) {
-  return window['go']['main']['App']['StylistDescribeGarment'](arg1);
+export function StylistSavePreset(arg1) {
+  return window['go']['main']['App']['StylistSavePreset'](arg1);
+}
+
+export function StylistShoot(arg1) {
+  return window['go']['main']['App']['StylistShoot'](arg1);
 }
 
 export function StylistTranslate(arg1) {
