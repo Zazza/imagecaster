@@ -101,14 +101,40 @@ func lookParts(l Look) []string {
 	return parts
 }
 
-func shootPrompt(p serverclient.Person, appearance string, look Look, shot, background string) string {
+func personBase(p serverclient.Person) string {
+	return people.BaseOf(p)
+}
+
+func shootPromptFor(base, lora, appearance string, look Look, shot, background string) string {
 	parts := []string{appearance}
 	if strings.TrimSpace(look.Outfit) == "" {
 		parts = append(parts, shootDefaultOutfit)
 	}
 	parts = append(parts, lookParts(look)...)
 	parts = append(parts, shot)
-	return stylist.ComposePrompt(p.Lora, parts, background)
+	if !stylist.Prose(base) {
+		return stylist.ComposePrompt(lora, parts, background)
+	}
+	outfit := look.Outfit
+	if strings.TrimSpace(outfit) == "" {
+		outfit = shootDefaultOutfit
+	}
+	hair := joinNonEmpty(look.HairCut, look.HairColor)
+	details := []string{stylist.Wearing(outfit), stylist.Labeled("Hair", hair), look.Headwear, stylist.Labeled("Makeup", look.Makeup), look.Free}
+	if lp := lookParts(Look{Glasses: look.Glasses}); len(lp) > 0 {
+		details = append(details, lp...)
+	}
+	return stylist.ComposeProse(lora, stylist.Subject("", appearance, shot), details, background)
+}
+
+func joinNonEmpty(vs ...string) string {
+	var out []string
+	for _, v := range vs {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 func unknownPerson(list []serverclient.Person, name string) error {
@@ -197,12 +223,15 @@ func planShoot(people StylistPeople, eng StylistEngine, args map[string]any, pip
 	if strings.EqualFold(strings.TrimSpace(argString(args, "orientation")), "landscape") {
 		plan.w, plan.h = shootHeight, shootWidth
 	}
-	promptPerson := person
+	promptBase, promptLora := personBase(person), person.Lora
 	if plan.pipeline > 0 {
-		promptPerson.Lora = ""
+		promptBase, promptLora = tgt.base, ""
+	}
+	if stylist.Prose(promptBase) {
+		appearance = stylist.WithSubject(appearance, person.Gender)
 	}
 	for _, shot := range shots {
-		plan.prompts = append(plan.prompts, shootPrompt(promptPerson, appearance, *look, shot, background))
+		plan.prompts = append(plan.prompts, shootPromptFor(promptBase, promptLora, appearance, *look, shot, background))
 	}
 	return plan, nil
 }
@@ -437,6 +466,7 @@ func registerShootTools(s *Server) {
 }
 
 type shootPipeTarget struct {
+	base     string
 	pipeline int64
 	name     string
 	loras    map[string]string
@@ -473,7 +503,11 @@ func shootTarget(all []serverclient.Person, name, base string, pipeline int64, p
 				person = p
 			}
 		}
-		return person, key, shootPipeTarget{pipeline: pipeline, name: title, loras: ov.Loras, swap: ov.FaceSwapName}, nil
+		t := shootPipeTarget{pipeline: pipeline, name: title, loras: ov.Loras, swap: ov.FaceSwapName}
+		if generation.ProseModels(models) {
+			t.base = generation.ModelBase(models[0])
+		}
+		return person, key, t, nil
 	}
 	if p, ok := pickByBase(mine, name, base); ok {
 		return p, key, shootPipeTarget{}, nil

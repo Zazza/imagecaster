@@ -231,10 +231,21 @@ func upperOutfit(outfit string) string {
 	return strings.Join(kept, ", ")
 }
 
-func FramePrompt(lora, appearance string, s Series, sh Shot) string {
+var framingProse = map[string]string{
+	"close": "close-up head-and-shoulders",
+	"waist": "waist-up",
+	"knee":  "knee-up",
+	"full":  "full-body",
+}
+
+func FramePrompt(base, lora, appearance string, s Series, sh Shot) string {
 	outfit := s.Outfit
 	if sh.Framing == "close" || sh.Framing == "waist" {
 		outfit = upperOutfit(outfit)
+	}
+	if Prose(base) {
+		return ComposeProse(lora, Subject(framingProse[sh.Framing], appearance, sh.Prompt),
+			[]string{Wearing(outfit), Labeled("Hair", s.Hair), Labeled("Makeup", s.Makeup)}, s.Background)
 	}
 	return ComposePrompt(lora, []string{framingLead[sh.Framing], sh.Prompt, appearance, outfit, s.Hair, s.Makeup}, s.Background)
 }

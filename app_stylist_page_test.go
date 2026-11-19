@@ -105,7 +105,9 @@ func TestStylistShoot_EnqueuesFrames(t *testing.T) {
 		assert.False(t, j.params.FacePass)
 		require.NotNil(t, j.params.Seed)
 		assert.Equal(t, seed+int64(i), *j.params.Seed)
-		assert.True(t, strings.Contains(j.params.Prompt, ", a woman, 170 cm, a red dress, low bun, red lips, "), j.params.Prompt)
+		assert.True(t, strings.Contains(j.params.Prompt, "of a woman, 170 cm, "), j.params.Prompt)
+		assert.True(t, strings.Contains(j.params.Prompt, ". Wearing a red dress. Hair: low bun. Makeup: red lips. "), j.params.Prompt)
+		assert.NotContains(t, j.params.Prompt, "BREAK")
 		assert.True(t, strings.HasSuffix(j.params.Prompt, "<lora:anna_z:1>"))
 	}
 	assert.Equal(t, [2]int{1024, 1536}, [2]int{q.jobs[0].params.Width, q.jobs[0].params.Height})
@@ -548,8 +550,8 @@ func TestStylistShoot_EditedShotHasNoFramingLead(t *testing.T) {
 	_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, req)
 	require.NoError(t, err)
 	require.Len(t, q.jobs, 2)
-	assert.True(t, strings.HasPrefix(q.jobs[0].params.Prompt, "close-up portrait, head and shoulders, facing camera"), q.jobs[0].params.Prompt)
-	assert.True(t, strings.HasPrefix(q.jobs[1].params.Prompt, "sitting on the stairs, full length"), q.jobs[1].params.Prompt)
+	assert.True(t, strings.HasPrefix(q.jobs[0].params.Prompt, "A close-up head-and-shoulders photograph of a woman, facing camera."), q.jobs[0].params.Prompt)
+	assert.True(t, strings.HasPrefix(q.jobs[1].params.Prompt, "A photograph of a woman, sitting on the stairs, full length."), q.jobs[1].params.Prompt)
 	assert.NotContains(t, q.jobs[1].params.Prompt, "close-up")
 	assert.NotContains(t, q.jobs[1].params.Prompt, "лестнице")
 }

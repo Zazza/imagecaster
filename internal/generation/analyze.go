@@ -726,6 +726,7 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 	if err := s.checkSDInterrupted(); err != nil {
 		return nil, err
 	}
+	prose := s.proseSteps(steps)
 
 	for stepIdx, step := range steps {
 		p, err := s.db.Get(step.PresetID)
@@ -749,7 +750,7 @@ func (s *Service) GenerateCompoundImage(params GenerateCompoundImageParams) (*Ge
 			"step":    stepIdx + 1,
 		})
 
-		bp := s.buildPrompts(p.Prompt, p.NegativePrompt, p.Loras, userScenePrompt, userSceneNeg)
+		bp := s.buildStepPrompts(prose, p.Prompt, p.NegativePrompt, p.Loras, userScenePrompt, userSceneNeg)
 		prompt := bp.Prompt
 		negativePrompt := bp.NegativePrompt
 

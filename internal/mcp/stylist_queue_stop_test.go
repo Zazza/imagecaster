@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -76,8 +77,8 @@ func TestRunShootFrame_ErrorWithoutServerURL(t *testing.T) {
 func TestShootPrompt_DefaultOutfit(t *testing.T) {
 	t.Parallel()
 	p := serverclient.Person{Lora: "anna"}
-	assert.Contains(t, shootPrompt(p, "a woman", Look{}, "front", shootBackground), shootDefaultOutfit)
-	withOutfit := shootPrompt(p, "a woman", Look{Outfit: "a navy suit"}, "front", shootBackground)
+	assert.Contains(t, strings.ToLower(shootPromptFor(personBase(p), p.Lora, "a woman", Look{}, "front", shootBackground)), shootDefaultOutfit)
+	withOutfit := shootPromptFor(personBase(p), p.Lora, "a woman", Look{Outfit: "a navy suit"}, "front", shootBackground)
 	assert.NotContains(t, withOutfit, shootDefaultOutfit)
 	assert.Contains(t, withOutfit, "a navy suit")
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/Zazza/imagecaster/internal/preset"
+	"github.com/Zazza/imagecaster/internal/promptutil"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 )
 
@@ -75,4 +76,28 @@ func fromImagePerson(ov *PresetOverrides) *PersonOverride {
 		return nil
 	}
 	return ov.Person
+}
+
+func ProseModels(models []string) bool {
+	if len(models) == 0 {
+		return false
+	}
+	for _, m := range models {
+		if !promptutil.ProseBase(ModelBase(m)) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Service) proseSteps(steps []preset.CompoundPresetStep) bool {
+	models := make([]string, 0, len(steps))
+	for _, st := range steps {
+		p, err := s.db.Get(st.PresetID)
+		if err != nil {
+			return false
+		}
+		models = append(models, p.ModelName)
+	}
+	return ProseModels(models)
 }

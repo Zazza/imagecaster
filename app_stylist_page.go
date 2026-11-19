@@ -65,6 +65,7 @@ type shootTarget struct {
 	pipelineName string
 	loras        map[string]string
 	faceSwapName string
+	promptBase   string
 }
 
 func resolveShootTarget(all []serverclient.Person, pipes stylistPipelines, req StylistShootRequest) (*shootTarget, error) {
@@ -103,6 +104,9 @@ func resolveShootTarget(all []serverclient.Person, pipes stylistPipelines, req S
 			return nil, fmt.Errorf("«%s»: нет LoRA ни для одного шага пайплайна «%s»", key, title)
 		}
 		t := &shootTarget{person: mine[0], pipeline: req.Pipeline, pipelineName: title, loras: loras}
+		if generation.ProseModels(models) {
+			t.promptBase = generation.ModelBase(models[0])
+		}
 		if req.FaceSwap {
 			t.faceSwapName = people.FaceSwapName(all, key, bases)
 		}
@@ -139,6 +143,7 @@ func resolveShootTarget(all []serverclient.Person, pipes stylistPipelines, req S
 		return nil, fmt.Errorf("LoRA %q обучена под %s — съёмка умеет только Z-Image, Moss-Image, SDXL, Flux.2 и Flux.1", picked.Name, picked.Base)
 	}
 	t := &shootTarget{person: *picked, base: people.BaseOf(*picked), model: m.Model, lora: picked.Lora}
+	t.promptBase = t.base
 	if req.FaceSwap && picked.Identity {
 		t.faceSwapName = picked.Name
 	}
@@ -388,13 +393,7 @@ func (a *App) StylistShoot(req StylistShootRequest) ([]int64, error) {
 }
 
 func defaultStylistAppearance(gender string) string {
-	switch strings.ToLower(strings.TrimSpace(gender)) {
-	case "man", "male":
-		return "a man"
-	case "woman", "female", "":
-		return "a woman"
-	}
-	return "a person"
+	return stylist.Who(gender)
 }
 
 func stylistPageLabel(name, pose string, i, total int) string {
@@ -441,6 +440,9 @@ func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPip
 	if appearance == "" {
 		appearance = defaultStylistAppearance(target.person.Gender)
 	}
+	if stylist.Prose(target.promptBase) {
+		appearance = stylist.WithSubject(appearance, target.person.Gender)
+	}
 	garmentOutfit := strings.TrimSpace(req.GarmentOutfit)
 	if req.Garment != "" && garmentOutfit == "" {
 		return nil, errStylistGarmentUnnamed
@@ -466,7 +468,7 @@ func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPip
 		for _, sh := range s.Shots {
 			p := mcp.ShootFrameParams{
 				Person: target.person.Name, Base: target.base, Model: target.model, Shot: sh.Pose,
-				Prompt: stylist.FramePrompt(target.lora, appearance, s, sh),
+				Prompt: stylist.FramePrompt(target.promptBase, target.lora, appearance, s, sh),
 				Index:  i + 1, Total: total,
 				GarmentBase64: garment, Outfit: outfit,
 				FaceSwap: target.faceSwapName != "",

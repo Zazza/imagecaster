@@ -383,7 +383,7 @@ func TestStylistShoot_Prompt(t *testing.T) {
 		assert.NotContains(t, p, "anna_trig", "call %d trigger", i)
 		assert.Contains(t, p, "slim woman, fair skin, shoulder-length wavy auburn hair", "call %d appearance", i)
 		for k, v := range look {
-			assert.Contains(t, p, v.(string), "call %d look.%s", i, k)
+			assert.Contains(t, strings.ToLower(p), v.(string), "call %d look.%s", i, k)
 		}
 		assert.Contains(t, p, shots[i], "call %d shot", i)
 		assert.Contains(t, p, "sunlit city street", "call %d background", i)
@@ -709,11 +709,11 @@ func TestStylistShoot_PromptTailByBackground(t *testing.T) {
 	p := shootPerson("anna", "Z-Image")
 	look := Look{Outfit: "a red dress"}
 
-	candid := shootPrompt(p, "a woman", look, "standing, waist-up", "an evening old city street, street lamps")
+	candid := shootPromptFor(personBase(p), p.Lora, "a woman", look, "standing, waist-up", "an evening old city street, street lamps")
 	assert.Contains(t, candid, "candid photograph")
 	assert.NotContains(t, candid, "professional studio portrait")
 
-	studio := shootPrompt(p, "a woman", look, "head-and-shoulders portrait", "a dark grey Studio backdrop, soft light")
+	studio := shootPromptFor(personBase(p), p.Lora, "a woman", look, "head-and-shoulders portrait", "a dark grey Studio backdrop, soft light")
 	assert.Contains(t, studio, "professional studio portrait")
 	assert.NotContains(t, studio, "candid photograph")
 	assert.Contains(t, studio, "<lora:anna_lora_v1:1>")

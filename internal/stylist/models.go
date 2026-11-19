@@ -3,6 +3,9 @@ package stylist
 import (
 	"fmt"
 	"strings"
+	"unicode"
+
+	"github.com/Zazza/imagecaster/internal/promptutil"
 )
 
 type Model struct {
@@ -30,11 +33,19 @@ const (
 	DefaultOutfit     = "wearing simple casual everyday clothes"
 )
 
-func ComposePrompt(lora string, parts []string, background string) string {
-	quality := Quality
+func Prose(base string) bool {
+	return promptutil.ProseBase(base)
+}
+
+func qualityFor(background string) string {
 	if strings.Contains(strings.ToLower(background), "studio") {
-		quality = QualityStudio
+		return QualityStudio
 	}
+	return Quality
+}
+
+func ComposePrompt(lora string, parts []string, background string) string {
+	quality := qualityFor(background)
 	all := make([]string, 0, len(parts)+2)
 	all = append(all, parts...)
 	all = append(all, background, quality)
@@ -48,4 +59,100 @@ func ComposePrompt(lora string, parts []string, background string) string {
 		return strings.Join(clean, ", ")
 	}
 	return strings.Join(clean, ", ") + fmt.Sprintf(" <lora:%s:1>", lora)
+}
+
+func sentence(v string) string {
+	v = strings.TrimSpace(strings.TrimRight(strings.TrimSpace(v), ",;"))
+	if v == "" {
+		return ""
+	}
+	r := []rune(v)
+	r[0] = unicode.ToUpper(r[0])
+	v = string(r)
+	if !strings.HasSuffix(v, ".") && !strings.HasSuffix(v, "!") && !strings.HasSuffix(v, "?") {
+		v += "."
+	}
+	return v
+}
+
+func Wearing(outfit string) string {
+	outfit = strings.TrimSpace(outfit)
+	if outfit == "" {
+		return ""
+	}
+	if strings.HasPrefix(strings.ToLower(outfit), "wearing ") {
+		return outfit
+	}
+	return "wearing " + outfit
+}
+
+func Labeled(label, v string) string {
+	if v = strings.TrimSpace(v); v == "" {
+		return ""
+	}
+	return label + ": " + v
+}
+
+func Subject(lead, appearance, action string) string {
+	appearance = strings.TrimSpace(appearance)
+	if appearance == "" {
+		appearance = "a person"
+	}
+	out := "a photograph of " + appearance
+	if lead = strings.TrimSpace(lead); lead != "" {
+		out = "a " + lead + " photograph of " + appearance
+	}
+	if action = strings.TrimSpace(action); action != "" {
+		out += ", " + action
+	}
+	return out
+}
+
+func ComposeProse(lora, subject string, details []string, background string) string {
+	all := make([]string, 0, len(details)+3)
+	all = append(all, subject)
+	all = append(all, details...)
+	all = append(all, Labeled("Background", background), strings.TrimPrefix(qualityFor(background), "BREAK, "))
+	clean := make([]string, 0, len(all))
+	for _, v := range all {
+		if v = sentence(v); v != "" {
+			clean = append(clean, v)
+		}
+	}
+	out := strings.Join(clean, " ")
+	if lora == "" {
+		return out
+	}
+	return out + fmt.Sprintf(" <lora:%s:1>", lora)
+}
+
+func Who(gender string) string {
+	switch strings.ToLower(strings.TrimSpace(gender)) {
+	case "man", "male":
+		return "a man"
+	case "woman", "female", "":
+		return "a woman"
+	}
+	return "a person"
+}
+
+var subjectNouns = map[string]bool{"woman": true, "man": true, "female": true, "male": true, "person": true, "girl": true, "boy": true, "lady": true, "guy": true, "teenager": true, "teen": true, "child": true, "kid": true}
+
+func WithSubject(appearance, gender string) string {
+	appearance = strings.TrimSpace(appearance)
+	low := strings.ToLower(appearance)
+	switch {
+	case appearance == "":
+		return Who(gender)
+	case strings.HasPrefix(low, "a "), strings.HasPrefix(low, "an "), strings.HasPrefix(low, "the "):
+		return appearance
+	}
+	words := strings.FieldsFunc(low, func(r rune) bool { return r == ' ' || r == ',' })
+	if len(words) == 0 {
+		return Who(gender)
+	}
+	if subjectNouns[words[0]] {
+		return appearance
+	}
+	return Who(gender) + ", " + appearance
 }

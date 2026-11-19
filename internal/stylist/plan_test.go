@@ -77,7 +77,7 @@ func TestPlan_KeepRemovesAspectFromPrompt(t *testing.T) {
 			for _, s := range series {
 				assert.Empty(t, tt.field(s))
 				for _, sh := range s.Shots {
-					prompt := FramePrompt("lora", "a woman", s, sh)
+					prompt := FramePrompt("SDXL", "lora", "a woman", s, sh)
 					for _, id := range []string{"o01", "h01", "m04", "b03"} {
 						var kind Aspect
 						switch id[0] {
@@ -255,7 +255,7 @@ func TestFramePrompt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FramePrompt("anna", "a woman", s, Shot{Prompt: "facing camera", Framing: tt.framing})
+			got := FramePrompt("SDXL", "anna", "a woman", s, Shot{Prompt: "facing camera", Framing: tt.framing})
 			assert.Equal(t, tt.want, got)
 			assert.False(t, strings.Contains(got, ", ,"))
 		})
@@ -373,7 +373,7 @@ func TestPlan_RussianText(t *testing.T) {
 			require.NoError(t, err)
 			got := series[0]
 			if tt.want.OutfitRu != "" {
-				assert.NotContains(t, FramePrompt("x", "a woman", got, Shot{}), tt.want.OutfitRu)
+				assert.NotContains(t, FramePrompt("SDXL", "x", "a woman", got, Shot{}), tt.want.OutfitRu)
 			}
 			got.Shots = nil
 			assert.Equal(t, tt.want, got)
@@ -392,7 +392,7 @@ func TestPlan_ShotsShowRussianPoseName(t *testing.T) {
 	assert.Equal(t, p.Name, sh.Pose)
 	assert.Equal(t, p.Name, sh.PromptRu)
 	assert.Equal(t, p.Prompt, sh.Prompt)
-	assert.NotContains(t, FramePrompt("x", "a woman", series[0], sh), p.Name)
+	assert.NotContains(t, FramePrompt("SDXL", "x", "a woman", series[0], sh), p.Name)
 }
 
 func TestPlan_GarmentAvoidsCloseAndWaistShots(t *testing.T) {

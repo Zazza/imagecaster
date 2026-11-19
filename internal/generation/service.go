@@ -694,6 +694,15 @@ type builtPrompts struct {
 	NegativePrompt string
 }
 
+func (s *Service) buildStepPrompts(prose bool, presetPrompt, presetNegative, loras, userPrompt, userNegative string) builtPrompts {
+	bp := s.buildPrompts(presetPrompt, presetNegative, loras, userPrompt, userNegative)
+	if userPrompt == "" || presetPrompt == "" || !prose {
+		return bp
+	}
+	bp.Prompt = appendLorasToPrompt(promptutil.JoinProse(userPrompt, presetPrompt), loras)
+	return bp
+}
+
 func (s *Service) buildPrompts(presetPrompt, presetNegative, loras, userPrompt, userNegative string) builtPrompts {
 	prompt := presetPrompt
 	if userPrompt != "" && prompt != "" {
