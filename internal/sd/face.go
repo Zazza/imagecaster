@@ -40,6 +40,7 @@ type detectResponse struct {
 		CanvasWidth  float64 `json:"canvas_width"`
 		CanvasHeight float64 `json:"canvas_height"`
 		People       []struct {
+			Pose []float64 `json:"pose_keypoints_2d"`
 			Face []float64 `json:"face_keypoints_2d"`
 		} `json:"people"`
 	} `json:"poses"`
@@ -59,10 +60,11 @@ func imageSize(b64 string) (int, int, error) {
 	return cfg.Width, cfg.Height, nil
 }
 
-func (c *Client) FaceLandmarks(imageBase64 string) ([]Point, error) {
+func (c *Client) detectPose(imageBase64 string) (detectResponse, int, int, error) {
+	var out detectResponse
 	w, h, err := imageSize(imageBase64)
 	if err != nil {
-		return nil, fmt.Errorf("face landmarks: decode image: %w", err)
+		return out, 0, 0, fmt.Errorf("decode image: %w", err)
 	}
 	body, err := json.Marshal(map[string]any{
 		"controlnet_module":        faceDetectModule,
@@ -70,27 +72,34 @@ func (c *Client) FaceLandmarks(imageBase64 string) ([]Point, error) {
 		"controlnet_processor_res": faceDetectRes,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("face landmarks: %w", err)
+		return out, 0, 0, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), faceDetectTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/controlnet/detect", bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("face landmarks: %w", err)
+		return out, 0, 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("face landmarks: %w", err)
+		return out, 0, 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("face landmarks: status %d", resp.StatusCode)
+		return out, 0, 0, fmt.Errorf("status %d", resp.StatusCode)
 	}
-	var out detectResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBodySize)).Decode(&out); err != nil {
-		return nil, fmt.Errorf("face landmarks: decode: %w", err)
+		return out, 0, 0, fmt.Errorf("decode: %w", err)
+	}
+	return out, w, h, nil
+}
+
+func (c *Client) FaceLandmarks(imageBase64 string) ([]Point, error) {
+	out, w, h, err := c.detectPose(imageBase64)
+	if err != nil {
+		return nil, fmt.Errorf("face landmarks: %w", err)
 	}
 	if len(out.Poses) == 0 || len(out.Poses[0].People) == 0 {
 		return nil, ErrNoFace

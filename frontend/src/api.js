@@ -27,7 +27,7 @@ import {
   UpdateSettings, UpscaleImage, Version,
   TrainingStatus, TrainingBases, PickPeopleFolder, TrainPerson, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson,
   AddPersonIdentity, FaceSwapStatus,
-  PostFaceLandmarks, PreviewPostRetouch, EnqueuePostSave,
+  PostFaceLandmarks, PostBodyPoints, PreviewPostRetouch, EnqueuePostSave,
   StylistPresets, StylistPlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, SetStylistAppearance, StylistTranslate, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
@@ -108,7 +108,8 @@ export const api = {
   previewAdjust: (imageBase64, adjust, maxW) => PreviewAdjust(imageBase64, adjust, maxW),
   previewPost: (imageBase64, adjust, finish, maxW) => PreviewPost(imageBase64, adjust, finish, maxW),
   postFaceLandmarks: (imageBase64) => PostFaceLandmarks(imageBase64),
-  previewPostRetouch: (imageBase64, adjust, retouch, points, finish, maxW) => PreviewPostRetouch(imageBase64, adjust, retouch, points, finish, maxW),
+  postBodyPoints: (imageBase64) => PostBodyPoints(imageBase64),
+  previewPostRetouch: (imageBase64, adjust, retouch, points, body, bodyPoints, finish, maxW) => PreviewPostRetouch(imageBase64, adjust, retouch, points, body, bodyPoints, finish, maxW),
   enqueuePostSave: (params, adjust) => EnqueuePostSave(adjust ? { ...params, adjust } : params),
   autoAdjust: (imageBase64) => AutoAdjust(imageBase64),
   compilePostStyle: (text) => CompilePostStyle(text),

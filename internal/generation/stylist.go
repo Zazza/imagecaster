@@ -8,6 +8,7 @@ import (
 	"image"
 	"strings"
 
+	"github.com/Zazza/imagecaster/internal/bodyshape"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
@@ -149,6 +150,22 @@ func (s *Service) DescribeImage(imageBase64, prompt string) (string, error) {
 		return "", err
 	}
 	return s.kids.FilterOutput(strings.TrimSpace(text)), nil
+}
+
+func (s *Service) BodyKeypoints(imageBase64 string) ([]bodyshape.Point, error) {
+	det, ok := s.sd.(sd.BodyDetector)
+	if !ok {
+		return nil, errors.New("body keypoints are not supported by the SD client")
+	}
+	pts, err := det.BodyKeypoints(imageBase64)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]bodyshape.Point, len(pts))
+	for i, p := range pts {
+		out[i] = bodyshape.Point{X: p.X, Y: p.Y}
+	}
+	return out, nil
 }
 
 func (s *Service) FaceLandmarks(imageBase64 string) ([]faceguard.Point, error) {

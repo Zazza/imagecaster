@@ -21,6 +21,7 @@ import BatchStrip from './post/BatchStrip.vue'
 import EffectPanel from './post/EffectPanel.vue'
 import AdjustPanel from './post/AdjustPanel.vue'
 import RetouchPanel from './post/RetouchPanel.vue'
+import BodyPanel from './post/BodyPanel.vue'
 import FinishPanel from './post/FinishPanel.vue'
 import ExportPanel from './post/ExportPanel.vue'
 import RecipesPanel from './post/RecipesPanel.vue'
@@ -43,6 +44,7 @@ const effectSectionRef = ref(null)
 const effectCompRef = ref(null)
 const adjustSectionRef = ref(null)
 const retouchSectionRef = ref(null)
+const bodySectionRef = ref(null)
 const exportSectionRef = ref(null)
 const exportCompRef = ref(null)
 const finishSectionRef = ref(null)
@@ -56,6 +58,7 @@ function sectionEl(name) {
   if (name === 'repair') return repairSectionRef.value
   if (name === 'adjust') return adjustSectionRef.value
   if (name === 'retouch') return retouchSectionRef.value
+  if (name === 'body') return bodySectionRef.value
   if (name === 'export') return exportSectionRef.value
   if (name === 'finish') return finishSectionRef.value
   if (name === 'recipes') return recipesSectionRef.value
@@ -98,6 +101,7 @@ const batch = usePostBatch({
   onStart() {
     post.resetAdjustAll()
     post.resetRetouch()
+    post.resetBody()
     layerUndo.value = []
     layerRedo.value = []
     appliedEffects.value = []
@@ -296,6 +300,7 @@ function setSource(b64, name, keepLayerHistory = false) {
   sourceName.value = (name || 'image').replace(/\.[^.]+$/, '') || 'image'
   post.resetAdjustAll()
   post.resetRetouch()
+  post.resetBody()
   if (!keepLayerHistory) {
     layerUndo.value = []
     layerRedo.value = []
@@ -523,9 +528,20 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <div ref="bodySectionRef" class="card" :class="{ collapsed: openSection !== 'body' }">
+          <div class="card-header card-toggle" @click="setOpenSection('body')">
+            <span class="card-heading"><span class="card-num mono">08</span><span class="card-heading-text"><span class="card-title">{{ t('post.body_title') }}</span><span class="card-subtitle">{{ t('post.sub_body') }}</span></span></span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'body' }">
+            <div class="card-body">
+              <BodyPanel :post="post" :source="currentB64" />
+            </div>
+          </div>
+        </div>
+
         <div ref="finishSectionRef" class="card" :class="{ collapsed: openSection !== 'finish' }">
           <div class="card-header card-toggle" @click="setOpenSection('finish')">
-            <span class="card-heading"><span class="card-num mono">08</span><span class="card-heading-text"><span class="card-title">{{ t('post.finish_title') }}</span><span class="card-subtitle">{{ t('post.sub_finish') }}</span></span></span>
+            <span class="card-heading"><span class="card-num mono">09</span><span class="card-heading-text"><span class="card-title">{{ t('post.finish_title') }}</span><span class="card-subtitle">{{ t('post.sub_finish') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'finish' }">
             <div class="card-body">
@@ -536,7 +552,7 @@ onUnmounted(() => {
 
         <div ref="exportSectionRef" class="card" :class="{ collapsed: openSection !== 'export' }">
           <div class="card-header card-toggle" @click="setOpenSection('export')">
-            <span class="card-heading"><span class="card-num mono">09</span><span class="card-heading-text"><span class="card-title">{{ t('export.export_settings') }}</span><span class="card-subtitle">{{ t('post.sub_export') }}</span></span></span>
+            <span class="card-heading"><span class="card-num mono">10</span><span class="card-heading-text"><span class="card-title">{{ t('export.export_settings') }}</span><span class="card-subtitle">{{ t('post.sub_export') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'export' }">
             <div class="card-body">
@@ -556,7 +572,7 @@ onUnmounted(() => {
 
         <div ref="recipesSectionRef" class="card" :class="{ collapsed: openSection !== 'recipes' }">
           <div class="card-header card-toggle" @click="setOpenSection('recipes')">
-            <span class="card-heading"><span class="card-num mono">10</span><span class="card-heading-text"><span class="card-title">{{ t('post.recipes_title') }}</span><span class="card-subtitle">{{ t('post.sub_recipes') }}</span></span></span>
+            <span class="card-heading"><span class="card-num mono">11</span><span class="card-heading-text"><span class="card-title">{{ t('post.recipes_title') }}</span><span class="card-subtitle">{{ t('post.sub_recipes') }}</span></span></span>
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'recipes' }">
             <div class="card-body">

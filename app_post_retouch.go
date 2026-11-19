@@ -10,6 +10,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/Zazza/imagecaster/internal/bodyshape"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/generation"
@@ -100,8 +101,8 @@ func (a *App) PostFaceLandmarks(imageBase64 string) (PostFace, error) {
 	return face, err
 }
 
-func (a *App) PreviewPostRetouch(imageBase64 string, p AdjustParams, r faceguard.Retouch, pts []faceguard.Point, f FinishParams, maxW int) (string, error) {
-	return a.preview.PostRetouch(imageBase64, p, r, pts, f, maxW)
+func (a *App) PreviewPostRetouch(imageBase64 string, p AdjustParams, r faceguard.Retouch, pts []faceguard.Point, body bodyshape.Params, bodyPts []bodyshape.Point, f FinishParams, maxW int) (string, error) {
+	return a.preview.PostRetouch(imageBase64, p, r, pts, body, bodyPts, f, maxW)
 }
 
 func enqueuePostSave(q postSaveQueue, pick savePathPicker, notLocal bool, p ExportImageParams) (int64, error) {
@@ -117,6 +118,11 @@ func enqueuePostSave(q postSaveQueue, pick savePathPicker, notLocal bool, p Expo
 	if p.Retouch != nil {
 		if err := p.Retouch.Validate(); err != nil {
 			return 0, fmt.Errorf("retouch: %w", err)
+		}
+	}
+	if p.Body != nil {
+		if err := p.Body.Validate(); err != nil {
+			return 0, fmt.Errorf("body: %w", err)
 		}
 	}
 	if p.OutputDir == "" {

@@ -422,12 +422,16 @@ export function PreviewAdjust(arg1, arg2, arg3) {
   return window['go']['main']['App']['PreviewAdjust'](arg1, arg2, arg3);
 }
 
+export function PostBodyPoints(arg1) {
+  return window['go']['main']['App']['PostBodyPoints'](arg1);
+}
+
 export function PostFaceLandmarks(arg1) {
   return window['go']['main']['App']['PostFaceLandmarks'](arg1);
 }
 
-export function PreviewPostRetouch(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['PreviewPostRetouch'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function PreviewPostRetouch(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['PreviewPostRetouch'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function PreviewPost(arg1, arg2, arg3, arg4) {

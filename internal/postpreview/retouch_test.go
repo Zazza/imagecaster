@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/bodyshape"
 	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/finish"
 )
@@ -31,7 +32,7 @@ func TestPostRetouch(t *testing.T) {
 			s := New(DefaultCacheSize)
 			plain, err := s.Post(src, adj, finish.Params{}, 120)
 			require.NoError(t, err)
-			got, err := s.PostRetouch(src, adj, tc.r, tc.pts, finish.Params{}, 120)
+			got, err := s.PostRetouch(src, adj, tc.r, tc.pts, bodyshape.Params{}, nil, finish.Params{}, 120)
 			require.NoError(t, err)
 			assert.Equal(t, tc.samePost, plain == got)
 			assert.Equal(t, 120, decodedSize(t, got).X)

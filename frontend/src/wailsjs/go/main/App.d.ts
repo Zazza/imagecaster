@@ -13,6 +13,7 @@ import {queue} from '../models';
 import {sd} from '../models';
 import {finish} from '../models';
 import {faceguard} from '../models';
+import {bodyshape} from '../models';
 import {main} from '../models';
 import {stylist} from '../models';
 
@@ -226,9 +227,11 @@ export function PreparePresetsExport(arg1:Array<number>):Promise<string>;
 
 export function PreviewAdjust(arg1:string,arg2:adjust.Params,arg3:number):Promise<string>;
 
+export function PostBodyPoints(arg1:string):Promise<main.PostBody>;
+
 export function PostFaceLandmarks(arg1:string):Promise<main.PostFace>;
 
-export function PreviewPostRetouch(arg1:string,arg2:adjust.Params,arg3:faceguard.Retouch,arg4:Array<faceguard.Point>,arg5:finish.Params,arg6:number):Promise<string>;
+export function PreviewPostRetouch(arg1:string,arg2:adjust.Params,arg3:faceguard.Retouch,arg4:Array<faceguard.Point>,arg5:bodyshape.Params,arg6:Array<bodyshape.Point>,arg7:finish.Params,arg8:number):Promise<string>;
 
 export function PreviewPost(arg1:string,arg2:adjust.Params,arg3:finish.Params,arg4:number):Promise<string>;
 

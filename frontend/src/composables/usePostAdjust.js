@@ -31,6 +31,12 @@ export const RETOUCH_DEFAULTS = { under_eyes: false, teeth: false, eye_whites: f
 
 export const FACE_WIDTH_MAX = 10
 
+export const BODY_WIDTH_MAX = 10
+
+export const BODY_HEIGHT_MAX = 7
+
+const BODY_DEFAULTS = { width: 0, height: 0 }
+
 const FACE_CACHE_MAX = 4
 
 export function retouchObjectActive(r) {
@@ -44,8 +50,8 @@ export function retouchObjectLocal(r) {
 }
 
 export function splitRecipeAdjust(obj) {
-  const { retouch, upscale_4k: upscale4k, ...adjust } = (obj && typeof obj === 'object') ? obj : {}
-  return { adjust, extras: { retouch, upscale4k } }
+  const { retouch, upscale_4k: upscale4k, body, ...adjust } = (obj && typeof obj === 'object') ? obj : {}
+  return { adjust, extras: { retouch, upscale4k, body } }
 }
 
 const FINISH_DEFAULTS = { ratio: '', fit: 'crop', offset: 0.5, frame: '', caption: '', caption_pos: 'bottom', caption_size: 'm' }
@@ -74,6 +80,9 @@ export function usePostAdjust({ currentB64, error }) {
   const upscale4k = ref(false)
   const face = reactive({ status: 'idle', skip: '', error: '' })
   const faceCache = new Map()
+  const body = reactive({ ...BODY_DEFAULTS })
+  const bodyState = reactive({ status: 'idle', skip: '', error: '' })
+  const bodyCache = new Map()
 
   const adjustNeutral = computed(() =>
     Object.keys(SLIDER_META).every(k => {
@@ -85,6 +94,20 @@ export function usePostAdjust({ currentB64, error }) {
   const finishActive = computed(() => !!finish.ratio || !!finish.frame || !!finish.caption.trim())
   const retouchActive = computed(() => retouchObjectActive(retouch))
   const retouchLocal = computed(() => retouchObjectLocal(retouch))
+  const bodyActive = computed(() => (body.width || 0) !== 0 || (body.height || 0) !== 0)
+  const postRetouchActive = computed(() => retouchActive.value || bodyActive.value)
+
+  function bodyParams() {
+    return bodyActive.value ? { width: body.width, height: body.height } : null
+  }
+
+  function resetBody() {
+    Object.assign(body, BODY_DEFAULTS)
+  }
+
+  function clampBody(v, max) {
+    return Math.max(-max, Math.min(max, Number(v) || 0))
+  }
 
   function retouchParams() {
     if (!retouchActive.value) return null
@@ -100,7 +123,7 @@ export function usePostAdjust({ currentB64, error }) {
   }
 
   function recipeExtras() {
-    return { retouch: retouchParams() || {}, upscale_4k: upscale4k.value }
+    return { retouch: retouchParams() || {}, body: bodyParams() || {}, upscale_4k: upscale4k.value }
   }
 
   function applyRecipeExtras(extras) {
@@ -115,6 +138,41 @@ export function usePostAdjust({ currentB64, error }) {
       Object.assign(retouch, next)
     }
     if (extras.upscale4k !== undefined) upscale4k.value = !!extras.upscale4k
+    if (extras.body !== undefined) {
+      const b = extras.body && typeof extras.body === 'object' ? extras.body : {}
+      Object.assign(body, { width: clampBody(b.width, BODY_WIDTH_MAX), height: clampBody(b.height, BODY_HEIGHT_MAX) })
+    }
+  }
+
+  function bodyPoints(b64) {
+    if (!b64) return Promise.resolve({ points: [], skip: '' })
+    let p = bodyCache.get(b64)
+    if (!p) {
+      p = Promise.resolve(api.postBodyPoints(b64))
+        .then(r => ({ points: r?.points || [], skip: r?.skip || '', error: r?.error || '' }))
+        .catch(e => ({ points: [], skip: 'unavailable', error: String(e) }))
+      bodyCache.set(b64, p)
+      if (bodyCache.size > FACE_CACHE_MAX) bodyCache.delete(bodyCache.keys().next().value)
+    }
+    return p
+  }
+
+  async function currentBody() {
+    const cur = currentB64.value
+    bodyState.status = 'loading'
+    const r = await bodyPoints(cur)
+    if (cur === currentB64.value) {
+      bodyState.status = r.skip ? 'skip' : 'ok'
+      bodyState.skip = r.skip
+      bodyState.error = r.error || ''
+    }
+    return r
+  }
+
+  function retryBody() {
+    bodyCache.delete(currentB64.value)
+    bodyState.status = 'idle'
+    schedulePreview()
   }
 
   function facePoints(b64) {
@@ -149,11 +207,18 @@ export function usePostAdjust({ currentB64, error }) {
   }
 
   async function retouchFor(b64) {
+    const out = {}
     const r = retouchParams()
-    if (!r) return {}
-    if (!retouchLocal.value) return { retouch: r }
-    const f = await facePoints(b64)
-    return { retouch: r, face_points: f.points }
+    if (r) {
+      out.retouch = r
+      if (retouchLocal.value) out.face_points = (await facePoints(b64)).points
+    }
+    const b = bodyParams()
+    if (b) {
+      out.body = b
+      out.body_points = (await bodyPoints(b64)).points
+    }
+    return out
   }
 
   function adjustParams() {
@@ -223,7 +288,7 @@ export function usePostAdjust({ currentB64, error }) {
 
   function schedulePreview() {
     clearTimeout(previewTimer)
-    if (adjustNeutral.value && !finishActive.value && !retouchActive.value) {
+    if (adjustNeutral.value && !finishActive.value && !postRetouchActive.value) {
       previewReqId++
       previewing.value = false
       previewB64.value = currentB64.value
@@ -239,11 +304,12 @@ export function usePostAdjust({ currentB64, error }) {
     try {
       const fp = finishParams()
       let res
-      if (retouchActive.value) {
+      if (postRetouchActive.value) {
         const cur = currentB64.value
         const pts = retouchLocal.value ? (await currentFace()).points : []
+        const bodyPts = bodyActive.value ? (await currentBody()).points : []
         if (reqId !== previewReqId) return
-        res = await api.previewPostRetouch(cur, adjustParams(), retouchParams(), pts, fp || {}, 900)
+        res = await api.previewPostRetouch(cur, adjustParams(), retouchParams() || {}, pts, bodyParams() || {}, bodyPts, fp || {}, 900)
       } else {
         res = fp
           ? await api.previewPost(currentB64.value, adjustParams(), fp, 900)
@@ -265,6 +331,7 @@ export function usePostAdjust({ currentB64, error }) {
   watch(adjust, schedulePreview)
   watch(finish, schedulePreview)
   watch(retouch, schedulePreview)
+  watch(body, schedulePreview)
   watch(currentB64, schedulePreview)
 
   return {
@@ -273,5 +340,6 @@ export function usePostAdjust({ currentB64, error }) {
     adjustParams, finishParams, resetFinish, resetAdjustKey, resetAdjustAll, formatAdjust, applyAutoAdjust, stopPreview,
     retouch, upscale4k, face, retouchActive, retouchLocal, eyeColors: EYE_COLORS, faceWidthMax: FACE_WIDTH_MAX,
     retouchParams, resetRetouch, recipeExtras, applyRecipeExtras, facePoints, retryFace, retouchFor,
+    body, bodyState, bodyActive, bodyWidthMax: BODY_WIDTH_MAX, bodyHeightMax: BODY_HEIGHT_MAX, bodyParams, resetBody, retryBody, bodyPoints,
   }
 }

@@ -17,6 +17,7 @@ import (
 	xdraw "golang.org/x/image/draw"
 
 	"github.com/Zazza/imagecaster/internal/adjust"
+	"github.com/Zazza/imagecaster/internal/bodyshape"
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/faceguard"
 	"github.com/Zazza/imagecaster/internal/filebrowser"
@@ -74,6 +75,8 @@ type ExportImageParams struct {
 	OutputDir     string             `json:"output_dir,omitempty"`
 	Retouch       *faceguard.Retouch `json:"retouch,omitempty"`
 	FacePoints    []faceguard.Point  `json:"face_points,omitempty"`
+	Body          *bodyshape.Params  `json:"body,omitempty"`
+	BodyPoints    []bodyshape.Point  `json:"body_points,omitempty"`
 	Overwrite     bool               `json:"overwrite,omitempty"`
 }
 
@@ -364,6 +367,10 @@ func processDecoded(img image.Image, params ExportImageParams) (*ProcessedImage,
 	img, retouchErr := applyRetouch(img, params.Retouch, params.FacePoints)
 	if retouchErr != nil {
 		return nil, retouchErr
+	}
+	img, bodyErr := applyBody(img, params.Body, params.BodyPoints)
+	if bodyErr != nil {
+		return nil, bodyErr
 	}
 
 	const maxDim = 8192
