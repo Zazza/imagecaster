@@ -1,8 +1,8 @@
 import { modelBaseFor } from './fastMode.js'
 
-export const TRAIN_BASES = ['Z-Image', 'Moss-Image', 'SDXL', 'Flux.2']
+export const TRAIN_BASES = ['Z-Image', 'Moss-Image', 'SDXL', 'Flux.2', 'Flux.1']
 
-const BASE_LABELS = { 'Flux.2': 'Flux.2 Klein 4B' }
+const BASE_LABELS = { 'Flux.2': 'Flux.2 Klein 4B', 'Flux.1': 'Flux.1 dev' }
 
 export function trainBaseLabel(base) {
   return BASE_LABELS[base] || base

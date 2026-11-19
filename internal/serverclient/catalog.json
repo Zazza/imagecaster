@@ -767,6 +767,17 @@
           "size_gb": 0.34
         }
       ]
+    },
+    {
+      "base": "Flux.1",
+      "files": [
+        {
+          "type": "sd",
+          "filename": "flux1-dev-fp8.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Flux-1-Dev/resolve/main/flux1-dev-fp8.safetensors",
+          "size_gb": 17.25
+        }
+      ]
     }
   ],
   "face_swap": {

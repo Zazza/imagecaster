@@ -30,8 +30,9 @@ const ALL = [Z, LEGACY, M, X1, X2, K]
 const names = (list) => list.map(p => p.name).sort()
 
 describe('TRAIN_BASES', () => {
-  it('lists the four training bases in order, no Chroma', () => {
-    expect(TRAIN_BASES).toEqual(['Z-Image', 'Moss-Image', 'SDXL', 'Flux.2'])
+  it('lists the training bases, no Chroma', () => {
+    expect([...TRAIN_BASES].sort()).toEqual(['Flux.1', 'Flux.2', 'Moss-Image', 'SDXL', 'Z-Image'])
+    expect(TRAIN_BASES).not.toContain('Chroma')
   })
 })
 
