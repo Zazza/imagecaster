@@ -35,6 +35,7 @@ import (
 const (
 	stylistAppearanceKey      = "stylist_appearance"
 	stylistAppearanceMax      = 500
+	stylistWearMax            = 300
 	stylistPageSource         = "stylist"
 	stylistPageLabelMax       = 80
 	stylistPagePeopleWait     = 30 * time.Second
@@ -225,6 +226,7 @@ type StylistShootRequest struct {
 	Pipeline      int64                       `json:"pipeline,omitempty"`
 	Preset        int64                       `json:"preset,omitempty"`
 	Overrides     *generation.PresetOverrides `json:"overrides,omitempty"`
+	Size          string                      `json:"size,omitempty"`
 }
 
 type StylistFrame struct {
@@ -545,22 +547,20 @@ func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPip
 			}
 		}
 		for _, sh := range s.Shots {
+			sh.Wear = clipRunes(strings.TrimSpace(sh.Wear), stylistWearMax)
 			p := mcp.ShootFrameParams{
 				Person: target.person.Name, Base: target.base, Model: target.model, Shot: sh.Pose,
 				Prompt: compose(target.promptBase, promptLora, appearance, s, sh),
 				Index:  i + 1, Total: total,
-				GarmentBase64: garment, Outfit: outfit,
+				GarmentBase64: garment, Outfit: outfit, Wear: sh.Wear,
 				FaceSwap: target.faceSwapName != "",
-				Width:    stylist.Width, Height: stylist.Height,
 				Pipeline: target.pipeline, PipelineName: target.pipelineName,
 				PersonLoras: target.loras, FaceSwapName: target.faceSwapName,
 				ToFolder: true,
 				Preset:   target.preset, PresetName: target.presetName,
 				PersonLora: personLora, Overrides: overrides,
 			}
-			if sh.Landscape {
-				p.Width, p.Height = stylist.Height, stylist.Width
-			}
+			p.Width, p.Height = stylist.FrameDims(req.Size, sh.Landscape)
 			if req.Seed != nil {
 				v := *req.Seed + int64(i)
 				p.Seed = &v
@@ -577,6 +577,13 @@ func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPip
 		}
 	}
 	return ids, nil
+}
+
+func clipRunes(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
+	}
+	return s
 }
 
 func shrinkGarment(b64 string) (string, error) {

@@ -279,7 +279,7 @@ func txt2imgBase(shooter StylistShooter, m shootModel, prompt string, seed *int6
 	}
 }
 
-func shootFrame(base frameBase, eng StylistEngine, ge StylistGarmentEngine, refiner FaceRefiner, m shootModel, prompt string, garment, outfit string, refineOn bool) (frameOut, error) {
+func shootFrame(base frameBase, eng StylistEngine, ge StylistGarmentEngine, refiner FaceRefiner, m shootModel, prompt string, garment, outfit, wear string, refineOn bool) (frameOut, error) {
 	img, info, frameSeed, err := base()
 	if err != nil {
 		return frameOut{}, err
@@ -290,7 +290,7 @@ func shootFrame(base frameBase, eng StylistEngine, ge StylistGarmentEngine, refi
 		passSeed = &frameSeed
 	}
 	if garment != "" {
-		res, err := ge.KleinTryOn(out.img, garment, outfit, passSeed)
+		res, err := tryOnGarment(ge, out.img, garment, outfit, wear, passSeed)
 		switch {
 		case err != nil && generation.IsInterrupted(err):
 			out.stopped = true
@@ -326,7 +326,7 @@ func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSess
 	stopped := false
 	for i, shot := range plan.shots {
 		prompt := plan.prompts[i]
-		out, err := shootFrame(txt2imgBase(shooter, plan.m, prompt, plan.frameSeed(i), plan.w, plan.h), eng, plan.ge, refiner, plan.m, prompt, plan.garment, plan.outfit, plan.refineOn)
+		out, err := shootFrame(txt2imgBase(shooter, plan.m, prompt, plan.frameSeed(i), plan.w, plan.h), eng, plan.ge, refiner, plan.m, prompt, plan.garment, plan.outfit, "", plan.refineOn)
 		if err != nil {
 			if generation.IsInterrupted(err) {
 				break

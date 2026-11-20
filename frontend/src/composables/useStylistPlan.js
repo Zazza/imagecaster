@@ -116,6 +116,8 @@ export function replaceSeries(series, index, next) {
   return series.map((s, i) => i === index ? next : s)
 }
 
+export const FRAME_SIZES = ['draft', 'normal', 'large']
+
 export const SERIES_FIELDS = ['outfit', 'hair', 'makeup', 'background']
 
 function withoutKey(obj, key) {
@@ -155,6 +157,38 @@ export function setShotEn(s, j, value) {
   return { ...s, shots: s.shots.map((sh, i) => i === j ? withoutKey(withoutKey({ ...sh, prompt: value, prompt_ru: '' }, 'ru_dirty'), 'framing') : sh) }
 }
 
+export function setShotWear(s, j, value) {
+  const v = String(value || '').trim()
+  return {
+    ...s,
+    shots: s.shots.map((sh, i) => {
+      if (i !== j) return sh
+      const base = withoutKey(withoutKey(withoutKey(sh, 'wear_dirty'), 'wear_ru'), 'wear')
+      if (!v) return base
+      return CYRILLIC.test(v) ? { ...base, wear_ru: v, wear_dirty: true } : { ...base, wear: v }
+    }),
+  }
+}
+
+export function shotWearText(sh, english = false) {
+  if (english) return sh.wear || ''
+  return sh.wear_ru || sh.wear || ''
+}
+
+export function keepWear(prev, next) {
+  if (!prev?.shots || !next?.shots) return next
+  return {
+    ...next,
+    shots: next.shots.map((sh, j) => {
+      const old = prev.shots[j]
+      if (!old) return sh
+      const out = { ...sh }
+      for (const k of ['wear', 'wear_ru', 'wear_dirty']) if (old[k]) out[k] = old[k]
+      return out
+    }),
+  }
+}
+
 export function dirtyRefs(series, skipOutfit = false) {
   const out = []
   ;(series || []).forEach((s, i) => {
@@ -166,6 +200,8 @@ export function dirtyRefs(series, skipOutfit = false) {
     ;(s.shots || []).forEach((sh, j) => {
       const text = String(sh.prompt_ru || '').trim()
       if (sh.ru_dirty && text) out.push({ series: i, field: 'prompt', shot: j, text })
+      const wear = String(sh.wear_ru || '').trim()
+      if (sh.wear_dirty && wear) out.push({ series: i, field: 'wear', shot: j, text: wear })
     })
   })
   return out
@@ -182,6 +218,11 @@ export function applyTranslations(series, refs, english) {
     if (!s) return
     if (r.shot >= 0) {
       const sh = s.shots[r.shot]
+      if (r.field === 'wear') {
+        if (!sh?.wear_dirty || !sameText(sh.wear_ru, r.text)) return
+        s.shots[r.shot] = withoutKey({ ...sh, wear: english[k] }, 'wear_dirty')
+        return
+      }
       if (!sh?.ru_dirty || !sameText(sh.prompt_ru, r.text)) return
       s.shots[r.shot] = withoutKey({ ...sh, prompt: english[k] }, 'ru_dirty')
       return
@@ -260,6 +301,7 @@ const form = reactive({
   presetGroup: null,
   faceSwap: true,
   overrides: null,
+  frameSize: 'normal',
 })
 const series = ref([])
 const warnings = ref([])
@@ -279,7 +321,7 @@ let framesSeq = 0
 export function resetStylistPlan() {
   Object.assign(form, {
     person: '', gender: '', appearance: '', wish: '', frames: 8, themes: [],
-    aspects: defaultAspects(), garment: '', garmentOutfit: '', seed: '', target: '', targetKind: 'base', presetGroup: null, faceSwap: true, overrides: null,
+    aspects: defaultAspects(), garment: '', garmentOutfit: '', seed: '', target: '', targetKind: 'base', presetGroup: null, faceSwap: true, overrides: null, frameSize: 'normal',
   })
   series.value = []
   warnings.value = []
@@ -323,7 +365,7 @@ let planRestored = false
 let planTimer = null
 let lastSavedGarment = ''
 const PLAN_VERSION = 1
-const PLAN_FORM_KEYS = ['person', 'gender', 'appearance', 'wish', 'frames', 'themes', 'aspects', 'garmentOutfit', 'seed', 'target', 'targetKind', 'presetGroup', 'faceSwap']
+const PLAN_FORM_KEYS = ['person', 'gender', 'appearance', 'wish', 'frames', 'themes', 'aspects', 'garmentOutfit', 'seed', 'target', 'targetKind', 'presetGroup', 'faceSwap', 'frameSize']
 
 export function planSnapshot() {
   const f = {}
@@ -377,7 +419,7 @@ export function savePlanSoon(delay = 800) {
 }
 
 export async function reshootFrame(jobId) {
-  const newId = await api.stylistReshoot(jobId)
+  const newId = await api.stylistReshoot(jobId, form.frameSize || 'normal')
   if (!newId) return 0
   framesSeq++
   jobIds.value = jobIds.value.map(id => (id === jobId ? newId : id))
@@ -441,7 +483,7 @@ export function useStylistPlan() {
       const slot = series.value[index]?.slot
       const res = await api.stylistRegenerateSeries(req, Number.isInteger(slot) ? slot : index)
       if (res?.series) {
-        series.value = replaceSeries(series.value, index, res.series)
+        series.value = replaceSeries(series.value, index, keepWear(series.value[index], res.series))
         planEpoch.value++
       }
       warnings.value = res?.warnings || []
@@ -470,15 +512,16 @@ export function useStylistPlan() {
   }
 
   async function translateDirty() {
-    if (locale.value !== 'ru') return true
-    const refs = dirtyRefs(series.value, !!form.garment)
+    const ru = locale.value === 'ru'
+    const pending = () => dirtyRefs(series.value, !!form.garment).filter(r => ru || r.field === 'wear')
+    const refs = pending()
     if (!refs.length) return true
     translating.value = true
     try {
       const english = (await api.stylistTranslate(refs.map(r => r.text))) || []
       if (english.length !== refs.length) throw new Error(t('stylist.translate_count', { got: english.length, want: refs.length }))
       series.value = applyTranslations(series.value, refs, english)
-      if (dirtyRefs(series.value, !!form.garment).length) {
+      if (pending().length) {
         error.value = t('stylist.plan_changed')
         return false
       }
@@ -518,6 +561,7 @@ export function useStylistPlan() {
         garment_outfit: outfitEn,
         series: series.value,
         face_swap: !!canFaceSwap,
+        size: form.frameSize || 'normal',
       }
       if (form.target.startsWith('pipe:')) req.pipeline = Number(form.target.slice(5))
       else if (form.target.startsWith('preset:')) req.preset = Number(form.target.slice(7))

@@ -72,6 +72,7 @@ type Shot struct {
 	PromptRu  string `json:"prompt_ru,omitempty"`
 	Landscape bool   `json:"landscape"`
 	Framing   string `json:"framing,omitempty"`
+	Wear      string `json:"wear,omitempty"`
 }
 
 type Series struct {
@@ -321,6 +322,7 @@ func framePrompt(base, lora, appearance string, s Series, sh Shot, styled bool) 
 	if sh.Framing == "close" || sh.Framing == "waist" {
 		outfit = upperOutfit(outfit)
 	}
+	outfit = WithWear(outfit, sh.Wear)
 	details := []string{Wearing(outfit), Labeled("Hair", s.Hair), Labeled("Makeup", s.Makeup)}
 	if styled {
 		if Prose(base) {
@@ -332,6 +334,18 @@ func framePrompt(base, lora, appearance string, s Series, sh Shot, styled bool) 
 		return ComposeProse(lora, Subject(framingProse[sh.Framing], appearance, sh.Prompt), details, s.Background)
 	}
 	return ComposePrompt(lora, []string{framingLead[sh.Framing], sh.Prompt, appearance, outfit, s.Hair, s.Makeup}, s.Background)
+}
+
+func WithWear(outfit, wear string) string {
+	outfit = strings.TrimSpace(outfit)
+	wear = strings.TrimRight(strings.TrimSpace(wear), ".")
+	switch {
+	case wear == "":
+		return outfit
+	case outfit == "":
+		return wear
+	}
+	return outfit + ", " + wear
 }
 
 func ruText(promptRu, name string) string {

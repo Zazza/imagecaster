@@ -586,8 +586,8 @@ export function StylistLoadGarment() {
   return window['go']['main']['App']['StylistLoadGarment']();
 }
 
-export function StylistReshoot(arg1) {
-  return window['go']['main']['App']['StylistReshoot'](arg1);
+export function StylistReshoot(arg1, arg2) {
+  return window['go']['main']['App']['StylistReshoot'](arg1, arg2);
 }
 
 export function StylistLoadPlan() {

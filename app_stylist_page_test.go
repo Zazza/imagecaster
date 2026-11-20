@@ -634,3 +634,62 @@ func TestStylistDescribeGarment(t *testing.T) {
 		})
 	}
 }
+
+func TestStylistShoot_ShotWear(t *testing.T) {
+	small := spImage(t, 64, 96, true)
+	long := strings.Repeat("я", stylistWearMax+50)
+	tests := []struct {
+		name     string
+		garment  string
+		wear     string
+		wantWear string
+		inPrompt string
+	}{
+		{"without garment goes to outfit", "", " blouse hanging open ", "blouse hanging open", "Wearing a red dress, blouse hanging open."},
+		{"with garment goes to outfit and try-on", small, "torn sleeve", "torn sleeve", "a top, torn sleeve"},
+		{"clipped", "", long, strings.Repeat("я", stylistWearMax), ""},
+		{"empty", "", "", "", "Wearing a red dress."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := &spQueue{}
+			req := StylistShootRequest{Person: "anna", Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "sitting", Wear: tt.wear})}}
+			if tt.garment != "" {
+				req.Garment, req.GarmentOutfit = tt.garment, "a top"
+			}
+			_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, req)
+			require.NoError(t, err)
+			p := q.jobs[0].params
+			assert.Equal(t, tt.wantWear, p.Wear)
+			if tt.inPrompt != "" {
+				assert.Contains(t, p.Prompt, tt.inPrompt)
+			}
+		})
+	}
+}
+
+func TestStylistShoot_FrameSize(t *testing.T) {
+	tests := []struct {
+		size     string
+		portrait [2]int
+		land     [2]int
+	}{
+		{"", [2]int{1024, 1536}, [2]int{1536, 1024}},
+		{"draft", [2]int{640, 960}, [2]int{960, 640}},
+		{"normal", [2]int{1024, 1536}, [2]int{1536, 1024}},
+		{"large", [2]int{1216, 1824}, [2]int{1824, 1216}},
+		{"bogus", [2]int{1024, 1536}, [2]int{1536, 1024}},
+	}
+	for _, tt := range tests {
+		t.Run("size "+tt.size, func(t *testing.T) {
+			q := &spQueue{}
+			_, err := stylistShoot(context.Background(), spPeopleList(), nil, q, false, StylistShootRequest{
+				Person: "anna", Size: tt.size,
+				Series: []stylist.Series{spSeries(stylist.Shot{Prompt: "front"}, stylist.Shot{Prompt: "lying", Landscape: true})},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.portrait, [2]int{q.jobs[0].params.Width, q.jobs[0].params.Height})
+			assert.Equal(t, tt.land, [2]int{q.jobs[1].params.Width, q.jobs[1].params.Height})
+		})
+	}
+}

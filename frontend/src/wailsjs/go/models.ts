@@ -3019,6 +3019,7 @@ export namespace stylist {
 	    prompt_ru?: string;
 	    landscape: boolean;
 	    framing?: string;
+	    wear?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Shot(source);
@@ -3031,6 +3032,7 @@ export namespace stylist {
 	        this.prompt_ru = source["prompt_ru"];
 	        this.landscape = source["landscape"];
 	        this.framing = source["framing"];
+	        this.wear = source["wear"];
 	    }
 	}
 	export class Series {

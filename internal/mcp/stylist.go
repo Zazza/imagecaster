@@ -27,6 +27,20 @@ type StylistGarmentEngine interface {
 	KleinTryOn(imageBase64, garmentBase64, instruction string, seed *int64) (*generation.GenerateImageResult, error)
 }
 
+type StylistWornTryOn interface {
+	KleinTryOnWorn(imageBase64, garmentBase64, instruction, wear string, seed *int64) (*generation.GenerateImageResult, error)
+}
+
+func tryOnGarment(ge StylistGarmentEngine, img, garment, outfit, wear string, seed *int64) (*generation.GenerateImageResult, error) {
+	if wear = strings.TrimSpace(wear); wear != "" {
+		if w, ok := ge.(StylistWornTryOn); ok {
+			return w.KleinTryOnWorn(img, garment, outfit, wear, seed)
+		}
+		outfit = strings.TrimSpace(outfit + ". " + wear)
+	}
+	return ge.KleinTryOn(img, garment, outfit, seed)
+}
+
 type AppSessions interface {
 	AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64
 }

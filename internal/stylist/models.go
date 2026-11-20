@@ -37,6 +37,29 @@ func Prose(base string) bool {
 	return promptutil.ProseBase(base)
 }
 
+const (
+	SizeDraft  = "draft"
+	SizeNormal = "normal"
+	SizeLarge  = "large"
+)
+
+var frameSizes = map[string][2]int{
+	SizeDraft:  {640, 960},
+	SizeNormal: {Width, Height},
+	SizeLarge:  {1216, 1824},
+}
+
+func FrameDims(size string, landscape bool) (int, int) {
+	d, ok := frameSizes[size]
+	if !ok {
+		d = frameSizes[SizeNormal]
+	}
+	if landscape {
+		return d[1], d[0]
+	}
+	return d[0], d[1]
+}
+
 func qualityFor(background string) string {
 	if strings.Contains(strings.ToLower(background), "studio") {
 		return QualityStudio

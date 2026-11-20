@@ -10,6 +10,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/mcp"
 	"github.com/Zazza/imagecaster/internal/queue"
+	"github.com/Zazza/imagecaster/internal/stylist"
 )
 
 const (
@@ -84,7 +85,7 @@ func loadShootParams(st stylistSettings) (shootParamsStore, error) {
 	return out, nil
 }
 
-func reshootFrame(st stylistSettings, q stylistQueue, notLocal bool, jobID int64) (int64, error) {
+func reshootFrame(st stylistSettings, q stylistQueue, notLocal bool, jobID int64, size string) (int64, error) {
 	if notLocal {
 		return 0, errStylistPageNotLocal
 	}
@@ -111,6 +112,9 @@ func reshootFrame(st stylistSettings, q stylistQueue, notLocal bool, jobID int64
 	if pf.Garment && store.Garment != "" {
 		p.GarmentBase64 = store.Garment
 	}
+	if size != "" {
+		p.Width, p.Height = stylist.FrameDims(size, p.Width > p.Height)
+	}
 	seed := rand.Int64N(1 << 53)
 	p.Seed = &seed
 	id, err := q.EnqueueLabeled(queue.JobStylistFrame, p, stylistPageSource, pf.Label)
@@ -123,6 +127,7 @@ func reshootFrame(st stylistSettings, q stylistQueue, notLocal bool, jobID int64
 	}
 	delete(store.Frames, key)
 	pf.Params.Seed = &seed
+	pf.Params.Width, pf.Params.Height = p.Width, p.Height
 	store.Frames[strconv.FormatInt(id, 10)] = pf
 	raw, err := json.Marshal(store)
 	if err != nil {
@@ -170,11 +175,11 @@ func (a *App) StylistLoadGarment() (string, error) {
 	return a.presets.GetSetting(stylistGarmentKey)
 }
 
-func (a *App) StylistReshoot(jobID int64) (int64, error) {
+func (a *App) StylistReshoot(jobID int64, size string) (int64, error) {
 	if a.presets == nil || a.queueSvc == nil {
 		return 0, errStylistNoDB
 	}
-	return reshootFrame(a.presets, a.queueSvc, sdNotLocal(a.config), jobID)
+	return reshootFrame(a.presets, a.queueSvc, sdNotLocal(a.config), jobID, size)
 }
 
 func (a *App) StylistLoadPlan() (string, error) {

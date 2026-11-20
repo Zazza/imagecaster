@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { BookmarkPlus } from 'lucide-vue-next'
 import { t, locale } from '../../i18n/index.js'
-import { SERIES_FIELDS, setRuField, setEnField, setShotRu, setShotEn, presetFromField, presetFromShot } from '../../composables/useStylistPlan.js'
+import { SERIES_FIELDS, setRuField, setEnField, setShotRu, setShotEn, setShotWear, shotWearText, presetFromField, presetFromShot } from '../../composables/useStylistPlan.js'
 import SavePresetForm from './SavePresetForm.vue'
 
 const props = defineProps({
@@ -19,7 +19,7 @@ const emit = defineEmits(['update', 'regenerate', 'delete', 'delete-shot', 'save
 const showPrompt = ref(false)
 const saving = ref(null)
 const ruMode = computed(() => locale.value === 'ru')
-const hasDirty = computed(() => (props.series.ru_dirty?.length || 0) > 0 || props.series.shots.some(sh => sh.ru_dirty))
+const hasDirty = computed(() => (props.series.ru_dirty?.length || 0) > 0 || props.series.shots.some(sh => sh.ru_dirty || sh.wear_dirty))
 
 function showsRu(text) {
   return ruMode.value && !showPrompt.value && !!text
@@ -65,6 +65,10 @@ function onSave(payload) {
   emit('save-preset', payload)
 }
 
+function setWear(j, value) {
+  emit('update', setShotWear(props.series, j, value))
+}
+
 function setShot(j, value) {
   const ru = showsRu(props.series.shots[j].prompt_ru)
   emit('update', ru ? setShotRu(props.series, j, value) : setShotEn(props.series, j, value))
@@ -99,6 +103,7 @@ function setShot(j, value) {
       <input class="form-input" type="text" :value="showsRu(sh.prompt_ru) ? sh.prompt_ru : sh.prompt" :data-lang="showsRu(sh.prompt_ru) ? 'ru' : 'en'" data-testid="shot-prompt" @change="setShot(j, $event.target.value)" />
       <button class="btn btn-secondary btn-xs" :disabled="!sh.prompt" :title="t('stylist.save_preset')" :aria-label="t('stylist.save_preset')" data-testid="shot-save" @click="saveShot(j)"><BookmarkPlus :size="14" /> {{ t('stylist.save_mine') }}</button>
       <button class="btn btn-danger-quiet btn-xs" :disabled="locked" :title="t('stylist.delete_shot')" data-testid="shot-delete" @click="emit('delete-shot', index, j)">×</button>
+      <input class="form-input series-shot-wear" type="text" maxlength="300" :value="shotWearText(sh, showPrompt)" :placeholder="t('stylist.shot_wear_placeholder')" :title="t('stylist.shot_wear_hint')" data-testid="shot-wear" @change="setWear(j, $event.target.value)" />
       <SavePresetForm v-if="saving?.key === 'shot-' + j && savingPreset" :preset="savingPreset" :places="places" @save="onSave" @cancel="saving = null" />
     </div>
   </div>
@@ -110,6 +115,7 @@ function setShot(j, value) {
 .series-actions { display: flex; gap: 6px; }
 .series-fields { display: grid; grid-template-columns: 160px 1fr; gap: 6px 10px; align-items: center; }
 .series-shot { display: grid; grid-template-columns: 200px 1fr auto auto; gap: 8px; align-items: center; }
+.series-shot-wear { grid-column: 2 / 3; font-size: var(--fs-sm); }
 .series-field { display: flex; gap: 6px; align-items: center; }
 .series-field .form-input { flex: 1 1 auto; }
 .series-ai { font-size: var(--fs-xs); }

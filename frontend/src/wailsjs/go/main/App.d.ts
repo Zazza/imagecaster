@@ -307,7 +307,7 @@ export function StylistFrames(arg1:Array<number>):Promise<Array<main.StylistFram
 
 export function StylistLastShoot():Promise<Array<number>>;
 
-export function StylistReshoot(arg1:number):Promise<number>;
+export function StylistReshoot(arg1:number,arg2:string):Promise<number>;
 
 export function UpscaleSessionItem(arg1:number,arg2:number):Promise<generation.GenerateImageResult>;
 

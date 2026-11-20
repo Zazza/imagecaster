@@ -74,6 +74,20 @@ func (s *Service) KleinTryOn(imageBase64, garmentBase64, instruction string, see
 	return s.kleinEdit(imageBase64, garmentBase64, strings.TrimSpace(tryOnTemplate+" "+instruction), seed, nil)
 }
 
+func (s *Service) KleinTryOnWorn(imageBase64, garmentBase64, instruction, wear string, seed *int64) (*GenerateImageResult, error) {
+	wear = strings.TrimRight(strings.TrimSpace(wear), ".")
+	if wear == "" {
+		return s.KleinTryOn(imageBase64, garmentBase64, instruction, seed)
+	}
+	if garmentBase64 == "" {
+		return nil, errors.New("garment image is required")
+	}
+	if len(garmentBase64) > MaxImageBase64Len {
+		return nil, config.ImageTooLarge("garment image")
+	}
+	return s.kleinEdit(imageBase64, garmentBase64, strings.TrimSpace(fmt.Sprintf(tryOnWornTemplate, wear)+" "+instruction), seed, nil)
+}
+
 func (s *Service) KleinEffect(imageBase64, prompt string, strength float64) (*GenerateImageResult, error) {
 	if strength <= 0 || strength > 1 {
 		return nil, errors.New("effect strength must be in (0, 1]")

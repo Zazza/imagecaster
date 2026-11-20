@@ -11,7 +11,7 @@ import { usePresets } from '../composables/usePresets.js'
 import { b64Url } from '../imageDataUrl.js'
 import { readImageFile } from '../imageFile.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
-import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, garmentOutfitShown, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
+import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import ImageViewer from './ImageViewer.vue'
@@ -615,6 +615,11 @@ onUnmounted(() => {
                 <div v-if="person" class="form-hint" :class="{ 'stylist-face-off': !swapAvailable || !form.faceSwap }" data-testid="stylist-face-swap">{{ faceSwapNote }}</div>
                 <details class="stylist-more">
                   <summary>{{ t('stylist.more') }}</summary>
+                  <label class="form-label">{{ t('stylist.frame_size') }}</label>
+                  <select class="form-select stylist-narrow" v-model="form.frameSize" data-testid="stylist-frame-size">
+                    <option v-for="s in FRAME_SIZES" :key="s" :value="s">{{ t('stylist.frame_size_' + s) }}</option>
+                  </select>
+                  <div class="form-hint">{{ t('stylist.frame_size_hint') }}</div>
                   <label class="form-label">{{ t('stylist.seed') }}</label>
                   <input class="form-input stylist-narrow" type="text" v-model="form.seed" :placeholder="t('stylist.seed_hint')" />
                   <PresetOverridesPanel v-if="form.targetKind !== 'pipe'" ref="overridesPanel" v-model="form.overrides" :preset-loras="targetPresetLoras" hide-model :title="t('stylist.overrides')" data-testid="stylist-overrides" />

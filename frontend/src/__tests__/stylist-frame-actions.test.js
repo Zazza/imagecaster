@@ -140,7 +140,7 @@ describe('Stylist: actions under the big frame (as in «Генерация»)', 
     await settle()
     await w.find(tid('stylist-reshoot')).trigger('click')
     await settle()
-    expect(StylistReshoot).toHaveBeenCalledWith(1)
+    expect(StylistReshoot).toHaveBeenCalledWith(1, 'normal')
     expect(StylistFrames).toHaveBeenLastCalledWith([9, 2, 3])
     expect(tiles(w)).toHaveLength(3)
     expect(bigSrc(w)).toContain('img102')
@@ -264,5 +264,17 @@ describe('Stylist: the last plan survives a restart', () => {
     resolve('')
     await settle()
     w.unmount()
+  })
+})
+
+describe('reshoot uses the chosen frame size', () => {
+  it('passes the size from «Дополнительно»', async () => {
+    const { useStylistPlan, reshootFrame } = await import('../composables/useStylistPlan.js')
+    const { form } = useStylistPlan()
+    form.frameSize = 'large'
+    StylistReshoot.mockImplementation(() => Promise.resolve(0))
+    await reshootFrame(5)
+    expect(StylistReshoot).toHaveBeenLastCalledWith(5, 'large')
+    form.frameSize = 'normal'
   })
 })

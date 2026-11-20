@@ -172,6 +172,19 @@ describe('StylistPage', () => {
     expect(StylistShoot.mock.calls[0][0].face_swap).toBe(false)
   })
 
+  it('frame size: normal by default, draft goes to the shoot and is kept in the plan', async () => {
+    const w = await mountPage()
+    expect(w.find(tid('stylist-frame-size')).element.value).toBe('normal')
+    await w.find(tid('stylist-frame-size')).setValue('draft')
+    await settle()
+    expect(JSON.parse(planSnapshot()).form.frameSize).toBe('draft')
+    await w.find(tid('stylist-plan')).trigger('click')
+    await settle()
+    await w.find(tid('stylist-shoot')).trigger('click')
+    await settle()
+    expect(StylistShoot.mock.calls[0][0].size).toBe('draft')
+  })
+
   it('garment comes from the paste button and is described', async () => {
     ReadClipboardImage.mockImplementation(() => Promise.resolve('UEFTVEVE'))
     StylistDescribeGarment.mockImplementation(() => Promise.resolve('a red dress'))

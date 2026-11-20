@@ -33,6 +33,7 @@ type ShootFrameParams struct {
 	Seed          *int64                      `json:"seed,omitempty"`
 	GarmentBase64 string                      `json:"garment_base64,omitempty"`
 	Outfit        string                      `json:"outfit,omitempty"`
+	Wear          string                      `json:"wear,omitempty"`
 	FacePass      bool                        `json:"face_pass"`
 	FaceSwap      bool                        `json:"face_swap,omitempty"`
 	Width         int                         `json:"width,omitempty"`
@@ -197,7 +198,7 @@ func runShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngi
 			model = p.PresetName
 		}
 	}
-	out, err := shootFrame(base, eng, ge, refiner, m, p.Prompt, p.GarmentBase64, p.Outfit, facePass)
+	out, err := shootFrame(base, eng, ge, refiner, m, p.Prompt, p.GarmentBase64, p.Outfit, p.Wear, facePass)
 	if err != nil {
 		if generation.IsInterrupted(err) {
 			return nil, err
