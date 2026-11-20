@@ -55,7 +55,7 @@ func trainBases(t PeopleTrainer) ([]string, error) {
 func registerPeopleTrainTools(s *Server) {
 	s.Register(Tool{
 		Name: "people_train",
-		Description: "Люди: обучить LoRA человека по папке с фото на этой машине (10–50 jpg/png/webp). Фото уходят только на локальный сервер, тебе не показываются. " +
+		Description: "Люди: обучить LoRA человека по папке с фото на этой машине (10–100 jpg/png/webp). Фото уходят только на локальный сервер, тебе не показываются. " +
 			"Задание видно на странице «Люди» приложения. start=false — создать без запуска (на паузе, запустить позже people_train_start или кнопкой «Запустить»); по умолчанию запускается сразу. " +
 			"base — модель из bases в people_train_jobs; какую брать, решает человек.",
 		InputSchema: props(map[string]any{

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "image/png"
 
@@ -281,35 +282,63 @@ func (s *PhotoSet) Thumb(id int64) (string, error) {
 }
 
 func (s *PhotoSet) Folder(key string, tmpRoot string) (string, func(), error) {
+	dir, _, cleanup, err := s.SplitFolder(key, tmpRoot, nil)
+	return dir, cleanup, err
+}
+
+func (s *PhotoSet) SplitFolder(key, tmpRoot string, since *time.Time) (string, string, func(), error) {
 	photos, err := s.List(key)
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
-	dir, err := os.MkdirTemp(tmpRoot, "set-*")
+	root, err := os.MkdirTemp(tmpRoot, "set-*")
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
-	cleanup := func() { os.RemoveAll(dir) }
+	cleanup := func() { os.RemoveAll(root) }
+	oldDir, newDir := filepath.Join(root, "old"), ""
+	if since != nil {
+		newDir = filepath.Join(root, "new")
+	}
+	for _, d := range []string{oldDir, newDir} {
+		if d == "" {
+			continue
+		}
+		if err := os.Mkdir(d, 0o755); err != nil {
+			cleanup()
+			return "", "", nil, err
+		}
+	}
 	for _, p := range photos {
+		dst := oldDir
+		if since != nil && AddedAfter(p.AddedAt, *since) {
+			dst = newDir
+		}
 		src := filepath.Join(s.dir, p.FileName)
-		dst := filepath.Join(dir, p.FileName)
-		if err := os.Link(src, dst); err != nil {
-			if cerr := copyFile(src, dst); cerr != nil {
+		to := filepath.Join(dst, p.FileName)
+		if err := os.Link(src, to); err != nil {
+			if cerr := copyFile(src, to); cerr != nil {
 				cleanup()
-				return "", nil, fmt.Errorf("набор фото: %w", cerr)
+				return "", "", nil, fmt.Errorf("набор фото: %w", cerr)
 			}
 		}
 	}
-	return dir, cleanup, nil
+	return oldDir, newDir, cleanup, nil
+}
+
+func AddedAfter(addedAt string, since time.Time) bool {
+	t, err := time.Parse(time.RFC3339Nano, addedAt)
+	return err == nil && t.After(since)
 }
 
 type SetSummary struct {
-	Key     string `json:"key"`
-	Count   int    `json:"count"`
-	Front   int    `json:"front"`
-	Half    int    `json:"half"`
-	Profile int    `json:"profile"`
-	LastAdd string `json:"last_added"`
+	Key     string   `json:"key"`
+	Count   int      `json:"count"`
+	Front   int      `json:"front"`
+	Half    int      `json:"half"`
+	Profile int      `json:"profile"`
+	LastAdd string   `json:"last_added"`
+	Added   []string `json:"added"`
 }
 
 func (s *PhotoSet) Summary() ([]SetSummary, error) {
@@ -336,6 +365,7 @@ func (s *PhotoSet) Summary() ([]SetSummary, error) {
 		default:
 			sm.Profile++
 		}
+		sm.Added = append(sm.Added, p.AddedAt)
 		if p.AddedAt > sm.LastAdd {
 			sm.LastAdd = p.AddedAt
 		}

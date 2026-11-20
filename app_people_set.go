@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,21 +112,80 @@ func (a *App) withSetFolder(key string, fn func(folder string) error) error {
 	return fn(dir)
 }
 
-func (a *App) TrainPersonFromSet(key, name, gender, base string, hold, replace bool) (*serverclient.TrainJob, error) {
+func (a *App) TrainPersonFromSet(key, name, gender, base, mode string, hold, replace bool) (*serverclient.TrainJob, error) {
 	key = people.NormalizeSetKey(key)
 	if key == "" {
 		return nil, people.ErrSetNoName
 	}
-	if err := a.claimTechKey(key); err != nil {
+	if a.serverClient == nil || a.serverClient.GetBaseURL() == "" {
+		return nil, errors.New("сервер Imagecaster не настроен")
+	}
+	s, err := a.photoSet()
+	if err != nil {
 		return nil, err
 	}
-	var job *serverclient.TrainJob
-	err := a.withSetFolder(key, func(dir string) error {
-		var err error
-		job, err = a.trainPerson(dir, name, key, gender, base, hold, replace)
-		return err
+	var since *time.Time
+	switch mode {
+	case "continue":
+		p, err := a.findPerson(name)
+		if err != nil {
+			return nil, err
+		}
+		since = p.PhotosAt
+		if since == nil {
+			since = p.CreatedAt
+		}
+	case "retrain":
+	default:
+		if err := a.claimTechKey(key); err != nil {
+			return nil, err
+		}
+	}
+	tmp := filepath.Join(a.dataDir, "people", "tmp")
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
+		return nil, err
+	}
+	collected := time.Now().UTC()
+	oldDir, newDir, cleanup, err := s.SplitFolder(key, tmp, since)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	ctx, cancel := a.peopleCtx(0)
+	defer cancel()
+	job, err := a.peopleSvc().TrainSet(ctx, people.TrainSetRequest{
+		Folder: oldDir, NewFolder: newDir, Name: name, Display: key, Gender: gender, Base: base,
+		Mode: mode, Hold: hold, Replace: replace, PhotosAt: &collected,
 	})
+	if err != nil {
+		a.log.Warn("people: train %q from set (%s): %s", name, mode, err)
+	}
 	return job, err
+}
+
+func (a *App) findPerson(name string) (*serverclient.Person, error) {
+	ctx, cancel := a.peopleCtx(peopleCallTimeout)
+	defer cancel()
+	list, err := a.peopleSvc().List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range list {
+		if strings.EqualFold(list[i].Name, name) {
+			return &list[i], nil
+		}
+	}
+	return nil, fmt.Errorf("LoRA %q не найдена на сервере", name)
+}
+
+func (a *App) RollbackPerson(name string) (*serverclient.Person, error) {
+	ctx, cancel := a.peopleCtx(peopleCallTimeout)
+	defer cancel()
+	p, err := a.peopleSvc().Rollback(ctx, name)
+	if err != nil {
+		a.log.Warn("people: rollback %q: %s", name, err)
+	}
+	return p, err
 }
 
 type displaySetter interface {

@@ -23,7 +23,7 @@ func TestAddIdentity(t *testing.T) {
 	}{
 		{name: "remote server refused", serverURL: "http://8.8.8.8:8080", photos: 6, wantErr: ErrNotLocal},
 		{name: "too few photos", serverURL: "http://192.168.1.184:8080", photos: 4, wantErr: ErrIdentityCount},
-		{name: "too many photos", serverURL: "http://192.168.1.184:8080", photos: 51, wantErr: ErrIdentityCount},
+		{name: "too many photos", serverURL: "http://192.168.1.184:8080", photos: MaxPhotos + 1, wantErr: ErrIdentityCount},
 		{name: "minimum uploads", serverURL: "http://192.168.1.184:8080", photos: 5, wantCalls: true},
 		{name: "maximum uploads", serverURL: "http://192.168.1.184:8080", photos: 50, wantCalls: true},
 		{

@@ -2428,6 +2428,10 @@ export namespace serverclient {
 	    identity: boolean;
 	    // Go type: time
 	    created_at?: any;
+	    mode?: string;
+	    rounds: number;
+	    photos_at?: any;
+	    previous: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Person(source);
@@ -2444,6 +2448,10 @@ export namespace serverclient {
 	        this.steps = source["steps"];
 	        this.identity = source["identity"];
 	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.mode = source["mode"];
+	        this.rounds = source["rounds"];
+	        this.photos_at = this.convertValues(source["photos_at"], null);
+	        this.previous = source["previous"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2575,6 +2583,9 @@ export namespace serverclient {
 	    gender: string;
 	    base: string;
 	    photos: number;
+	    new_photos?: number;
+	    mode?: string;
+	    steps?: number;
 	    status: string;
 	    progress: TrainProgress;
 	    error?: TrainError;
@@ -2599,6 +2610,9 @@ export namespace serverclient {
 	        this.gender = source["gender"];
 	        this.base = source["base"];
 	        this.photos = source["photos"];
+	        this.new_photos = source["new_photos"];
+	        this.mode = source["mode"];
+	        this.steps = source["steps"];
 	        this.status = source["status"];
 	        this.progress = this.convertValues(source["progress"], TrainProgress);
 	        this.error = this.convertValues(source["error"], TrainError);

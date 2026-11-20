@@ -181,7 +181,7 @@ func TestCollectPhotos_Count(t *testing.T) {
 		{name: "9 photos", n: 9, wantErr: true},
 		{name: "10 photos", n: 10},
 		{name: "50 photos", n: 50},
-		{name: "51 photos", n: 51, wantErr: true},
+		{name: "over the limit", n: MaxPhotos + 1, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -488,4 +488,8 @@ func TestDelete_ErrorReturned(t *testing.T) {
 	var got *serverclient.TrainAPIError
 	require.True(t, errors.As(err, &got))
 	assert.Equal(t, "busy", got.Code)
+}
+
+func (f *fakeAPI) RollbackPerson(_ context.Context, name string) (*serverclient.Person, error) {
+	return &serverclient.Person{Name: name}, nil
 }

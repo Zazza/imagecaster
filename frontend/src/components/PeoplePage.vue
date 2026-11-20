@@ -3,13 +3,16 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { loadPeople, people } from '../peopleStore.js'
-import { trainBaseLabel, failedTrainings, personKey } from '../people.js'
+import { trainBaseLabel, failedTrainings, personKey, trainMinutes } from '../people.js'
 import PhotoSetCard from './people/PhotoSetCard.vue'
 
 const status = ref('')
 const sets = ref([])
 const source = ref('folder')
 const setKey = ref('')
+const trainMode = ref('quick')
+const busyNames = computed(() => shownJobs.value.map(j => j.name))
+const modeTime = (mode) => { const m = trainMinutes(base.value, mode); return m ? t('people.train_minutes', { m }) : '' }
 const MIN_SET = 10
 const chosenSet = computed(() => sets.value.find(x => x.key === setKey.value) || null)
 const foldKey = (k) => String(k || '').trim().replace(/\s+/g, ' ').toLowerCase()
@@ -25,6 +28,7 @@ const base = ref('')
 const busy = ref(false)
 const hold = ref(false)
 const holdIgnored = ref(false)
+const modeIgnored = ref(false)
 const error = ref('')
 const renaming = ref('')
 const displayName = ref('')
@@ -168,11 +172,12 @@ async function train() {
   busy.value = true
   error.value = ''
   holdIgnored.value = false
+  modeIgnored.value = false
   try {
     const fromSet = source.value === 'set'
     const display = fromSet ? setKey.value : displayName.value.trim()
     const call = fromSet
-      ? (replace) => api.trainPersonFromSet(setKey.value, name.value.trim(), gender.value, base.value, hold.value, replace)
+      ? (replace) => api.trainPersonFromSet(setKey.value, name.value.trim(), gender.value, base.value, trainMode.value, hold.value, replace)
       : (replace) => api.trainPerson(folder.value, name.value.trim(), display, gender.value, base.value, hold.value, ...(replace ? [true] : []))
     let job
     try {
@@ -182,6 +187,7 @@ async function train() {
       job = await call(true)
     }
     holdIgnored.value = hold.value && job?.status !== 'paused'
+    modeIgnored.value = fromSet && trainMode.value === 'quick' && !!job && job.mode !== 'quick'
     folder.value = ''
     name.value = ''
     displayName.value = ''
@@ -290,14 +296,15 @@ onUnmounted(() => {
     <div v-if="status && status !== 'ok'" class="card people-note" data-testid="people-unavailable">{{ t('people.unavailable_' + status) }}</div>
     <div v-if="error" class="card people-error" data-testid="people-error">{{ error }}</div>
     <div v-if="holdIgnored" class="card people-note" data-testid="people-hold-ignored">{{ t('people.hold_ignored') }}</div>
+    <div v-if="modeIgnored" class="card people-note" data-testid="people-mode-ignored">{{ t('people.mode_ignored') }}</div>
 
     <div class="card">
       <div class="card-title">{{ t('people.sets_title') }}</div>
       <p class="text-dim people-hint">{{ t('people.sets_hint') }}</p>
       <div v-if="!sets.length" class="text-dim" data-testid="sets-empty">{{ t('people.sets_empty') }}</div>
       <PhotoSetCard
-        v-for="s in sets" :key="s.key" :set="s" :loras="lorasFor(s.key)" :can-face="faceReady" :available="available"
-        @train="trainFromSet" @changed="loadSets(); loadPeople()" @error="onSetError"
+        v-for="s in sets" :key="s.key" :set="s" :loras="lorasFor(s.key)" :can-face="faceReady" :available="available" :busy-names="busyNames"
+        @train="trainFromSet" @changed="loadSets(); loadPeople()" @started="refresh()" @error="onSetError"
       />
     </div>
 
@@ -315,6 +322,12 @@ onUnmounted(() => {
             <option v-for="s in sets" :key="s.key" :value="s.key">{{ t('people.set_option', { key: s.key, n: s.count }) }}</option>
           </select>
           <div v-if="chosenSet && chosenSet.count < MIN_SET" class="form-hint" data-testid="people-set-short">{{ t('people.set_missing', { n: MIN_SET - chosenSet.count }) }}</div>
+          <label class="form-label">{{ t('people.train_mode') }}</label>
+          <select class="form-select" v-model="trainMode" data-testid="people-train-mode">
+            <option value="quick">{{ t('people.train_mode_quick', { time: modeTime('quick') }) }}</option>
+            <option value="full">{{ t('people.train_mode_full', { time: modeTime('full') }) }}</option>
+          </select>
+          <div class="form-hint">{{ t('people.train_mode_hint') }}</div>
         </template>
         <template v-else>
           <label class="form-label">{{ t('people.folder') }}</label>

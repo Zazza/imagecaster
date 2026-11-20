@@ -554,7 +554,7 @@ describe('conditions 6–7: «Люди» → «Наборы фото»', () => {
     expect(PickPeopleFolder).not.toHaveBeenCalled()
     expect(TrainPerson).not.toHaveBeenCalled()
     expect(TrainPersonFromSet).toHaveBeenCalledTimes(1)
-    expect(TrainPersonFromSet).toHaveBeenCalledWith('Кира', 'kira', 'woman', 'Z-Image', false, false)
+    expect(TrainPersonFromSet).toHaveBeenCalledWith('Кира', 'kira', 'woman', 'Z-Image', 'quick', false, false)
   })
 
   it('7: hold checkbox is passed to TrainPersonFromSet', async () => {
@@ -567,7 +567,7 @@ describe('conditions 6–7: «Люди» → «Наборы фото»', () => {
     await w.find(TID('people-hold')).setValue(true)
     await w.find(TID('people-train')).trigger('click')
     await settle()
-    expect(TrainPersonFromSet).toHaveBeenCalledWith('Кира', 'kira', 'woman', 'Z-Image', true, false)
+    expect(TrainPersonFromSet).toHaveBeenCalledWith('Кира', 'kira', 'woman', 'Z-Image', 'quick', true, false)
   })
 
   it('7: switching back to «Из папки» trains from the folder as before', async () => {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Zazza/imagecaster/internal/lanonly"
 	"github.com/Zazza/imagecaster/internal/serverclient"
@@ -15,14 +16,14 @@ import (
 
 const (
 	MinPhotos         = 10
-	MaxPhotos         = 50
+	MaxPhotos         = 100
 	MinIdentityPhotos = 5
 )
 
 var (
 	ErrNotLocal      = errors.New("сервер не в локальной сети: фото людей отправляются только на локальный сервер")
-	ErrPhotoCount    = errors.New("в папке должно быть от 10 до 50 фото (jpg, png, webp)")
-	ErrIdentityCount = errors.New("в папке должно быть от 5 до 50 фото (jpg, png, webp)")
+	ErrPhotoCount    = errors.New("в папке должно быть от 10 до 100 фото (jpg, png, webp)")
+	ErrIdentityCount = errors.New("в папке должно быть от 5 до 100 фото (jpg, png, webp)")
 	ErrTooFewFaces   = errors.New("на фото мало чётко видных лиц: нужно хотя бы несколько фото, где лицо крупно и смотрит в камеру")
 	ErrNoFaceModels  = errors.New("на сервере не установлены модели подмены лица: скачайте их в каталоге, раздел «Подмена лица»")
 )
@@ -41,6 +42,7 @@ type API interface {
 	DeletePerson(ctx context.Context, name string) error
 	UploadIdentity(ctx context.Context, name string, photos []string) (*serverclient.Person, error)
 	TrainingBases(ctx context.Context) ([]string, error)
+	RollbackPerson(ctx context.Context, name string) (*serverclient.Person, error)
 }
 
 type Service struct {
@@ -175,4 +177,56 @@ func (s *Service) AddIdentity(ctx context.Context, folder, name string) (*server
 		}
 	}
 	return p, err
+}
+
+type TrainSetRequest struct {
+	Folder    string
+	NewFolder string
+	Name      string
+	Display   string
+	Gender    string
+	Base      string
+	Mode      string
+	Hold      bool
+	Replace   bool
+	PhotosAt  *time.Time
+}
+
+func (s *Service) TrainSet(ctx context.Context, r TrainSetRequest) (*serverclient.TrainJob, error) {
+	if !s.local() {
+		return nil, ErrNotLocal
+	}
+	photos, err := listPhotos(r.Folder)
+	if err != nil {
+		return nil, err
+	}
+	var fresh []string
+	if r.NewFolder != "" {
+		if fresh, err = listPhotos(r.NewFolder); err != nil {
+			return nil, err
+		}
+	}
+	if n := len(photos) + len(fresh); n < MinPhotos || n > MaxPhotos {
+		return nil, fmt.Errorf("%w: найдено %d", ErrPhotoCount, n)
+	}
+	id := s.installID()
+	name := strings.ToLower(strings.TrimSpace(r.Name))
+	return s.api.SubmitTraining(ctx, serverclient.TrainRequest{
+		Name:           name,
+		Gender:         r.Gender,
+		Base:           r.Base,
+		Client:         id,
+		ClientRef:      id + ":train:" + name,
+		DisplayName:    strings.Join(strings.Fields(r.Display), " "),
+		DisplayReplace: r.Replace,
+		Hold:           r.Hold,
+		Photos:         photos,
+		NewPhotos:      fresh,
+		Mode:           r.Mode,
+		PhotosAt:       r.PhotosAt,
+	})
+}
+
+func (s *Service) Rollback(ctx context.Context, name string) (*serverclient.Person, error) {
+	return s.api.RollbackPerson(ctx, name)
 }

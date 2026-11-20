@@ -33,6 +33,9 @@ type TrainJob struct {
 	Gender     string        `json:"gender"`
 	Base       string        `json:"base"`
 	Photos     int           `json:"photos"`
+	NewPhotos  int           `json:"new_photos,omitempty"`
+	Mode       string        `json:"mode,omitempty"`
+	Steps      int           `json:"steps,omitempty"`
 	Status     string        `json:"status"`
 	Progress   TrainProgress `json:"progress"`
 	Error      *TrainError   `json:"error"`
@@ -51,6 +54,10 @@ type Person struct {
 	Steps       int        `json:"steps"`
 	Identity    bool       `json:"identity"`
 	CreatedAt   *time.Time `json:"created_at"`
+	Mode        string     `json:"mode,omitempty"`
+	Rounds      int        `json:"rounds"`
+	PhotosAt    *time.Time `json:"photos_at,omitempty"`
+	Previous    bool       `json:"previous"`
 }
 
 type TrainRequest struct {
@@ -63,6 +70,9 @@ type TrainRequest struct {
 	DisplayReplace bool
 	Hold           bool
 	Photos         []string
+	NewPhotos      []string
+	Mode           string
+	PhotosAt       *time.Time
 }
 
 type TrainAPIError struct {
@@ -118,7 +128,7 @@ func (c *Client) trainDo(ctx context.Context, method, path string, body io.Reade
 }
 
 func (c *Client) SubmitTraining(ctx context.Context, r TrainRequest) (*TrainJob, error) {
-	for _, p := range r.Photos {
+	for _, p := range append(append([]string{}, r.Photos...), r.NewPhotos...) {
 		if _, err := os.Stat(p); err != nil {
 			return nil, err
 		}
@@ -158,21 +168,36 @@ func writeTrainForm(mw *multipart.Writer, r TrainRequest) error {
 			return err
 		}
 	}
+	if r.Mode != "" {
+		if err := mw.WriteField("mode", r.Mode); err != nil {
+			return err
+		}
+	}
+	if r.PhotosAt != nil {
+		if err := mw.WriteField("photos_at", r.PhotosAt.UTC().Format(time.RFC3339Nano)); err != nil {
+			return err
+		}
+	}
 	for _, p := range r.Photos {
-		if err := writePhotoPart(mw, p); err != nil {
+		if err := writePhotoPart(mw, "photos", p); err != nil {
+			return err
+		}
+	}
+	for _, p := range r.NewPhotos {
+		if err := writePhotoPart(mw, "new_photos", p); err != nil {
 			return err
 		}
 	}
 	return mw.Close()
 }
 
-func writePhotoPart(mw *multipart.Writer, path string) error {
+func writePhotoPart(mw *multipart.Writer, field, path string) error {
 	in, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	part, err := mw.CreateFormFile("photos", filepath.Base(path))
+	part, err := mw.CreateFormFile(field, filepath.Base(path))
 	if err != nil {
 		return err
 	}
@@ -277,7 +302,7 @@ func (c *Client) UploadIdentity(ctx context.Context, name string, photos []strin
 
 func writeIdentityForm(mw *multipart.Writer, photos []string) error {
 	for _, p := range photos {
-		if err := writePhotoPart(mw, p); err != nil {
+		if err := writePhotoPart(mw, "photos", p); err != nil {
 			return err
 		}
 	}
@@ -295,6 +320,16 @@ func (c *Client) People(ctx context.Context) ([]Person, error) {
 		out.People = []Person{}
 	}
 	return out.People, nil
+}
+
+func (c *Client) RollbackPerson(ctx context.Context, name string) (*Person, error) {
+	var out struct {
+		Person Person `json:"person"`
+	}
+	if err := c.trainDo(ctx, http.MethodPost, "/api/train/people/"+url.PathEscape(name)+"/rollback", nil, "", &out); err != nil {
+		return nil, err
+	}
+	return &out.Person, nil
 }
 
 func (c *Client) DeletePerson(ctx context.Context, name string) error {

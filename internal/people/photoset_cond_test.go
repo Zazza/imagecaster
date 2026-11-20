@@ -601,8 +601,9 @@ func TestPhotoSetCond_Summary(t *testing.T) {
 		byKey[s.Key] = s
 	}
 	require.Len(t, byKey, 2)
-	assert.Equal(t, SetSummary{Key: "A", Count: 4, Front: 2, Half: 1, Profile: 1, LastAdd: byKey["A"].LastAdd}, byKey["A"])
-	assert.Equal(t, SetSummary{Key: "B", Count: 1, Front: 0, Half: 0, Profile: 1, LastAdd: byKey["B"].LastAdd}, byKey["B"])
+	assert.Equal(t, SetSummary{Key: "A", Count: 4, Front: 2, Half: 1, Profile: 1, LastAdd: byKey["A"].LastAdd, Added: byKey["A"].Added}, byKey["A"])
+	assert.Len(t, byKey["A"].Added, 4)
+	assert.Equal(t, SetSummary{Key: "B", Count: 1, Front: 0, Half: 0, Profile: 1, LastAdd: byKey["B"].LastAdd, Added: byKey["B"].Added}, byKey["B"])
 }
 
 func TestPhotoSetCond_RemoveDeletesRowAndFiles(t *testing.T) {

@@ -29,7 +29,7 @@ import {
   TrainPersonReplace, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson, SetPersonDisplay,
   AddPersonIdentity, FaceSwapStatus,
   PostFaceLandmarks, PostBodyPoints, PreviewPostRetouch, EnqueuePostSave, SavePostToHistory, EnqueuePost4K,
-  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
+  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, RollbackPerson, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -202,7 +202,8 @@ export const api = {
   personSetRemove: (id) => PersonSetRemove(id),
   personSetSummary: () => PersonSetSummary(),
   personSetRename: (oldKey, newKey) => PersonSetRename(oldKey, newKey),
-  trainPersonFromSet: (key, name, gender, base, hold, replace = false) => TrainPersonFromSet(key, name, gender, base, !!hold, !!replace),
+  trainPersonFromSet: (key, name, gender, base, mode, hold, replace = false) => TrainPersonFromSet(key, name, gender, base, mode || 'quick', !!hold, !!replace),
+  rollbackPerson: (name) => RollbackPerson(name),
   addPersonIdentityFromSet: (key, name) => AddPersonIdentityFromSet(key, name),
   stylistSavePreset: (p) => StylistSavePreset(p),
   stylistRenamePreset: (id, name) => StylistRenamePreset(id, name),

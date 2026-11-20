@@ -722,8 +722,12 @@ export function PersonSetRename(arg1, arg2) {
   return window['go']['main']['App']['PersonSetRename'](arg1, arg2);
 }
 
-export function TrainPersonFromSet(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['TrainPersonFromSet'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function TrainPersonFromSet(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['TrainPersonFromSet'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
+export function RollbackPerson(arg1) {
+  return window['go']['main']['App']['RollbackPerson'](arg1);
 }
 
 export function AddPersonIdentityFromSet(arg1, arg2) {

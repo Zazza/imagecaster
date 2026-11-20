@@ -134,3 +134,24 @@ export function failedTrainings(jobs, now = Date.now()) {
     .sort((a, b) => jobTime(b) - jobTime(a))
     .slice(0, 5)
 }
+
+const SEC_PER_STEP = { 'Z-Image': 2.3, 'Moss-Image': 2.06, SDXL: 0.63, 'Flux.2': 1.65 }
+export const TRAIN_STEPS = { quick: 600, full: 2000, retrain: 2000, continue: 400 }
+
+export function trainMinutes(base, mode) {
+  const s = SEC_PER_STEP[base || 'Z-Image']
+  if (!s) return 0
+  return Math.round((TRAIN_STEPS[mode] || 2000) * s / 60 + 3)
+}
+
+export function loraState(p) {
+  if (p?.rounds > 0) return { kind: 'continued', n: p.rounds }
+  if (p?.mode === 'quick') return { kind: 'quick' }
+  return { kind: 'full' }
+}
+
+export function newPhotosSince(added, since) {
+  const t = Date.parse(since || '')
+  if (!Number.isFinite(t)) return (added || []).length
+  return (added || []).filter(a => Date.parse(a) > t).length
+}

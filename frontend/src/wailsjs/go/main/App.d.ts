@@ -377,6 +377,8 @@ export function PersonSetSummary():Promise<Array<any>>;
 
 export function PersonSetRename(arg1:string,arg2:string):Promise<void>;
 
-export function TrainPersonFromSet(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:boolean):Promise<serverclient.TrainJob>;
+export function TrainPersonFromSet(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:boolean,arg7:boolean):Promise<serverclient.TrainJob>;
+
+export function RollbackPerson(arg1:string):Promise<serverclient.Person>;
 
 export function AddPersonIdentityFromSet(arg1:string,arg2:string):Promise<serverclient.Person>;
