@@ -169,7 +169,7 @@ func newXREnv(t *testing.T) *xrEnv {
 	return &xrEnv{pdb: pdb, store: NewStore(qdb), dataDir: t.TempDir(), presetID: p.ID}
 }
 
-func (e *xrEnv) processor(t *testing.T, l llm.Service, s *xrSD, sessions *xrSessions) (Processor, *xrScoper) {
+func (e *xrEnv) processor(t *testing.T, l llm.Service, s *xrSD, sessions generation.SessionAdder) (Processor, *xrScoper) {
 	t.Helper()
 	gen := generation.New(
 		e.pdb,

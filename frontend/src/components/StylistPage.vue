@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { TriangleAlert, Shirt } from 'lucide-vue-next'
+import { TriangleAlert, Shirt, RotateCcw, Maximize2, SlidersHorizontal } from 'lucide-vue-next'
+import { openInHistoryViewer } from '../historyViewer.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
@@ -8,19 +9,26 @@ import { people } from '../peopleStore.js'
 import { canFaceSwap, trainBaseLabel, peopleGroups, groupBases, groupLoraForBase, pipelinePerson, pipelineOverride } from '../people.js'
 import { usePresets } from '../composables/usePresets.js'
 import { b64Url } from '../imageDataUrl.js'
+import { readImageFile } from '../imageFile.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
-import { useStylistPlan, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
+import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, garmentOutfitShown, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import ImageViewer from './ImageViewer.vue'
 import AspectTab from './stylist/AspectTab.vue'
 import SeriesCard from './stylist/SeriesCard.vue'
+import PresetOverridesPanel from './PresetOverridesPanel.vue'
+import { modelBaseFor } from '../fastMode.js'
+import { isEffectType } from '../effectTypes.js'
+import { parseLoras } from '../loraOverride.js'
 
 const {
   form, series, warnings, usedLLM, planning, regenerating, shooting, translating, error, jobIds, frames, view,
   frameCount, outfitLocked, makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot, refreshFrames, savePreset, planEpoch,
 } = useStylistPlan()
 const { sdProgress } = useGenerationProgress()
+const emit = defineEmits(['navigate'])
+const toPeople = () => emit('navigate', { page: 'people' })
 
 const QUEUE_EVENTS = ['queue:changed', 'queue:started', 'queue:completed', 'queue:failed']
 
@@ -35,25 +43,61 @@ const faceSwapStatus = ref('')
 const faceSwapOn = computed(() => faceSwapStatus.value === 'ok')
 const thumbs = ref({})
 const shotNotice = ref('')
-const pickedItemId = ref(0)
+const pickedJobId = ref(0)
+const upscaled = ref(null)
+const reshooting = ref(false)
+const upscaling = ref(false)
 const bigImage = ref('')
 const showViewer = ref(false)
 
-const { presets, compoundPresets, loadPresets } = usePresets()
+const { presets, presetTypes, compoundPresets, loadPresets } = usePresets()
 const modelCatalog = ref(null)
 const persons = computed(() => stylistPeople(people.value))
 const groups = computed(() => peopleGroups(persons.value))
 const group = computed(() => groups.value.find(g => g.key === form.person) || null)
 const stepModels = (c) => (c?.steps || []).map(s => presets.value.find(p => p.id === s.preset_id)?.model_name || '')
-const targets = computed(() => {
-  if (!group.value) return []
-  const out = groupBases(group.value).map(b => ({ id: 'base:' + b, label: trainBaseLabel(b) }))
+const TARGET_KINDS = ['base', 'preset', 'pipe']
+const presetBase = (p) => modelBaseFor(modelCatalog.value, p?.model_name || '')
+const targetsByKind = computed(() => {
+  const out = { base: [], preset: [], pipe: [] }
+  if (!group.value) return out
+  const bases = groupBases(group.value)
+  out.base = bases.map(b => ({ id: 'base:' + b, label: trainBaseLabel(b) }))
   if (Array.isArray(modelCatalog.value?.sd_models)) {
+    for (const p of presets.value) {
+      if (!isEffectType(p.preset_type) && bases.includes(presetBase(p))) out.preset.push({ id: 'preset:' + p.id, label: p.name, typeId: p.type_id || null })
+    }
     for (const c of compoundPresets.value) {
-      if (pipelinePerson(modelCatalog.value, stepModels(c), group.value).available) out.push({ id: 'pipe:' + c.id, label: t('stylist.target_pipeline', { name: c.name }) })
+      if (pipelinePerson(modelCatalog.value, stepModels(c), group.value).available) out.pipe.push({ id: 'pipe:' + c.id, label: c.name })
     }
   }
   return out
+})
+const targetKinds = computed(() => TARGET_KINDS.filter(k => targetsByKind.value[k].length))
+const presetGroups = computed(() => {
+  const used = new Set(targetsByKind.value.preset.map(o => o.typeId).filter(Boolean))
+  return presetTypes.value.filter(pt => !isEffectType(pt.name) && used.has(pt.id))
+})
+const targets = computed(() => {
+  const list = targetsByKind.value[form.targetKind] || []
+  if (form.targetKind !== 'preset' || !form.presetGroup) return list
+  return list.filter(o => o.typeId === form.presetGroup)
+})
+const listsReady = ref(false)
+watch([presetGroups, listsReady], ([list, ready]) => {
+  if (ready && form.presetGroup && !list.some(g => g.id === form.presetGroup)) form.presetGroup = null
+})
+form.overrides = null
+watch([targetKinds, listsReady], ([kinds, ready]) => {
+  if (ready && kinds.length && !kinds.includes(form.targetKind)) form.targetKind = kinds[0]
+})
+const targetPreset = computed(() => (form.target.startsWith('preset:') ? presets.value.find(p => 'preset:' + p.id === form.target) || null : null))
+const targetPresetLoras = computed(() => (targetPreset.value ? parseLoras(targetPreset.value.loras) : []))
+const overridesPanel = ref(null)
+watch(() => form.target, (now, before) => {
+  if (now === before) return
+  form.overrides = null
+  overridesPanel.value?.reset()
 })
 const targetPipeline = computed(() => (form.target.startsWith('pipe:') ? compoundPresets.value.find(c => 'pipe:' + c.id === form.target) || null : null))
 const person = computed(() => {
@@ -62,15 +106,16 @@ const person = computed(() => {
     const ov = pipelineOverride(modelCatalog.value, stepModels(targetPipeline.value), group.value, true)
     return group.value.loras.find(p => p.name === (ov?.face_swap_name || ov?.name)) || group.value.loras[0]
   }
+  if (targetPreset.value) return groupLoraForBase(group.value, presetBase(targetPreset.value)) || group.value.loras[0]
   return groupLoraForBase(group.value, form.target.replace(/^base:/, '')) || group.value.loras[0]
 })
 const pipelineMissing = computed(() => (targetPipeline.value && group.value ? pipelinePerson(modelCatalog.value, stepModels(targetPipeline.value), group.value).missing : []))
-watch(targets, (list) => {
-  if (!list.some(x => x.id === form.target)) form.target = list[0]?.id || ''
+watch([targets, listsReady], ([list, ready]) => {
+  if (ready && !list.some(x => x.id === form.target)) form.target = list[0]?.id || ''
 })
 const swapAvailable = computed(() => canFaceSwap(person.value, faceSwapOn.value))
 const faceSwapNote = computed(() => {
-  if (swapAvailable.value) return t('stylist.face_swap_on')
+  if (swapAvailable.value) return form.faceSwap ? t('stylist.face_swap_on') : t('stylist.face_swap_off')
   if (!person.value?.identity) return t('stylist.face_swap_no_face')
   return faceSwapStatus.value === 'not_installed' ? t('stylist.face_swap_no_server') : t('stylist.face_swap_unknown')
 })
@@ -88,9 +133,17 @@ const garmentMissed = (f) => !!f.garment && f.garment !== 'done'
 const garmentReason = (f) => f.garment.replace(/^skipped:\s*/, '')
 const runningIndex = computed(() => frames.value.findIndex(f => f.status === 'running'))
 const runningFrame = computed(() => runningIndex.value >= 0 ? frames.value[runningIndex.value] : null)
+const FINISHED = ['completed', 'failed', 'cancelled']
+const selectedFrame = computed(() => {
+  const f = pickedJobId.value ? frames.value.find(x => x.jobId === pickedJobId.value) : null
+  if (f && FINISHED.includes(f.status)) return f
+  return latestDone(frames.value)
+})
 const bigItemId = computed(() => {
-  if (pickedItemId.value && frames.value.some(f => f.itemId === pickedItemId.value)) return pickedItemId.value
-  return latestDone(frames.value)?.itemId || 0
+  const f = selectedFrame.value
+  if (!f || f.status !== 'completed') return 0
+  if (upscaled.value && upscaled.value.fromJobId === f.jobId) return upscaled.value.itemId
+  return f.itemId || 0
 })
 const sectionSub = computed(() => ({
   person: person.value ? person.value.name : t('stylist.need_person'),
@@ -131,6 +184,15 @@ async function onSavePreset(payload) {
   if (!id) return
   await reloadBase()
   presetNotice.value = t('stylist.preset_saved')
+}
+
+async function onAddPreset(payload) {
+  presetNotice.value = ''
+  const id = await savePreset(payload)
+  if (!id) return
+  await reloadBase()
+  const choice = form.aspects[payload.aspect]
+  if (choice) form.aspects[payload.aspect] = { ...choice, mode: 'pick', ids: [...(choice.ids || []).filter(x => x !== id), id] }
 }
 
 async function onRenamePreset(id, name) {
@@ -204,7 +266,14 @@ async function describeGarment() {
   garmentNote.value = ''
   try {
     const names = await api.stylistDescribeGarment(photo)
-    if (form.garment === photo && names) form.garmentOutfit = names
+    if (form.garment !== photo || !names) return
+    let shown = names
+    try {
+      shown = await garmentOutfitShown(names)
+    } catch (e) {
+      garmentNote.value = t('stylist.garment_translate_ru_failed', { error: String(e?.message || e) })
+    }
+    if (form.garment === photo) form.garmentOutfit = shown
   } catch (e) {
     if (form.garment === photo) garmentNote.value = String(e?.message || e)
   } finally {
@@ -212,23 +281,62 @@ async function describeGarment() {
   }
 }
 
+async function setGarment(b64) {
+  if (!b64) return
+  form.garment = b64
+  form.garmentOutfit = ''
+  await describeGarment()
+}
+
 async function pickGarment() {
   try {
-    const b64 = await api.stylistPickGarment()
-    if (!b64) return
-    form.garment = b64
-    form.garmentOutfit = ''
-    await describeGarment()
+    await setGarment(await api.stylistPickGarment())
   } catch (e) {
     error.value = String(e?.message || e)
   }
 }
 
+async function pasteGarment() {
+  try {
+    await setGarment(await api.readClipboardImage())
+  } catch (e) {
+    error.value = String(e?.message || e)
+  }
+}
+
+const garmentBox = ref(null)
+const garmentDragOver = ref(false)
+
+function garmentFromFile(file) {
+  readImageFile(file)
+    .then(setGarment)
+    .catch(err => { error.value = String(err?.message || err) })
+}
+
+function onGarmentDrop(e) {
+  garmentDragOver.value = false
+  const file = e.dataTransfer?.files?.[0]
+  if (file) garmentFromFile(file)
+}
+
+function onGarmentPaste(e) {
+  if (!garmentBox.value) return
+  for (const item of e.clipboardData?.items || []) {
+    if (!item.type?.startsWith('image/')) continue
+    const file = item.getAsFile()
+    if (!file) continue
+    e.preventDefault()
+    garmentFromFile(file)
+    return
+  }
+}
+
 async function onShoot() {
   shotNotice.value = ''
-  const ids = await shoot(swapAvailable.value, person.value?.name)
+  const ids = await shoot(swapAvailable.value && form.faceSwap, person.value?.name)
   if (ids.length) {
-    pickedItemId.value = 0
+    pickedJobId.value = 0
+    upscaled.value = null
     shotNotice.value = t('stylist.shot_queued', { n: ids.length })
   }
 }
@@ -245,7 +353,60 @@ async function cancelRunning() {
 }
 
 function pickFrame(f) {
-  if (f.status === 'completed' && f.itemId) pickedItemId.value = f.itemId
+  if (!FINISHED.includes(f.status)) return
+  pickedJobId.value = f.jobId
+  upscaled.value = null
+}
+
+async function onReshoot() {
+  const f = selectedFrame.value
+  if (!f || reshooting.value) return
+  reshooting.value = true
+  error.value = ''
+  try {
+    await reshootFrame(f.jobId)
+    pickedJobId.value = 0
+    upscaled.value = null
+  } catch (e) {
+    error.value = String(e?.message || e)
+  } finally {
+    reshooting.value = false
+  }
+}
+
+async function onUpscale() {
+  const f = selectedFrame.value
+  const itemId = bigItemId.value
+  if (!f || !itemId || upscaling.value) return
+  upscaling.value = true
+  error.value = ''
+  try {
+    const res = await api.upscaleSessionItem(itemId, 0)
+    if (!res?.image || !res.session_item_id) {
+      error.value = t('generate.error_upscale_x2')
+      return
+    }
+    upscaled.value = { fromJobId: f.jobId, itemId: res.session_item_id }
+  } catch (e) {
+    error.value = String(e?.message || e)
+  } finally {
+    upscaling.value = false
+  }
+}
+
+async function toPostProcess() {
+  if (!bigItemId.value) return
+  try {
+    await api.openInHistory(bigItemId.value)
+    emit('navigate', { page: 'postprocess' })
+  } catch (e) {
+    error.value = String(e?.message || e)
+  }
+}
+
+async function openBig() {
+  if (await openInHistoryViewer(bigItemId.value)) return
+  showViewer.value = true
 }
 
 watch(frames, async (list) => {
@@ -274,10 +435,20 @@ watch(bigItemId, async (id) => {
   }
 }, { immediate: true })
 
+watch([form, series], () => savePlanSoon(), { deep: true })
+
 let offQueue = []
 onMounted(async () => {
-  offQueue = QUEUE_EVENTS.map(ev => EventsOn(ev, refreshFrames))
-  refreshFrames()
+  document.addEventListener('paste', onGarmentPaste)
+  offQueue = [
+    ...QUEUE_EVENTS.map(ev => EventsOn(ev, refreshFrames)),
+    EventsOn('session:removed', (d) => { if (!d?.moved_to) refreshFrames() }),
+    EventsOn('session:deleted', refreshFrames),
+    EventsOn('session:cleared', refreshFrames),
+  ]
+  await restorePlan()
+  if (jobIds.value.length) refreshFrames()
+  else restoreLastShoot()
   try {
     base.value = await api.stylistPresets()
   } catch (e) {
@@ -295,12 +466,14 @@ onMounted(async () => {
   if (form.person && !groups.value.some(g => g.key === form.person)) form.person = persons.value.find(p => p.name === form.person) ? groups.value.find(g => g.loras.some(p => p.name === form.person))?.key || '' : ''
   if (!form.person && groups.value.length) form.person = groups.value[0].key
   else if (form.person) loadAppearance(form.person)
-  loadPresets()
+  const presetsLoaded = loadPresets()
   try {
     modelCatalog.value = await api.getModelCatalog()
   } catch (e) {
     console.warn('getModelCatalog:', e)
   }
+  await presetsLoaded
+  listsReady.value = true
   try {
     faceSwapStatus.value = (await api.faceSwapStatus()) || ''
   } catch (e) {
@@ -309,6 +482,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('paste', onGarmentPaste)
   offQueue.forEach(off => off?.())
   offQueue = []
 })
@@ -334,6 +508,11 @@ onUnmounted(() => {
             v-for="(s, i) in series" :key="i" :series="s" :index="i" :outfit-locked="outfitLocked" :busy="regenerating === i" :locked="shooting" :places="places" :epoch="planEpoch"
             @update="updateSeries(i, $event)" @regenerate="regenerate" @delete="deleteSeries" @delete-shot="deleteShot" @save-preset="onSavePreset"
           />
+          <div v-if="series.length" class="stylist-shoot-bar">
+            <button class="btn btn-primary btn-generate" :disabled="!canShoot" data-testid="stylist-shoot" @click="onShoot">{{ translating ? t('stylist.translating') : shooting ? t('stylist.shooting') : t('stylist.shoot', { n: frameCount }) }}</button>
+            <div v-if="frameCount > FRAMES_MAX" class="form-hint stylist-blocked">{{ t('stylist.too_many', { n: FRAMES_MAX }) }}</div>
+            <div v-else-if="garmentUnnamed" class="form-hint stylist-blocked" data-testid="stylist-garment-unnamed">{{ describing ? t('stylist.garment_describing') : t('stylist.need_garment_outfit') }}</div>
+          </div>
           <div v-if="!series.length" class="generate-image-area empty" data-testid="stylist-plan-empty">
             <div class="generate-placeholder">
               <div class="generate-placeholder-icon"><Shirt :size="56" :stroke-width="1.25" /></div>
@@ -348,12 +527,26 @@ onUnmounted(() => {
             <GenProgress :label="t('stylist.frame_of', { i: runningIndex + 1, n: frames.length })" :progress="sdProgress?.progress || 0" :steps="sdProgress?.steps || 0" :eta="sdProgress?.etaRelative || 0" stats @interrupt="cancelRunning" />
           </div>
           <div class="generate-image-area" :class="{ empty: !bigImage, loading: !bigImage && !!runningFrame }">
-            <img v-if="bigImage" :src="b64Url(bigImage)" alt="" class="img-fade-in stylist-big" data-testid="stylist-big" @click="showViewer = true" />
+            <img v-if="bigImage && bigItemId" :src="b64Url(bigImage)" alt="" class="img-fade-in stylist-big" data-testid="stylist-big" @click="openBig" />
+            <div v-else-if="selectedFrame && selectedFrame.status !== 'completed'" class="generate-placeholder" data-testid="stylist-frame-failed">
+              <div class="generate-placeholder-icon"><TriangleAlert :size="56" :stroke-width="1.25" /></div>
+              <div class="generate-placeholder-title">{{ t('stylist.frame_not_made') }}</div>
+              <div class="generate-placeholder-hint">{{ selectedFrame.error || t('stylist.frame_' + selectedFrame.status) }}</div>
+            </div>
             <div v-else class="generate-placeholder" data-testid="stylist-frames-empty">
               <div class="generate-placeholder-icon"><Shirt :size="56" :stroke-width="1.25" /></div>
               <div class="generate-placeholder-title">{{ frames.length ? t('stylist.empty_frames_wait') : t('stylist.empty_frames_title') }}</div>
               <div class="generate-placeholder-hint">{{ frames.length ? t('stylist.results_hint') : t('stylist.empty_frames_hint') }}</div>
             </div>
+          </div>
+          <div v-if="selectedFrame" class="action-row gen-result-actions stylist-actions" data-testid="stylist-actions">
+            <button class="btn btn-sm btn-secondary" :disabled="reshooting" data-testid="stylist-reshoot" @click="onReshoot"><RotateCcw :size="14" /> {{ t('stylist.reshoot') }}</button>
+            <button v-if="bigItemId" class="btn btn-sm btn-secondary" :disabled="upscaling" data-testid="stylist-upscale" @click="onUpscale">
+              <span v-if="upscaling" class="spinner gen-action-spinner"></span>
+              <Maximize2 v-else :size="14" />
+              {{ t('generate.btn_upscale_x2') }}
+            </button>
+            <button v-if="bigItemId" class="btn btn-sm btn-primary" data-testid="stylist-to-post" @click="toPostProcess"><SlidersHorizontal :size="14" /> {{ t('post.btn_send') }}</button>
           </div>
           <div v-if="frames.length" class="card stylist-strip-card">
             <div class="card-title">{{ t('stylist.results') }}</div>
@@ -361,7 +554,7 @@ onUnmounted(() => {
             <div class="stylist-strip" data-testid="stylist-results">
               <button
                 v-for="(f, i) in frames" :key="f.jobId" type="button" class="stylist-thumb"
-                :class="['is-' + f.status, { active: f.itemId && f.itemId === bigItemId, 'no-garment': garmentMissed(f) }]"
+                :class="['is-' + f.status, { active: selectedFrame && f.jobId === selectedFrame.jobId, 'no-garment': garmentMissed(f) }]"
                 :title="f.error || (garmentMissed(f) ? t('stylist.frame_no_garment_title', { reason: garmentReason(f) }) : f.shot)" data-testid="stylist-frame" @click="pickFrame(f)"
               >
                 <img v-if="f.itemId && thumbs[f.itemId]" :src="thumbs[f.itemId]" alt="" />
@@ -383,16 +576,29 @@ onUnmounted(() => {
               <div class="card-body">
                 <div v-if="!peopleLoaded" class="form-hint" data-testid="stylist-people-loading">{{ t('stylist.people_loading') }}</div>
                 <div v-else-if="peopleError" class="status status-error" data-testid="stylist-people-error">{{ peopleError }}</div>
-                <div v-else-if="!persons.length" class="form-hint" data-testid="stylist-no-people">{{ t('stylist.no_people') }}</div>
-                <div class="form-group">
-                  <label class="form-label">{{ t('stylist.person') }}</label>
+                <div v-else-if="!persons.length" class="status status-warning stylist-no-people" data-testid="stylist-no-people">
+                  <span>{{ t('stylist.no_people') }}</span>
+                  <button type="button" class="btn btn-sm btn-primary" data-testid="stylist-no-people-go" @click="toPeople">{{ t('stylist.go_people') }}</button>
+                </div>
+                <div v-if="persons.length" class="form-group">
+                  <div class="stylist-label-row">
+                    <label class="form-label">{{ t('stylist.person') }}</label>
+                    <button type="button" class="btn btn-secondary btn-xs" data-testid="stylist-add-person" @click="toPeople">{{ t('stylist.add_person') }}</button>
+                  </div>
                   <select class="form-select" v-model="form.person" data-testid="stylist-person">
                     <option v-for="g in groups" :key="g.key" :value="g.key">{{ g.key }}</option>
                   </select>
                 </div>
-                <div v-if="targets.length" class="form-group">
+                <div v-if="targetKinds.length" class="form-group">
                   <label class="form-label">{{ t('stylist.target') }}</label>
-                  <select class="form-select" v-model="form.target" data-testid="stylist-target">
+                  <div class="stylist-target-kinds" role="group">
+                    <button v-for="k in TARGET_KINDS" :key="k" type="button" class="btn btn-sm" :class="form.targetKind === k ? 'btn-primary' : 'btn-secondary'" :aria-pressed="form.targetKind === k ? 'true' : 'false'" :disabled="!targetsByKind[k].length" :title="targetsByKind[k].length ? '' : t('stylist.kind_none_' + k)" :data-testid="'stylist-kind-' + k" @click="form.targetKind = k">{{ t('stylist.kind_' + k) }}</button>
+                  </div>
+                  <select v-if="form.targetKind === 'preset' && presetGroups.length" class="form-select stylist-preset-group" v-model="form.presetGroup" data-testid="stylist-preset-group">
+                    <option :value="null">{{ t('generate.all_types') }}</option>
+                    <option v-for="g in presetGroups" :key="g.id" :value="g.id">{{ g.name }}</option>
+                  </select>
+                  <select v-if="targets.length" class="form-select" v-model="form.target" data-testid="stylist-target">
                     <option v-for="o in targets" :key="o.id" :value="o.id">{{ o.label }}</option>
                   </select>
                   <div v-if="pipelineMissing.length" class="form-hint" data-testid="stylist-target-missing">{{ t('people.pipeline_missing', { steps: pipelineMissing.join(', ') }) }}</div>
@@ -402,11 +608,17 @@ onUnmounted(() => {
                   <input class="form-input" type="text" v-model="form.appearance" maxlength="500" :placeholder="appearanceHint" data-testid="stylist-appearance" @change="saveAppearance" />
                   <div class="form-hint">{{ t('stylist.appearance_hint') }}</div>
                 </div>
-                <div v-if="person" class="form-hint" :class="{ 'stylist-face-off': !swapAvailable }" data-testid="stylist-face-swap">{{ faceSwapNote }}</div>
+                <label v-if="person && swapAvailable" class="stylist-face-toggle">
+                  <input type="checkbox" v-model="form.faceSwap" data-testid="stylist-face-swap-toggle" />
+                  {{ t('people.face_swap') }}
+                </label>
+                <div v-if="person" class="form-hint" :class="{ 'stylist-face-off': !swapAvailable || !form.faceSwap }" data-testid="stylist-face-swap">{{ faceSwapNote }}</div>
                 <details class="stylist-more">
                   <summary>{{ t('stylist.more') }}</summary>
                   <label class="form-label">{{ t('stylist.seed') }}</label>
                   <input class="form-input stylist-narrow" type="text" v-model="form.seed" :placeholder="t('stylist.seed_hint')" />
+                  <PresetOverridesPanel v-if="form.targetKind !== 'pipe'" ref="overridesPanel" v-model="form.overrides" :preset-loras="targetPresetLoras" hide-model :title="t('stylist.overrides')" data-testid="stylist-overrides" />
+                  <div v-else class="form-hint" data-testid="stylist-overrides-pipe">{{ t('stylist.overrides_pipe') }}</div>
                 </details>
               </div>
             </div>
@@ -433,11 +645,12 @@ onUnmounted(() => {
                   <label class="form-label">{{ t('stylist.frames') }}</label>
                   <input class="form-input stylist-narrow" type="number" min="1" :max="FRAMES_MAX" :value="form.frames" data-testid="stylist-frames" @change="form.frames = clampFrames($event.target.value); $event.target.value = form.frames" />
                 </div>
-                <div class="form-group">
+                <div ref="garmentBox" class="form-group stylist-garment-drop" :class="{ 'drop-zone-active': garmentDragOver }" data-testid="stylist-garment-drop" @dragover.prevent="garmentDragOver = true" @dragleave="garmentDragOver = false" @drop.prevent="onGarmentDrop">
                   <label class="form-label">{{ t('stylist.garment') }}</label>
                   <div class="stylist-garment">
                     <img v-if="form.garment" :src="b64Url(form.garment)" class="stylist-garment-img" alt="" />
                     <button class="btn btn-secondary btn-sm" data-testid="stylist-garment-pick" @click="pickGarment">{{ form.garment ? t('stylist.garment_change') : t('stylist.garment_pick') }}</button>
+                    <button class="btn btn-secondary btn-sm" data-testid="stylist-garment-paste" @click="pasteGarment">{{ t('stylist.garment_paste') }}</button>
                     <button v-if="form.garment" class="btn btn-danger-quiet btn-sm" data-testid="stylist-garment-clear" @click="form.garment = ''">{{ t('stylist.garment_clear') }}</button>
                   </div>
                   <div class="form-hint">{{ t('stylist.garment_hint') }}</div>
@@ -465,7 +678,7 @@ onUnmounted(() => {
                   <button v-for="a in ASPECTS" :key="a" class="tab" :class="{ active: tab === a }" :data-testid="'tab-' + a" @click="tab = a">{{ t('stylist.tab_' + a) }}</button>
                 </div>
                 <div v-if="tab === 'outfit' && outfitLocked" class="form-hint" data-testid="garment-outfit-tab">{{ t('stylist.garment_outfit_moved') }}</div>
-                <AspectTab v-else :aspect="tab" :choice="form.aspects[tab]" :items="itemsFor(tab)" :themes="base?.themes || []" @update:choice="form.aspects[tab] = $event" @rename="onRenamePreset" @delete="onDeletePreset" />
+                <AspectTab v-else :aspect="tab" :choice="form.aspects[tab]" :items="itemsFor(tab)" :themes="base?.themes || []" @update:choice="form.aspects[tab] = $event" @rename="onRenamePreset" @delete="onDeletePreset" :places="places" @save-preset="onAddPreset" />
               </div>
             </div>
           </div>
@@ -474,12 +687,8 @@ onUnmounted(() => {
         <div class="gen-actions">
           <div class="gen-actions-row">
             <button class="btn btn-primary btn-generate stylist-action" :disabled="!canPlan" data-testid="stylist-plan" @click="makePlan">{{ planning ? t('stylist.planning') : t('stylist.plan') }}</button>
-            <button class="btn btn-primary btn-generate stylist-action" :disabled="!canShoot" data-testid="stylist-shoot" @click="onShoot">{{ translating ? t('stylist.translating') : shooting ? t('stylist.shooting') : t('stylist.shoot', { n: frameCount }) }}</button>
           </div>
           <div v-if="planBlocked" class="form-hint stylist-blocked" data-testid="stylist-plan-blocked">{{ planBlocked }}</div>
-          <div v-else-if="frameCount > FRAMES_MAX" class="form-hint stylist-blocked">{{ t('stylist.too_many', { n: FRAMES_MAX }) }}</div>
-          <div v-else-if="!series.length" class="form-hint stylist-blocked" data-testid="stylist-shoot-blocked">{{ t('stylist.need_plan') }}</div>
-          <div v-else-if="garmentUnnamed" class="form-hint stylist-blocked" data-testid="stylist-garment-unnamed">{{ describing ? t('stylist.garment_describing') : t('stylist.need_garment_outfit') }}</div>
           <div v-if="shotNotice" class="form-hint stylist-blocked" data-testid="stylist-shot-notice">{{ shotNotice }}</div>
         </div>
       </div>
@@ -491,13 +700,21 @@ onUnmounted(() => {
 
 <style scoped>
 .stylist-switch { display: flex; gap: 8px; flex-shrink: 0; }
+.stylist-shoot-bar { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .stylist-count { margin-left: 6px; opacity: 0.7; }
 .stylist-narrow { max-width: 120px; }
+.stylist-garment-drop { border: 1px dashed transparent; border-radius: var(--radius-sm); }
 .stylist-garment { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .stylist-garment ~ .form-hint + .form-group { margin-top: 8px; }
 .form-input.is-invalid { border-color: var(--warning, var(--danger)); }
 .stylist-garment-img { width: 48px; height: 48px; object-fit: cover; border-radius: var(--radius-sm); }
 .stylist-more { margin-top: 8px; }
+.stylist-no-people { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.stylist-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.stylist-label-row .form-label { margin-bottom: 0; }
+.stylist-preset-group { margin-bottom: 6px; }
+.stylist-face-toggle { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
+.stylist-target-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .stylist-face-off { color: var(--warning, var(--text-dim)); }
 .stylist-more summary { cursor: pointer; color: var(--text-dim); }
 .stylist-tabs { margin-bottom: 8px; }

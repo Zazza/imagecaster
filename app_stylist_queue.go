@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/generation"
@@ -19,13 +20,19 @@ func sdNotLocal(cfg *config.Config) bool {
 	return cfg != nil && (!lanonly.IsLocalURL(cfg.SDUrl) || lanonly.ViaProxy(cfg.SDUrl))
 }
 
-func stylistFrameHandler(sessions mcp.AppSessions, cfg *config.Config) queue.Handler {
+func stylistFrameHandler(sessions mcp.AppSessions, cfg *config.Config, shoots stylistShootStore) queue.Handler {
 	frame := mcp.NewShootFrameHandler(sessions)
 	return func(gen *generation.Service, job *queue.Job) (*queue.JobResult, error) {
 		if sdNotLocal(cfg) {
 			return nil, errStylistFrameNotLocal
 		}
-		return frame(gen, job)
+		res, err := frame(gen, job)
+		if err == nil && res != nil && shoots != nil {
+			if rerr := recordShootFrame(shoots, job.ID, res.Frame); rerr != nil {
+				log.Printf("stylist: last shoot: %v", rerr)
+			}
+		}
+		return res, err
 	}
 }
 

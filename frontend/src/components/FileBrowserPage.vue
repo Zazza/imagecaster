@@ -5,9 +5,11 @@ import { t } from '../i18n/index.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { sortEntries, normalizeSort } from '../fileSort.js'
 import ImageViewer from './ImageViewer.vue'
+import AddToSetDialog from './people/AddToSetDialog.vue'
 import { FolderUp, Folder, FolderOpen, Image, Check, ArrowUp, ArrowDown } from 'lucide-vue-next'
 
 const emit = defineEmits(['navigate'])
+const setPaths = ref([])
 
 const currentPath = ref('')
 const entries = ref([])
@@ -309,6 +311,9 @@ onUnmounted(() => {
       <button class="btn btn-primary" :disabled="!selectedPaths.length" @click="sendSelectedToPostProcess">
         {{ t('browser.send_to_postprocess_multi', { n: selectedPaths.length }) }}
       </button>
+      <button class="btn btn-secondary" :disabled="!selectedPaths.length" data-testid="fb-to-set" @click="setPaths = [...selectedPaths]">
+        {{ t('browser.to_training_set', { n: selectedPaths.length }) }}
+      </button>
       <button class="btn btn-secondary" @click="exitSelectMode">
         {{ t('browser.cancel_select') }}
       </button>
@@ -381,12 +386,18 @@ onUnmounted(() => {
       :total="imageEntries.length"
       :title="imageEntries[viewerIndex]?.name || ''"
       :showActions="true"
+      :keysPaused="setPaths.length > 0"
       :canDelete="false"
       @close="viewerIndex = -1"
       @prev="viewerPrev"
       @next="viewerNext"
       @export="sendToPostProcess(imageEntries[viewerIndex])"
-    />
+    >
+      <template #actions>
+        <button class="image-viewer-tool-btn" data-testid="fb-viewer-to-set" @click="setPaths = [imageEntries[viewerIndex].path]">{{ t('browser.to_training_set_one') }}</button>
+      </template>
+    </ImageViewer>
+    <AddToSetDialog v-if="setPaths.length" :paths="setPaths" @close="setPaths = []" />
   </div>
 </template>
 

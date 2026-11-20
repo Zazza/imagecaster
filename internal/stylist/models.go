@@ -45,7 +45,10 @@ func qualityFor(background string) string {
 }
 
 func ComposePrompt(lora string, parts []string, background string) string {
-	quality := qualityFor(background)
+	return composeTags(lora, parts, background, qualityFor(background))
+}
+
+func composeTags(lora string, parts []string, background, quality string) string {
 	all := make([]string, 0, len(parts)+2)
 	all = append(all, parts...)
 	all = append(all, background, quality)
@@ -94,13 +97,20 @@ func Labeled(label, v string) string {
 }
 
 func Subject(lead, appearance, action string) string {
+	return subjectAs("photograph", lead, appearance, action)
+}
+
+func subjectAs(kind, lead, appearance, action string) string {
 	appearance = strings.TrimSpace(appearance)
 	if appearance == "" {
 		appearance = "a person"
 	}
-	out := "a photograph of " + appearance
+	out := "a " + kind + " of " + appearance
+	if kind == "image" {
+		out = "an image of " + appearance
+	}
 	if lead = strings.TrimSpace(lead); lead != "" {
-		out = "a " + lead + " photograph of " + appearance
+		out = "a " + lead + " " + kind + " of " + appearance
 	}
 	if action = strings.TrimSpace(action); action != "" {
 		out += ", " + action
@@ -109,10 +119,14 @@ func Subject(lead, appearance, action string) string {
 }
 
 func ComposeProse(lora, subject string, details []string, background string) string {
+	return composeProse(lora, subject, details, background, strings.TrimPrefix(qualityFor(background), "BREAK, "))
+}
+
+func composeProse(lora, subject string, details []string, background, quality string) string {
 	all := make([]string, 0, len(details)+3)
 	all = append(all, subject)
 	all = append(all, details...)
-	all = append(all, Labeled("Background", background), strings.TrimPrefix(qualityFor(background), "BREAK, "))
+	all = append(all, Labeled("Background", background), quality)
 	clean := make([]string, 0, len(all))
 	for _, v := range all {
 		if v = sentence(v); v != "" {

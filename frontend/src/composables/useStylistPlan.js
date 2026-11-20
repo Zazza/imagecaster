@@ -9,6 +9,7 @@ export const FRAMES_MAX = 24
 export const FRAMES_PER_SERIES = 4
 export const PRESET_NAME_MAX = 60
 export const PLACE_ANY = 'any'
+export const PRESET_TEXT_MAX = 1000
 
 export function defaultAspects() {
   return Object.fromEntries(ASPECTS.map(a => [a, { mode: 'auto', ids: [], text: '' }]))
@@ -51,6 +52,30 @@ export function buildPlanRequest(form, seed = randomSeed()) {
 
 const CYRILLIC = /[А-Яа-яЁё]/
 
+let garmentEn = { from: '', en: '' }
+
+export function rememberGarmentEnglish(shown, en) {
+  garmentEn = { from: shown, en }
+}
+
+export async function garmentOutfitEnglish(text) {
+  const v = (text || '').trim()
+  if (!v || !CYRILLIC.test(v)) return v
+  if (garmentEn.from === v && garmentEn.en) return garmentEn.en
+  const [en] = (await api.stylistTranslate([v])) || []
+  if (!en || !en.trim()) throw new Error(t('stylist.translate_count', { got: 0, want: 1 }))
+  garmentEn = { from: v, en: en.trim() }
+  return garmentEn.en
+}
+
+export async function garmentOutfitShown(en) {
+  if (locale.value !== 'ru' || !en) return en
+  const [ru] = (await api.stylistTranslateRu([en])) || []
+  if (!ru || !ru.trim()) return en
+  rememberGarmentEnglish(ru.trim(), en)
+  return ru.trim()
+}
+
 export async function translateCustom(req) {
   if (locale.value !== 'ru') return req
   const keys = Object.keys(req.aspects).filter(a => req.aspects[a].mode === 'custom' && CYRILLIC.test(req.aspects[a].text || ''))
@@ -75,7 +100,7 @@ async function withTranslatedCustom(req) {
 
 export function regenerateRequest(form, series, index, seed = randomSeed()) {
   const shots = Math.max(1, Math.min(series?.[index]?.shots?.length || FRAMES_PER_SERIES, FRAMES_PER_SERIES))
-  return { ...buildPlanRequest(form, seed), frames: Math.min(index * FRAMES_PER_SERIES + shots, FRAMES_MAX) }
+  return { ...buildPlanRequest(form, seed), shots }
 }
 
 export function removeSeries(series, index) {
@@ -190,6 +215,12 @@ export function presetFromShot(series, j, ru) {
   }
 }
 
+export function presetFromText(aspect, text) {
+  const v = String(text || '').trim()
+  const ru = CYRILLIC.test(v)
+  return { aspect, prompt: v, prompt_ru: ru ? v : '', dirty: ru, place: '', framing: 'full', places: [PLACE_ANY], orientation: 'portrait' }
+}
+
 export function dropChoiceId(aspects, id) {
   return Object.fromEntries(Object.entries(aspects).map(([a, c]) => [a, { ...c, ids: (c.ids || []).filter(x => x !== id) }]))
 }
@@ -225,6 +256,10 @@ const form = reactive({
   garmentOutfit: '',
   seed: '',
   target: '',
+  targetKind: 'base',
+  presetGroup: null,
+  faceSwap: true,
+  overrides: null,
 })
 const series = ref([])
 const warnings = ref([])
@@ -244,7 +279,7 @@ let framesSeq = 0
 export function resetStylistPlan() {
   Object.assign(form, {
     person: '', gender: '', appearance: '', wish: '', frames: 8, themes: [],
-    aspects: defaultAspects(), garment: '', garmentOutfit: '', seed: '', target: '',
+    aspects: defaultAspects(), garment: '', garmentOutfit: '', seed: '', target: '', targetKind: 'base', presetGroup: null, faceSwap: true, overrides: null,
   })
   series.value = []
   warnings.value = []
@@ -259,6 +294,12 @@ export function resetStylistPlan() {
   frames.value = []
   view.value = 'plan'
   framesSeq++
+  restored = false
+  planRestored = false
+  lastSavedGarment = ''
+  garmentEn = { from: '', en: '' }
+  clearTimeout(planTimer)
+  planTimer = null
 }
 
 export async function refreshFrames() {
@@ -267,9 +308,97 @@ export async function refreshFrames() {
   const seq = ++framesSeq
   try {
     const list = await api.stylistFrames(ids)
-    if (seq === framesSeq) frames.value = framesFrom(list, ids)
+    if (seq !== framesSeq) return
+    const all = framesFrom(list, ids)
+    const deleted = new Set(all.filter(f => f.status === 'deleted').map(f => f.jobId))
+    frames.value = all.filter(f => !deleted.has(f.jobId))
+    if (deleted.size) jobIds.value = jobIds.value.filter(id => !deleted.has(id))
   } catch (e) {
     console.warn('stylistFrames:', e)
+  }
+}
+
+let restored = false
+let planRestored = false
+let planTimer = null
+let lastSavedGarment = ''
+const PLAN_VERSION = 1
+const PLAN_FORM_KEYS = ['person', 'gender', 'appearance', 'wish', 'frames', 'themes', 'aspects', 'garmentOutfit', 'seed', 'target', 'targetKind', 'presetGroup', 'faceSwap']
+
+export function planSnapshot() {
+  const f = {}
+  for (const k of PLAN_FORM_KEYS) f[k] = form[k]
+  return JSON.stringify({ v: PLAN_VERSION, form: f, series: series.value })
+}
+
+export function applyPlanSnapshot(raw) {
+  let data
+  try {
+    data = JSON.parse(raw)
+  } catch (e) {
+    console.warn('stylist plan:', e)
+    return false
+  }
+  if (!data || data.v !== PLAN_VERSION || typeof data.form !== 'object') return false
+  for (const k of PLAN_FORM_KEYS) {
+    if (k in data.form) form[k] = data.form[k]
+  }
+  form.aspects = { ...defaultAspects(), ...(data.form.aspects || {}) }
+  series.value = Array.isArray(data.series) ? data.series : []
+  return true
+}
+
+export async function restorePlan() {
+  if (planRestored) return
+  try {
+    const [raw, garment] = await Promise.all([api.stylistLoadPlan(), api.stylistLoadGarment()])
+    if (planRestored) return
+    planRestored = true
+    if (raw && !series.value.length && applyPlanSnapshot(raw) && garment && !form.garment) {
+      form.garment = garment
+      lastSavedGarment = garment
+    }
+  } catch (e) {
+    console.warn('stylistLoadPlan:', e)
+  }
+}
+
+export function savePlanSoon(delay = 800) {
+  if (!planRestored) return
+  clearTimeout(planTimer)
+  planTimer = setTimeout(() => {
+    planTimer = null
+    api.stylistSavePlan(planSnapshot()).catch(e => { error.value = t('stylist.plan_save_failed', { error: errText(e) }) })
+    if (form.garment !== lastSavedGarment) {
+      const g = form.garment
+      api.stylistSaveGarment(g).then(() => { lastSavedGarment = g }).catch(e => { error.value = t('stylist.plan_save_failed', { error: errText(e) }) })
+    }
+  }, delay)
+}
+
+export async function reshootFrame(jobId) {
+  const newId = await api.stylistReshoot(jobId)
+  if (!newId) return 0
+  framesSeq++
+  jobIds.value = jobIds.value.map(id => (id === jobId ? newId : id))
+  frames.value = frames.value.map(f => (f.jobId === jobId ? { jobId: newId, status: 'pending', itemId: 0, error: '', shot: f.shot, garment: '' } : f))
+  refreshFrames()
+  return newId
+}
+
+export async function restoreLastShoot() {
+  if (restored || jobIds.value.length) return
+  try {
+    const ids = (await api.stylistLastShoot()) || []
+    if (restored || jobIds.value.length) return
+    restored = true
+    if (!ids.length) return
+    jobIds.value = [...ids]
+    frames.value = ids.map(id => ({ jobId: id, status: 'pending', itemId: 0, error: '', shot: '' }))
+    if (!series.value.length) view.value = 'frames'
+    await refreshFrames()
+  } catch (e) {
+    console.warn('stylistLastShoot:', e)
   }
 }
 
@@ -309,7 +438,8 @@ export function useStylistPlan() {
     try {
       const req = await withTranslatedCustom(regenerateRequest(form, series.value, index))
       if (!req) return
-      const res = await api.stylistRegenerateSeries(req, index)
+      const slot = series.value[index]?.slot
+      const res = await api.stylistRegenerateSeries(req, Number.isInteger(slot) ? slot : index)
       if (res?.series) {
         series.value = replaceSeries(series.value, index, res.series)
         planEpoch.value++
@@ -368,21 +498,38 @@ export function useStylistPlan() {
     notice.value = ''
     try {
       if (!(await translateDirty())) return []
+      let outfitEn = ''
+      if (form.garment) {
+        translating.value = true
+        try {
+          outfitEn = await garmentOutfitEnglish(form.garmentOutfit)
+        } catch (e) {
+          error.value = t('stylist.garment_translate_failed', { error: errText(e) })
+          return []
+        } finally {
+          translating.value = false
+        }
+      }
       const seed = parseSeedInput(form.seed)
       const req = {
         person: lora || form.person,
         appearance: form.appearance,
         garment: form.garment,
-        garment_outfit: form.garment ? form.garmentOutfit : '',
+        garment_outfit: outfitEn,
         series: series.value,
         face_swap: !!canFaceSwap,
       }
       if (form.target.startsWith('pipe:')) req.pipeline = Number(form.target.slice(5))
+      else if (form.target.startsWith('preset:')) req.preset = Number(form.target.slice(7))
       else if (form.target.startsWith('base:')) req.base = form.target.slice(5)
+      if (form.overrides && !form.target.startsWith('pipe:')) req.overrides = form.overrides
       if (seed != null) req.seed = seed
       const ids = (await api.stylistShoot(req)) || []
-      jobIds.value = [...jobIds.value, ...ids]
-      frames.value = [...frames.value, ...ids.map(id => ({ jobId: id, status: 'pending', itemId: 0, error: '', shot: '' }))]
+      if (ids.length) {
+        framesSeq++
+        jobIds.value = [...ids]
+        frames.value = ids.map(id => ({ jobId: id, status: 'pending', itemId: 0, error: '', shot: '' }))
+      }
       if (ids.length) view.value = 'frames'
       refreshFrames()
       return ids

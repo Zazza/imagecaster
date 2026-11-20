@@ -54,6 +54,29 @@ describe('footer events', () => {
     expect(other).toHaveBeenCalledTimes(1)
   })
 
+  it('result saved into another folder does not reload or unmark the open folder', async () => {
+    GetSessionItems.mockImplementation(() => Promise.resolve([{ id: 5, source: 'generate', created_at: '2026-01-01 10:20:00', is_active: true }]))
+    const w = await mountFooter()
+    await openHistory(w)
+    GetSessionItems.mockClear()
+    ListSessions.mockClear()
+    EventsEmit('session:added', { id: 9, session_id: 2 })
+    EventsEmit('session:active', { id: 9 })
+    await settle()
+    expect(ListSessions).toHaveBeenCalled()
+    expect(GetSessionItems).not.toHaveBeenCalled()
+    expect(w.find('.si-card[data-item-id="5"]').classes()).toContain('si-active')
+  })
+
+  it('result saved into the open folder reloads it', async () => {
+    const w = await mountFooter()
+    await openHistory(w)
+    GetSessionItems.mockClear()
+    EventsEmit('session:added', { id: 9, session_id: 1 })
+    await settle()
+    expect(GetSessionItems).toHaveBeenCalled()
+  })
+
   it('queue counter comes from the active-count binding, not the full queue', async () => {
     const w = await mountFooter()
     expect(tabButton(w, 'footer.processing').text()).toContain('(3)')

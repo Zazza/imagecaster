@@ -35,6 +35,7 @@ const (
 	warnNoMale         = "%s: для мужчины подходящих заготовок нет — взята женская"
 	warnMaleOtherTheme = "%s: в выбранных темах нет заготовок для мужчины — взята мужская из другой темы"
 	warnPickFemale     = "%s: выбраны женские заготовки, а человек мужского пола — так и задумано?"
+	warnPickOverflow   = "%s: выбрано %d, а кадров %d — в план попали первые %d, добавьте кадров"
 )
 
 var aspectNames = map[Aspect]string{
@@ -62,6 +63,7 @@ type PlanRequest struct {
 	Garment bool                    `json:"garment"`
 	Seed    int64                   `json:"seed"`
 	Locale  string                  `json:"locale,omitempty"`
+	Shots   int                     `json:"shots,omitempty"`
 }
 
 type Shot struct {
@@ -84,6 +86,7 @@ type Series struct {
 	BackgroundRu string   `json:"background_ru,omitempty"`
 	RuAI         []string `json:"ru_ai,omitempty"`
 	Shots        []Shot   `json:"shots"`
+	Slot         int      `json:"slot"`
 }
 
 func (r PlanRequest) Choice(a Aspect) AspectChoice {
@@ -116,6 +119,53 @@ func SeriesSizes(frames int) []int {
 		frames -= n
 	}
 	return out
+}
+
+var seriesAspects = []Aspect{AspectOutfit, AspectHair, AspectMakeup, AspectBackground}
+
+func (r PlanRequest) pickCounts(base *Base) map[Aspect]int {
+	out := map[Aspect]int{}
+	if base == nil {
+		return out
+	}
+	for _, a := range seriesAspects {
+		c := r.Choice(a)
+		if c.Mode != ModePick || (a == AspectOutfit && r.Garment) {
+			continue
+		}
+		for _, id := range c.IDs {
+			if _, ok := base.Find(a, id); ok {
+				out[a]++
+			}
+		}
+	}
+	return out
+}
+
+func PlanSizes(req PlanRequest, base *Base) ([]int, []string) {
+	sizes := SeriesSizes(req.Frames)
+	most := 0
+	var warnings []string
+	counts := req.pickCounts(base)
+	for _, a := range seriesAspects {
+		n := counts[a]
+		most = max(most, n)
+		if n > req.Frames {
+			warnings = append(warnings, fmt.Sprintf(warnPickOverflow, aspectNames[a], n, req.Frames, req.Frames))
+		}
+	}
+	count := min(most, req.Frames)
+	if count <= len(sizes) {
+		return sizes, warnings
+	}
+	sizes = make([]int, count)
+	for i := range sizes {
+		sizes[i] = req.Frames / count
+		if i < req.Frames%count {
+			sizes[i]++
+		}
+	}
+	return sizes, warnings
 }
 
 func (r PlanRequest) man() bool {
@@ -165,7 +215,8 @@ func Plan(req PlanRequest, base *Base, ideas []Idea) ([]Series, []string, error)
 	if ideas == nil && len(req.AutoAspects()) > 0 {
 		warnings = append(warnings, warnNoIdeas)
 	}
-	sizes := SeriesSizes(req.Frames)
+	sizes, w := PlanSizes(req, base)
+	warnings = append(warnings, w...)
 	out := make([]Series, 0, len(sizes))
 	frame := 0
 	for i, n := range sizes {
@@ -187,20 +238,32 @@ func RegenerateSeries(req PlanRequest, base *Base, idea *Idea, index int) (Serie
 	if err := CheckCustom(req); err != nil {
 		return Series{}, nil, err
 	}
-	sizes := SeriesSizes(req.Frames)
-	if index < 0 || index >= len(sizes) {
+	sizes, _ := PlanSizes(req, base)
+	n := req.Shots
+	if n <= 0 {
+		if index < 0 || index >= len(sizes) {
+			return Series{}, nil, fmt.Errorf("серии %d нет", index+1)
+		}
+		n = sizes[index]
+	}
+	if index < 0 {
 		return Series{}, nil, fmt.Errorf("серии %d нет", index+1)
 	}
+	n = min(n, FramesPerSeries)
 	frame := 0
-	for _, n := range sizes[:index] {
-		frame += n
+	for i := range index {
+		if i < len(sizes) {
+			frame += sizes[i]
+		} else {
+			frame += n
+		}
 	}
 	var warnings []string
 	if idea == nil && len(req.AutoAspects()) > 0 {
 		warnings = append(warnings, warnNoIdeas)
 	}
 	rnd := rand.New(rand.NewSource(req.Seed))
-	s, w := buildSeries(req, base, idea, index, sizes[index], frame, rnd)
+	s, w := buildSeries(req, base, idea, index, n, frame, rnd)
 	return s, appendUnique(warnings, w...), nil
 }
 
@@ -239,13 +302,34 @@ var framingProse = map[string]string{
 }
 
 func FramePrompt(base, lora, appearance string, s Series, sh Shot) string {
+	return framePrompt(base, lora, appearance, s, sh, false)
+}
+
+func StyledFramePrompt(base, lora, appearance string, s Series, sh Shot) string {
+	return framePrompt(base, lora, appearance, s, sh, true)
+}
+
+var framingStyled = map[string]string{
+	"close": "close-up, head and shoulders",
+	"waist": "waist-up, upper body",
+	"knee":  "knee-up",
+	"full":  "full body",
+}
+
+func framePrompt(base, lora, appearance string, s Series, sh Shot, styled bool) string {
 	outfit := s.Outfit
 	if sh.Framing == "close" || sh.Framing == "waist" {
 		outfit = upperOutfit(outfit)
 	}
+	details := []string{Wearing(outfit), Labeled("Hair", s.Hair), Labeled("Makeup", s.Makeup)}
+	if styled {
+		if Prose(base) {
+			return composeProse(lora, subjectAs("image", framingProse[sh.Framing], appearance, sh.Prompt), details, s.Background, "")
+		}
+		return composeTags(lora, []string{framingStyled[sh.Framing], sh.Prompt, appearance, outfit, s.Hair, s.Makeup}, s.Background, "")
+	}
 	if Prose(base) {
-		return ComposeProse(lora, Subject(framingProse[sh.Framing], appearance, sh.Prompt),
-			[]string{Wearing(outfit), Labeled("Hair", s.Hair), Labeled("Makeup", s.Makeup)}, s.Background)
+		return ComposeProse(lora, Subject(framingProse[sh.Framing], appearance, sh.Prompt), details, s.Background)
 	}
 	return ComposePrompt(lora, []string{framingLead[sh.Framing], sh.Prompt, appearance, outfit, s.Hair, s.Makeup}, s.Background)
 }
@@ -315,6 +399,7 @@ func buildSeries(req PlanRequest, base *Base, idea *Idea, index, shots, frame in
 	hair := field(AspectHair, id.Hair, id.HairRu)
 	makeup := field(AspectMakeup, id.Makeup, id.MakeupRu)
 	s := Series{
+		Slot:   index,
 		Outfit: outfit.Prompt, OutfitRu: ruText(outfit.PromptRu, outfit.Name),
 		Hair: hair.Prompt, HairRu: ruText(hair.PromptRu, hair.Name),
 		Makeup: makeup.Prompt, MakeupRu: ruText(makeup.PromptRu, makeup.Name),

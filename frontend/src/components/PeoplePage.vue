@@ -3,9 +3,17 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { loadPeople, people } from '../peopleStore.js'
-import { trainBaseLabel } from '../people.js'
+import { trainBaseLabel, failedTrainings, personKey } from '../people.js'
+import PhotoSetCard from './people/PhotoSetCard.vue'
 
 const status = ref('')
+const sets = ref([])
+const source = ref('folder')
+const setKey = ref('')
+const MIN_SET = 10
+const chosenSet = computed(() => sets.value.find(x => x.key === setKey.value) || null)
+const foldKey = (k) => String(k || '').trim().replace(/\s+/g, ' ').toLowerCase()
+const lorasFor = (key) => people.value.filter(p => foldKey(personKey(p)) === foldKey(key))
 const available = computed(() => status.value === 'ok')
 const jobs = ref([])
 const folder = ref('')
@@ -34,9 +42,9 @@ const ACTIVE = ['queued', 'running']
 const SHOWN = [...ACTIVE, 'paused']
 const activeJobs = computed(() => jobs.value.filter(j => ACTIVE.includes(j.status)))
 const shownJobs = computed(() => jobs.value.filter(j => SHOWN.includes(j.status)))
-const finishedJobs = computed(() => jobs.value.filter(j => !SHOWN.includes(j.status)).slice(-5).reverse())
+const finishedJobs = computed(() => failedTrainings(jobs.value))
 const NAME_RE = /^[A-Za-z0-9_ -]{2,32}$/
-const canTrain = computed(() => available.value && folder.value && NAME_RE.test(name.value.trim()) && !!base.value && !busy.value)
+const canTrain = computed(() => available.value && (source.value === 'set' ? (chosenSet.value?.count || 0) >= MIN_SET : !!folder.value) && NAME_RE.test(name.value.trim()) && !!base.value && !busy.value)
 const SERVER_CODES = ['name_taken', 'display_taken', 'invalid_request', 'not_found', 'not_running', 'not_paused', 'busy']
 
 function errorText(e) {
@@ -91,7 +99,28 @@ async function init() {
   }
   await loadBases()
   await loadPeople()
+  await loadSets()
   await refresh()
+}
+
+async function loadSets() {
+  try {
+    sets.value = (await api.personSetSummary()) || []
+  } catch (e) {
+    error.value = errorText(e)
+  }
+  if (sets.value.length && !sets.value.some(x => x.key === setKey.value)) setKey.value = sets.value[0].key
+  if (!sets.value.length) source.value = 'folder'
+}
+
+function trainFromSet(key) {
+  source.value = 'set'
+  setKey.value = key
+  document.querySelector('[data-testid="people-train-card"]')?.scrollIntoView?.({ behavior: 'smooth' })
+}
+
+function onSetError(e) {
+  error.value = errorText(e)
 }
 
 async function addIdentity(p) {
@@ -140,13 +169,17 @@ async function train() {
   error.value = ''
   holdIgnored.value = false
   try {
-    const args = [folder.value, name.value.trim(), displayName.value.trim(), gender.value, base.value, hold.value]
+    const fromSet = source.value === 'set'
+    const display = fromSet ? setKey.value : displayName.value.trim()
+    const call = fromSet
+      ? (replace) => api.trainPersonFromSet(setKey.value, name.value.trim(), gender.value, base.value, hold.value, replace)
+      : (replace) => api.trainPerson(folder.value, name.value.trim(), display, gender.value, base.value, hold.value, ...(replace ? [true] : []))
     let job
     try {
-      job = await api.trainPerson(...args)
+      job = await call(false)
     } catch (e) {
-      if (!args[2] || !/\(display_taken\)\s*$/.test(String(e)) || !window.confirm(t('people.display_replace_confirm', { name: args[2] }))) throw e
-      job = await api.trainPerson(...args, true)
+      if (!display || !/\(display_taken\)\s*$/.test(String(e)) || !window.confirm(t('people.display_replace_confirm', { name: display }))) throw e
+      job = await call(true)
     }
     holdIgnored.value = hold.value && job?.status !== 'paused'
     folder.value = ''
@@ -259,18 +292,43 @@ onUnmounted(() => {
     <div v-if="holdIgnored" class="card people-note" data-testid="people-hold-ignored">{{ t('people.hold_ignored') }}</div>
 
     <div class="card">
+      <div class="card-title">{{ t('people.sets_title') }}</div>
+      <p class="text-dim people-hint">{{ t('people.sets_hint') }}</p>
+      <div v-if="!sets.length" class="text-dim" data-testid="sets-empty">{{ t('people.sets_empty') }}</div>
+      <PhotoSetCard
+        v-for="s in sets" :key="s.key" :set="s" :loras="lorasFor(s.key)" :can-face="faceReady" :available="available"
+        @train="trainFromSet" @changed="loadSets(); loadPeople()" @error="onSetError"
+      />
+    </div>
+
+    <div class="card" data-testid="people-train-card">
       <div class="card-title">{{ t('people.train_title') }}</div>
-      <p class="text-dim people-hint">{{ t('people.train_hint') }}</p>
+      <p class="text-dim people-hint">{{ source === 'set' ? t('people.train_hint_set') : t('people.train_hint') }}</p>
       <div class="people-form">
-        <label class="form-label">{{ t('people.folder') }}</label>
-        <div class="people-row">
-          <input class="form-input" type="text" :value="folder" readonly :placeholder="t('people.folder_none')" data-testid="people-folder" />
-          <button class="btn btn-secondary" :disabled="!available || busy" @click="pickFolder">{{ t('people.folder_pick') }}</button>
+        <div v-if="sets.length" class="people-source">
+          <button class="btn btn-sm" :class="source === 'set' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="source === 'set'" data-testid="people-source-set" @click="source = 'set'">{{ t('people.source_set') }}</button>
+          <button class="btn btn-sm" :class="source === 'folder' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="source === 'folder'" data-testid="people-source-folder" @click="source = 'folder'">{{ t('people.source_folder') }}</button>
         </div>
+        <template v-if="source === 'set'">
+          <label class="form-label">{{ t('people.display') }}</label>
+          <select class="form-select" v-model="setKey" data-testid="people-set-key">
+            <option v-for="s in sets" :key="s.key" :value="s.key">{{ t('people.set_option', { key: s.key, n: s.count }) }}</option>
+          </select>
+          <div v-if="chosenSet && chosenSet.count < MIN_SET" class="form-hint" data-testid="people-set-short">{{ t('people.set_missing', { n: MIN_SET - chosenSet.count }) }}</div>
+        </template>
+        <template v-else>
+          <label class="form-label">{{ t('people.folder') }}</label>
+          <div class="people-row">
+            <input class="form-input" type="text" :value="folder" readonly :placeholder="t('people.folder_none')" data-testid="people-folder" />
+            <button class="btn btn-secondary" :disabled="!available || busy" @click="pickFolder">{{ t('people.folder_pick') }}</button>
+          </div>
+        </template>
         <label class="form-label">{{ t('people.name') }}</label>
         <input class="form-input" type="text" v-model="name" maxlength="32" :placeholder="t('people.name_hint')" data-testid="people-name" />
-        <label class="form-label">{{ t('people.display') }}</label>
-        <input class="form-input" type="text" v-model="displayName" maxlength="40" list="people-known-names" :placeholder="t('people.display_hint')" data-testid="people-display" />
+        <template v-if="source !== 'set'">
+          <label class="form-label">{{ t('people.display') }}</label>
+          <input class="form-input" type="text" v-model="displayName" maxlength="40" list="people-known-names" :placeholder="t('people.display_hint')" data-testid="people-display" />
+        </template>
         <datalist id="people-known-names"><option v-for="n in knownNames" :key="n" :value="n" /></datalist>
         <label class="form-label">{{ t('people.gender') }}</label>
         <select class="form-select" v-model="gender" data-testid="people-gender">
@@ -357,6 +415,7 @@ onUnmounted(() => {
 .people-item { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .people-hint { margin: 4px 0 8px; font-size: 12px; }
 .people-check { display: flex; align-items: center; gap: 8px; }
+.people-source { display: flex; gap: 6px; }
 .people-error { color: var(--danger, #e5484d); }
 .people-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--border); color: var(--text-dim, inherit); }
 .people-badge-on { border-color: var(--accent); color: var(--accent); }

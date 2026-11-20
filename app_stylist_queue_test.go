@@ -19,7 +19,7 @@ func TestQueueHandlersRefuseNonLocalSD(t *testing.T) {
 		handler func(cfg *config.Config) queue.Handler
 		notLoc  error
 	}{
-		{name: "stylist frame", handler: func(cfg *config.Config) queue.Handler { return stylistFrameHandler(nil, cfg) }, notLoc: errStylistFrameNotLocal},
+		{name: "stylist frame", handler: func(cfg *config.Config) queue.Handler { return stylistFrameHandler(nil, cfg, nil) }, notLoc: errStylistFrameNotLocal},
 		{name: "retouch", handler: func(cfg *config.Config) queue.Handler { return retouchHandler(nil, cfg) }, notLoc: errRetouchNotLocal},
 	}
 	for _, tt := range tests {

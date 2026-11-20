@@ -8,7 +8,7 @@ import FoldBlock from '../components/FoldBlock.vue'
 import { api } from '../api.js'
 import {
   GetSettings, UpdateSettings, GetDefaultPromptInstruction, GetDefaultPromptInstructionProse,
-  GetDefaultAnalyzePrompts, GetDefaultEditGarmentPrompt, GetActiveSessionItem, UpscaleImage,
+  GetDefaultAnalyzePrompts, GetDefaultEditGarmentPrompt, GetActiveSessionItem, UpscaleImage, UpscaleSessionItem,
 } from '../wailsjs/go/main/App.js'
 import { t, setLocale, ru } from '../i18n/index.js'
 import { settle } from './helpers/async.js'
@@ -396,6 +396,17 @@ describe('generate page without preview mode', () => {
     await x2(w).trigger('click')
     await settle()
     expect(UpscaleImage).toHaveBeenCalledTimes(1)
+  })
+
+  it('restored history item without info: «Апскейл x2» upscales by the history record', async () => {
+    GetActiveSessionItem.mockImplementation(() => Promise.resolve({ id: 77, is_active: true, source: 'generate', created_at: '2025-01-01T00:00:00Z', width: 832, height: 1216 }))
+    UpscaleSessionItem.mockImplementation(() => Promise.resolve({ image: 'BIG', session_item_id: 78, info: '{"width":1664}' }))
+    const w = mount(GeneratePage)
+    await settle()
+    await x2(w).trigger('click')
+    await settle()
+    expect(UpscaleSessionItem).toHaveBeenCalledWith(77, 0)
+    expect(UpscaleImage).not.toHaveBeenCalled()
   })
 
   it('no image shown: no preview buttons either', async () => {

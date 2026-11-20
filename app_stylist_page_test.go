@@ -101,6 +101,7 @@ func TestStylistShoot_EnqueuesFrames(t *testing.T) {
 		assert.Equal(t, stylist.Models["Z-Image"].Model, j.params.Model)
 		assert.Equal(t, i+1, j.params.Index)
 		assert.Equal(t, 3, j.params.Total)
+		assert.True(t, j.params.ToFolder, "page frames go to the folder open at enqueue")
 		assert.True(t, j.params.FaceSwap)
 		assert.False(t, j.params.FacePass)
 		require.NotNil(t, j.params.Seed)

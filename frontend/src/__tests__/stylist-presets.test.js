@@ -196,9 +196,10 @@ describe('AspectTab «Мои»', () => {
     expect(w.find(tid('pick-o1')).exists()).toBe(true)
   })
 
-  it('no user presets → no «Мои» group; built-ins have no rename/delete', () => {
+  it('no user presets → «Мои» shown with a hint; built-ins have no rename/delete', () => {
     const w = mountTab({ mode: 'pick', ids: [] }, BASE().outfit)
-    expect(w.find(tid('user-group')).exists()).toBe(false)
+    expect(w.find(tid('user-group')).exists()).toBe(true)
+    expect(w.find(tid('user-empty')).text()).toBe(t('stylist.user_empty'))
     expect(w.find(tid('user-rename-o1')).exists()).toBe(false)
     expect(w.find(tid('user-delete-o1')).exists()).toBe(false)
   })

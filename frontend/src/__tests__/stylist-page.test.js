@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks, EventsEmit } from './mocks/runtime'
 import {
-  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistShoot, StylistAppearance, StylistPickGarment, StylistDescribeGarment,
-  ListPeople, FaceSwapStatus, GetQueue, GetSessionThumb, GetSessionImage, SetStylistAppearance, StylistFrames, CancelQueueJob, StylistTranslate,
+  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistShoot, StylistAppearance, StylistPickGarment, StylistDescribeGarment, ReadClipboardImage,
+  ListPeople, FaceSwapStatus, GetQueue, GetSessionThumb, GetSessionImage, SetStylistAppearance, StylistFrames, CancelQueueJob, StylistTranslate, StylistTranslateRu,
 } from '../wailsjs/go/main/App.js'
 import { setLocale, t } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
@@ -11,7 +11,7 @@ import StylistPage from '../components/StylistPage.vue'
 import AspectTab from '../components/stylist/AspectTab.vue'
 import {
   buildPlanRequest, defaultAspects, removeShot, removeSeries, regenerateRequest, stylistPeople, clampFrames,
-  framesFrom, latestDone, totalShots, resetStylistPlan, setRuField, setEnField, setShotRu, setShotEn, dirtyRefs, applyTranslations,
+  framesFrom, latestDone, totalShots, resetStylistPlan, setRuField, setEnField, setShotRu, setShotEn, dirtyRefs, applyTranslations, planSnapshot,
 } from '../composables/useStylistPlan.js'
 
 enableAutoUnmount(afterEach)
@@ -46,6 +46,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  StylistTranslateRu.mockImplementation((texts) => Promise.resolve(texts))
   StylistPresets.mockImplementation(() => Promise.resolve(structuredClone(BASE)))
   ListPeople.mockImplementation(() => Promise.resolve([{ ...ANNA }, { ...BOB }, { name: 'old', base: 'SD1.5', lora: 'x' }, { name: 'nolora', base: 'SDXL', lora: '' }]))
   FaceSwapStatus.mockImplementation(() => Promise.resolve('ok'))
@@ -91,7 +92,8 @@ describe('useStylistPlan helpers', () => {
 
   it('regenerate request keeps the series shot count', () => {
     const req = regenerateRequest({ aspects: defaultAspects(), frames: 8 }, SERIES(), 1, 5)
-    expect(req.frames).toBe(5)
+    expect(req.frames).toBe(8)
+    expect(req.shots).toBe(1)
     expect(req.seed).toBe(5)
   })
 
@@ -144,16 +146,158 @@ describe('StylistPage', () => {
     return w
   }
 
-  it('lists only supported people; face swap is automatic by identity, no checkboxes', async () => {
+  it('lists only supported people; face swap is on by default for a person with a face', async () => {
     const w = await mountPage()
     const opts = w.findAll(`${tid('stylist-person')} option`).map(o => o.element.value)
     expect(opts).toEqual(['anna', 'bob'])
     expect(w.find(tid('stylist-face-swap')).text()).toBe(t('stylist.face_swap_on'))
-    expect(w.find('input[type=checkbox]').exists()).toBe(false)
+    expect(w.find(tid('stylist-face-swap-toggle')).element.checked).toBe(true)
     expect(w.find(tid('stylist-face-pass')).exists()).toBe(false)
     await w.find(tid('stylist-person')).setValue('bob')
     await settle()
     expect(w.find(tid('stylist-face-swap')).text()).toBe(t('stylist.face_swap_no_face'))
+    expect(w.find(tid('stylist-face-swap-toggle')).exists()).toBe(false)
+  })
+
+  it('face swap can be turned off: the shoot goes without it, the note says so, the choice is kept in the plan', async () => {
+    const w = await mountPage()
+    await w.find(tid('stylist-face-swap-toggle')).setValue(false)
+    await settle()
+    expect(w.find(tid('stylist-face-swap')).text()).toBe(t('stylist.face_swap_off'))
+    expect(JSON.parse(planSnapshot()).form.faceSwap).toBe(false)
+    await w.find(tid('stylist-plan')).trigger('click')
+    await settle()
+    await w.find(tid('stylist-shoot')).trigger('click')
+    await settle()
+    expect(StylistShoot.mock.calls[0][0].face_swap).toBe(false)
+  })
+
+  it('garment comes from the paste button and is described', async () => {
+    ReadClipboardImage.mockImplementation(() => Promise.resolve('UEFTVEVE'))
+    StylistDescribeGarment.mockImplementation(() => Promise.resolve('a red dress'))
+    const w = await mountPage()
+    await w.find(tid('stylist-garment-paste')).trigger('click')
+    await settle()
+    expect(StylistPickGarment).not.toHaveBeenCalled()
+    expect(StylistDescribeGarment).toHaveBeenCalledWith('UEFTVEVE')
+    expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('a red dress')
+  })
+
+  describe('«Что на фото» in Russian', () => {
+    async function withGarment(w) {
+      await w.find(tid('stylist-garment-paste')).trigger('click')
+      await settle()
+    }
+    async function shootNow(w) {
+      await w.find(tid('stylist-plan')).trigger('click')
+      await settle()
+      await w.find(tid('stylist-shoot')).trigger('click')
+      await settle()
+    }
+    beforeEach(() => {
+      ReadClipboardImage.mockImplementation(() => Promise.resolve('UEFTVEVE'))
+      StylistDescribeGarment.mockImplementation(() => Promise.resolve('a blazer and a blouse'))
+      StylistTranslateRu.mockImplementation(() => Promise.resolve(['пиджак и блузка']))
+      StylistTranslate.mockImplementation(() => Promise.resolve(['an unbuttoned blazer and a blouse']))
+    })
+
+    it('names are shown in Russian; untouched they go to the shoot in the original English', async () => {
+      const w = await mountPage()
+      await withGarment(w)
+      expect(StylistTranslateRu).toHaveBeenCalledWith(['a blazer and a blouse'])
+      expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('пиджак и блузка')
+      await shootNow(w)
+      expect(StylistTranslate).not.toHaveBeenCalled()
+      expect(StylistShoot.mock.calls[0][0].garment_outfit).toBe('a blazer and a blouse')
+    })
+
+    it('a Russian edit is translated to English before the shoot', async () => {
+      const w = await mountPage()
+      await withGarment(w)
+      await w.find(tid('stylist-garment-outfit')).setValue('пиджак расстёгнут и блузка')
+      await shootNow(w)
+      expect(StylistTranslate).toHaveBeenCalledWith(['пиджак расстёгнут и блузка'])
+      expect(StylistShoot.mock.calls[0][0].garment_outfit).toBe('an unbuttoned blazer and a blouse')
+    })
+
+    it('translation failure before the shoot stops it, no Cyrillic goes out', async () => {
+      StylistTranslate.mockImplementation(() => Promise.reject(new Error('LLM busy')))
+      const w = await mountPage()
+      await withGarment(w)
+      await w.find(tid('stylist-garment-outfit')).setValue('пиджак расстёгнут')
+      await shootNow(w)
+      expect(StylistShoot).not.toHaveBeenCalled()
+      expect(w.text()).toContain('LLM busy')
+    })
+
+    it('no Russian translation: English names stay with a note', async () => {
+      StylistTranslateRu.mockImplementation(() => Promise.reject(new Error('LLM off')))
+      const w = await mountPage()
+      await withGarment(w)
+      expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('a blazer and a blouse')
+      expect(w.text()).toContain('LLM off')
+    })
+
+    it('English interface: no translation at all', async () => {
+      setLocale('en')
+      const w = await mountPage()
+      await withGarment(w)
+      expect(StylistTranslateRu).not.toHaveBeenCalled()
+      expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('a blazer and a blouse')
+      setLocale('ru')
+    })
+  })
+
+  it('empty clipboard leaves the garment unset', async () => {
+    ReadClipboardImage.mockImplementation(() => Promise.resolve(''))
+    const w = await mountPage()
+    await w.find(tid('stylist-garment-paste')).trigger('click')
+    await settle()
+    expect(w.find(tid('stylist-garment-outfit')).exists()).toBe(false)
+    expect(StylistDescribeGarment).not.toHaveBeenCalled()
+  })
+
+  const imageFile = () => new File([new Uint8Array([137, 80, 78, 71])], 'dress.png', { type: 'image/png' })
+
+  it('garment comes from a dropped file', async () => {
+    StylistDescribeGarment.mockImplementation(() => Promise.resolve('a top'))
+    const w = await mountPage()
+    const drop = w.find(tid('stylist-garment-drop'))
+    await drop.trigger('dragover')
+    expect(drop.classes()).toContain('drop-zone-active')
+    await drop.trigger('drop', { dataTransfer: { files: [imageFile()] } })
+    await vi.waitFor(() => expect(StylistDescribeGarment).toHaveBeenCalledWith('iVBORw=='))
+    await settle()
+    expect(drop.classes()).not.toContain('drop-zone-active')
+    expect(w.find(tid('stylist-garment-outfit')).element.value).toBe('a top')
+  })
+
+  it('dropped non-image is rejected with an error', async () => {
+    const w = await mountPage()
+    await w.find(tid('stylist-garment-drop')).trigger('drop', { dataTransfer: { files: [new File(['x'], 'a.txt', { type: 'text/plain' })] } })
+    await settle()
+    expect(StylistDescribeGarment).not.toHaveBeenCalled()
+    expect(w.text()).toContain(t('fi.error_drop_image'))
+  })
+
+  it('Ctrl+V of an image sets the garment; text paste is untouched', async () => {
+    StylistDescribeGarment.mockImplementation(() => Promise.resolve('a coat'))
+    const w = await mountPage()
+    const text = new Event('paste', { cancelable: true })
+    text.clipboardData = { items: [{ type: 'text/plain', getAsFile: () => null }] }
+    document.dispatchEvent(text)
+    expect(text.defaultPrevented).toBe(false)
+    const img = new Event('paste', { cancelable: true })
+    img.clipboardData = { items: [{ type: 'image/png', getAsFile: imageFile }] }
+    document.dispatchEvent(img)
+    expect(img.defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(StylistDescribeGarment).toHaveBeenCalledWith('iVBORw=='))
+    w.unmount()
+    vi.clearAllMocks()
+    const again = new Event('paste', { cancelable: true })
+    again.clipboardData = { items: [{ type: 'image/png', getAsFile: imageFile }] }
+    document.dispatchEvent(again)
+    expect(again.defaultPrevented).toBe(false)
   })
 
   it('garment photo turns the outfit tab into «what is in the photo» and sends it', async () => {
@@ -276,7 +420,7 @@ describe('StylistPage', () => {
     await settle()
     expect(StylistRegenerateSeries).toHaveBeenCalledTimes(1)
     expect(StylistRegenerateSeries.mock.calls[0][1]).toBe(1)
-    expect(StylistRegenerateSeries.mock.calls[0][0].frames).toBe(5)
+    expect(StylistRegenerateSeries.mock.calls[0][0]).toMatchObject({ frames: 8, shots: 1 })
     const cards = w.findAll(tid('series-card'))
     expect(cards[1].find(tid('series-outfit')).element.value).toBe('red gown')
     expect(cards[0].find(tid('series-outfit')).element.value).toBe('white dress')
@@ -393,8 +537,7 @@ describe('StylistPage', () => {
     StylistShoot.mockImplementation(() => Promise.resolve([41, 42]))
     const w = await mountPage()
     expect(w.find(tid('stylist-plan-empty')).exists()).toBe(true)
-    expect(w.find(tid('stylist-shoot')).element.disabled).toBe(true)
-    expect(w.find(tid('stylist-shoot-blocked')).exists()).toBe(true)
+    expect(w.find(tid('stylist-shoot')).exists(), '«Сгенерировать» lives under the plan').toBe(false)
     await w.find(tid('stylist-view-frames')).trigger('click')
     expect(w.find(tid('stylist-frames-empty')).text()).toContain('Кадров пока нет')
     await w.find(tid('stylist-plan')).trigger('click')

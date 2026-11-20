@@ -38,11 +38,11 @@ func TestStylistShoot_PipelinePromptFormByStepBases(t *testing.T) {
 			assert.NotContains(t, p, "<lora:")
 			if tt.prose {
 				assert.NotContains(t, p, "BREAK", p)
-				assert.Contains(t, p, "A knee-up photograph of a woman, 170 cm, slim, facing camera.", p)
+				assert.Contains(t, p, "A knee-up image of a woman, 170 cm, slim, facing camera.", p)
 			} else {
-				assert.Contains(t, p, "knee-up shot, facing camera, 170 cm, slim, ", p)
-				assert.Contains(t, p, ", BREAK, ", p)
+				assert.Contains(t, p, "knee-up, facing camera, 170 cm, slim, ", p)
 			}
+			assert.NotContains(t, p, "photograph", "the workflow's styles decide the look")
 		})
 	}
 }

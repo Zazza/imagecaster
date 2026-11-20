@@ -103,7 +103,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	scoper, _ := sdClient.(sd.QueueScoper)
 	queueProc := queue.NewProcessor(a.gen, scoper, queueStore, a.dataDir, &a.emitter)
 	a.queueSvc = queue.NewService(queueStore, queueProc, &a.emitter)
-	a.queueSvc.Handle(queue.JobStylistFrame, stylistFrameHandler(a.sessions, cfg))
+	a.queueSvc.Handle(queue.JobStylistFrame, stylistFrameHandler(a.sessions, cfg, presets))
 	a.queueSvc.Handle(queue.JobRetouch, retouchHandler(a.sessions, cfg))
 	a.queueSvc.Handle(queue.JobPostSave, postSaveHandler(a.ieSvc, cfg))
 	a.queueSvc.Handle(queue.JobUpscale4K, post4KHandler(cfg))

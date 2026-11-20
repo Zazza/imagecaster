@@ -293,6 +293,25 @@ func (s *Service) WithSessions(sessions SessionAdder) *Service {
 	return &c
 }
 
+type SessionPinner interface {
+	PinnedTo(sessionID int64) SessionAdder
+}
+
+func (s *Service) AddToSession(imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
+	if s.sessions == nil {
+		return 0
+	}
+	return s.sessions.AddToSession(imageBase64, info, source, meta)
+}
+
+func (s *Service) PinSession(sessionID int64) *Service {
+	pinner, ok := s.sessions.(SessionPinner)
+	if sessionID <= 0 || !ok {
+		return s
+	}
+	return s.WithSessions(pinner.PinnedTo(sessionID))
+}
+
 type ctxSessions struct {
 	ctx     context.Context
 	inner   SessionAdder

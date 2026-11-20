@@ -574,6 +574,34 @@ export function StylistDescribeGarment(arg1) {
   return window['go']['main']['App']['StylistDescribeGarment'](arg1);
 }
 
+export function UpscaleSessionItem(arg1, arg2) {
+  return window['go']['main']['App']['UpscaleSessionItem'](arg1, arg2);
+}
+
+export function StylistSaveGarment(arg1) {
+  return window['go']['main']['App']['StylistSaveGarment'](arg1);
+}
+
+export function StylistLoadGarment() {
+  return window['go']['main']['App']['StylistLoadGarment']();
+}
+
+export function StylistReshoot(arg1) {
+  return window['go']['main']['App']['StylistReshoot'](arg1);
+}
+
+export function StylistLoadPlan() {
+  return window['go']['main']['App']['StylistLoadPlan']();
+}
+
+export function StylistSavePlan(arg1) {
+  return window['go']['main']['App']['StylistSavePlan'](arg1);
+}
+
+export function StylistLastShoot() {
+  return window['go']['main']['App']['StylistLastShoot']();
+}
+
 export function StylistFrames(arg1) {
   return window['go']['main']['App']['StylistFrames'](arg1);
 }
@@ -604,6 +632,10 @@ export function StylistSavePreset(arg1) {
 
 export function StylistShoot(arg1) {
   return window['go']['main']['App']['StylistShoot'](arg1);
+}
+
+export function StylistTranslateRu(arg1) {
+  return window['go']['main']['App']['StylistTranslateRu'](arg1);
 }
 
 export function StylistTranslate(arg1) {
@@ -664,4 +696,36 @@ export function UpscaleImage(arg1) {
 
 export function Version() {
   return window['go']['main']['App']['Version']();
+}
+
+export function PersonSetAdd(arg1) {
+  return window['go']['main']['App']['PersonSetAdd'](arg1);
+}
+
+export function PersonSetList(arg1) {
+  return window['go']['main']['App']['PersonSetList'](arg1);
+}
+
+export function PersonSetThumb(arg1) {
+  return window['go']['main']['App']['PersonSetThumb'](arg1);
+}
+
+export function PersonSetRemove(arg1) {
+  return window['go']['main']['App']['PersonSetRemove'](arg1);
+}
+
+export function PersonSetSummary() {
+  return window['go']['main']['App']['PersonSetSummary']();
+}
+
+export function PersonSetRename(arg1, arg2) {
+  return window['go']['main']['App']['PersonSetRename'](arg1, arg2);
+}
+
+export function TrainPersonFromSet(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['TrainPersonFromSet'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function AddPersonIdentityFromSet(arg1, arg2) {
+  return window['go']['main']['App']['AddPersonIdentityFromSet'](arg1, arg2);
 }

@@ -301,7 +301,7 @@ describe('VA2/VA3: My Images', () => {
     expect(wrapper.text()).toContain(t('browser.selected_count', { n: 2 }))
 
     const barButtons = wrapper.find('.fb-select-bar').findAll('button').map(b => b.text().trim())
-    expect(barButtons).toEqual([t('browser.send_to_postprocess_multi', { n: 2 }), t('browser.cancel_select')])
+    expect(barButtons).toEqual([t('browser.send_to_postprocess_multi', { n: 2 }), t('browser.to_training_set', { n: 2 }), t('browser.cancel_select')])
     const postMulti = wrapper.findAll('button').find(b => b.text().includes(t('browser.send_to_postprocess_multi', { n: 2 })))
     expect(postMulti).toBeTruthy()
     await postMulti.trigger('click')

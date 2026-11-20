@@ -508,12 +508,15 @@ async function generateImage() {
 
 async function upscaleImageX2() {
   if (!generatedImage.value) return
-  const b64 = await resolveImageBase64()
-  if (!b64) return
+  const byItem = !genInfo.value && !!shownItemId.value
+  const b64 = byItem ? null : await resolveImageBase64()
+  if (!byItem && !b64) return
   upscalingX2.value = true
   error.value = ''
   try {
-    const result = await api.upscaleImage(b64, genInfo.value, selectedPresetId.value)
+    const result = byItem
+      ? await api.upscaleSessionItem(shownItemId.value, selectedPresetId.value)
+      : await api.upscaleImage(b64, genInfo.value, selectedPresetId.value)
     if (!result || !result.image) {
       error.value = t('generate.error_upscale_x2')
     } else {
@@ -543,6 +546,11 @@ async function resolveImageBase64() {
 async function toPostProcess() {
   if (!generatedImage.value) return
   try {
+    if (shownItemId.value) {
+      await api.openInHistory(shownItemId.value)
+      emit('navigate', { page: 'postprocess' })
+      return
+    }
     const item = await api.getActiveSessionItem()
     if (!item) {
       error.value = t('fi.error_no_active_item')
@@ -594,11 +602,11 @@ async function interruptBatch() {
   await interruptGeneration()
 }
 
-async function onSessionAdded() {
+async function onSessionAdded(data) {
   if (!generatingImage.value && generatedImage.value) return
   try {
     const item = await api.getActiveSessionItem()
-    if (!item) return
+    if (!item || (data?.id && item.id !== data.id)) return
     generatedImage.value = api.sessionImageUrl(item.id)
     shownItemId.value = item.id
     sourceImage.value = generatedImage.value

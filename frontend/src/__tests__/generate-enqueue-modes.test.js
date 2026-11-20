@@ -5,7 +5,7 @@ import { clearEventMocks, EventsEmit } from './mocks/runtime'
 import GeneratePage from '../components/GeneratePage.vue'
 import {
   GetSettings, ListPresets, ListCompoundPresets, GenerateSDPrompt, EnqueueTxt2Img, EnqueueCompound,
-  GenerateImage, GenerateCompoundImage,
+  GenerateImage, GenerateCompoundImage, GetActiveSessionItem, OpenInHistory,
 } from '../wailsjs/go/main/App.js'
 import { t } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
@@ -425,5 +425,37 @@ describe('generate directly (without the LLM)', () => {
   it('disabled while the SD prompt is empty', async () => {
     const w = await mountPage(settings({ gen_mode: 'preset', gen_preset_id: '1' }))
     expect(directButton(w).attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('generate: result saved into another history folder', () => {
+  it('the open folder photo is not shown while waiting; the job result is', async () => {
+    const w = await mountPage(settings({ gen_mode: 'preset', gen_preset_id: '1' }))
+    await textarea(w, 'generate.placeholder_description').setValue('a cat')
+    await clickGenerate(w)
+    GetActiveSessionItem.mockImplementation(() => Promise.resolve({ id: 7, info: '{}' }))
+    EventsEmit('session:added', { id: 42, session_id: 2 })
+    await settle()
+    expect(w.findAll('img').some(i => (i.attributes('src') || '').includes('/api/img/7.jpg'))).toBe(false)
+    EventsEmit('queue:completed', { job_id: IDEA_JOB, result: JSON.stringify({ session_item_id: 42 }) })
+    await settle()
+    expect(w.findAll('img').some(i => (i.attributes('src') || '').includes('/api/img/42.jpg'))).toBe(true)
+    OpenInHistory.mockImplementation(() => Promise.resolve())
+    GetActiveSessionItem.mockClear()
+    await w.findAll('button').find(b => b.text() === t('post.btn_send')).trigger('click')
+    await settle()
+    expect(OpenInHistory).toHaveBeenCalledWith(42)
+    expect(GetActiveSessionItem).not.toHaveBeenCalled()
+    expect(w.emitted('navigate')?.at(-1)).toEqual([{ page: 'postprocess' }])
+  })
+
+  it('a result in the open folder is shown on session:added', async () => {
+    const w = await mountPage(settings({ gen_mode: 'preset', gen_preset_id: '1' }))
+    await textarea(w, 'generate.placeholder_description').setValue('a cat')
+    await clickGenerate(w)
+    GetActiveSessionItem.mockImplementation(() => Promise.resolve({ id: 42, info: '{}' }))
+    EventsEmit('session:added', { id: 42, session_id: 1 })
+    await settle()
+    expect(w.findAll('img').some(i => (i.attributes('src') || '').includes('/api/img/42.jpg'))).toBe(true)
   })
 })

@@ -88,7 +88,7 @@ function setShot(j, value) {
         <div v-if="f === 'outfit' && outfitLocked" class="form-hint">{{ t('stylist.outfit_from_photo') }}</div>
         <div v-else class="series-field">
           <input class="form-input" type="text" :value="fieldValue(f)" :data-lang="showsRu(series[f + '_ru']) ? 'ru' : 'en'" :placeholder="t('stylist.field_empty')" :data-testid="'series-' + f" @change="setField(f, $event.target.value)" />
-          <button class="btn btn-secondary btn-xs" :disabled="!series[f]" :title="t('stylist.save_preset')" :aria-label="t('stylist.save_preset')" :data-testid="'save-preset-' + f" @click="saveField(f)"><BookmarkPlus :size="14" /></button>
+          <button class="btn btn-secondary btn-xs" :disabled="!series[f]" :title="t('stylist.save_preset')" :aria-label="t('stylist.save_preset')" :data-testid="'save-preset-' + f" @click="saveField(f)"><BookmarkPlus :size="14" /> {{ t('stylist.save_mine') }}</button>
         </div>
         <SavePresetForm v-if="saving?.key === f && savingPreset" :key="'form-' + f" :preset="savingPreset" :places="places" @save="onSave" @cancel="saving = null" />
       </template>
@@ -97,7 +97,7 @@ function setShot(j, value) {
     <div v-for="(sh, j) in series.shots" :key="j" class="series-shot" data-testid="series-shot">
       <span class="series-shot-name">{{ sh.pose || t('stylist.shot_no_pose') }}<span v-if="sh.landscape" class="badge badge-muted">{{ t('stylist.landscape') }}</span></span>
       <input class="form-input" type="text" :value="showsRu(sh.prompt_ru) ? sh.prompt_ru : sh.prompt" :data-lang="showsRu(sh.prompt_ru) ? 'ru' : 'en'" data-testid="shot-prompt" @change="setShot(j, $event.target.value)" />
-      <button class="btn btn-secondary btn-xs" :disabled="!sh.prompt" :title="t('stylist.save_preset')" :aria-label="t('stylist.save_preset')" data-testid="shot-save" @click="saveShot(j)"><BookmarkPlus :size="14" /></button>
+      <button class="btn btn-secondary btn-xs" :disabled="!sh.prompt" :title="t('stylist.save_preset')" :aria-label="t('stylist.save_preset')" data-testid="shot-save" @click="saveShot(j)"><BookmarkPlus :size="14" /> {{ t('stylist.save_mine') }}</button>
       <button class="btn btn-danger-quiet btn-xs" :disabled="locked" :title="t('stylist.delete_shot')" data-testid="shot-delete" @click="emit('delete-shot', index, j)">×</button>
       <SavePresetForm v-if="saving?.key === 'shot-' + j && savingPreset" :preset="savingPreset" :places="places" @save="onSave" @cancel="saving = null" />
     </div>

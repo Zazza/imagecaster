@@ -17,18 +17,21 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-const jobColumns = `id, type, status, params, progress, progress_detail, result, error, source, created_at, started_at, completed_at, retry_count, max_retries, next_retry_at`
+const jobColumns = `id, type, status, params, progress, progress_detail, result, error, source, created_at, started_at, completed_at, retry_count, max_retries, next_retry_at, session_id`
 
 const panelColumns = `id, type, status, progress, progress_detail, error, source, created_at, started_at, completed_at, retry_count, max_retries, next_retry_at`
+
+const activeSessionSQL = `(SELECT session_id FROM session_active WHERE id = 1)`
 
 const stripImageParams = `CASE WHEN json_valid(params) THEN json_remove(params, '$.image_base64', '$.mask_base64', '$.reference_image_base64', '$.garment_base64') ELSE params END`
 
 func scanJob(scanner interface{ Scan(...any) error }, j *Job) error {
 	var nextRetry sql.NullString
+	var sessionID sql.NullInt64
 	err := scanner.Scan(
 		&j.ID, &j.Type, &j.Status, &j.Params, &j.Progress, &j.ProgressDetail,
 		&j.Result, &j.Error, &j.Source, &j.CreatedAt, &j.StartedAt, &j.CompletedAt,
-		&j.RetryCount, &j.MaxRetries, &nextRetry,
+		&j.RetryCount, &j.MaxRetries, &nextRetry, &sessionID,
 	)
 	if err != nil {
 		return err
@@ -36,6 +39,7 @@ func scanJob(scanner interface{ Scan(...any) error }, j *Job) error {
 	if nextRetry.Valid {
 		j.NextRetry = &nextRetry.String
 	}
+	j.SessionID = sessionID.Int64
 	return nil
 }
 
@@ -57,7 +61,7 @@ func scanPanelJob(scanner interface{ Scan(...any) error }, j *Job) error {
 
 func (s *Store) Create(jobType JobType, params, source string) (int64, error) {
 	result, err := s.db.Exec(
-		`INSERT INTO job_queue (type, status, params, source) VALUES (?, 'pending', ?, ?)`,
+		`INSERT INTO job_queue (type, status, params, source, session_id) VALUES (?, 'pending', ?, ?, `+activeSessionSQL+`)`,
 		jobType, params, source,
 	)
 	if err != nil {
@@ -72,7 +76,7 @@ func (s *Store) CreateLabeled(jobType JobType, params, source, label string) (in
 		return 0, err
 	}
 	result, err := s.db.Exec(
-		`INSERT INTO job_queue (type, status, params, source, progress_detail) VALUES (?, 'pending', ?, ?, ?)`,
+		`INSERT INTO job_queue (type, status, params, source, progress_detail, session_id) VALUES (?, 'pending', ?, ?, ?, `+activeSessionSQL+`)`,
 		jobType, params, source, string(detail),
 	)
 	if err != nil {
@@ -213,11 +217,9 @@ func (s *Store) Results(ids []int64) ([]*Job, error) {
 
 func (s *Store) Get(id int64) (*Job, error) {
 	var j Job
-	err := s.db.QueryRow(
+	err := scanJob(s.db.QueryRow(
 		fmt.Sprintf(`SELECT %s FROM job_queue WHERE id = ?`, jobColumns), id,
-	).Scan(&j.ID, &j.Type, &j.Status, &j.Params, &j.Progress, &j.ProgressDetail,
-		&j.Result, &j.Error, &j.Source, &j.CreatedAt, &j.StartedAt, &j.CompletedAt,
-		&j.RetryCount, &j.MaxRetries, &j.NextRetry)
+	), &j)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

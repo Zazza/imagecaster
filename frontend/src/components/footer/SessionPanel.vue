@@ -358,8 +358,9 @@ watch(() => props.open, (on) => {
 
 onMounted(async () => {
   eventOffs.push(
-    EventsOn('session:added', () => {
+    EventsOn('session:added', (data) => {
       loadSessions()
+      if (data?.session_id && activeSessionId.value && data.session_id !== activeSessionId.value) return
       loadItems().then(scrollToEnd)
     }),
     EventsOn('session:removed', () => { loadItems(); loadSessions() }),
@@ -367,7 +368,7 @@ onMounted(async () => {
     EventsOn('session:switched', () => { loadItems(); loadSessions() }),
     EventsOn('session:active', (data) => {
       const id = data?.id
-      if (id) items.value.forEach(i => { i.is_active = i.id === id })
+      if (id && items.value.some(i => i.id === id)) items.value.forEach(i => { i.is_active = i.id === id })
     }),
     EventsOn('session:deleted', () => { loadSessions(); loadItems() }),
     EventsOn('session:created', () => { loadSessions(); loadItems() }),

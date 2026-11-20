@@ -23,24 +23,55 @@ type ShootQueue interface {
 }
 
 type ShootFrameParams struct {
-	Person        string            `json:"person"`
-	Base          string            `json:"base"`
-	Model         string            `json:"model"`
-	Shot          string            `json:"shot"`
-	Prompt        string            `json:"prompt"`
-	Index         int               `json:"index"`
-	Total         int               `json:"total"`
-	Seed          *int64            `json:"seed,omitempty"`
-	GarmentBase64 string            `json:"garment_base64,omitempty"`
-	Outfit        string            `json:"outfit,omitempty"`
-	FacePass      bool              `json:"face_pass"`
-	FaceSwap      bool              `json:"face_swap,omitempty"`
-	Width         int               `json:"width,omitempty"`
-	Height        int               `json:"height,omitempty"`
-	Pipeline      int64             `json:"pipeline,omitempty"`
-	PipelineName  string            `json:"pipeline_name,omitempty"`
-	PersonLoras   map[string]string `json:"person_loras,omitempty"`
-	FaceSwapName  string            `json:"face_swap_name,omitempty"`
+	Person        string                      `json:"person"`
+	Base          string                      `json:"base"`
+	Model         string                      `json:"model"`
+	Shot          string                      `json:"shot"`
+	Prompt        string                      `json:"prompt"`
+	Index         int                         `json:"index"`
+	Total         int                         `json:"total"`
+	Seed          *int64                      `json:"seed,omitempty"`
+	GarmentBase64 string                      `json:"garment_base64,omitempty"`
+	Outfit        string                      `json:"outfit,omitempty"`
+	FacePass      bool                        `json:"face_pass"`
+	FaceSwap      bool                        `json:"face_swap,omitempty"`
+	Width         int                         `json:"width,omitempty"`
+	Height        int                         `json:"height,omitempty"`
+	Pipeline      int64                       `json:"pipeline,omitempty"`
+	PipelineName  string                      `json:"pipeline_name,omitempty"`
+	PersonLoras   map[string]string           `json:"person_loras,omitempty"`
+	FaceSwapName  string                      `json:"face_swap_name,omitempty"`
+	ToFolder      bool                        `json:"to_folder,omitempty"`
+	Preset        int64                       `json:"preset,omitempty"`
+	PresetName    string                      `json:"preset_name,omitempty"`
+	PersonLora    string                      `json:"person_lora,omitempty"`
+	Overrides     *generation.PresetOverrides `json:"overrides,omitempty"`
+}
+
+type StylistPresetShooter interface {
+	GeneratePresetShot(params generation.PresetShotParams) (*generation.PresetShotResult, error)
+}
+
+func presetShotBase(shooter StylistShooter, m shootModel, p ShootFrameParams, w, h int) frameBase {
+	return func() (string, json.RawMessage, int64, error) {
+		ps, ok := shooter.(StylistPresetShooter)
+		if !ok {
+			return "", nil, 0, errors.New("пресеты недоступны в этой сборке")
+		}
+		res, err := ps.GeneratePresetShot(generation.PresetShotParams{
+			PresetID: p.Preset, Model: m.Model, Sampler: m.Sampler, Steps: m.Steps, CfgScale: m.CFG,
+			ScenePrompt: p.Prompt, ExtraNegativePrompt: shootNegative,
+			Overrides: p.Overrides, PersonLora: p.PersonLora,
+			Width: w, Height: h, Seed: p.Seed,
+		})
+		if err != nil {
+			return "", nil, 0, err
+		}
+		if res == nil || res.Image == "" {
+			return "", nil, 0, errors.New("генерация не вернула картинку")
+		}
+		return res.Image, res.Info, res.Seed, nil
+	}
 }
 
 type StylistPipelineShooter interface {
@@ -157,8 +188,14 @@ func runShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngi
 		w, h = shootWidth, shootHeight
 	}
 	base, facePass, swapName, model := txt2imgBase(shooter, m, p.Prompt, p.Seed, w, h), p.FacePass, p.Person, m.Model
-	if p.Pipeline > 0 {
+	switch {
+	case p.Pipeline > 0:
 		base, facePass, swapName, model = pipelineBase(shooter, p, w, h), false, p.FaceSwapName, p.PipelineName
+	case p.Preset > 0 || p.Overrides != nil:
+		base = presetShotBase(shooter, m, p, w, h)
+		if p.PresetName != "" {
+			model = p.PresetName
+		}
 	}
 	out, err := shootFrame(base, eng, ge, refiner, m, p.Prompt, p.GarmentBase64, p.Outfit, facePass)
 	if err != nil {
@@ -185,7 +222,11 @@ func NewShootFrameHandler(sessions AppSessions) queue.Handler {
 		if err := json.Unmarshal([]byte(job.Params), &p); err != nil {
 			return nil, fmt.Errorf("invalid params: %w", err)
 		}
-		res, err := runShootFrame(gen.WithSessions(DiscardSessions{}), sessions, gen, gen, p, gen.Stopped)
+		target := sessions
+		if p.ToFolder {
+			target = folderSessions{gen}
+		}
+		res, err := runShootFrame(gen.WithSessions(DiscardSessions{}), target, gen, gen, p, gen.Stopped)
 		if err != nil {
 			return nil, err
 		}
@@ -195,6 +236,14 @@ func NewShootFrameHandler(sessions AppSessions) queue.Handler {
 		}
 		return &queue.JobResult{Frame: raw}, nil
 	}
+}
+
+type folderSessions struct {
+	add generation.SessionAdder
+}
+
+func (f folderSessions) AddToNamedSession(_, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
+	return f.add.AddToSession(imageBase64, info, source, meta)
 }
 
 func shootJobIDs(args map[string]any) ([]int64, error) {

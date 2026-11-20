@@ -43,6 +43,7 @@ type Job struct {
 	RetryCount     int       `json:"retry_count"`
 	MaxRetries     int       `json:"max_retries"`
 	NextRetry      *string   `json:"next_retry,omitempty"`
+	SessionID      int64     `json:"-"`
 }
 
 type JobResult struct {

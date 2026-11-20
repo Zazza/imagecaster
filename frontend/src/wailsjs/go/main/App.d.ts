@@ -305,6 +305,20 @@ export function StylistDescribeGarment(arg1:string):Promise<string>;
 
 export function StylistFrames(arg1:Array<number>):Promise<Array<main.StylistFrame>>;
 
+export function StylistLastShoot():Promise<Array<number>>;
+
+export function StylistReshoot(arg1:number):Promise<number>;
+
+export function UpscaleSessionItem(arg1:number,arg2:number):Promise<generation.GenerateImageResult>;
+
+export function StylistSaveGarment(arg1:string):Promise<void>;
+
+export function StylistLoadGarment():Promise<string>;
+
+export function StylistLoadPlan():Promise<string>;
+
+export function StylistSavePlan(arg1:string):Promise<void>;
+
 export function StylistPickGarment():Promise<string>;
 
 export function StylistPlan(arg1:stylist.PlanRequest):Promise<main.StylistPlanResult>;
@@ -320,6 +334,8 @@ export function StylistSavePreset(arg1:stylist.UserPreset):Promise<string>;
 export function StylistShoot(arg1:main.StylistShootRequest):Promise<Array<number>>;
 
 export function StylistTranslate(arg1:Array<string>):Promise<Array<string>>;
+
+export function StylistTranslateRu(arg1:Array<string>):Promise<Array<string>>;
 
 export function SwitchSession(arg1:number):Promise<void>;
 
@@ -348,3 +364,19 @@ export function UpdateSettings(arg1:Record<string, string>):Promise<void>;
 export function UpscaleImage(arg1:generation.UpscaleImageParams):Promise<generation.GenerateImageResult>;
 
 export function Version():Promise<string>;
+
+export function PersonSetAdd(arg1:any):Promise<any>;
+
+export function PersonSetList(arg1:string):Promise<Array<any>>;
+
+export function PersonSetThumb(arg1:number):Promise<string>;
+
+export function PersonSetRemove(arg1:number):Promise<void>;
+
+export function PersonSetSummary():Promise<Array<any>>;
+
+export function PersonSetRename(arg1:string,arg2:string):Promise<void>;
+
+export function TrainPersonFromSet(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:boolean):Promise<serverclient.TrainJob>;
+
+export function AddPersonIdentityFromSet(arg1:string,arg2:string):Promise<serverclient.Person>;

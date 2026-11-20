@@ -305,7 +305,7 @@ onUnmounted(() => {
       <PeoplePage v-if="page === 'people'" />
       <template v-if="page !== 'settings' && page !== 'catalog' && page !== 'people'">
         <UnifiedGeneratePage v-if="page === 'generate'" :key="resetKey" :resetting="isResetting" @navigate="onNavigate" />
-        <StylistPage v-else-if="page === 'stylist'" />
+        <StylistPage v-else-if="page === 'stylist'" @navigate="onNavigate" />
         <PostProcessPage v-else-if="page === 'postprocess'" :initial-section="postprocessSection" :initial-image="initialImage" @clear-initial-image="initialImage = ''" />
         <FileBrowserPage v-else-if="page === 'browser'" @navigate="onNavigate" />
         <GalleryPage v-else-if="page === 'gallery'" @navigate="onNavigate" />

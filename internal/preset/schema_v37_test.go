@@ -14,8 +14,7 @@ func TestSchemaV37_FreshDBHasStylistPresets(t *testing.T) {
 	assert.Contains(t, userTables(t, raw), "stylist_presets")
 	v, err := userVersion(raw)
 	require.NoError(t, err)
-	assert.Equal(t, 37, v)
-	assert.Equal(t, 37, schemaVersion)
+	assert.Equal(t, schemaVersion, v)
 }
 
 func TestSchemaV37_V36DatabaseGetsTable(t *testing.T) {

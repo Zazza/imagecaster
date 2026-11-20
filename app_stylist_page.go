@@ -56,7 +56,13 @@ type stylistPipelines interface {
 	PipelineModels(id int64) (string, []string, error)
 }
 
+type stylistPresetLookup interface {
+	PresetModel(id int64) (string, string, error)
+}
+
 type shootTarget struct {
+	preset       int64
+	presetName   string
 	person       serverclient.Person
 	base         string
 	model        string
@@ -112,6 +118,9 @@ func resolveShootTarget(all []serverclient.Person, pipes stylistPipelines, req S
 		}
 		return t, nil
 	}
+	if req.Preset > 0 {
+		return presetShootTarget(all, mine, key, pipes, req)
+	}
 	var picked *serverclient.Person
 	switch {
 	case req.Base != "":
@@ -150,6 +159,35 @@ func resolveShootTarget(all []serverclient.Person, pipes stylistPipelines, req S
 	return t, nil
 }
 
+func presetShootTarget(all, mine []serverclient.Person, key string, pipes stylistPipelines, req StylistShootRequest) (*shootTarget, error) {
+	pl, ok := pipes.(stylistPresetLookup)
+	if !ok {
+		return nil, errors.New("пресеты недоступны")
+	}
+	title, model, err := pl.PresetModel(req.Preset)
+	if err != nil {
+		return nil, fmt.Errorf("пресет: %w", err)
+	}
+	b := generation.ModelBase(model)
+	var picked *serverclient.Person
+	for i := range mine {
+		if b != "" && people.BaseOf(mine[i]) == b && mine[i].Lora != "" {
+			picked = &mine[i]
+		}
+	}
+	if picked == nil {
+		return nil, fmt.Errorf("«%s»: нет LoRA под модель пресета «%s»", key, title)
+	}
+	if _, ok := stylist.Models[b]; !ok {
+		return nil, fmt.Errorf("пресет «%s» на %s — съёмка умеет только Z-Image, Moss-Image, SDXL, Flux.2 и Flux.1", title, b)
+	}
+	t := &shootTarget{person: *picked, base: b, model: model, lora: picked.Lora, preset: req.Preset, presetName: title, promptBase: b}
+	if req.FaceSwap && picked.Identity {
+		t.faceSwapName = picked.Name
+	}
+	return t, nil
+}
+
 type stylistQueue interface {
 	EnqueueLabeled(jobType queue.JobType, params any, source, label string) (int64, error)
 }
@@ -176,15 +214,17 @@ type StylistSeriesResult struct {
 }
 
 type StylistShootRequest struct {
-	Person        string           `json:"person"`
-	Appearance    string           `json:"appearance"`
-	Garment       string           `json:"garment"`
-	GarmentOutfit string           `json:"garment_outfit"`
-	Series        []stylist.Series `json:"series"`
-	FaceSwap      bool             `json:"face_swap"`
-	Seed          *int64           `json:"seed"`
-	Base          string           `json:"base,omitempty"`
-	Pipeline      int64            `json:"pipeline,omitempty"`
+	Person        string                      `json:"person"`
+	Appearance    string                      `json:"appearance"`
+	Garment       string                      `json:"garment"`
+	GarmentOutfit string                      `json:"garment_outfit"`
+	Series        []stylist.Series            `json:"series"`
+	FaceSwap      bool                        `json:"face_swap"`
+	Seed          *int64                      `json:"seed"`
+	Base          string                      `json:"base,omitempty"`
+	Pipeline      int64                       `json:"pipeline,omitempty"`
+	Preset        int64                       `json:"preset,omitempty"`
+	Overrides     *generation.PresetOverrides `json:"overrides,omitempty"`
 }
 
 type StylistFrame struct {
@@ -234,6 +274,10 @@ func (a *App) StylistTranslate(texts []string) ([]string, error) {
 	return stylist.Translate(a.llm, a.stylistModel(), texts)
 }
 
+func (a *App) StylistTranslateRu(texts []string) ([]string, error) {
+	return stylist.TranslateToRu(a.llm, a.stylistModel(), texts)
+}
+
 func (a *App) logStylist(err error) {
 	if a.log != nil {
 		a.log.Warn("stylist page: llm ideas: %s", err)
@@ -262,6 +306,11 @@ func askStylistIdeas(chat stylist.Ideas, model string, req stylist.PlanRequest, 
 	return ideas, warnings
 }
 
+func stylistSeriesCount(req stylist.PlanRequest, base *stylist.Base) int {
+	sizes, _ := stylist.PlanSizes(req, base)
+	return len(sizes)
+}
+
 func planStylist(chat stylist.Ideas, model string, req stylist.PlanRequest, base *stylist.Base, logf func(error)) (*StylistPlanResult, error) {
 	if err := stylist.CheckFrames(req.Frames); err != nil {
 		return nil, err
@@ -269,7 +318,7 @@ func planStylist(chat stylist.Ideas, model string, req stylist.PlanRequest, base
 	if err := stylist.CheckCustom(req); err != nil {
 		return nil, err
 	}
-	ideas, llmWarnings := askStylistIdeas(chat, model, req, base, len(stylist.SeriesSizes(req.Frames)), logf)
+	ideas, llmWarnings := askStylistIdeas(chat, model, req, base, stylistSeriesCount(req, base), logf)
 	series, warnings, err := stylist.Plan(req, base, ideas)
 	if err != nil {
 		return nil, err
@@ -389,7 +438,24 @@ func (a *App) StylistShoot(req StylistShootRequest) ([]int64, error) {
 	}
 	ctx, cancel := a.peopleCtx(stylistPagePeopleWait)
 	defer cancel()
-	return stylistShoot(ctx, a.peopleSvc(), appPipelines{a.presets}, a.queueSvc, sdNotLocal(a.config), req)
+	rec := &recordingQueue{q: a.queueSvc}
+	ids, err := stylistShoot(ctx, a.peopleSvc(), appPipelines{a.presets}, rec, sdNotLocal(a.config), req)
+	if err == nil && len(ids) > 0 && a.presets != nil {
+		if serr := rememberShoot(a.presets, ids); serr != nil {
+			a.logStylist(serr)
+		}
+		if serr := saveShootParams(a.presets, rec.frames); serr != nil {
+			a.logStylist(serr)
+		}
+	}
+	return ids, err
+}
+
+func (a *App) StylistLastShoot() []int64 {
+	if a.presets == nil {
+		return []int64{}
+	}
+	return lastShootIDs(a.presets)
 }
 
 func defaultStylistAppearance(gender string) string {
@@ -454,6 +520,19 @@ func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPip
 	if r := []rune(garmentOutfit); len(r) > stylistAppearanceMax {
 		garmentOutfit = string(r[:stylistAppearanceMax])
 	}
+	overrides := req.Overrides
+	if target.pipeline > 0 {
+		overrides = nil
+	}
+	viaPreset := target.preset > 0 || overrides != nil
+	promptLora, personLora := target.lora, ""
+	if viaPreset {
+		promptLora, personLora = "", target.lora
+	}
+	compose := stylist.FramePrompt
+	if target.preset > 0 || target.pipeline > 0 {
+		compose = stylist.StyledFramePrompt
+	}
 	ids := make([]int64, 0, total)
 	i := 0
 	for _, s := range req.Series {
@@ -468,13 +547,16 @@ func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPip
 		for _, sh := range s.Shots {
 			p := mcp.ShootFrameParams{
 				Person: target.person.Name, Base: target.base, Model: target.model, Shot: sh.Pose,
-				Prompt: stylist.FramePrompt(target.promptBase, target.lora, appearance, s, sh),
+				Prompt: compose(target.promptBase, promptLora, appearance, s, sh),
 				Index:  i + 1, Total: total,
 				GarmentBase64: garment, Outfit: outfit,
 				FaceSwap: target.faceSwapName != "",
 				Width:    stylist.Width, Height: stylist.Height,
 				Pipeline: target.pipeline, PipelineName: target.pipelineName,
 				PersonLoras: target.loras, FaceSwapName: target.faceSwapName,
+				ToFolder: true,
+				Preset:   target.preset, PresetName: target.presetName,
+				PersonLora: personLora, Overrides: overrides,
 			}
 			if sh.Landscape {
 				p.Width, p.Height = stylist.Height, stylist.Width
@@ -536,7 +618,21 @@ func (a *App) StylistFrames(jobIDs []int64) ([]StylistFrame, error) {
 	if a.queueSvc == nil {
 		return nil, errors.New("очередь недоступна")
 	}
-	return stylistFrames(a.queueSvc, jobIDs)
+	frames, err := stylistFrames(a.queueSvc, jobIDs)
+	if err != nil {
+		return nil, err
+	}
+	if a.presets == nil {
+		return frames, nil
+	}
+	merged, err := mergeLastShoot(a.presets, frames)
+	if err != nil {
+		a.logStylist(err)
+	}
+	if merged == nil {
+		return frames, nil
+	}
+	return merged, nil
 }
 
 func stylistFrames(q stylistFrameResults, ids []int64) ([]StylistFrame, error) {
@@ -639,4 +735,15 @@ func (p appPipelines) PipelineModels(id int64) (string, []string, error) {
 		return "", nil, errors.New("база пресетов недоступна")
 	}
 	return p.db.CompoundStepModels(id)
+}
+
+func (p appPipelines) PresetModel(id int64) (string, string, error) {
+	if p.db == nil {
+		return "", "", errors.New("база пресетов недоступна")
+	}
+	pr, err := p.db.Get(id)
+	if err != nil {
+		return "", "", err
+	}
+	return pr.Name, pr.ModelName, nil
 }

@@ -113,3 +113,24 @@ export function pipelineOverride(catalog, stepModels, group, faceSwap = false) {
   }
   return out
 }
+
+const FAILED_KEEP_MS = 7 * 24 * 3600 * 1000
+
+function jobTime(j) {
+  const v = Date.parse(j?.finished_at || j?.created_at || '')
+  return Number.isFinite(v) ? v : 0
+}
+
+export function failedTrainings(jobs, now = Date.now()) {
+  const list = Array.isArray(jobs) ? jobs : []
+  const okAt = new Map()
+  for (const j of list) {
+    if (j.status === 'completed') okAt.set(j.name, Math.max(okAt.get(j.name) || 0, jobTime(j)))
+  }
+  return list
+    .filter(j => ['failed', 'cancelled', 'lost'].includes(j.status))
+    .filter(j => now - jobTime(j) <= FAILED_KEEP_MS)
+    .filter(j => !(okAt.has(j.name) && okAt.get(j.name) >= jobTime(j)))
+    .sort((a, b) => jobTime(b) - jobTime(a))
+    .slice(0, 5)
+}

@@ -137,3 +137,19 @@ func TestFramePrompt_ProseLabelsAndTail(t *testing.T) {
 		}
 	}
 }
+
+func TestStyledFramePrompt_NoPhotoWords(t *testing.T) {
+	s := Series{Outfit: "red dress", Hair: "low bun", Makeup: "natural", Background: "studio backdrop"}
+	for _, base := range []string{"Z-Image", "SDXL"} {
+		t.Run(base, func(t *testing.T) {
+			got := StyledFramePrompt(base, "", "a woman", s, Shot{Prompt: "facing camera", Framing: "close"})
+			for _, w := range []string{"photograph", "portrait", "shot", "realistic", "stylization", "pores"} {
+				assert.NotContains(t, got, w)
+			}
+			for _, w := range []string{"a woman", "facing camera", "red dress", "low bun", "studio backdrop", "close-up"} {
+				assert.Contains(t, got, w)
+			}
+			assert.Contains(t, FramePrompt(base, "", "a woman", s, Shot{Prompt: "facing camera", Framing: "close"}), "realistic skin texture")
+		})
+	}
+}

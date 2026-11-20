@@ -45,15 +45,19 @@ func NewProcessor(gen *generation.Service, scoper sd.QueueScoper, store *Store, 
 }
 
 func (p *processor) genFor(ctx context.Context, job *Job) (*generation.Service, func() bool) {
-	if p.scoper == nil || p.gen == nil {
+	if p.gen == nil {
 		return p.gen, func() bool { return false }
 	}
-	sdSvc := p.scoper.ForQueueJob(ctx, job.ID)
-	if p.dataDir == "" || p.gen.LLM() == nil {
-		return p.gen.ForQueue(ctx, sdSvc, nil)
+	gen := p.gen.PinSession(job.SessionID)
+	if p.scoper == nil {
+		return gen, func() bool { return false }
 	}
-	memo := newLLMMemo(p.gen.LLM(), llmMemoPath(p.dataDir, job.ID))
-	return p.gen.ForQueue(ctx, memoSD{Service: sdSvc, memo: memo}, memo)
+	sdSvc := p.scoper.ForQueueJob(ctx, job.ID)
+	if p.dataDir == "" || gen.LLM() == nil {
+		return gen.ForQueue(ctx, sdSvc, nil)
+	}
+	memo := newLLMMemo(gen.LLM(), llmMemoPath(p.dataDir, job.ID))
+	return gen.ForQueue(ctx, memoSD{Service: sdSvc, memo: memo}, memo)
 }
 
 func (p *processor) Forget(jobID int64) {

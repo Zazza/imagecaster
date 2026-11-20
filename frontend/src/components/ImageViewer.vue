@@ -13,6 +13,7 @@ const props = defineProps({
   hasNext: { type: Boolean, default: false },
   item: { type: Object, default: null },
   showActions: { type: Boolean, default: false },
+  keysPaused: { type: Boolean, default: false },
   confirmDelete: { type: Boolean, default: false },
   canDelete: { type: Boolean, default: true },
   position: { type: Number, default: 0 },
@@ -116,6 +117,7 @@ watch(() => props.imageBase64, () => zoom.resetImage())
 watch(infoExpanded, () => nextTick(zoom.measure))
 
 function onKeydown(e) {
+  if (props.keysPaused) return
   if (e.key === 'Escape') {
     if (zoomMenuOpen.value) zoomMenuOpen.value = false
     else emit('close')

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"strings"
 )
 
 func (d *DB) CreateSession(name string) (*SessionInfo, error) {
@@ -155,6 +156,31 @@ func (d *DB) GetSessionItems(sessionID int64) ([]SessionItem, error) {
 	}
 	defer rows.Close()
 	return scanSessionItems(rows)
+}
+
+func (d *DB) ExistingSessionItems(ids []int64) (map[int64]bool, error) {
+	out := make(map[int64]bool, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	marks := make([]string, len(ids))
+	for i, id := range ids {
+		args[i], marks[i] = id, "?"
+	}
+	rows, err := d.db.Query(`SELECT id FROM session_items WHERE id IN (`+strings.Join(marks, ",")+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
 }
 
 func (d *DB) GetSessionItem(id int64) (*SessionItem, error) {

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { Pencil, X } from 'lucide-vue-next'
+import { Pencil, X, Plus } from 'lucide-vue-next'
+import SavePresetForm from './SavePresetForm.vue'
 import { t } from '../../i18n/index.js'
 import { PRESET_NAME_MAX } from '../../composables/useStylistPlan.js'
 
@@ -9,8 +10,15 @@ const props = defineProps({
   choice: { type: Object, required: true },
   items: { type: Array, default: () => [] },
   themes: { type: Array, default: () => [] },
+  places: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['update:choice', 'rename', 'delete'])
+const emit = defineEmits(['update:choice', 'rename', 'delete', 'save-preset'])
+const adding = ref(false)
+
+function onAdd(payload) {
+  adding.value = false
+  emit('save-preset', payload)
+}
 
 const MODES = ['auto', 'keep', 'pick', 'custom']
 const POSE_MODES = ['auto', 'keep', 'pick']
@@ -93,8 +101,13 @@ function toggle(id) {
             <button v-for="it in g.items" :key="it.id" type="button" class="styles-chip" :class="{ active: (choice.ids || []).includes(it.id) }" :title="it.prompt" :data-testid="'pick-' + it.id" @click="toggle(it.id)">{{ it.name }}</button>
           </div>
         </div>
-        <div v-if="userItems.length" class="aspect-group" data-testid="user-group">
-          <div class="styles-filter-label">{{ t('stylist.user_group') }}</div>
+        <div class="aspect-group" data-testid="user-group">
+          <div class="user-head">
+            <span class="styles-filter-label">{{ t('stylist.user_group') }}</span>
+            <button v-if="!adding" type="button" class="btn btn-secondary btn-xs" data-testid="user-add" @click="adding = true"><Plus :size="12" /> {{ t('stylist.user_add') }}</button>
+          </div>
+          <SavePresetForm v-if="adding" :key="'add-' + aspect" :preset="{ aspect, places: [] }" :places="places" with-text @save="onAdd" @cancel="adding = false" />
+          <div v-if="!userItems.length && !adding" class="form-hint" data-testid="user-empty">{{ t('stylist.user_empty') }}</div>
           <div class="styles-chips">
             <span v-for="it in userItems" :key="it.id" class="user-chip">
               <input v-if="editing === it.id" v-model="editName" class="form-input user-name" type="text" :maxlength="PRESET_NAME_MAX" :data-testid="'user-name-' + it.id" @keydown.enter.prevent="finishRename" @keydown.esc.prevent="cancelRename" @blur="cancelRename" />
@@ -113,6 +126,8 @@ function toggle(id) {
 .aspect-modes { display: flex; gap: 6px; flex-wrap: wrap; }
 .aspect-groups { display: flex; flex-direction: column; gap: 8px; }
 .aspect-group { display: flex; flex-direction: column; gap: 4px; }
+.user-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.user-head .styles-filter-label { margin: 0; }
 .user-chip { display: inline-flex; gap: 2px; align-items: center; }
 .user-name { width: 160px; padding: 2px 6px; }
 </style>

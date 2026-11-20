@@ -439,3 +439,92 @@ func countOf(list []string, s string) int {
 	}
 	return n
 }
+
+func TestPlanSizes_SeriesForEveryPick(t *testing.T) {
+	base := mustBase(t)
+	ids := func(a Aspect, n int) []string {
+		var out []string
+		for _, it := range base.Items(a)[:n] {
+			out = append(out, it.ID)
+		}
+		return out
+	}
+	pick := func(frames int, outfits, hairs int) PlanRequest {
+		r := PlanRequest{Frames: frames, Aspects: map[string]AspectChoice{}}
+		if outfits > 0 {
+			r.Aspects[string(AspectOutfit)] = AspectChoice{Mode: ModePick, IDs: ids(AspectOutfit, outfits)}
+		}
+		if hairs > 0 {
+			r.Aspects[string(AspectHair)] = AspectChoice{Mode: ModePick, IDs: append(ids(AspectHair, hairs), "nope")}
+		}
+		return r
+	}
+	tests := []struct {
+		name    string
+		req     PlanRequest
+		want    []int
+		warning bool
+	}{
+		{"no picks: by four", pick(6, 0, 0), []int{4, 2}, false},
+		{"two outfits in four frames: two series", pick(4, 2, 0), []int{2, 2}, false},
+		{"three hairs in five frames, unknown id ignored", pick(5, 0, 3), []int{2, 2, 1}, false},
+		{"picks fit the usual split", pick(8, 2, 0), []int{4, 4}, false},
+		{"more picks than frames: one frame each and a warning", pick(2, 3, 0), []int{1, 1}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, w := PlanSizes(tt.req, base)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.warning, len(w) > 0, w)
+		})
+	}
+}
+
+func TestPlan_EveryPickedOutfitGetsASeries(t *testing.T) {
+	base := mustBase(t)
+	items := base.Items(AspectOutfit)[:2]
+	req := PlanRequest{Frames: 4, Seed: 1, Aspects: map[string]AspectChoice{string(AspectOutfit): {Mode: ModePick, IDs: []string{items[0].ID, items[1].ID}}}}
+	series, _, err := Plan(req, base, nil)
+	require.NoError(t, err)
+	require.Len(t, series, 2)
+	assert.Equal(t, items[0].Prompt, series[0].Outfit)
+	assert.Equal(t, items[1].Prompt, series[1].Outfit)
+	assert.Len(t, series[0].Shots, 2)
+
+	req.Shots = 2
+	again, _, err := RegenerateSeries(req, base, nil, 1)
+	require.NoError(t, err)
+	assert.Equal(t, items[1].Prompt, again.Outfit)
+	assert.Len(t, again.Shots, 2)
+	req.Shots = 3
+	again, _, err = RegenerateSeries(req, base, nil, 5)
+	require.NoError(t, err, "a series added by hand past the plan still regenerates")
+	assert.Len(t, again.Shots, 3)
+}
+
+func TestPlanSizes_GarmentIgnoresOutfitPicks(t *testing.T) {
+	base := mustBase(t)
+	var ids []string
+	for _, it := range base.Items(AspectOutfit)[:5] {
+		ids = append(ids, it.ID)
+	}
+	req := PlanRequest{Frames: 8, Garment: true, Aspects: map[string]AspectChoice{string(AspectOutfit): {Mode: ModePick, IDs: ids}}}
+	got, w := PlanSizes(req, base)
+	assert.Equal(t, []int{4, 4}, got)
+	assert.Empty(t, w)
+}
+
+func TestRegenerateSeries_KeepsItsSlot(t *testing.T) {
+	base := mustBase(t)
+	items := base.Items(AspectOutfit)[:3]
+	req := PlanRequest{Frames: 3, Seed: 1, Aspects: map[string]AspectChoice{string(AspectOutfit): {Mode: ModePick, IDs: []string{items[0].ID, items[1].ID, items[2].ID}}}}
+	series, _, err := Plan(req, base, nil)
+	require.NoError(t, err)
+	require.Len(t, series, 3)
+	assert.Equal(t, 2, series[2].Slot)
+	req.Shots = 1
+	again, _, err := RegenerateSeries(req, base, nil, series[2].Slot)
+	require.NoError(t, err)
+	assert.Equal(t, items[2].Prompt, again.Outfit, "after series 2 was deleted the third still regenerates as itself")
+	assert.Equal(t, 2, again.Slot)
+}

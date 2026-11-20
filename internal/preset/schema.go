@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 37
+const schemaVersion = 39
 
 const legacySchemaVersion = 32
 
@@ -21,6 +21,8 @@ var schemaSteps = []schemaStep{
 	{34, migrateV34QueryIndexes},
 	{36, migrateV36DropPresetFastMode},
 	{37, migrateV37StylistPresets},
+	{38, migrateV38JobSession},
+	{39, migrateV39PersonPhotos},
 }
 
 const presetsTableDDL = `
@@ -64,7 +66,24 @@ CREATE TABLE IF NOT EXISTS stylist_presets (
 	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`
 
-var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + stylistPresetsDDL + ";\n" + `
+const personPhotosDDL = `
+CREATE TABLE IF NOT EXISTS person_photos (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	person_key TEXT NOT NULL,
+	file_name TEXT NOT NULL,
+	source_name TEXT NOT NULL DEFAULT '',
+	width INTEGER NOT NULL,
+	height INTEGER NOT NULL,
+	face_height INTEGER NOT NULL,
+	yaw REAL NOT NULL,
+	sharpness REAL NOT NULL,
+	embedding BLOB NOT NULL,
+	dhash INTEGER NOT NULL,
+	added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_person_photos_key ON person_photos(person_key, id)`
+
+var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + stylistPresetsDDL + ";\n" + personPhotosDDL + ";\n" + `
 CREATE TABLE settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL DEFAULT ''
@@ -183,7 +202,8 @@ CREATE TABLE job_queue (
 	completed_at DATETIME,
 	retry_count INTEGER NOT NULL DEFAULT 0,
 	max_retries INTEGER NOT NULL DEFAULT 3,
-	next_retry_at DATETIME
+	next_retry_at DATETIME,
+	session_id INTEGER
 );
 CREATE INDEX idx_job_queue_status_created ON job_queue(status, created_at);
 CREATE INDEX idx_job_queue_next_retry ON job_queue(next_retry_at) WHERE status = 'pending' AND next_retry_at IS NOT NULL;
@@ -456,6 +476,25 @@ func migrateV36DropPresetFastMode(ctx context.Context, conn *sql.Conn) error {
 
 func migrateV37StylistPresets(ctx context.Context, conn *sql.Conn) error {
 	_, err := conn.ExecContext(ctx, stylistPresetsDDL)
+	return err
+}
+
+func migrateV39PersonPhotos(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, personPhotosDDL)
+	return err
+}
+
+func migrateV38JobSession(ctx context.Context, conn *sql.Conn) error {
+	cols, err := tableColumns(ctx, conn, "job_queue")
+	if err != nil {
+		return err
+	}
+	for _, c := range cols {
+		if c == "session_id" {
+			return nil
+		}
+	}
+	_, err = conn.ExecContext(ctx, `ALTER TABLE job_queue ADD COLUMN session_id INTEGER`)
 	return err
 }
 

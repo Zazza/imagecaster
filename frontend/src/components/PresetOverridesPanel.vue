@@ -12,6 +12,7 @@ const props = defineProps({
   modelValue: { type: Object, default: null },
   presetLoras: { type: Array, default: () => [] },
   title: { type: String, default: '' },
+  hideModel: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -142,7 +143,7 @@ defineExpose({ reset })
     <div class="preset-overrides-body">
       <div v-if="loadError" class="overrides-hint overrides-warn">{{ t('overrides.load_error') }}</div>
       <div class="overrides-grid">
-        <div class="form-group">
+        <div v-if="!hideModel" class="form-group">
           <label class="form-label">{{ t('overrides.model') }}</label>
           <select class="form-select" v-model="ovModel">
             <option value="">{{ t('overrides.as_preset') }}</option>
@@ -197,7 +198,7 @@ defineExpose({ reset })
       <datalist id="overrides-lora-names">
         <option v-for="l in serverLoras" :key="l.name" :value="l.name" />
       </datalist>
-      <div class="overrides-hint">{{ t('overrides.hint') }}</div>
+      <div class="overrides-hint">{{ hideModel ? t('overrides.hint_no_model') : t('overrides.hint') }}</div>
     </div>
   </FoldBlock>
 </template>

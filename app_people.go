@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Zazza/imagecaster/internal/people"
@@ -115,17 +116,78 @@ func (a *App) ResumeTraining(id string) (*serverclient.TrainJob, error) {
 func (a *App) RenamePerson(oldName, newName string) error {
 	ctx, cancel := a.peopleCtx(peopleCallTimeout)
 	defer cancel()
-	return a.peopleSvc().Rename(ctx, oldName, newName)
+	svc := a.peopleSvc()
+	before, lerr := svc.List(ctx)
+	if lerr != nil {
+		a.log.Warn("people: rename %q: list before: %s", oldName, lerr)
+	}
+	if err := svc.Rename(ctx, oldName, newName); err != nil {
+		return err
+	}
+	if a.presets == nil || lerr != nil {
+		return nil
+	}
+	after, aerr := svc.List(ctx)
+	if aerr != nil {
+		a.log.Warn("people: rename %q: list after: %s", oldName, aerr)
+		return nil
+	}
+	for _, x := range after {
+		if strings.EqualFold(x.Name, strings.TrimSpace(newName)) {
+			if rerr := followSetKey(a.presets, before, after, oldName, people.Key(x)); rerr != nil {
+				a.log.Warn("people: rename %q: photo set: %s", oldName, rerr)
+			}
+		}
+	}
+	return nil
 }
 
 func (a *App) SetPersonDisplay(name, display string, replace bool) (*serverclient.Person, error) {
 	ctx, cancel := a.peopleCtx(peopleCallTimeout)
 	defer cancel()
-	p, err := a.peopleSvc().SetDisplay(ctx, name, display, replace)
+	svc := a.peopleSvc()
+	before, lerr := svc.List(ctx)
+	if lerr != nil {
+		a.log.Warn("people: display %q: list before: %s", name, lerr)
+	}
+	p, err := svc.SetDisplay(ctx, name, display, replace)
 	if err != nil {
 		a.log.Warn("people: display %q: %s", name, err)
+		return p, err
 	}
-	return p, err
+	if p != nil && a.presets != nil {
+		after, aerr := svc.List(ctx)
+		if aerr != nil {
+			a.log.Warn("people: display %q: list after: %s", name, aerr)
+			return p, nil
+		}
+		if rerr := followSetKey(a.presets, before, after, name, people.Key(*p)); rerr != nil {
+			a.log.Warn("people: display %q: photo set: %s", name, rerr)
+		}
+	}
+	return p, nil
+}
+
+type setRenamer interface {
+	RenamePersonPhotos(oldKey, newKey string) error
+}
+
+func followSetKey(st setRenamer, before, after []serverclient.Person, name, newKey string) error {
+	oldKey := ""
+	for _, b := range before {
+		if b.Name == name {
+			oldKey = people.Key(b)
+		}
+	}
+	if oldKey == "" || oldKey == newKey {
+		return nil
+	}
+	for _, x := range after {
+		if strings.EqualFold(people.Key(x), oldKey) {
+			return nil
+		}
+	}
+	return st.RenamePersonPhotos(oldKey, newKey)
 }
 
 func (a *App) ListPeople() ([]serverclient.Person, error) {

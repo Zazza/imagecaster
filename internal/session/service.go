@@ -17,6 +17,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/Zazza/imagecaster/internal/generation"
 	"github.com/Zazza/imagecaster/internal/imgformat"
 	"github.com/Zazza/imagecaster/internal/preset"
 
@@ -155,6 +156,36 @@ func (s *Service) AddToSession(imageBase64 string, info json.RawMessage, source 
 	return s.addItem(sessionID, imageBase64, info, source, meta)
 }
 
+type pinnedSessions struct {
+	svc       *Service
+	sessionID int64
+}
+
+func (s *Service) PinnedTo(sessionID int64) generation.SessionAdder {
+	return pinnedSessions{svc: s, sessionID: sessionID}
+}
+
+func (p pinnedSessions) AddToSession(imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
+	p.svc.moveMu.Lock()
+	exists, err := p.svc.db.SessionExists(p.sessionID)
+	var itemID int64
+	var storeErr error
+	if err == nil && exists {
+		itemID, storeErr = p.svc.storeItem(p.sessionID, imageBase64, info, source, meta)
+	}
+	p.svc.moveMu.Unlock()
+	if err != nil || !exists {
+		log.Printf("[session] session %d of the job is gone (err=%v), %s image goes to the active session", p.sessionID, err, source)
+		return p.svc.AddToSession(imageBase64, info, source, meta)
+	}
+	if storeErr != nil {
+		log.Printf("[session] %s image not saved to session %d: %v", source, p.sessionID, storeErr)
+		return 0
+	}
+	p.svc.emitAdded(itemID, p.sessionID)
+	return itemID
+}
+
 func (s *Service) AddToNamedSession(name, imageBase64 string, info json.RawMessage, source string, meta *preset.GenerationMeta) int64 {
 	sessionID, err := s.db.FindSessionByName(name)
 	if err != nil {
@@ -203,9 +234,13 @@ func (s *Service) addItem(sessionID int64, imageBase64 string, info json.RawMess
 		log.Printf("[session] %s image not saved to session %d: %v", source, sessionID, err)
 		return 0
 	}
-	s.emit.Emit("session:added", map[string]int64{"id": itemID})
-	s.emit.Emit("session:active", map[string]int64{"id": itemID})
+	s.emitAdded(itemID, sessionID)
 	return itemID
+}
+
+func (s *Service) emitAdded(itemID, sessionID int64) {
+	s.emit.Emit("session:added", map[string]int64{"id": itemID, "session_id": sessionID})
+	s.emit.Emit("session:active", map[string]int64{"id": itemID})
 }
 
 type encodedImage struct {
