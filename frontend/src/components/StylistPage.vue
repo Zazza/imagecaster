@@ -16,6 +16,7 @@ import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import ImageViewer from './ImageViewer.vue'
 import AspectTab from './stylist/AspectTab.vue'
+import PlanLibrary from './stylist/PlanLibrary.vue'
 import SeriesCard from './stylist/SeriesCard.vue'
 import PresetOverridesPanel from './PresetOverridesPanel.vue'
 import { modelBaseFor } from '../fastMode.js'
@@ -498,6 +499,7 @@ onUnmounted(() => {
         <div class="stylist-switch">
           <button class="btn btn-sm" :class="view === 'plan' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="view === 'plan'" data-testid="stylist-view-plan" @click="setView('plan')">{{ t('stylist.view_plan') }}<span v-if="series.length" class="stylist-count">{{ frameCount }}</span></button>
           <button class="btn btn-sm" :class="view === 'frames' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="view === 'frames'" data-testid="stylist-view-frames" @click="setView('frames')">{{ t('stylist.view_frames') }}<span v-if="frames.length" class="stylist-count">{{ frames.length }}</span></button>
+          <PlanLibrary v-if="view === 'plan'" :themes="base?.themes || []" :selected-themes="form.themes" :can-save="series.length > 0" :locked="shooting || planning || regenerating >= 0" />
         </div>
 
         <template v-if="view === 'plan'">
@@ -704,7 +706,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.stylist-switch { display: flex; gap: 8px; flex-shrink: 0; }
+.stylist-switch { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
 .stylist-shoot-bar { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .stylist-count { margin-left: 6px; opacity: 0.7; }
 .stylist-narrow { max-width: 120px; }

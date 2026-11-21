@@ -1236,6 +1236,27 @@ export namespace main {
 }
 
 export namespace preset {
+
+	export class StylistPlan {
+	    id: number;
+	    name: string;
+	    plan: string;
+	    created_at: string;
+	    updated_at: string;
+
+	    static createFrom(source: any = {}) {
+	        return new StylistPlan(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.plan = source["plan"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
 	
 	export class Preset {
 	    id: number;

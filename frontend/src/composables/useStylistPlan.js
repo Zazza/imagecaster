@@ -338,6 +338,8 @@ export function resetStylistPlan() {
   framesSeq++
   restored = false
   planRestored = false
+  planBaseline = null
+  currentPlanName.value = ''
   lastSavedGarment = ''
   garmentEn = { from: '', en: '' }
   clearTimeout(planTimer)
@@ -371,6 +373,58 @@ export function planSnapshot() {
   const f = {}
   for (const k of PLAN_FORM_KEYS) f[k] = form[k]
   return JSON.stringify({ v: PLAN_VERSION, form: f, series: series.value })
+}
+
+const PERSON_KEYS = new Set(['person', 'gender', 'appearance', 'garmentOutfit'])
+const TEMPLATE_KEYS = PLAN_FORM_KEYS.filter(k => !PERSON_KEYS.has(k))
+let planBaseline = null
+export const currentPlanName = ref('')
+
+export function templateSnapshot() {
+  const f = {}
+  for (const k of TEMPLATE_KEYS) f[k] = form[k]
+  return JSON.stringify({ v: PLAN_VERSION, form: f, series: series.value })
+}
+
+export function planDirty() {
+  return series.value.length > 0 && templateSnapshot() !== planBaseline
+}
+
+export function markPlanSaved(name) {
+  planBaseline = templateSnapshot()
+  currentPlanName.value = name || ''
+}
+
+export function planSummary(raw) {
+  try {
+    const data = JSON.parse(raw)
+    const list = Array.isArray(data?.series) ? data.series : []
+    return { series: list.length, frames: totalShots(list) }
+  } catch (e) {
+    console.warn('stylist plan summary:', e)
+    return { series: 0, frames: 0 }
+  }
+}
+
+export function applyTemplate(raw, name) {
+  let data
+  try {
+    data = JSON.parse(raw)
+  } catch (e) {
+    console.warn('stylist plan:', e)
+    return false
+  }
+  if (!data || data.v !== PLAN_VERSION || typeof data.form !== 'object') return false
+  for (const k of TEMPLATE_KEYS) {
+    if (k in data.form) form[k] = data.form[k]
+  }
+  form.aspects = { ...defaultAspects(), ...(data.form.aspects || {}) }
+  series.value = Array.isArray(data.series) ? data.series : []
+  warnings.value = []
+  usedLLM.value = false
+  planEpoch.value++
+  markPlanSaved(name)
+  return true
 }
 
 export function applyPlanSnapshot(raw) {
@@ -463,6 +517,7 @@ export function useStylistPlan() {
       const res = await api.stylistPlan(req)
       series.value = res?.series || []
       planEpoch.value++
+      currentPlanName.value = ''
       warnings.value = res?.warnings || []
       usedLLM.value = !!res?.used_llm
       view.value = 'plan'

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 40
+const schemaVersion = 41
 
 const legacySchemaVersion = 32
 
@@ -24,6 +24,7 @@ var schemaSteps = []schemaStep{
 	{38, migrateV38JobSession},
 	{39, migrateV39PersonPhotos},
 	{40, migrateV40ImageDescriptions},
+	{41, migrateV41StylistPlans},
 }
 
 const presetsTableDDL = `
@@ -93,7 +94,17 @@ CREATE TABLE IF NOT EXISTS image_descriptions (
 	PRIMARY KEY (hash, mode)
 )`
 
-var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + stylistPresetsDDL + ";\n" + personPhotosDDL + ";\n" + imageDescriptionsDDL + ";\n" + `
+const stylistPlansDDL = `
+CREATE TABLE IF NOT EXISTS stylist_plans (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	name_key TEXT NOT NULL UNIQUE,
+	plan TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+)`
+
+var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + stylistPresetsDDL + ";\n" + personPhotosDDL + ";\n" + imageDescriptionsDDL + ";\n" + stylistPlansDDL + ";\n" + `
 CREATE TABLE settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL DEFAULT ''
@@ -496,6 +507,11 @@ func migrateV39PersonPhotos(ctx context.Context, conn *sql.Conn) error {
 
 func migrateV40ImageDescriptions(ctx context.Context, conn *sql.Conn) error {
 	_, err := conn.ExecContext(ctx, imageDescriptionsDDL)
+	return err
+}
+
+func migrateV41StylistPlans(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, stylistPlansDDL)
 	return err
 }
 

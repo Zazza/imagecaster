@@ -610,6 +610,22 @@ export function StylistFrames(arg1) {
   return window['go']['main']['App']['StylistFrames'](arg1);
 }
 
+export function StylistPlans() {
+  return window['go']['main']['App']['StylistPlans']();
+}
+
+export function StylistSaveNamedPlan(arg1, arg2, arg3) {
+  return window['go']['main']['App']['StylistSaveNamedPlan'](arg1, arg2, arg3);
+}
+
+export function StylistRenamePlan(arg1, arg2) {
+  return window['go']['main']['App']['StylistRenamePlan'](arg1, arg2);
+}
+
+export function StylistDeletePlan(arg1) {
+  return window['go']['main']['App']['StylistDeletePlan'](arg1);
+}
+
 export function StylistPickGarment() {
   return window['go']['main']['App']['StylistPickGarment']();
 }

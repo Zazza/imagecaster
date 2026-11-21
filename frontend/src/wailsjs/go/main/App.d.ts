@@ -321,6 +321,14 @@ export function StylistLoadPlan():Promise<string>;
 
 export function StylistSavePlan(arg1:string):Promise<void>;
 
+export function StylistPlans():Promise<Array<preset.StylistPlan>>;
+
+export function StylistSaveNamedPlan(arg1:string,arg2:string,arg3:boolean):Promise<preset.StylistPlan>;
+
+export function StylistRenamePlan(arg1:number,arg2:string):Promise<preset.StylistPlan>;
+
+export function StylistDeletePlan(arg1:number):Promise<void>;
+
 export function StylistPickGarment():Promise<string>;
 
 export function StylistPlan(arg1:stylist.PlanRequest):Promise<main.StylistPlanResult>;

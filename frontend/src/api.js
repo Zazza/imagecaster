@@ -29,7 +29,7 @@ import {
   TrainPersonReplace, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson, SetPersonDisplay,
   AddPersonIdentity, FaceSwapStatus,
   PostFaceLandmarks, PostBodyPoints, PreviewPostRetouch, EnqueuePostSave, SavePostToHistory, EnqueuePost4K,
-  StylistPresets, StylistPlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, RollbackPerson, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
+  StylistPresets, StylistPlan, StylistPlans, StylistSaveNamedPlan, StylistRenamePlan, StylistDeletePlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, RollbackPerson, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -191,6 +191,10 @@ export const api = {
   stylistReshoot: (jobId, size) => StylistReshoot(jobId, size),
   stylistLoadPlan: () => StylistLoadPlan(),
   stylistSavePlan: (plan) => StylistSavePlan(plan),
+  stylistPlans: () => StylistPlans(),
+  stylistSaveNamedPlan: (name, plan, replace = false) => StylistSaveNamedPlan(name, plan, !!replace),
+  stylistRenamePlan: (id, name) => StylistRenamePlan(id, name),
+  stylistDeletePlan: (id) => StylistDeletePlan(id),
   stylistSaveGarment: (b64) => StylistSaveGarment(b64),
   stylistLoadGarment: () => StylistLoadGarment(),
   upscaleSessionItem: (itemId, presetId) => UpscaleSessionItem(itemId, presetId || 0),
