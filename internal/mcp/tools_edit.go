@@ -127,6 +127,7 @@ func registerEditTools(s *Server) {
 			"quality":              prop("качественный режим (требует resolution_id)", "boolean"),
 			"resolution_id":        prop("id разрешения для quality", "integer"),
 			"seed":                 prop("фиксированный сид", "integer"),
+			"model":                prop("модель правки: klein (по умолчанию) или qwen — медленнее, строже держит лицо", "string"),
 			"save":                 prop("сохранить PNG+sidecar в out_dir (по умолчанию true)", "boolean"),
 		}, "image_path", "instruction"),
 		Handler: func(s *Server, args map[string]any) (string, error) {
@@ -152,6 +153,7 @@ func registerEditTools(s *Server) {
 				StylePresetID:        argInt(args, "style_preset_id"),
 				StyleTags:            argBool(args, "style_tags"),
 				Seed:                 optInt(args, "seed"),
+				Model:                argString(args, "model"),
 			}
 			if loras != nil {
 				ep.Loras = *loras
