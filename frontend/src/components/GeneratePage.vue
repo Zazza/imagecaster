@@ -3,6 +3,7 @@ import { Check, Sparkles, TriangleAlert, Maximize2, SlidersHorizontal, Zap } fro
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { setGenerateDescriptionSink } from '../describeToGenerate.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
 import { parseSeedInput } from '../seed.js'
@@ -44,6 +45,8 @@ const selectedPresetId = ref(null)
 const selectedCompoundPresetId = ref(null)
 const genMode = ref('preset')
 const description = ref('')
+const releaseDescriptionSink = setGenerateDescriptionSink(text => { description.value = text })
+onUnmounted(releaseDescriptionSink)
 const negative = ref('')
 const extraPrompt = ref('')
 const extraNegativePrompt = ref('')

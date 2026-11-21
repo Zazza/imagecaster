@@ -311,6 +311,7 @@ func newTestService(t *testing.T, db *preset.DB, llmSvc *mockLLM, sdSvc *mockSD)
 		llmSvc,
 		sdSvc,
 		&config.Config{
+			LLMUrl:        "http://127.0.0.1:11434",
 			SDPromptModel: "test-model",
 			VisionModel:   "test-vision",
 		},

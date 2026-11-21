@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t } from '../i18n/index.js'
 import { useRemixQueue } from '../remixQueue.js'
@@ -74,6 +74,10 @@ const viewerImage = computed(() => {
   const entry = imageEntries.value[viewerIndex.value]
   return fullImages.value[entry.path] || thumbnails.value[entry.path] || ''
 })
+
+const lastViewerImage = ref('')
+watch(viewerImage, v => { if (v) lastViewerImage.value = v })
+watch(viewerIndex, i => { if (i < 0) lastViewerImage.value = '' })
 
 let observer = null
 
@@ -187,6 +191,12 @@ async function loadFullImage(entry) {
     console.warn('FileBrowserPage.loadFullImage:', e)
   }
   fullLoading.value.delete(entry.path)
+}
+
+async function describeLoader() {
+  const entry = imageEntries.value[viewerIndex.value]
+  if (!entry) return ''
+  return fullImages.value[entry.path] || await api.readFileAsBase64(entry.path)
 }
 
 async function sendToPostProcess(entry) {
@@ -378,8 +388,8 @@ onUnmounted(() => {
     </div>
 
     <ImageViewer
-      v-if="viewerIndex >= 0 && viewerImage"
-      :imageBase64="viewerImage"
+      v-if="viewerIndex >= 0 && (viewerImage || lastViewerImage)"
+      :imageBase64="viewerImage || lastViewerImage"
       :hasPrev="viewerIndex > 0"
       :hasNext="viewerIndex < imageEntries.length - 1"
       :position="viewerIndex + 1"
@@ -388,6 +398,8 @@ onUnmounted(() => {
       :showActions="true"
       :keysPaused="setPaths.length > 0"
       :canDelete="false"
+      :describeLoader="describeLoader"
+      :describeKey="imageEntries[viewerIndex]?.path || ''"
       @close="viewerIndex = -1"
       @prev="viewerPrev"
       @next="viewerNext"

@@ -1,5 +1,5 @@
 import {
-  AnalyzeImage, ApplyLookDirect, AutoAdjust, BatchReset, BatchSaveImage, BrowseDirectory,
+  AnalyzeImage, DescribePhoto, ApplyLookDirect, AutoAdjust, BatchReset, BatchSaveImage, BrowseDirectory,
   CancelQueue, CancelQueueJob, CheckServer, ClearSession, CompilePostStyle, CreateCompoundPreset,
   CreateDescriptionFull, CreateHiresProfile, CreatePreset, CreateResolution, CreateSession,
   DeleteCompoundPreset, DeleteDescription, DeleteExportPreset, DeleteHiresProfile,
@@ -80,6 +80,7 @@ export const api = {
   openImportFile: () => OpenImportFile(),
   importPresets: (items) => ImportPresets(items),
   analyzeImage: (imageBase64, mode) => AnalyzeImage(imageBase64, mode),
+  describePhoto: (imageBase64, mode, fresh = false) => DescribePhoto(imageBase64, mode, !!fresh),
   readImageFile: () => ReadImageFile(),
   readClipboardImage: () => ReadClipboardImage(),
   listPresetTypes: () => ListPresetTypes(),

@@ -48,7 +48,7 @@ func TestPersonPhotos_V38DatabaseGetsTable(t *testing.T) {
 	defer db.Close()
 	v, err := userVersion(db.DB())
 	require.NoError(t, err)
-	assert.Equal(t, 39, v)
+	assert.Equal(t, schemaVersion, v)
 
 	p := personPhotoFixture("A", "a.jpg", 1, []float32{1})
 	require.NoError(t, db.AddPersonPhoto(p))

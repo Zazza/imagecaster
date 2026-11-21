@@ -124,7 +124,7 @@ function moreFold(wrapper) {
 describe('2. Remix: analysis first, rare options folded into "Дополнительно"', () => {
   it('analysis button comes before style buttons, style select and denoising slider', async () => {
     const wrapper = await mountRemix({ fi_mode: 'img2img', fi_gen_mode: 'preset' })
-    const analyze = wrapper.findAll('button').find(b => b.text().includes(t('fi.btn_analyze')))
+    const analyze = wrapper.findAll('button').find(b => b.text().includes(t('describe.again')))
     const styleBtn = wrapper.findAll('button').find(b => b.text() === t('fi.btn_style'))
     const workflowBtn = wrapper.findAll('button').find(b => b.text() === t('fi.btn_workflow'))
     const styleSelect = wrapper.findAll('select').find(s => s.findAll('option').some(o => o.text() === STYLE_PLAIN.name))
@@ -142,7 +142,7 @@ describe('2. Remix: analysis first, rare options folded into "Дополните
 
   it('analysis comes before the workflow select in compound mode', async () => {
     const wrapper = await mountRemix({ fi_mode: 'img2img', fi_gen_mode: 'compound' })
-    const analyze = wrapper.findAll('button').find(b => b.text().includes(t('fi.btn_analyze')))
+    const analyze = wrapper.findAll('button').find(b => b.text().includes(t('describe.again')))
     const workflowSelect = wrapper.findAll('select').find(s => s.findAll('option').some(o => o.text() === t('fi.select_workflow')))
     expect(workflowSelect).toBeTruthy()
     expect(before(analyze, workflowSelect)).toBe(true)

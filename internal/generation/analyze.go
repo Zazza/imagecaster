@@ -35,6 +35,9 @@ func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
 		return "", config.ImageTooLarge("image")
 	}
 
+	if err := s.visionLocal(); err != nil {
+		return "", err
+	}
 	model := s.getAnalyzeModel()
 
 	maxTokens := s.getMaxTokens()

@@ -78,6 +78,10 @@ export function CreateSession(arg1) {
   return window['go']['main']['App']['CreateSession'](arg1);
 }
 
+export function DescribePhoto(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DescribePhoto'](arg1, arg2, arg3);
+}
+
 export function DeleteCompoundPreset(arg1) {
   return window['go']['main']['App']['DeleteCompoundPreset'](arg1);
 }

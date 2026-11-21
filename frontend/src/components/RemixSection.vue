@@ -3,6 +3,7 @@ import { X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import { b64Url } from '../imageDataUrl.js'
+import { describeErrorText } from '../describeToGenerate.js'
 import FoldBlock from './FoldBlock.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
@@ -50,7 +51,6 @@ const qualityUpscaleSkipped = ref(false)
 const qualityRedenoiseSkipped = ref(false)
 
 const analyzing = ref(false)
-const analyzeMode = ref('quick')
 const analyzeElapsed = ref(0)
 let analyzeTimer = null
 
@@ -108,33 +108,53 @@ const progressLabel = computed(() => {
   return t('generate.generating_image')
 })
 
-async function analyzeImage() {
+let describeToken = 0
+
+async function analyzeImage(fresh = true) {
   if (!props.source) return
+  const my = ++describeToken
+  const auto = !fresh
   analyzing.value = true
   error.value = ''
   analyzeElapsed.value = 0
+  if (analyzeTimer) clearInterval(analyzeTimer)
   analyzeTimer = setInterval(() => { analyzeElapsed.value++ }, 1000)
 
   try {
-    const result = await api.analyzeImage(props.source, analyzeMode.value)
-    tags.value = result || ''
+    const result = await api.describePhoto(props.source, 'describe', fresh)
+    if (my === describeToken && (!auto || !tags.value)) tags.value = result || ''
   } catch (e) {
-    error.value = t('fi.error_analysis', { error: String(e) })
+    if (my === describeToken) error.value = t('fi.error_analysis', { error: describeErrorText(e, t) })
   } finally {
+    if (my === describeToken) {
+      analyzing.value = false
+      if (analyzeTimer) {
+        clearInterval(analyzeTimer)
+        analyzeTimer = null
+      }
+    }
+  }
+}
+
+function autoDescribe() {
+  if (props.active && !props.batch && props.source && !tags.value && !analyzing.value) analyzeImage(false)
+}
+
+watch(() => props.source, (val) => {
+  if (val !== lastEmittedSource) {
+    describeToken++
     analyzing.value = false
     if (analyzeTimer) {
       clearInterval(analyzeTimer)
       analyzeTimer = null
     }
-  }
-}
-
-watch(() => props.source, (val) => {
-  if (val !== lastEmittedSource) {
     tags.value = ''
     error.value = ''
   }
+  autoDescribe()
 })
+
+watch(() => props.active, autoDescribe)
 
 watch(selectedPresetId, () => {
   presetOverrides.value = null
@@ -305,12 +325,12 @@ onMounted(async () => {
     if (s.fi_quality_mode) qualityMode.value = s.fi_quality_mode === 'true'
     if (s.fi_preserve_identity) preserveIdentity.value = s.fi_preserve_identity === 'true'
     if (s.fi_extra_negative) extraNegativePrompt.value = s.fi_extra_negative
-    if (s.fi_analyze_mode) analyzeMode.value = s.fi_analyze_mode === 'describe' ? 'describe' : 'quick'
     if (s.fi_count) genCount.value = Math.max(1, Math.min(100, Number(s.fi_count) || 1))
     settingsRestored = true
   } catch (e) {
     console.warn('RemixSection.onMounted:', e)
   }
+  autoDescribe()
 })
 
 onUnmounted(() => {
@@ -328,7 +348,6 @@ function saveFIState() {
     fi_quality_mode: qualityMode.value ? 'true' : 'false',
     fi_preserve_identity: preserveIdentity.value ? 'true' : 'false',
     fi_extra_negative: extraNegativePrompt.value || '',
-    fi_analyze_mode: analyzeMode.value || '',
     fi_count: String(genCount.value || 1),
   }
   if (!loadHiresFailed.value) {
@@ -360,17 +379,13 @@ function onKeydown(e) {
     <div class="form-group">
       <div class="flex-between remix-desc-head">
         <label class="form-label m-0">{{ t('remix.description_label') }}</label>
-        <div class="flex remix-gap-6">
-          <button class="btn btn-sm btn-xs" :class="analyzeMode === 'quick' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'quick'">{{ t('fi.tags') }}</button>
-          <button class="btn btn-sm btn-xs" :class="analyzeMode === 'describe' ? 'btn-primary' : 'btn-secondary'" @click="analyzeMode = 'describe'">{{ t('fi.describe') }}</button>
-        </div>
       </div>
       <div class="flex gap-2 remix-desc-head">
-        <button class="btn btn-sm btn-secondary" @click="analyzeImage" :disabled="analyzing || !source">
+        <button data-testid="remix-describe-again" class="btn btn-sm btn-secondary" @click="analyzeImage(true)" :disabled="analyzing || !source">
           <template v-if="analyzing">
             <span>{{ t('fi.analyzing') }} ({{ analyzeElapsed }}s)</span>
           </template>
-          <span v-else>{{ t('fi.btn_analyze') }}</span>
+          <span v-else>{{ t('describe.again') }}</span>
         </button>
         <button v-if="!kidsModeActive" class="btn btn-sm btn-secondary" @click="tags = ''" :disabled="!tags" title="Clear tags"><X :size="14" /></button>
       </div>

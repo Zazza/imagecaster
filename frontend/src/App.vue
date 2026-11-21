@@ -1,6 +1,6 @@
 <script setup>
 import TitleBar from './components/TitleBar.vue'
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, provide } from 'vue'
 import { WindowSetSystemDefaultTheme } from './wailsjs/runtime/runtime'
 import { Sparkles, Sliders, SlidersHorizontal, Settings, Package, Images, RotateCcw, FolderOpen, Sun, Moon, ChevronsLeft, ChevronsRight, UserRound } from 'lucide-vue-next'
 import { api } from './api.js'
@@ -151,7 +151,6 @@ async function resetAll() {
       fi_gen_mode: 'preset',
       fi_denoising: '0.5',
       fi_extra_negative: '',
-      fi_analyze_mode: 'quick',
       object_op: 'remove',
       object_brush: '',
       fi_quality_mode: 'false',
@@ -185,6 +184,8 @@ async function resetAll() {
     resetting.value = false
   }
 }
+
+provide('navigate', target => onNavigate(target))
 
 function onNavigate(target) {
   if (target.page === 'settings' && target.tab) {

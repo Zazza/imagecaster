@@ -156,6 +156,9 @@ func (s *Service) DescribeImage(imageBase64, prompt string) (string, error) {
 	if len(imageBase64) > MaxImageBase64Len {
 		return "", config.ImageTooLarge("image")
 	}
+	if err := s.visionLocal(); err != nil {
+		return "", err
+	}
 	model := s.getAnalyzeModel()
 	s.emitter.Emit("llm:status", map[string]string{"status": "thinking"})
 	text, err := s.llm.AnalyzeImageDescribe(model, prompt, imageBase64, s.getMaxTokens())

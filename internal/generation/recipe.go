@@ -279,6 +279,9 @@ func (s *Service) DescribeForStyle(imageBase64 string) (string, error) {
 	if len(imageBase64) > MaxImageBase64Len {
 		return "", config.ImageTooLarge("image")
 	}
+	if err := s.visionLocal(); err != nil {
+		return "", err
+	}
 
 	model := s.getAnalyzeModel()
 	maxTokens := s.getMaxTokens()

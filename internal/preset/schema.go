@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const schemaVersion = 39
+const schemaVersion = 40
 
 const legacySchemaVersion = 32
 
@@ -23,6 +23,7 @@ var schemaSteps = []schemaStep{
 	{37, migrateV37StylistPresets},
 	{38, migrateV38JobSession},
 	{39, migrateV39PersonPhotos},
+	{40, migrateV40ImageDescriptions},
 }
 
 const presetsTableDDL = `
@@ -83,7 +84,16 @@ CREATE TABLE IF NOT EXISTS person_photos (
 );
 CREATE INDEX IF NOT EXISTS idx_person_photos_key ON person_photos(person_key, id)`
 
-var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + stylistPresetsDDL + ";\n" + personPhotosDDL + ";\n" + `
+const imageDescriptionsDDL = `
+CREATE TABLE IF NOT EXISTS image_descriptions (
+	hash TEXT NOT NULL,
+	mode TEXT NOT NULL,
+	text TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	PRIMARY KEY (hash, mode)
+)`
+
+var latestSchemaDDL = fmt.Sprintf(presetsTableDDL, "presets") + ";\n" + stylistPresetsDDL + ";\n" + personPhotosDDL + ";\n" + imageDescriptionsDDL + ";\n" + `
 CREATE TABLE settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL DEFAULT ''
@@ -481,6 +491,11 @@ func migrateV37StylistPresets(ctx context.Context, conn *sql.Conn) error {
 
 func migrateV39PersonPhotos(ctx context.Context, conn *sql.Conn) error {
 	_, err := conn.ExecContext(ctx, personPhotosDDL)
+	return err
+}
+
+func migrateV40ImageDescriptions(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, imageDescriptionsDDL)
 	return err
 }
 

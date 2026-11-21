@@ -1,11 +1,13 @@
 <script setup>
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
 import { t } from '../i18n/index.js'
 import { b64Url } from '../imageDataUrl.js'
 import { parseLoras } from '../loraOverride.js'
 import { ChevronLeft, ChevronRight, Info, X } from 'lucide-vue-next'
 import { useZoomPan } from '../composables/useZoomPan.js'
 import ZoomControls from './ZoomControls.vue'
+import DescribePanel from './DescribePanel.vue'
+import { describeToGenerate } from '../describeToGenerate.js'
 
 const props = defineProps({
   imageBase64: { type: String, required: true },
@@ -20,10 +22,24 @@ const props = defineProps({
   total: { type: Number, default: 0 },
   title: { type: String, default: '' },
   itemNumber: { type: Number, default: 0 },
+  describable: { type: Boolean, default: true },
+  describeLoader: { type: Function, default: null },
+  describeKey: { type: [String, Number], default: '' },
 })
 const emit = defineEmits(['close', 'prev', 'next', 'export', 'delete'])
+const navigate = inject('navigate', null)
+
+async function toGenerate(text) {
+  try {
+    await describeToGenerate(text, navigate)
+    emit('close')
+  } catch (e) {
+    console.warn('ImageViewer.toGenerate:', e)
+  }
+}
 
 const infoExpanded = ref(false)
+const describeOpen = ref(false)
 
 const imgSrc = computed(() => b64Url(props.imageBase64))
 
@@ -123,6 +139,7 @@ function onKeydown(e) {
     else emit('close')
     return
   }
+  if (e.target?.closest?.('input, textarea, select, [contenteditable]')) return
   if (e.key === 'ArrowLeft' && props.hasPrev) emit('prev')
   if (e.key === 'ArrowRight' && props.hasNext) emit('next')
   if (e.key === 'Delete' && props.showActions && props.canDelete) emit('delete')
@@ -156,6 +173,14 @@ onUnmounted(() => {
           :aria-expanded="infoExpanded"
           @click="infoExpanded = !infoExpanded"
         ><Info :size="14" /> {{ t('viewer.info_toggle') }}</button>
+        <button
+          v-if="describable"
+          data-testid="viewer-describe"
+          class="image-viewer-tool-btn"
+          :class="{ active: describeOpen }"
+          :aria-expanded="describeOpen"
+          @click="describeOpen = !describeOpen"
+        >{{ t('describe.button') }}</button>
         <slot name="actions" />
         <button v-if="showActions" class="image-viewer-tool-btn" @click="$emit('export')">{{ t('viewer.postprocess') }}</button>
         <template v-if="showActions && canDelete">
@@ -213,6 +238,9 @@ onUnmounted(() => {
         <div v-else-if="metaOnlyLine" class="viewer-params">
           <span>{{ metaOnlyLine }}</span>
         </div>
+      </aside>
+      <aside v-if="describable && describeOpen" class="iv-info iv-describe">
+        <DescribePanel :image-base64="imageBase64" :loader="describeLoader" :source-key="describeKey" @to-generate="toGenerate" />
       </aside>
     </div>
   </div>

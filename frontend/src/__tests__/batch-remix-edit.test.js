@@ -5,7 +5,7 @@ import { EventsEmit, clearEventMocks } from './mocks/runtime'
 import PostProcessPage from '../components/PostProcessPage.vue'
 import {
   GetSettings, GetActiveSessionItem, GetSessionImage, ListPresets, ListPresetTypes, ListCompoundPresets,
-  ListHiresProfiles, EnqueueFromImage, EnqueueEdit, EditImage, AnalyzeImage, ReadFileAsBase64,
+  ListHiresProfiles, EnqueueFromImage, EnqueueEdit, EditImage, AnalyzeImage, DescribePhoto, ReadFileAsBase64,
   BatchSaveImage, BatchReset, ExportImage, CancelQueueJob, ReadImageFile,
 } from '../wailsjs/go/main/App.js'
 import { useRemixQueue } from '../remixQueue.js'
@@ -158,14 +158,17 @@ describe('batch remix', () => {
   })
 
   it('R3: remix in batch shows the describe hint and describes only the open photo', async () => {
-    AnalyzeImage.mockImplementation(() => Promise.resolve('a photo'))
+    DescribePhoto.mockImplementation(() => Promise.resolve('a photo'))
     const wrapper = await mountPage()
     const remix = card(wrapper, 'post.section_remix')
     expect(remix.textContent).toContain(t('fi.batch_describe_hint'))
+    expect(DescribePhoto).not.toHaveBeenCalled()
 
-    await click(buttonIn(wrapper, remix, t('fi.btn_analyze')))
-    expect(AnalyzeImage).toHaveBeenCalledTimes(1)
-    expect(strip(AnalyzeImage.mock.calls[0][0])).toBe(IMG_A)
+    await click(buttonIn(wrapper, remix, t('describe.again')))
+    expect(DescribePhoto).toHaveBeenCalledTimes(1)
+    expect(strip(DescribePhoto.mock.calls[0][0])).toBe(IMG_A)
+    expect(DescribePhoto.mock.calls[0][1]).toBe('describe')
+    expect(DescribePhoto.mock.calls[0][2]).toBe(true)
   })
 
   it('BR5: completed remix jobs give one batch step, undo returns both photos to their previous versions', async () => {

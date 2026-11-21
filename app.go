@@ -299,6 +299,10 @@ func (a *App) AnalyzeImage(imageBase64, mode string) (string, error) {
 	return a.gen.AnalyzeImage(imageBase64, mode)
 }
 
+func (a *App) DescribePhoto(imageBase64, mode string, fresh bool) (string, error) {
+	return a.gen.DescribePhoto(imageBase64, mode, fresh)
+}
+
 func (a *App) GetDefaultEditGarmentPrompt() string {
 	return config.DefaultEditGarmentPrompt
 }

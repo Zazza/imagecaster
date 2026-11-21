@@ -55,6 +55,8 @@ export function CreateResolution(arg1:preset.Resolution):Promise<preset.Resoluti
 
 export function CreateSession(arg1:string):Promise<preset.SessionInfo>;
 
+export function DescribePhoto(arg1:string,arg2:string,arg3:boolean):Promise<string>;
+
 export function DeleteCompoundPreset(arg1:number):Promise<void>;
 
 export function DeleteDescription(arg1:number):Promise<void>;

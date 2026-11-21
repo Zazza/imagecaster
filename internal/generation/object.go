@@ -111,6 +111,9 @@ func (s *Service) validateObjectParams(p ObjectEditParams) (*objectInput, error)
 }
 
 func (s *Service) detectMaskedObject(img, mask image.Image) (string, error) {
+	if err := s.visionLocal(); err != nil {
+		return "", err
+	}
 	overlay := image.Image(maskcomp.Outline(img, mask))
 	b := overlay.Bounds()
 	if w, h := b.Dx(), b.Dy(); w > objectVisionMaxDim || h > objectVisionMaxDim {

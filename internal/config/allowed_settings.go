@@ -34,7 +34,7 @@ var AllowedSettings = map[string]bool{
 	"test_cfg_scale": true, "test_width": true, "test_height": true,
 	"test_resolution_id": true, "test_hires_profile_id": true,
 	"fi_mode": true, "fi_preset_id": true, "fi_compound_preset_id": true,
-	"fi_gen_mode": true, "fi_denoising": true, "fi_extra_negative": true, "fi_analyze_mode": true,
+	"fi_gen_mode": true, "fi_denoising": true, "fi_extra_negative": true,
 	"fi_quality_mode": true, "fi_hires_profile_id": true, "fi_preserve_identity": true,
 	"object_op": true, "object_brush": true,
 	"edit_instruction": true, "edit_loras_klein": true, "edit_loras_qwen": true, "edit_garment_prompt": true,
