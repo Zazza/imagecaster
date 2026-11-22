@@ -143,7 +143,7 @@ func TestEnqueuePostSave(t *testing.T) {
 		notLocal  bool
 	}{
 		{name: "remote server refused before the dialog", p: ExportImageParams{ImageBase64: img, Format: "png", Filename: "a.png"}, pick: "/out/b.png", notLocal: true, wantErr: true},
-		{name: "dialog path becomes the target", p: ExportImageParams{ImageBase64: img, Format: "png", Filename: "a.png", Width: 100, Height: 80}, pick: "/out/dir/b.png", wantJobs: 1, wantDir: "/out/dir", wantName: "b.png", wantPicks: 1},
+		{name: "dialog path becomes the target", p: ExportImageParams{ImageBase64: img, Format: "png", Filename: "a.png", Width: 100, Height: 80}, pick: "/out/dir/b.png", wantJobs: 1, wantDir: filepath.FromSlash("/out/dir"), wantName: "b.png", wantPicks: 1},
 		{name: "cancelled dialog enqueues nothing", p: ExportImageParams{ImageBase64: img, Format: "png", Filename: "a.png"}, wantPicks: 1},
 		{name: "dialog error is returned", p: ExportImageParams{ImageBase64: img, Format: "png", Filename: "a.png"}, pickErr: errors.New("boom"), wantErr: true, wantPicks: 1},
 		{name: "batch folder skips the dialog", p: ExportImageParams{ImageBase64: img, Format: "jpeg", Filename: "c.jpeg", OutputDir: "/batch"}, wantJobs: 1, wantDir: "/batch", wantName: "c.jpeg"},

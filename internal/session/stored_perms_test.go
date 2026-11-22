@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,9 @@ import (
 )
 
 func TestWriteTemp_SharedGroupPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits and setgid are not supported on Windows")
+	}
 	t.Parallel()
 	tests := []struct {
 		name     string
