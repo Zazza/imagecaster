@@ -19,6 +19,7 @@ import (
 
 	"github.com/Zazza/imagecaster/internal/config"
 	"github.com/Zazza/imagecaster/internal/llm"
+	"github.com/Zazza/imagecaster/internal/objectmask"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/sd"
 	"github.com/Zazza/imagecaster/internal/serverclient"
@@ -116,6 +117,10 @@ type imageFileHandler struct {
 
 func (h *imageFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := r.URL.Path
+	if strings.HasPrefix(p, "/api/object-mask/") {
+		h.serveObjectMask(w, r)
+		return
+	}
 	var dir string
 	var idStr string
 
@@ -168,4 +173,31 @@ func (h *imageFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "max-age=3600")
 	http.ServeFile(w, r, filePath)
+}
+
+func (h *imageFileHandler) serveObjectMask(w http.ResponseWriter, r *http.Request) {
+	var name string
+	switch r.URL.Path {
+	case objectmask.EncoderURL:
+		name = objectmask.EncoderName
+	case objectmask.DecoderURL:
+		name = objectmask.DecoderName
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	path := filepath.Join(h.dataDir, objectmask.Directory, name)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, path)
 }

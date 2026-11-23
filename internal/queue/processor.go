@@ -158,7 +158,7 @@ func (p *processor) processLook(gen *generation.Service, job *Job) (*JobResult, 
 		if err := json.Unmarshal([]byte(job.Params), &params); err != nil {
 			return nil, fmt.Errorf("invalid params: %w", err)
 		}
-		return gen.ApplyLookDirect(params.ImageBase64, params.Text, params.Strength, params.Seed)
+		return gen.ApplyPostLook(params)
 	})
 }
 

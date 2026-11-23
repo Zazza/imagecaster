@@ -35,10 +35,11 @@ const (
 )
 
 type RepairParams struct {
-	ImageBase64 string  `json:"image_base64"`
-	MaskBase64  string  `json:"mask_base64"`
-	Strength    float64 `json:"strength"`
-	Seed        *int64  `json:"seed"`
+	Editor      *PostEditorParams `json:"editor,omitempty"`
+	ImageBase64 string            `json:"image_base64"`
+	MaskBase64  string            `json:"mask_base64"`
+	Strength    float64           `json:"strength"`
+	Seed        *int64            `json:"seed"`
 }
 
 type repairTileBox struct {
@@ -172,11 +173,14 @@ func (s *Service) validateRepairParams(p RepairParams) (image.Image, image.Image
 	return img, mask, strength, nil
 }
 
-func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength float64, seed *int64) (*image.RGBA, json.RawMessage, error) {
+func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength float64, seed *int64, prof postEditorProfile) (*image.RGBA, json.RawMessage, error) {
 	cw, ch := box.Dx(), box.Dy()
 	crop := image.NewRGBA(image.Rect(0, 0, cw, ch))
 	draw.Draw(crop, crop.Bounds(), src, box.Min, draw.Src)
 	kw, kh := kleinImg2ImgSize(cw, ch)
+	if prof.family != "klein" {
+		kw, kh = refEditWorkSize(prof.model, cw, ch)
+	}
 	in := image.Image(crop)
 	if kw != cw || kh != ch {
 		scaled := image.NewRGBA(image.Rect(0, 0, kw, kh))
@@ -189,14 +193,14 @@ func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength f
 	}
 	batchSize, batchCount := 1, 1
 	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
-		Model:             kleinRefSpec(),
+		Model:             withReference(modelSpec(prof.model)),
 		InitImages:        []string{b64},
-		Prompt:            repairPrompt,
+		Prompt:            prof.prompt(repairPrompt),
 		NegativePrompt:    s.kids.ApplyNegative(""),
 		SamplerName:       kleinLookSampler,
 		Scheduler:         kleinLookScheduler,
-		Steps:             repairSteps,
-		CfgScale:          kleinLookCfgScale,
+		Steps:             prof.steps,
+		CfgScale:          prof.cfg,
 		Width:             kw,
 		Height:            kh,
 		Seed:              seed,
@@ -248,6 +252,10 @@ func blendRepairCore(dst, src *image.RGBA, fixed *image.RGBA, t repairTileBox, a
 }
 
 func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error) {
+	prof, err := resolvePostEditor(params.Editor, repairSteps)
+	if err != nil {
+		return nil, err
+	}
 	img, mask, strength, err := s.validateRepairParams(params)
 	if err != nil {
 		return nil, err
@@ -268,7 +276,7 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 	s.beginProgress()
 	defer s.endProgress()
 
-	s.guard.EnsureHeadroom(kleinLookModel, "repair")
+	s.guard.EnsureHeadroom(prof.model, "repair")
 
 	seed := params.Seed
 	if seed == nil || *seed < 0 {
@@ -284,7 +292,7 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return nil, ierr
 		}
-		fixed, tileInfo, err := s.repairOneTile(src, t.tile, strength, seed)
+		fixed, tileInfo, err := s.repairOneTile(src, t.tile, strength, seed, prof)
 		if err != nil {
 			return nil, err
 		}
@@ -301,11 +309,11 @@ func (s *Service) RepairImage(params RepairParams) (*GenerateImageResult, error)
 	result := &GenerateImageResult{
 		Image:           finalB64,
 		Info:            info,
-		EffectivePrompt: repairPrompt,
+		EffectivePrompt: prof.prompt(repairPrompt),
 	}
 	result.SessionItemID = s.sessions.AddToSession(finalB64, info, "repair", &preset.GenerationMeta{
 		Label: repairLabel,
-		Model: kleinLookModel,
+		Model: prof.model,
 	})
 	return result, nil
 }

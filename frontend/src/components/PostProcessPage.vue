@@ -1,4 +1,7 @@
 <script setup>
+import { providePostEditor } from '../composables/usePostEditor.js'
+import SettingsPanel from './post/SettingsPanel.vue'
+import { modelLoraText } from '../modelLora.js'
 import StatusMessage from './StatusMessage.vue'
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
@@ -26,6 +29,11 @@ import FinishPanel from './post/FinishPanel.vue'
 import ExportPanel from './post/ExportPanel.vue'
 import RecipesPanel from './post/RecipesPanel.vue'
 
+const postEditor = providePostEditor()
+const postEditorReady = postEditor.ready
+const postEditorError = postEditor.error
+const postEditorSummary = computed(() => modelLoraText(postEditor.model.value, postEditor.rows.value))
+
 const props = defineProps({
   initialSection: { type: String, default: 'effect' },
   initialImage: { type: String, default: '' },
@@ -34,6 +42,7 @@ const props = defineProps({
 const emit = defineEmits(['clear-initial-image'])
 
 const openSection = ref('effect')
+const settingsSectionRef = ref(null)
 const editSectionRef = ref(null)
 const remixSectionRef = ref(null)
 const objectSectionRef = ref(null)
@@ -52,6 +61,7 @@ const recipesSectionRef = ref(null)
 const recipesCompRef = ref(null)
 
 function sectionEl(name) {
+  if (name === 'settings') return settingsSectionRef.value
   if (name === 'edit') return editSectionRef.value
   if (name === 'remix') return remixSectionRef.value
   if (name === 'object') return objectSectionRef.value
@@ -129,7 +139,6 @@ const { previewB64, previewing, finishActive } = post
 const input = useImageInput({ setSource, error })
 
 const maskComp = computed(() => openSection.value === 'object' ? objectCompRef.value : openSection.value === 'repair' ? repairCompRef.value : openSection.value === 'effect' ? effectCompRef.value : null)
-const maskMode = computed(() => !!maskComp.value?.maskActive)
 
 const { loadPresets } = usePresets()
 
@@ -146,16 +155,18 @@ function onEditApplyRecipe(payload) {
   applyRecipe({ steps: JSON.stringify(payload.steps || []), adjust: JSON.stringify(payload.adjust || {}) })
 }
 
-async function onEditApplyLook({ text, strength }) {
+async function onEditApplyLook({ text, strength, change_scene = false }) {
   if (lookBusy.value || applyingEffect.value || batchBusy.value || recipeRunning.value) return
   if (!currentB64.value) {
     error.value = t('export.error_no_image')
     return
   }
-  if (!text) return
+  if (!text || !postEditor.ready.value) return
+  const editor = postEditor.snapshot()
+  const sceneParams = change_scene ? { change_scene: true } : {}
   if (batchActive.value) {
     await batch.runBatchStep(async (b64) => {
-      const job = await batch.trackBatchJob(api.enqueueLook({ image_base64: b64, text, strength, seed: null }))
+      const job = await batch.trackBatchJob(api.enqueueLook({ image_base64: b64, text, strength, seed: null, editor, ...sceneParams }))
       return job ? () => job.wait : ''
     })
     return
@@ -165,9 +176,9 @@ async function onEditApplyLook({ text, strength }) {
   error.value = ''
   successMsg.value = ''
   try {
-    const res = await api.applyLookDirect(currentB64.value, text, strength, null)
+    const res = await api.applyPostLook({ image_base64: currentB64.value, text, strength, seed: null, editor, ...sceneParams })
     if (res?.image) {
-      appliedEffects.value.push({ prompt: res.effective_prompt || '', strength })
+      appliedEffects.value.push({ prompt: res.effective_prompt || '', strength, ...sceneParams })
       onToolResult(res.image)
       lookResultPrompt.value = res.effective_prompt || ''
     }
@@ -212,19 +223,17 @@ const layerUndo = ref([])
 const layerRedo = ref([])
 const canUndoLayer = computed(() => layerUndo.value.length > 0)
 const canRedoLayer = computed(() => layerRedo.value.length > 0)
-const canUndoView = computed(() => batchActive.value ? batchState.value.canUndo && !batchBusy.value && !batchExporting.value : maskMode.value ? !!maskComp.value?.canUndoMask : canUndoLayer.value)
-const canRedoView = computed(() => batchActive.value ? false : maskMode.value ? !!maskComp.value?.canRedoMask : canRedoLayer.value)
+const canUndoView = computed(() => batchActive.value ? batchState.value.canUndo && !batchBusy.value && !batchExporting.value : canUndoLayer.value)
+const canRedoView = computed(() => !batchActive.value && canRedoLayer.value)
 
 function undoView() {
   if (batchActive.value) batch.undoBatch()
-  else if (maskMode.value) maskComp.value?.undoMask()
   else undoLayer()
 }
 
 function redoView() {
   if (batchActive.value) return
-  if (maskMode.value) maskComp.value?.redoMask()
-  else redoLayer()
+  redoLayer()
 }
 
 function pushLayerHistory() {
@@ -352,11 +361,6 @@ function onPageKeydown(e) {
     if (!redo) batch.undoBatch()
     return
   }
-  if (maskMode.value) {
-    if (redo) maskComp.value?.redoMask()
-    else maskComp.value?.undoMask()
-    return
-  }
   if (redo) redoLayer()
   else undoLayer()
 }
@@ -464,6 +468,7 @@ onUnmounted(() => {
       </div>
 
       <div class="post-controls accordion">
+        <div v-if="postEditorError" role="alert" class="form-hint">{{ postEditorError }}</div>
         <div ref="editSectionRef" class="card" :class="{ collapsed: openSection !== 'edit' }">
           <div class="card-header card-toggle" @click="setOpenSection('edit')">
             <span class="card-heading"><span class="card-num mono">01</span><span class="card-heading-text"><span class="card-title">{{ t('post.section_edit') }}</span><span class="card-subtitle">{{ t('post.sub_edit') }}</span></span></span>
@@ -481,6 +486,7 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
+              <div class="form-hint">{{ t('post_editor.remix') }}</div>
               <RemixSection :source="currentB64" :batch="batchActive" :batch-busy="batchBusy || batchExporting || recipeRunning || lookBusy || applyingEffect" @apply-batch="onRemixApplyBatch" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
             </div>
           </div>
@@ -619,6 +625,12 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <div ref="settingsSectionRef" class="card" :class="{ collapsed: openSection !== 'settings' }">
+          <div class="card-header card-toggle" @click="setOpenSection('settings')">
+            <span class="card-heading"><span class="card-num mono">12</span><span class="card-heading-text"><span class="card-title">{{ t('post_editor.title') }}</span><span class="card-subtitle">{{ postEditorSummary }}{{ postEditorReady ? '' : ` — ${t('post_editor.unavailable')}` }}</span></span></span>
+          </div>
+          <div class="card-collapse" :class="{ collapsed: openSection !== 'settings' }"><div class="card-body"><SettingsPanel /></div></div>
+        </div>
         <div class="post-save-history">
           <button class="btn btn-primary btn-block" data-testid="post-save-history" :disabled="!currentB64 || batchActive || savingHistory" @click="saveToHistory">{{ t('post.save_history') }}</button>
         </div>

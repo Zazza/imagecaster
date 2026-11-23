@@ -34,6 +34,7 @@ const maskViewRef = ref(null)
 const brushing = ref(false)
 const brushCursor = ref({ x: 0, y: 0, visible: false })
 const maskMode = computed(() => !!props.maskComp?.maskActive)
+const pointSelection = computed(() => maskMode.value && !!props.maskComp?.pointSelection)
 const brushDiameter = computed(() => props.maskComp?.brushSize || 30)
 const maskOverlayVisible = ref(true)
 
@@ -69,7 +70,11 @@ function pointerToImage(e) {
 function syncMaskView() {
   const src = props.maskComp?.maskCanvas
   const view = maskViewRef.value
-  if (!src || !view) return
+  if (!view) return
+  if (!src) {
+    view.getContext('2d')?.clearRect(0, 0, view.width, view.height)
+    return
+  }
   if (view.width !== src.width || view.height !== src.height) {
     view.width = src.width
     view.height = src.height
@@ -112,6 +117,10 @@ function onViewPointerDown(e) {
   if (maskMode.value) {
     const p = pointerToImage(e)
     if (!p) return
+    if (pointSelection.value) {
+      void props.maskComp?.selectAt(p.x, p.y, e.shiftKey)
+      return
+    }
     brushing.value = true
     props.maskComp?.beginStroke(p.x, p.y, brushRadius())
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -122,6 +131,7 @@ function onViewPointerDown(e) {
 
 function onViewPointerMove(e) {
   if (maskMode.value) {
+    if (pointSelection.value) return
     updateBrushCursor(e)
     if (brushing.value) {
       const p = pointerToImage(e)
@@ -191,7 +201,7 @@ onUnmounted(() => {
       v-if="source"
       ref="splitWrapRef"
       class="split-area"
-      :class="{ pannable: panEnabled && !maskMode, panning, masking: maskMode }"
+      :class="{ pannable: panEnabled && !maskMode, panning, masking: maskMode, 'point-selecting': pointSelection }"
       @pointerdown="onViewPointerDown"
       @pointermove="onViewPointerMove"
       @pointerup="onViewPointerUp"
@@ -219,7 +229,7 @@ onUnmounted(() => {
       </div>
       <canvas v-if="maskMode" ref="maskViewRef" class="split-img split-mask" :class="{ 'mask-overlay-hidden': !maskOverlayVisible }" :style="layerStyle"></canvas>
       <div
-        v-if="maskMode && brushCursor.visible"
+        v-if="maskMode && !pointSelection && brushCursor.visible"
         class="brush-cursor"
         :style="{ left: brushCursor.x + 'px', top: brushCursor.y + 'px', width: brushDiameter + 'px', height: brushDiameter + 'px' }"
       ></div>
@@ -273,6 +283,10 @@ onUnmounted(() => {
           @click="emit('redo')"
         ><Redo2 :size="14" /></button>
       </ZoomControls>
+      <div v-if="maskMode" class="mask-history" @pointerdown.stop>
+        <button class="btn btn-sm btn-secondary" data-testid="mask-undo" :title="t(pointSelection ? 'wand_mask.undo' : 'post.mask_undo')" :disabled="!maskComp?.canUndoMask" @click="maskComp?.undoMask()">{{ t(pointSelection ? 'wand_mask.undo' : 'post.mask_undo') }}</button>
+        <button class="btn btn-sm btn-secondary" data-testid="mask-redo" :title="t(pointSelection ? 'wand_mask.redo' : 'post.mask_redo')" :disabled="!maskComp?.canRedoMask" @click="maskComp?.redoMask()">{{ t(pointSelection ? 'wand_mask.redo' : 'post.mask_redo') }}</button>
+      </div>
     </div>
     <div
       v-else
@@ -290,6 +304,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.mask-history {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 3;
+}
+
 .drop-zone {
   flex: 1;
   min-height: 120px;
@@ -405,6 +428,10 @@ onUnmounted(() => {
 
 .split-area.masking {
   cursor: none;
+}
+
+.split-area.point-selecting {
+  cursor: crosshair;
 }
 
 .brush-cursor {

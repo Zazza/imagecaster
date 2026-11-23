@@ -1,18 +1,17 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, toRef } from 'vue'
 import { Sparkles, X } from 'lucide-vue-next'
 import { api } from '../../api.js'
 import { t } from '../../i18n/index.js'
 import { parseSeedInput } from '../../seed.js'
-import { modelLoraText } from '../../modelLora.js'
-import { parseLoras, normalizeLoras } from '../../loraOverride.js'
-import { useServerLoras } from '../../composables/useServerLoras.js'
 import { EFFECT_TYPE_GROUPS } from '../../effectTypes.js'
 import { effectLabel } from '../../effectNames.js'
 import { usePresets } from '../../composables/usePresets.js'
 import { useMaskCanvas } from '../../composables/useMaskCanvas.js'
+import { useObjectMask } from '../../composables/useObjectMask.js'
+import { useWandMask } from '../../composables/useWandMask.js'
 import { jobImage } from '../../composables/usePostBatch.js'
-import FoldBlock from '../FoldBlock.vue'
+import { usePostEditor } from '../../composables/usePostEditor.js'
 import RecipeComposition from '../RecipeComposition.vue'
 
 const props = defineProps({
@@ -23,6 +22,9 @@ const props = defineProps({
   blocked: { type: Boolean, default: false },
   appliedCount: { type: Number, default: 0 },
 })
+
+const editor = usePostEditor()
+const editorReady = editor.ready
 
 const emit = defineEmits(['busy', 'applied', 'apply-recipe', 'clear-log'])
 
@@ -68,12 +70,16 @@ const selectedEffectName = computed(() => {
   }
   return t('post.effect_none')
 })
-const effectStrength = ref(0.5)
+const EFFECT_STRENGTH_MIN = 0.35
+const EFFECT_STRENGTH_MAX = 1
+const EFFECT_STRENGTH_DEFAULT = EFFECT_STRENGTH_MAX
+const EFFECT_STRENGTH_STEP = 0.01
+const effectStrength = ref(EFFECT_STRENGTH_DEFAULT)
 
 function selectEffect(p) {
   selectedEffectId.value = p.id
   const d = Number(p.denoising_strength)
-  if (Number.isFinite(d) && d > 0) effectStrength.value = Math.min(0.9, Math.max(0.35, d))
+  if (Number.isFinite(d) && d > 0) effectStrength.value = Math.min(EFFECT_STRENGTH_MAX, Math.max(EFFECT_STRENGTH_MIN, d))
 }
 const effectKeepColor = ref(true)
 const effectIsMaterial = computed(() => {
@@ -94,8 +100,24 @@ function setApplying(v) {
 }
 
 const effectMask = useMaskCanvas()
-const { brushSize: effectBrush, hasMask: effectHasMask } = effectMask
+const maskMode = ref('object')
 const effectMaskOn = ref(false)
+const objectMask = useObjectMask(toRef(props, 'source'))
+const wandSource = computed(() => maskMode.value === 'wand' && effectMaskOn.value && !batchActive.value ? props.source : '')
+const wandMask = useWandMask(wandSource)
+const activeMask = computed(() => maskMode.value === 'wand' ? wandMask : maskMode.value === 'object' ? objectMask : effectMask)
+const effectBrush = computed({ get: () => activeMask.value.brushSize?.value ?? effectMask.brushSize.value, set: v => { if (activeMask.value.brushSize) activeMask.value.brushSize.value = v } })
+const effectHasMask = computed(() => activeMask.value.hasMask.value)
+const objectBusy = objectMask.busy
+const objectExclude = objectMask.exclude
+const objectHasPaint = objectMask.hasPaint
+const selectionBusy = computed(() => maskMode.value === 'wand' ? wandMask.busy.value : objectBusy.value)
+const selectionError = computed(() => maskMode.value === 'wand' ? wandMask.error.value : objectMask.error.value)
+const canClearMask = computed(() => maskMode.value === 'wand' ? wandMask.canClear.value : maskMode.value === 'object' ? objectMask.canUndoMask.value || objectBusy.value : effectMask.hasMask.value)
+const objectSelectionRequired = computed(() => effectMaskOn.value && maskMode.value !== 'exact' && !batchActive.value)
+const maskReady = computed(() => !objectSelectionRequired.value || (effectHasMask.value && !selectionBusy.value))
+watch(maskMode, () => { effectMask.clearMask(); objectMask.clearMask(); wandMask.clearMask() })
+watch(effectMaskOn, enabled => { if (!enabled) { objectMask.clearMask(); wandMask.clearMask() } })
 const maskActive = computed(() => effectMaskOn.value && !!props.source && !batchActive.value)
 let effectMaskReset = false
 watch(() => props.source, v => {
@@ -104,13 +126,15 @@ watch(() => props.source, v => {
 }, { immediate: true })
 
 function onNewSource(b64, sameAsCurrent) {
+  objectMask.clearMask()
+  wandMask.clearMask()
   if (sameAsCurrent) effectMask.applySource(b64, false)
   else effectMaskReset = true
 }
 
 function effectMaskParam() {
   if (!effectMaskOn.value || batchActive.value || !effectHasMask.value) return {}
-  return { mask_base64: effectMask.getMaskBase64() }
+  return { mask_base64: activeMask.value.getMaskBase64(), ...(maskMode.value !== 'exact' ? { mask_strict: true } : {}) }
 }
 
 async function onEffectJobDone(jobId, outcome, entry) {
@@ -130,63 +154,6 @@ async function onEffectJobDone(jobId, outcome, entry) {
   if (effectJobIds.value.size === 0) setApplying(false)
 }
 
-const EFFECT_LORA_WEIGHT = { defaultWeight: 1, min: -Infinity, max: Infinity }
-const effectLoras = ref([])
-const { loras: serverLoras, load: loadServerLoras } = useServerLoras()
-const effectLoraChoices = computed(() => serverLoras.value.map(l => l.name).filter(Boolean))
-
-function cleanLoras(list) {
-  return normalizeLoras(list, EFFECT_LORA_WEIGHT)
-}
-
-function parseLoraList(raw) {
-  return parseLoras(raw, EFFECT_LORA_WEIGHT)
-}
-
-async function loadEffectModel() {
-  try {
-    const s = await api.getSettings()
-    effectLoras.value = parseLoraList(s?.effect_loras_klein)
-  } catch (e) {
-    console.warn('effect model settings:', e)
-  }
-}
-
-const effectModelSummary = computed(() => modelLoraText('Klein', effectLoras.value))
-const selectedEffectNonKlein = computed(() => {
-  const p = presets.value.find(x => x.id === selectedEffectId.value)
-  return !!(p?.model_name && !/klein/i.test(p.model_name))
-})
-
-function onEffectModelToggle(open) {
-  if (open) loadServerLoras()
-}
-
-function saveEffectSetting(data) {
-  api.updateSettings(data).catch(e => console.warn('save effect model:', e))
-}
-
-function saveEffectLoras() {
-  saveEffectSetting({ effect_loras_klein: JSON.stringify(cleanLoras(effectLoras.value)) })
-}
-
-function addEffectLora() {
-  effectLoras.value.push({ name: effectLoraChoices.value[0] || '', weight: 1 })
-  saveEffectLoras()
-}
-
-function removeEffectLora(idx) {
-  effectLoras.value.splice(idx, 1)
-  saveEffectLoras()
-}
-
-function effectOverrides(presetId) {
-  const preset = presets.value.find(p => p.id === presetId)
-  if (preset?.model_name && !/klein/i.test(preset.model_name)) return null
-  if (!effectLoras.value.some(l => l.name)) return null
-  return { loras: JSON.stringify([...parseLoraList(preset?.loras), ...cleanLoras(effectLoras.value)]) }
-}
-
 function effectJobParams(b64, seed) {
   return {
     image_base64: b64,
@@ -199,7 +166,7 @@ function effectJobParams(b64, seed) {
     extra_negative_prompt: '',
     resolution_id: null,
     hires_profile_id: null,
-    overrides: effectOverrides(selectedEffectId.value),
+    overrides: null,
     preserve_identity: true,
     seed: seed ?? null,
     keep_color: effectIsMaterial.value && effectKeepColor.value,
@@ -207,7 +174,7 @@ function effectJobParams(b64, seed) {
 }
 
 async function applyEffect() {
-  if (applyingEffect.value || batchBusy.value || props.blocked) return
+  if (!editor.ready.value || applyingEffect.value || batchBusy.value || props.blocked || !maskReady.value) return
   if (!props.source) {
     error.value = t('export.error_no_image')
     return
@@ -216,14 +183,15 @@ async function applyEffect() {
     error.value = t('post.error_no_effect')
     return
   }
+  const snapshot = editor.snapshot()
+  const baseParams = { ...effectJobParams(props.source, parseSeedInput(effectSeedInput.value)), editor: snapshot }
   if (batchActive.value) {
     const seedVal = parseSeedInput(effectSeedInput.value)
     const presetId = selectedEffectId.value
     const strength = effectStrength.value
-    const overrides = effectOverrides(presetId)
     await props.batch.runBatchStep(async (b64, i) => {
       const seed = seedVal !== null ? Math.min(seedVal + i, Number.MAX_SAFE_INTEGER) : null
-      const job = await props.batch.trackBatchJob(api.enqueueFromImage({ ...effectJobParams(b64, seed), preset_id: presetId, denoising_strength: strength, overrides }))
+      const job = await props.batch.trackBatchJob(api.enqueueFromImage({ ...baseParams, image_base64: b64, seed, preset_id: presetId, denoising_strength: strength }))
       return job ? () => job.wait : ''
     })
     return
@@ -236,7 +204,7 @@ async function applyEffect() {
     const seedVal = parseSeedInput(effectSeedInput.value)
     const presetId = selectedEffectId.value
     const strength = effectStrength.value
-    const jobId = await api.enqueueFromImage({ ...effectJobParams(props.source, seedVal), ...effectMaskParam() })
+    const jobId = await api.enqueueFromImage({ ...baseParams, ...effectMaskParam() })
     if (jobId) {
       effectJobIds.value.add(jobId)
       props.queueJobs.track(jobId).then(outcome => onEffectJobDone(jobId, outcome, { preset_id: presetId, strength }))
@@ -321,18 +289,20 @@ function applyAutoStyleRecipe() {
 
 defineExpose({
   maskActive,
-  maskCanvas: effectMask.maskCanvas,
-  maskVersion: effectMask.maskVersion,
-  brushSize: effectMask.brushSize,
-  beginStroke: effectMask.beginStroke,
-  strokeTo: effectMask.strokeTo,
-  endStroke: effectMask.endStroke,
-  undoMask: effectMask.undoMask,
-  redoMask: effectMask.redoMask,
-  canUndoMask: effectMask.hasMask,
-  canRedoMask: effectMask.canRedoMask,
+  maskCanvas: computed(() => activeMask.value.maskCanvas.value),
+  maskVersion: computed(() => activeMask.value.maskVersion.value),
+  brushSize: effectBrush,
+  pointSelection: computed(() => maskMode.value === 'wand'),
+  selectAt: (x, y, additive) => wandMask.selectAt(x, y, additive),
+  beginStroke: (...args) => activeMask.value.beginStroke?.(...args),
+  strokeTo: (...args) => activeMask.value.strokeTo?.(...args),
+  endStroke: () => activeMask.value.endStroke?.(),
+  undoMask: () => activeMask.value.undoMask(),
+  redoMask: () => activeMask.value.redoMask(),
+  canUndoMask: computed(() => maskMode.value === 'exact' ? effectMask.hasMask.value : activeMask.value.canUndoMask.value),
+  canRedoMask: computed(() => activeMask.value.canRedoMask.value),
   onNewSource,
-  load: loadEffectModel,
+  load: () => {},
 })
 </script>
 
@@ -402,29 +372,31 @@ defineExpose({
     <button class="btn btn-sm" :class="effectMaskOn ? 'btn-primary' : 'btn-secondary'" :disabled="!source" @click="effectMaskOn = !effectMaskOn">{{ t('post.effect_mask_btn') }}</button>
     <div v-if="effectIsPattern && !(effectMaskOn && effectHasMask)" class="form-hint">{{ t('post.effect_pattern_mask_hint') }}</div>
     <template v-if="effectMaskOn">
-      <div class="form-hint">{{ t('post.effect_mask_hint') }}</div>
-      <label class="form-label">{{ t('fi.label_brush_size', { value: effectBrush }) }}</label>
+      <select class="form-select" v-model="maskMode" data-testid="object-mask-mode" :aria-label="t('object_mask.mode')">
+        <option value="object">{{ t('object_mask.object') }}</option>
+        <option value="exact">{{ t('object_mask.exact') }}</option>
+        <option value="wand">{{ t('wand_mask.mode') }}</option>
+      </select>
+      <div class="form-hint">{{ t(maskMode === 'wand' ? 'wand_mask.hint' : maskMode === 'object' ? 'object_mask.hint' : 'post.effect_mask_hint') }}</div>
+      <template v-if="maskMode === 'object'">
+        <div class="fx-mask-row">
+          <button class="btn btn-sm" :class="!objectExclude ? 'btn-primary' : 'btn-secondary'" @click="objectExclude = false">{{ t('object_mask.add') }}</button>
+          <button class="btn btn-sm" :class="objectExclude ? 'btn-primary' : 'btn-secondary'" @click="objectExclude = true">{{ t('object_mask.exclude') }}</button>
+        </div>
+        <button class="btn btn-sm btn-secondary" data-testid="object-mask-detect" :disabled="!objectHasPaint || objectBusy" @click="objectMask.detect">{{ t('object_mask.detect') }}</button>
+      </template>
+      <template v-if="maskMode !== 'exact'">
+        <div v-if="selectionBusy" class="form-hint" role="status"><span class="spinner spinner-sm"></span> {{ t('object_mask.busy') }}</div>
+        <div v-else-if="selectionError" class="form-hint" role="alert">{{ t(selectionError.startsWith('object_mask.') || selectionError.startsWith('wand_mask.') ? selectionError : 'object_mask.failed') }}<span v-if="!selectionError.startsWith('object_mask.') && !selectionError.startsWith('wand_mask.')"> {{ selectionError }}</span></div>
+        <div v-else-if="effectHasMask" class="form-hint">{{ t(maskMode === 'wand' ? 'wand_mask.preview' : 'object_mask.preview') }}</div>
+      </template>
+      <label v-if="maskMode !== 'wand'" class="form-label">{{ t('fi.label_brush_size', { value: effectBrush }) }}</label>
       <div class="fx-mask-row">
-        <input type="range" class="form-range" v-model.number="effectBrush" min="5" max="150" step="1" />
-        <button class="btn btn-sm btn-secondary" :disabled="!effectHasMask" @click="effectMask.clearMask">{{ t('fi.btn_clear_mask') }}</button>
+        <input v-if="maskMode !== 'wand'" type="range" class="form-range" v-model.number="effectBrush" min="5" max="150" step="1" />
+        <button class="btn btn-sm btn-secondary" :disabled="!canClearMask" @click="activeMask.clearMask">{{ t('fi.btn_clear_mask') }}</button>
       </div>
     </template>
   </div>
-
-  <FoldBlock v-if="!selectedEffectNonKlein" class="fx-model" :title="t('model.block_title')" :summary="effectModelSummary" @toggle="onEffectModelToggle">
-    <div class="fx-model-body">
-      <div class="form-hint">{{ t('model.hint_klein') }}</div>
-      <div v-for="(l, i) in effectLoras" :key="i" class="fx-lora-row">
-        <select class="form-select fx-lora-name" v-model="l.name" @change="saveEffectLoras">
-          <option v-if="l.name && !effectLoraChoices.includes(l.name)" :value="l.name">{{ l.name }}</option>
-          <option v-for="n in effectLoraChoices" :key="n" :value="n">{{ n }}</option>
-        </select>
-        <input class="form-input fx-lora-weight" type="number" v-model.number="l.weight" min="-2" max="2" step="0.05" @change="saveEffectLoras" />
-        <button type="button" class="btn btn-sm btn-danger-quiet fx-lora-remove" @click="removeEffectLora(i)"><X :size="14" /></button>
-      </div>
-      <button type="button" class="btn btn-sm btn-secondary fx-lora-add" @click="addEffectLora">{{ t('post.effect_add_lora') }}</button>
-    </div>
-  </FoldBlock>
 
   <div class="form-group">
     <label class="form-label">{{ t('fi.seed_label') }}</label>
@@ -434,13 +406,13 @@ defineExpose({
   <div class="fx-apply-bar">
   <div class="form-group">
     <label class="form-label">{{ t('post.effect_strength', { value: effectStrength.toFixed(2) }) }}</label>
-    <input type="range" class="form-range" v-model.number="effectStrength" min="0.35" max="0.9" step="0.01" />
+    <input type="range" class="form-range" v-model.number="effectStrength" :min="EFFECT_STRENGTH_MIN" :max="EFFECT_STRENGTH_MAX" :step="EFFECT_STRENGTH_STEP" />
   </div>
 
   <button
     v-if="!applyingEffect && !batchBusy"
     class="btn btn-primary btn-block"
-    :disabled="!source || !selectedEffectId || batchBusy || batchExporting || blocked"
+    :disabled="!editorReady || !source || !selectedEffectId || batchBusy || batchExporting || blocked || !maskReady"
     @click="applyEffect"
   >
     {{ batchActive ? t('post.btn_apply_effect_all', { n: batchState.items.length }) : t('post.btn_apply_effect') }}

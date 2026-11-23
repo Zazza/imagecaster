@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { TriangleAlert, Shirt, RotateCcw, Maximize2, SlidersHorizontal } from 'lucide-vue-next'
+import { TriangleAlert, Shirt, RotateCcw, Maximize2, SlidersHorizontal, Pencil } from 'lucide-vue-next'
 import { openInHistoryViewer } from '../historyViewer.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
@@ -11,7 +11,9 @@ import { usePresets } from '../composables/usePresets.js'
 import { b64Url } from '../imageDataUrl.js'
 import { readImageFile } from '../imageFile.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
-import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
+import { providePostEditor } from '../composables/usePostEditor.js'
+import EditorSettings from './post/SettingsPanel.vue'
+import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, editFrame, EDIT_INSTRUCTION_MAX, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import ImageViewer from './ImageViewer.vue'
@@ -50,6 +52,15 @@ const reshooting = ref(false)
 const upscaling = ref(false)
 const bigImage = ref('')
 const showViewer = ref(false)
+const editOpen = ref(false)
+const editInstruction = ref('')
+const editEditor = providePostEditor({ settingsPrefix: 'stylist_edit_editor', restoreLegacy: false })
+const editing = ref(false)
+const autoPickEditId = ref(0)
+let selectionEpoch = 0
+const canEdit = computed(() => selectedFrame.value?.status === 'completed' && !!selectedFrame.value?.itemId)
+const canSubmitEdit = computed(() => canEdit.value && editEditor.ready.value && !!editInstruction.value.trim() && [...editInstruction.value.trim()].length <= EDIT_INSTRUCTION_MAX && !editing.value && !shooting.value)
+
 
 const { presets, presetTypes, compoundPresets, loadPresets } = usePresets()
 const modelCatalog = ref(null)
@@ -333,6 +344,8 @@ function onGarmentPaste(e) {
 }
 
 async function onShoot() {
+  selectionEpoch++
+  autoPickEditId.value = 0
   shotNotice.value = ''
   const ids = await shoot(swapAvailable.value && form.faceSwap, person.value?.name)
   if (ids.length) {
@@ -355,13 +368,58 @@ async function cancelRunning() {
 
 function pickFrame(f) {
   if (!FINISHED.includes(f.status)) return
+  selectionEpoch++
+  autoPickEditId.value = 0
   pickedJobId.value = f.jobId
   upscaled.value = null
 }
 
+function toggleEdit() {
+  if (!canEdit.value) return
+  upscaled.value = null
+  editOpen.value = !editOpen.value
+}
+
+async function onEdit() {
+  const source = selectedFrame.value
+  if (!canSubmitEdit.value || !source) return
+  const epoch = selectionEpoch
+  const instruction = editInstruction.value
+  editing.value = true
+  error.value = ''
+  try {
+    const id = await editFrame(source.jobId, instruction, editEditor.snapshot())
+    if (id && epoch === selectionEpoch) {
+      autoPickEditId.value = id
+      editInstruction.value = ''
+      shotNotice.value = t('stylist.edit_queued')
+    }
+  } catch (e) {
+    error.value = String(e?.message || e)
+  } finally {
+    editing.value = false
+  }
+}
+
+watch(() => selectedFrame.value?.jobId, () => {
+  editInstruction.value = ''
+  editOpen.value = false
+})
+
+watch([frames, autoPickEditId], ([list, id]) => {
+  if (!id) return
+  const frame = list.find(f => f.jobId === id)
+  if (!frame || !FINISHED.includes(frame.status)) return
+  pickedJobId.value = id
+  upscaled.value = null
+  autoPickEditId.value = 0
+})
+
 async function onReshoot() {
   const f = selectedFrame.value
   if (!f || reshooting.value) return
+  selectionEpoch++
+  autoPickEditId.value = 0
   reshooting.value = true
   error.value = ''
   try {
@@ -379,6 +437,8 @@ async function onUpscale() {
   const f = selectedFrame.value
   const itemId = bigItemId.value
   if (!f || !itemId || upscaling.value) return
+  selectionEpoch++
+  autoPickEditId.value = 0
   upscaling.value = true
   error.value = ''
   try {
@@ -548,8 +608,17 @@ onUnmounted(() => {
               <Maximize2 v-else :size="14" />
               {{ t('generate.btn_upscale_x2') }}
             </button>
+            <button v-if="canEdit" class="btn btn-sm btn-secondary" :aria-expanded="editOpen" aria-controls="stylist-edit-panel" data-testid="stylist-edit-toggle" @click="toggleEdit"><Pencil :size="14" /> {{ t('stylist.edit_frame') }}</button>
             <button v-if="bigItemId" class="btn btn-sm btn-primary" data-testid="stylist-to-post" @click="toPostProcess"><SlidersHorizontal :size="14" /> {{ t('post.btn_send') }}</button>
           </div>
+          <div v-if="editOpen && canEdit" id="stylist-edit-panel" class="card stylist-edit-panel" data-testid="stylist-edit-panel">
+            <EditorSettings id-prefix="stylist-editor" scope-key="stylist.edit_editor_scope" />
+            <label class="form-label" for="stylist-edit-instruction">{{ t('stylist.edit_question') }}</label>
+            <textarea id="stylist-edit-instruction" v-model="editInstruction" class="form-textarea" rows="3" :maxlength="EDIT_INSTRUCTION_MAX" :disabled="editing" :placeholder="t('stylist.edit_placeholder')" data-testid="stylist-edit-instruction"></textarea>
+            <div class="form-hint">{{ t('stylist.edit_hint') }}</div>
+            <button class="btn btn-primary" :disabled="!canSubmitEdit" data-testid="stylist-edit-submit" @click="onEdit">{{ editing ? t('stylist.edit_submitting') : t('stylist.edit_create') }}</button>
+          </div>
+          <div v-if="selectedFrame?.faceSwap?.startsWith('skipped:')" class="form-hint" data-testid="stylist-face-swap-skipped">{{ t('stylist.edit_face_skipped', { reason: selectedFrame.faceSwap.slice('skipped:'.length) }) }}</div>
           <div v-if="frames.length" class="card stylist-strip-card">
             <div class="card-title">{{ t('stylist.results') }}</div>
             <div class="form-hint">{{ t('stylist.results_hint') }}</div>
@@ -742,4 +811,7 @@ onUnmounted(() => {
 .stylist-thumb-text.on-image { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 3px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; line-height: 1.4; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stylist-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .stylist-thumb-text { font-size: var(--fs-xs); color: var(--text-dim); text-align: center; padding: 4px; }
+
+.stylist-edit-panel { display: grid; gap: 10px; }
+.stylist-edit-panel .btn { justify-self: start; }
 </style>

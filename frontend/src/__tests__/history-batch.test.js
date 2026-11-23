@@ -1,3 +1,4 @@
+import { mockInstalledEditor } from './helpers/post-editor.js'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
@@ -47,6 +48,7 @@ describe('AppFooter history selection', () => {
   }
   beforeEach(() => {
     vi.clearAllMocks()
+  mockInstalledEditor()
     clearEventMocks()
     useRemixQueue().clearPostQueue()
     activeSession = 22
@@ -259,6 +261,7 @@ describe('PostProcessPage queue from history', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+  mockInstalledEditor()
     clearEventMocks()
     useRemixQueue().clearPostQueue()
     ListHiresProfiles.mockImplementation(() => Promise.resolve([]))

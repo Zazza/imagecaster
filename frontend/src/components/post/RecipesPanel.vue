@@ -1,4 +1,7 @@
 <script setup>
+import { usePostEditor } from '../../composables/usePostEditor.js'
+const editor = usePostEditor()
+const editorReady = editor.ready
 import { ref, watch, onUnmounted } from 'vue'
 import { X } from 'lucide-vue-next'
 import { api } from '../../api.js'
@@ -110,8 +113,9 @@ async function deleteRecipe(id) {
   }
 }
 
-function recipeJobParams(presetId, strength, b64) {
+function recipeJobParams(presetId, strength, b64, snapshot) {
   return {
+    editor: snapshot,
     image_base64: b64,
     mode: 'img2img',
     gen_mode: 'preset',
@@ -128,23 +132,23 @@ function recipeJobParams(presetId, strength, b64) {
   }
 }
 
-function enqueueRecipeStep(step, img) {
+function enqueueRecipeStep(step, img, snapshot) {
   if (step.upscale_4k) return api.enqueuePost4K(img)
   if (step.prompt && !step.preset_id) {
     const strength = typeof step.strength === 'number' ? step.strength : 0.5
-    return api.enqueueLook({ image_base64: img, text: step.prompt, strength, seed: null })
+    return api.enqueueLook({ image_base64: img, text: step.prompt, strength, seed: null, editor: snapshot })
   }
-  return api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img))
+  return api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img, snapshot))
 }
 
-async function runRecipeChain(img, steps) {
-  const first = await props.batch.trackBatchJob(enqueueRecipeStep(steps[0], img))
+async function runRecipeChain(img, steps, snapshot) {
+  const first = await props.batch.trackBatchJob(enqueueRecipeStep(steps[0], img, snapshot))
   if (!first) return ''
   return async () => {
     let cur = await first.wait
     for (let i = 1; i < steps.length && cur; i++) {
       if (props.batch.isCancelled()) return ''
-      const job = await props.batch.trackBatchJob(enqueueRecipeStep(steps[i], cur))
+      const job = await props.batch.trackBatchJob(enqueueRecipeStep(steps[i], cur, snapshot))
       if (!job) return ''
       cur = await job.wait
     }
@@ -155,6 +159,9 @@ async function runRecipeChain(img, steps) {
 async function applyRecipe(r) {
   if (recipeRunning.value || props.blocked || batchBusy.value) return
   const steps = recipeSteps(r)
+  const needsEditor = steps.some(step => !step.upscale_4k)
+  if (needsEditor && !editor.ready.value) return
+  const snapshot = needsEditor ? editor.snapshot() : null
   let parsed = {}
   try {
     parsed = JSON.parse(r.adjust || '{}') || {}
@@ -172,7 +179,7 @@ async function applyRecipe(r) {
     return
   }
   if (batchActive.value) {
-    await props.batch.runBatchStep(b64 => runRecipeChain(b64, steps), (res) => {
+    await props.batch.runBatchStep(b64 => runRecipeChain(b64, steps, snapshot), (res) => {
       if (!res.cancelled) applyAdjust()
     })
     return
@@ -200,7 +207,7 @@ async function applyRecipe(r) {
         const stepStrength = typeof step.strength === 'number' ? step.strength : 0.5
         let res = null
         try {
-          res = await api.applyLookDirect(img, step.prompt, stepStrength, null)
+          res = await api.applyPostLook({ image_base64: img, text: step.prompt, strength: stepStrength, seed: null, editor: snapshot })
         } catch (e) {
           abortReason = String(e)
         }
@@ -214,7 +221,7 @@ async function applyRecipe(r) {
       }
       let jobId = 0
       try {
-        jobId = await (step.upscale_4k ? api.enqueuePost4K(img) : api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img)))
+        jobId = await (step.upscale_4k ? api.enqueuePost4K(img) : api.enqueueFromImage(recipeJobParams(step.preset_id, step.strength, img, snapshot)))
       } catch (e) {
         abortReason = String(e)
       }
@@ -272,6 +279,7 @@ defineExpose({ applyRecipe, load: loadRecipes })
       :key="r.id"
       class="preset-item"
       :class="{ active: recipeCurrentId === r.id }"
+      :aria-disabled="!editorReady && recipeSteps(r).some(step => !step.upscale_4k)"
       @click="applyRecipe(r)"
     >
       <div class="preset-info">

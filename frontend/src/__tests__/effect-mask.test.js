@@ -1,3 +1,4 @@
+import { mockInstalledEditor } from './helpers/post-editor.js'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { EventsEmit, clearEventMocks } from './mocks/runtime'
@@ -25,6 +26,7 @@ useFakeCanvas({ trackPaint: true, layout: true })
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockInstalledEditor()
   clearEventMocks()
   useRemixQueue().clearPostQueue()
   ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
@@ -65,10 +67,6 @@ function buttonWith(wrapper, text) {
   return wrapper.findAll('button').find(b => b.text().includes(text))
 }
 
-function titledButton(wrapper, title) {
-  return wrapper.findAll('button').find(b => b.attributes('title') === title)
-}
-
 function maskToggle(wrapper) {
   return buttonWith(wrapper, t('post.effect_mask_btn'))
 }
@@ -94,6 +92,8 @@ async function toggleMask(wrapper) {
   expect(btn).toBeTruthy()
   await btn.trigger('click')
   await settle()
+  const mode = wrapper.find('[data-testid="object-mask-mode"]')
+  if (mode.exists()) { await mode.setValue('exact'); await settle() }
 }
 
 async function paint(wrapper) {
@@ -206,7 +206,7 @@ describe('Effect mask in post-process', () => {
     const wrapper = await mountSingle()
     await toggleMask(wrapper)
     await paint(wrapper)
-    const undo = titledButton(wrapper, t('post.undo'))
+    const undo = wrapper.get('[data-testid="mask-undo"]')
     expect(undo).toBeTruthy()
     expect(undo.element.disabled).toBe(false)
     await undo.trigger('click')
@@ -220,9 +220,9 @@ describe('Effect mask in post-process', () => {
     const wrapper = await mountSingle()
     await toggleMask(wrapper)
     await paint(wrapper)
-    await titledButton(wrapper, t('post.undo')).trigger('click')
+    await wrapper.get('[data-testid="mask-undo"]').trigger('click')
     await settle()
-    const redo = titledButton(wrapper, t('post.redo'))
+    const redo = wrapper.get('[data-testid="mask-redo"]')
     expect(redo).toBeTruthy()
     expect(redo.element.disabled).toBe(false)
     await redo.trigger('click')

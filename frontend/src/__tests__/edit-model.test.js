@@ -52,110 +52,9 @@ function lastEditParams() {
   return EditImage.mock.calls[EditImage.mock.calls.length - 1][0]
 }
 
-function loraNames(wrapper) {
-  return wrapper.findAll('[data-testid="edit-lora-name"]').map(i => i.element.value)
-}
-
-async function addLora(wrapper, name, weight) {
-  await wrapper.find('[data-testid="edit-lora-add"]').trigger('click')
-  await settle()
-  const names = wrapper.findAll('[data-testid="edit-lora-name"]')
-  const weights = wrapper.findAll('[data-testid="edit-lora-weight"]')
-  await names[names.length - 1].setValue(name)
-  await weights[weights.length - 1].setValue(String(weight))
-  await settle()
-}
-
 function styleOptionValues(wrapper) {
   return wrapper.find('[data-testid="edit-style-select"]').findAll('option').map(o => Number(o.element.value))
 }
-
-function mergedSettingsUpdates() {
-  return UpdateSettings.mock.calls.reduce((acc, [data]) => ({ ...acc, ...(data || {}) }), {})
-}
-
-describe('T8: Edit has no model choice, Klein only', () => {
-  it('there is no model select and no Moss option', async () => {
-    const wrapper = await mountEdit()
-    expect(wrapper.find('[data-testid="edit-model-select"]').exists()).toBe(false)
-    expect(wrapper.findAll('option').map(o => o.text())).not.toContain('Moss')
-    expect(wrapper.text()).not.toContain('Moss')
-  })
-
-  it('direct edit sends model=klein', async () => {
-    const wrapper = await mountEdit()
-    await runEdit(wrapper)
-    expect(lastEditParams().model).toBe('klein')
-  })
-
-  it('saved edit_model=moss does not bring Moss back', async () => {
-    const wrapper = await mountEdit({ settings: { edit_model: 'moss' } })
-    expect(wrapper.text()).not.toContain('Moss')
-    await runEdit(wrapper)
-    expect(lastEditParams().model).toBe('klein')
-  })
-
-  it('batch edit emits apply-edit with model=klein and Klein LoRAs', async () => {
-    const wrapper = await mountEdit({ batch: true, settings: { edit_loras_klein: '[{"name":"KleinL","weight":0.5}]' } })
-    await runEdit(wrapper, { batch: true })
-    const events = wrapper.emitted('apply-edit')
-    expect(events).toBeTruthy()
-    const params = events[events.length - 1][0]
-    expect(params.model).toBe('klein')
-    expect(params.loras).toEqual([{ name: 'KleinL', weight: 0.5 }])
-    expect(EditImage).not.toHaveBeenCalled()
-  })
-
-  it('quality mode sends model=klein together with output_mode=quality', async () => {
-    const wrapper = await mountEdit({ settings: { edit_quality_mode: 'true', edit_resolution_id: '5' } })
-    await runEdit(wrapper)
-    const params = lastEditParams()
-    expect(params.model).toBe('klein')
-    expect(params.output_mode).toBe('quality')
-    expect(params.resolution_id).toBe(5)
-  })
-})
-
-describe('T9: Klein LoRAs', () => {
-  it('LoRAs come from edit_loras_klein; the old Moss list edit_loras is ignored', async () => {
-    const wrapper = await mountEdit({ settings: {
-      edit_loras: '[{"name":"MossL","weight":0.8}]',
-      edit_loras_klein: '[{"name":"KleinL","weight":0.5}]',
-    } })
-    expect(loraNames(wrapper)).toEqual(['KleinL'])
-    await runEdit(wrapper)
-    const params = lastEditParams()
-    expect(params.model).toBe('klein')
-    expect(params.loras).toEqual([{ name: 'KleinL', weight: 0.5 }])
-  })
-
-  it('only the old Moss list saved: no LoRAs shown or sent', async () => {
-    const wrapper = await mountEdit({ settings: { edit_loras: '[{"name":"MossL","weight":0.8}]' } })
-    expect(loraNames(wrapper)).toEqual([])
-    await runEdit(wrapper)
-    expect(lastEditParams().loras || []).toEqual([])
-  })
-
-  it('added LoRA is saved to edit_loras_klein; edit_model and edit_loras are not written', async () => {
-    const wrapper = await mountEdit()
-    await addLora(wrapper, 'KleinNew', 0.7)
-    wrapper.unmount()
-    await settle()
-    const saved = mergedSettingsUpdates()
-    expect(JSON.parse(saved.edit_loras_klein)).toEqual([{ name: 'KleinNew', weight: 0.7 }])
-    expect(saved).not.toHaveProperty('edit_model')
-    expect(saved).not.toHaveProperty('edit_loras')
-  })
-
-  it('removing a LoRA removes it from the request', async () => {
-    const wrapper = await mountEdit({ settings: { edit_loras_klein: '[{"name":"KleinL","weight":0.5}]' } })
-    await wrapper.find('[data-testid="edit-lora-remove"]').trigger('click')
-    await settle()
-    expect(loraNames(wrapper)).toEqual([])
-    await runEdit(wrapper)
-    expect(lastEditParams().loras || []).toEqual([])
-  })
-})
 
 describe('T10: style list has only Klein styles', () => {
   it('only klein styles are offered', async () => {
@@ -169,7 +68,7 @@ describe('T10: style list has only Klein styles', () => {
     await settle()
     await runEdit(wrapper)
     const params = lastEditParams()
-    expect(params.model).toBe('klein')
+    expect(params.editor).toEqual({ model: 'klein', loras: [] })
     expect(params.style_preset_id).toBe(KLEIN_STYLE.id)
   })
 

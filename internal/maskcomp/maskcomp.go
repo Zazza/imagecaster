@@ -284,6 +284,26 @@ func Blend(orig, edited, mask image.Image) *image.RGBA {
 	return dst
 }
 
+func BlendStrict(orig, edited, mask image.Image) *image.NRGBA {
+	b := orig.Bounds()
+	w, h := b.Dx(), b.Dy()
+	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(dst, dst.Bounds(), orig, b.Min, draw.Src)
+	e := image.NewNRGBA(dst.Bounds())
+	if edited.Bounds().Size() == dst.Bounds().Size() {
+		draw.Draw(e, e.Bounds(), edited, edited.Bounds().Min, draw.Src)
+	} else {
+		xdraw.CatmullRom.Scale(e, e.Bounds(), edited, edited.Bounds(), draw.Src, nil)
+	}
+	for i, painted := range maskValues(mask, w, h) {
+		if painted {
+			x, y := i%w, i/w
+			dst.SetNRGBA(x, y, e.NRGBAAt(x, y))
+		}
+	}
+	return dst
+}
+
 func boxBlurSep(a []float64, w, h, r int) []float64 {
 	tmp := make([]float64, len(a))
 	out := make([]float64, len(a))

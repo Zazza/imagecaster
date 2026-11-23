@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 
@@ -26,7 +27,27 @@ func stylistFrameHandler(sessions mcp.AppSessions, cfg *config.Config, shoots st
 		if sdNotLocal(cfg) {
 			return nil, errStylistFrameNotLocal
 		}
-		res, err := frame(gen, job)
+		var p mcp.ShootFrameParams
+		if err := json.Unmarshal([]byte(job.Params), &p); err != nil {
+			return nil, err
+		}
+		var res *queue.JobResult
+		var err error
+		if p.SourceItemID != 0 || p.EditInstruction != "" {
+			items, ok := sessions.(mcp.AppSessionItems)
+			if !ok || gen == nil {
+				return nil, errors.New("изменить кадр: генерация или история недоступна")
+			}
+			var edited *mcp.ShootFrameResult
+			edited, err = runStylistEdit(gen, items, p, gen.Stopped)
+			if err == nil {
+				var raw json.RawMessage
+				raw, err = json.Marshal(edited)
+				res = &queue.JobResult{Frame: raw}
+			}
+		} else {
+			res, err = frame(gen, job)
+		}
 		if err == nil && res != nil && shoots != nil {
 			if rerr := recordShootFrame(shoots, job.ID, res.Frame); rerr != nil {
 				log.Printf("stylist: last shoot: %v", rerr)

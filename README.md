@@ -58,7 +58,11 @@ They can run on one computer, or the server can live on another machine on your 
 - **Custom** — assemble a chain right on the page: per-step style, denoise and LoRAs; run it or save it as a workflow.
 - Style tuning, direct prompts, resolution and seed series. Drop a photo onto the page to remix it.
 
+**Stylist** — select a finished frame, click **Edit frame**, and describe the change. A local vision model first prepares the instruction from the source photo; Klein then creates a separate variant in the source photo’s folder and inherits its face-swap setting. Any variant can be edited again. The original remains; generative editing may also change other details slightly.
+
 **Post-Process** — cards applied to a photo, one or a batch:
+
+**12. Settings** selects one editor (FLUX.2 Klein, FLUX.3 Klein, or Qwen-Image 2.1) and LoRAs for editing, try-on, objects, repair, effects, and recipes. Each editor family remembers its own LoRAs. Running batches and recipes retain the settings captured at launch. Remix uses the models of its selected style or workflow.
 
 | Card | What it does |
 |---|---|

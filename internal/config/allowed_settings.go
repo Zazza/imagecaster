@@ -1,6 +1,8 @@
 package config
 
 var AllowedSettings = map[string]bool{
+	"post_editor_model": true, "post_editor_loras": true,
+	"stylist_edit_editor_model": true, "stylist_edit_editor_loras": true,
 	"llm_model": true, "sd_prompt_model": true,
 	"vision_model":   true,
 	"llm_keep_alive": true, "llm_max_tokens": true,

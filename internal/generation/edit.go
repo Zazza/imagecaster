@@ -30,6 +30,8 @@ const (
 	editMaxLoras          = 8
 	editMaxLoraWeight     = 2.0
 	editMaxLoraNameLen    = 200
+	flux3EditSteps        = 16
+	editDefaultLoraWeight = 0.6
 	kleinEditSteps        = 8
 	kleinEditCfgScale     = 1.0
 	qwenEditModel         = "qwen_image_2.1-Q8_0"
@@ -111,6 +113,7 @@ func refEditWorkSize(model string, w, h int) (int, int) {
 }
 
 type EditImageParams struct {
+	Editor               *PostEditorParams  `json:"editor,omitempty"`
 	ImageBase64          string             `json:"image_base64"`
 	ReferenceImageBase64 string             `json:"reference_image_base64,omitempty"`
 	Instruction          string             `json:"instruction"`
@@ -137,7 +140,29 @@ func resolveEditModel(model string) (editModelProfile, error) {
 	case "qwen":
 		return editModelProfile{model: qwenEditModel, family: "qwen-image,qwen_image", steps: qwenEditSteps, cfg: qwenEditCfgScale}, nil
 	}
-	return editModelProfile{}, fmt.Errorf("model must be klein or qwen, got %q", truncateRunes(model, 40))
+	if strings.ContainsAny(model, `/\`) || strings.TrimSpace(model) != model {
+		return editModelProfile{}, fmt.Errorf("unsupported editor model %q", truncateRunes(model, editLabelMax))
+	}
+	catalog, err := serverclient.LoadCatalog()
+	if err != nil {
+		return editModelProfile{}, fmt.Errorf("load editor catalog: %w", err)
+	}
+	m := catalog.FindSDModelOrVariant(model)
+	if m != nil && catalogEditorName(model, m) {
+		prof := editModelProfile{model: model}
+		switch m.Name {
+		case kleinLookModel:
+			prof.family, prof.steps, prof.cfg = "klein", kleinEditSteps, kleinEditCfgScale
+		case "flux3-image-klein-Q8_0":
+			prof.family, prof.steps, prof.cfg = "flux3", flux3EditSteps, kleinEditCfgScale
+		case qwenEditModel:
+			prof.family, prof.steps, prof.cfg = "qwen-image,qwen_image", qwenEditSteps, qwenEditCfgScale
+		default:
+			return editModelProfile{}, fmt.Errorf("unsupported editor model %q", truncateRunes(model, editLabelMax))
+		}
+		return prof, nil
+	}
+	return editModelProfile{}, fmt.Errorf("unsupported editor model %q", truncateRunes(model, editLabelMax))
 }
 
 type editStyle struct {
@@ -179,7 +204,7 @@ func sanitizeEditLoras(loras []preset.LoRAEntry) ([]preset.LoRAEntry, error) {
 		}
 		w := l.Weight
 		if math.IsNaN(w) || math.IsInf(w, 0) {
-			w = 0.6
+			w = editDefaultLoraWeight
 		}
 		if w < 0 {
 			w = 0
@@ -284,6 +309,13 @@ func alignEditSizeCapped(w, h, maxDim int) (int, int) {
 }
 
 func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error) {
+	if params.Editor != nil {
+		if strings.TrimSpace(params.Editor.Model) == "" {
+			return nil, errPostEditorModelRequired
+		}
+		params.Model = params.Editor.Model
+		params.Loras = params.Editor.Loras
+	}
 	if params.ImageBase64 == "" {
 		return nil, fmt.Errorf("image is required")
 	}
@@ -321,7 +353,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		return nil, err
 	}
 	combinedLoras := params.Loras
-	if style != nil {
+	if style != nil && params.Editor == nil {
 		if len(style.loras)+len(params.Loras) > editMaxLoras {
 			return nil, fmt.Errorf("too many loras: style %d + own %d > max %d", len(style.loras), len(params.Loras), editMaxLoras)
 		}

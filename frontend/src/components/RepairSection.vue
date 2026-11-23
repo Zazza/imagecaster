@@ -1,4 +1,6 @@
 <script setup>
+import { usePostEditor } from '../composables/usePostEditor.js'
+const editor = usePostEditor()
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
@@ -32,7 +34,7 @@ let reqCounter = 0
 let lastEmitted = null
 
 const maskActive = computed(() => !!props.source)
-const canRun = computed(() => !running.value && !!props.source && hasMask.value)
+const canRun = computed(() => editor.ready.value && !running.value && !!props.source && hasMask.value)
 const tileCurrent = computed(() => Math.min(tileDone.value + 1, tileTotal.value))
 const overallProgress = computed(() => {
   if (!tileTotal.value) return 0
@@ -67,6 +69,7 @@ async function run() {
   const runSource = props.source
   try {
     const result = await api.repairImage({
+      editor: editor.snapshot(),
       image_base64: props.source,
       mask_base64: mask.getMaskBase64(),
       strength: strength.value,

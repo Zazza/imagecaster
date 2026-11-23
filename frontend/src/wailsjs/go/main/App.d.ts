@@ -23,6 +23,8 @@ export function AnalyzeImage(arg1:string,arg2:string):Promise<string>;
 
 export function ApplyLookDirect(arg1:string,arg2:string,arg3:number,arg4:any):Promise<generation.GenerateImageResult>;
 
+export function ApplyPostLook(arg1:generation.ApplyLookParams):Promise<generation.GenerateImageResult>;
+
 export function AutoAdjust(arg1:string):Promise<adjust.AutoStats>;
 
 export function BatchReset():Promise<void>;
@@ -231,6 +233,8 @@ export function PostFaceLandmarks(arg1:string):Promise<main.PostFace>;
 
 export function PrepareCompoundPresetsExport(arg1:Array<number>):Promise<string>;
 
+export function PrepareObjectMask():Promise<main.ObjectMaskStatus>;
+
 export function PreparePresetsExport(arg1:Array<number>):Promise<string>;
 
 export function PreviewAdjust(arg1:string,arg2:adjust.Params,arg3:number):Promise<string>;
@@ -310,6 +314,10 @@ export function StylistFrames(arg1:Array<number>):Promise<Array<main.StylistFram
 export function StylistLastShoot():Promise<Array<number>>;
 
 export function StylistReshoot(arg1:number,arg2:string):Promise<number>;
+
+export function StylistEditWithEditor(arg1:main.StylistEditParams):Promise<number>;
+
+export function StylistEdit(arg1:number,arg2:string):Promise<number>;
 
 export function UpscaleSessionItem(arg1:number,arg2:number):Promise<generation.GenerateImageResult>;
 

@@ -10,6 +10,7 @@ export const FRAMES_PER_SERIES = 4
 export const PRESET_NAME_MAX = 60
 export const PLACE_ANY = 'any'
 export const PRESET_TEXT_MAX = 1000
+export const EDIT_INSTRUCTION_MAX = 2000
 
 export function defaultAspects() {
   return Object.fromEntries(ASPECTS.map(a => [a, { mode: 'auto', ids: [], text: '' }]))
@@ -274,7 +275,7 @@ export function framesFrom(list, ids) {
   const byId = new Map((list || []).map(f => [f.job_id, f]))
   return ids.map(id => {
     const f = byId.get(id)
-    return { jobId: id, status: f?.status || 'gone', itemId: f?.item_id || 0, error: f?.error || '', shot: f?.shot || '', garment: f?.garment || '' }
+    return { jobId: id, status: f?.status || 'gone', itemId: f?.item_id || 0, error: f?.error || '', shot: f?.shot || '', garment: f?.garment || '', ...(f?.face_swap ? { faceSwap: f.face_swap } : {}) }
   })
 }
 
@@ -470,6 +471,28 @@ export function savePlanSoon(delay = 800) {
       api.stylistSaveGarment(g).then(() => { lastSavedGarment = g }).catch(e => { error.value = t('stylist.plan_save_failed', { error: errText(e) }) })
     }
   }, delay)
+}
+
+export async function editFrame(jobId, instruction, editor) {
+  const snapshot = editor ? { model: editor.model, loras: (editor.loras || []).map(lora => ({ ...lora })) } : undefined
+  const context = jobIds.value
+  const isCurrent = () => jobIds.value === context && context.includes(jobId)
+  let text = instruction.trim()
+  if (!text || [...text].length > EDIT_INSTRUCTION_MAX) throw new Error(t('stylist.edit_invalid'))
+  if (!isCurrent()) throw new Error(t('stylist.edit_shoot_changed'))
+  if (CYRILLIC.test(text)) {
+    const translated = (await api.stylistTranslate([text])) || []
+    if (translated.length !== 1 || !translated[0]?.trim()) throw new Error(t('stylist.edit_translation_failed'))
+    text = translated[0].trim()
+  }
+  if (!isCurrent()) return 0
+  const id = await api.stylistEdit(jobId, text, snapshot)
+  if (!id || !isCurrent()) return 0
+  framesSeq++
+  jobIds.value = [...context, id]
+  frames.value = [...frames.value, { jobId: id, status: 'pending', itemId: 0, error: '', shot: text, garment: '' }]
+  refreshFrames()
+  return id
 }
 
 export async function reshootFrame(jobId) {

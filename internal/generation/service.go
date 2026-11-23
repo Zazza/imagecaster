@@ -212,22 +212,24 @@ func ValidateCustomSteps(steps []CustomStep) error {
 }
 
 type GenerateFromImageParams struct {
-	ImageBase64         string           `json:"image_base64"`
-	Mode                string           `json:"mode"`
-	GenMode             string           `json:"gen_mode"`
-	OutputMode          string           `json:"output_mode,omitempty"`
-	PresetID            int64            `json:"preset_id"`
-	CompoundPresetID    int64            `json:"compound_preset_id"`
-	DenoisingStrength   float64          `json:"denoising_strength"`
-	Tags                string           `json:"tags"`
-	ExtraNegativePrompt string           `json:"extra_negative_prompt"`
-	PreserveIdentity    bool             `json:"preserve_identity"`
-	ResolutionID        *int64           `json:"resolution_id,omitempty"`
-	HiresProfileID      *int64           `json:"hires_profile_id,omitempty"`
-	Seed                *int64           `json:"seed,omitempty"`
-	Overrides           *PresetOverrides `json:"overrides,omitempty"`
-	MaskBase64          string           `json:"mask_base64,omitempty"`
-	KeepColor           bool             `json:"keep_color,omitempty"`
+	Editor              *PostEditorParams `json:"editor,omitempty"`
+	ImageBase64         string            `json:"image_base64"`
+	Mode                string            `json:"mode"`
+	GenMode             string            `json:"gen_mode"`
+	OutputMode          string            `json:"output_mode,omitempty"`
+	PresetID            int64             `json:"preset_id"`
+	CompoundPresetID    int64             `json:"compound_preset_id"`
+	DenoisingStrength   float64           `json:"denoising_strength"`
+	Tags                string            `json:"tags"`
+	ExtraNegativePrompt string            `json:"extra_negative_prompt"`
+	PreserveIdentity    bool              `json:"preserve_identity"`
+	ResolutionID        *int64            `json:"resolution_id,omitempty"`
+	HiresProfileID      *int64            `json:"hires_profile_id,omitempty"`
+	Seed                *int64            `json:"seed,omitempty"`
+	Overrides           *PresetOverrides  `json:"overrides,omitempty"`
+	MaskBase64          string            `json:"mask_base64,omitempty"`
+	MaskStrict          bool              `json:"mask_strict,omitempty"`
+	KeepColor           bool              `json:"keep_color,omitempty"`
 }
 
 // --- Service ---

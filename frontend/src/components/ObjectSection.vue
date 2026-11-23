@@ -1,4 +1,6 @@
 <script setup>
+import { usePostEditor } from '../composables/usePostEditor.js'
+const editor = usePostEditor()
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
@@ -37,7 +39,7 @@ let lastEmitted = null
 const maskActive = computed(() => !!props.source)
 
 const canRun = computed(() => {
-  if (running.value || !props.source || !hasMask.value) return false
+  if (!editor.ready.value || running.value || !props.source || !hasMask.value) return false
   if (op.value === 'replace' && !replacement.value.trim()) return false
   return true
 })
@@ -77,6 +79,7 @@ async function run() {
   const runSource = props.source
   try {
     const result = await api.editObject({
+      editor: editor.snapshot(),
       image_base64: props.source,
       mask_base64: mask.getMaskBase64(),
       op: op.value,

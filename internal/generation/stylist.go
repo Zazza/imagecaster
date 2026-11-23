@@ -22,6 +22,11 @@ func kleinRefSpec() sd.ModelSpec {
 }
 
 func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
+	prof, _ := resolvePostEditor(nil, objectSteps)
+	return s.postReferenceImg2Img(prof, logPrefix, onStart, req)
+}
+
+func (s *Service) postReferenceImg2Img(prof postEditorProfile, logPrefix string, onStart func(), req sd.Img2ImgRequest) (*sd.Txt2ImgResponse, error) {
 	if err := s.sd.HealthCheck(); err != nil {
 		return nil, fmt.Errorf("SD is not available: %w", err)
 	}
@@ -31,18 +36,22 @@ func (s *Service) kleinReferenceImg2Img(logPrefix string, onStart func(), req sd
 		onStart()
 	}
 
-	s.guard.EnsureHeadroom(kleinLookModel, logPrefix)
+	s.guard.EnsureHeadroom(prof.model, logPrefix)
 
 	denoise := objectDenoise
 	batchSize, batchCount := 1, 1
 	req.SamplerName = kleinLookSampler
 	req.Scheduler = kleinLookScheduler
-	req.Steps = objectSteps
-	req.CfgScale = kleinLookCfgScale
+	req.Steps = prof.steps
+	req.CfgScale = prof.cfg
 	req.DenoisingStrength = &denoise
 	req.BatchSize = &batchSize
 	req.BatchCount = &batchCount
-	req.Model = kleinRefSpec()
+	req.Model = withReference(modelSpec(prof.model))
+	req.Prompt = prof.prompt(req.Prompt)
+	if prof.family != "klein" {
+		req.Width, req.Height = refEditWorkSize(prof.model, req.Width, req.Height)
+	}
 
 	resp, err := s.sd.Img2Img(req)
 	if err != nil {
@@ -105,6 +114,22 @@ func (s *Service) KleinEffect(imageBase64, prompt string, strength float64) (*Ge
 }
 
 func (s *Service) kleinEdit(imageBase64, refBase64, instruction string, seed *int64, denoise *float64) (*GenerateImageResult, error) {
+	prof, _ := resolvePostEditor(nil, objectSteps)
+	return s.referenceEdit(prof, imageBase64, refBase64, instruction, seed, denoise)
+}
+
+func (s *Service) StylistReferenceEdit(imageBase64, instruction string, seed *int64, editor *PostEditorParams) (*GenerateImageResult, error) {
+	if editor == nil {
+		return nil, errPostEditorModelRequired
+	}
+	prof, err := resolvePostEditor(editor, objectSteps)
+	if err != nil {
+		return nil, err
+	}
+	return s.referenceEdit(prof, imageBase64, "", instruction, seed, nil)
+}
+
+func (s *Service) referenceEdit(prof postEditorProfile, imageBase64, refBase64, instruction string, seed *int64, denoise *float64) (*GenerateImageResult, error) {
 	if imageBase64 == "" {
 		return nil, errors.New("image is required")
 	}
@@ -129,7 +154,7 @@ func (s *Service) kleinEdit(imageBase64, refBase64, instruction string, seed *in
 	}
 	width, height := alignLookSize(cfg.Width, cfg.Height)
 
-	resp, err := s.kleinReferenceImg2Img("stylist", nil, sd.Img2ImgRequest{
+	resp, err := s.postReferenceImg2Img(prof, "stylist", nil, sd.Img2ImgRequest{
 		InitImages:        []string{imageBase64},
 		RefImage:          refBase64,
 		Prompt:            instruction,

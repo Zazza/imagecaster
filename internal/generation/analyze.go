@@ -20,11 +20,16 @@ import (
 // --- AnalyzeImage ---
 
 const (
-	materialPresetType     = "post_material"
-	materialKeepColorSigma = 0.02
-	materialObjectTemplate = "Change only the material of %s, keep its color exactly the same: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
-	patternPresetType      = "post_pattern"
-	patternObjectTemplate  = "Change only the print pattern of %s, keep its cut and shape: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
+	legacyPreserveIdentityMaxStrength = 0.9
+	fromImageMaxStrength              = 1.0
+	fromImageDefaultStrength          = 0.5
+	postEffectPromptPrefix            = "Edit this photo by applying the following effect to the appropriate existing objects and surfaces: "
+	postEffectPromptSuffix            = ". Retain the original subject, people, pose, camera framing and scene, except for changes explicitly required by the effect."
+	materialPresetType                = "post_material"
+	materialKeepColorSigma            = 0.02
+	materialObjectTemplate            = "Change only the material of %s, keep its color exactly the same: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
+	patternPresetType                 = "post_pattern"
+	patternObjectTemplate             = "Change only the print pattern of %s, keep its cut and shape: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
 )
 
 func (s *Service) AnalyzeImage(imageBase64, mode string) (string, error) {
@@ -246,6 +251,9 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 	if err != nil {
 		return nil, err
 	}
+	if params.Editor != nil && (params.GenMode != "preset" || params.Mode != "img2img") {
+		return nil, fmt.Errorf("editor requires img2img preset mode")
+	}
 	if params.GenMode == "compound" {
 		return s.generateFromImageCompound(params, tags)
 	}
@@ -255,8 +263,15 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		return nil, fmt.Errorf("preset not found: %w", err)
 	}
 	ApplyPresetOverrides(p, params.Overrides)
-	if params.PreserveIdentity && !config.IsFlux2Klein(p.ModelName) && !config.IsQwenImage(p.ModelName) {
-		return nil, fmt.Errorf("preserve identity requires a flux-2-klein or qwen-image model, got %q", p.ModelName)
+	if params.Editor != nil {
+		p, err = applyPostEditor(p, params.Editor)
+		if err != nil {
+			return nil, err
+		}
+		params.PreserveIdentity = true
+	}
+	if params.PreserveIdentity && !isPostReferenceModel(p.ModelName) {
+		return nil, fmt.Errorf("preserve identity requires a FLUX.2 Klein, FLUX.3 Klein or Qwen Image model, got %q", p.ModelName)
 	}
 
 	prompt, negativePrompt, err := s.fromImagePrompts(p, params, tags, src)
@@ -272,6 +287,16 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		return s.fromImageImg2Img(p, params, src, spec, prompt, negativePrompt, seed)
 	}
 	return s.fromImageTxt2Img(p, params, spec, prompt, negativePrompt, seed)
+}
+
+func ValidateFromImageStrength(params GenerateFromImageParams) error {
+	if params.PreserveIdentity && params.Editor == nil && params.DenoisingStrength > legacyPreserveIdentityMaxStrength {
+		return fmt.Errorf("preserve identity requires denoising strength of 0.9 or less")
+	}
+	if params.Editor != nil && params.DenoisingStrength > fromImageMaxStrength {
+		return fmt.Errorf("post editor requires denoising strength of 1 or less")
+	}
+	return nil
 }
 
 func validateFromImage(params *GenerateFromImageParams) (*fromImageSource, error) {
@@ -308,17 +333,20 @@ func validateFromImage(params *GenerateFromImageParams) (*fromImageSource, error
 	if params.PreserveIdentity && !presetImg2Img {
 		return nil, fmt.Errorf("preserve identity requires img2img preset mode")
 	}
-	if params.PreserveIdentity && params.DenoisingStrength > 0.9 {
-		return nil, fmt.Errorf("preserve identity requires denoising strength of 0.9 or less")
+	if err := ValidateFromImageStrength(*params); err != nil {
+		return nil, err
 	}
 	if params.DenoisingStrength <= 0 {
-		params.DenoisingStrength = 0.5
+		params.DenoisingStrength = fromImageDefaultStrength
 	}
-	if params.DenoisingStrength > 1.0 {
-		params.DenoisingStrength = 1.0
+	if params.DenoisingStrength > fromImageMaxStrength {
+		params.DenoisingStrength = fromImageMaxStrength
 	}
 	src := &fromImageSource{b64: params.ImageBase64}
 	if params.MaskBase64 == "" {
+		if params.MaskStrict {
+			return nil, errors.New("strict mask requires mask")
+		}
 		return src, nil
 	}
 	if !presetImg2Img || params.OutputMode == "quality" {
@@ -373,6 +401,9 @@ func (s *Service) fromImagePrompts(p *preset.Preset, params GenerateFromImagePar
 		}
 		prompt = fmt.Sprintf(template, object, prompt)
 	}
+	if params.Editor != nil {
+		prompt = postEffectPromptPrefix + strings.TrimRight(strings.TrimSpace(prompt), ". ") + postEffectPromptSuffix
+	}
 	return prompt, negativePrompt, nil
 }
 
@@ -393,7 +424,7 @@ func (s *Service) fromImageWorkSize(p *preset.Preset, params GenerateFromImagePa
 		sz.w, sz.h = s.fitImageToResolution(srcW, srcH, params.ResolutionID)
 	}
 	qwenRef := params.PreserveIdentity && config.IsQwenImage(p.ModelName)
-	if !config.IsFlux2Klein(p.ModelName) && !qwenRef {
+	if !config.IsFlux2Klein(p.ModelName) && !qwenRef && !(params.PreserveIdentity && isPostReferenceModel(p.ModelName)) {
 		return sz
 	}
 	if params.ResolutionID == nil || *params.ResolutionID <= 0 {
@@ -474,7 +505,7 @@ func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImagePar
 		result.QualityRedenoiseSkipped = redenoiseSkipped
 	}
 	if src.mask != nil || keepColor {
-		if result.Image, err = blendFromImageResult(src.img, result.Image, src.mask, keepColor); err != nil {
+		if result.Image, err = blendFromImageResultWithMaskStrict(src.img, result.Image, src.mask, keepColor, params.MaskStrict); err != nil {
 			return nil, err
 		}
 	}
@@ -496,7 +527,7 @@ func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImagePar
 	return result, nil
 }
 
-func blendFromImageResult(source image.Image, resultB64 string, mask image.Image, keepColor bool) (string, error) {
+func blendFromImageResultWithMaskStrict(source image.Image, resultB64 string, mask image.Image, keepColor, maskStrict bool) (string, error) {
 	edited, err := imgcodec.Decode(resultB64, imgcodec.Options{Name: "result"})
 	if err != nil {
 		return "", err
@@ -506,7 +537,11 @@ func blendFromImageResult(source image.Image, resultB64 string, mask image.Image
 		out = maskcomp.KeepColor(source, out, materialKeepColorSigma)
 	}
 	if mask != nil {
-		out = maskcomp.Blend(source, out, mask)
+		if maskStrict {
+			out = maskcomp.BlendStrict(source, out, mask)
+		} else {
+			out = maskcomp.Blend(source, out, mask)
+		}
 	}
 	return imgcodec.EncodePNG(out, png.DefaultCompression)
 }

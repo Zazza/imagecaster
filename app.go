@@ -28,6 +28,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/kids"
 	"github.com/Zazza/imagecaster/internal/llm"
 	"github.com/Zazza/imagecaster/internal/logger"
+	"github.com/Zazza/imagecaster/internal/objectmask"
 	"github.com/Zazza/imagecaster/internal/postpreview"
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/queue"
@@ -65,6 +66,7 @@ type App struct {
 	queueSvc    *queue.Service
 	batch       *batch.Store
 	preview     *postpreview.Service
+	objectMask  *objectmask.Store
 	emitter     appEmitter
 }
 
@@ -89,6 +91,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 		dataDir:      filepath.Dir(cfg.DBPath),
 		kidsMgr:      kids.NewManager(presets),
 		serverClient: srvClient,
+		objectMask:   objectmask.New(filepath.Dir(cfg.DBPath)),
 	}
 	a.emitter = appEmitter{ctx: &a.ctx}
 	a.sessions = session.New(presets, a.dataDir, &a.emitter)
@@ -337,6 +340,10 @@ func (a *App) EditObject(params ObjectEditParams) (*GenerateImageResult, error) 
 
 func (a *App) RepairImage(params RepairParams) (*GenerateImageResult, error) {
 	return a.gen.RepairImage(params)
+}
+
+func (a *App) ApplyPostLook(params generation.ApplyLookParams) (*GenerateImageResult, error) {
+	return a.gen.ApplyPostLook(params)
 }
 
 func (a *App) ApplyLookDirect(imageBase64, text string, strength float64, seed *int64) (*GenerateImageResult, error) {

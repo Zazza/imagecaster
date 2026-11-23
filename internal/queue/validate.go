@@ -51,6 +51,9 @@ func validateJobParams(jobType JobType, params any) error {
 		}
 	case JobFromImage:
 		if p, ok := params.(generation.GenerateFromImageParams); ok {
+			if p.MaskStrict && p.MaskBase64 == "" {
+				return fmt.Errorf("strict mask requires mask")
+			}
 			if p.OutputMode != "" && p.OutputMode != "standard" && p.OutputMode != "quality" {
 				return fmt.Errorf("output_mode must be standard or quality")
 			}
@@ -60,8 +63,8 @@ func validateJobParams(jobType JobType, params any) error {
 			if p.PreserveIdentity && (p.Mode != "img2img" || p.GenMode != "preset") {
 				return fmt.Errorf("preserve identity requires img2img preset mode")
 			}
-			if p.PreserveIdentity && p.DenoisingStrength > 0.9 {
-				return fmt.Errorf("preserve identity requires denoising strength of 0.9 or less")
+			if err := generation.ValidateFromImageStrength(p); err != nil {
+				return err
 			}
 			if p.Mode != "" && p.Mode != "txt2img" && p.Mode != "img2img" {
 				return fmt.Errorf("mode must be txt2img or img2img")

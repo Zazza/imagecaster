@@ -1,3 +1,4 @@
+import { mockInstalledEditor } from './helpers/post-editor.js'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
@@ -65,6 +66,7 @@ useFakeCanvas({ trackPaint: true, layout: true })
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockInstalledEditor()
   clearEventMocks()
   localStorage.clear()
   useRemixQueue().clearPostQueue()
@@ -151,6 +153,8 @@ async function toggleMask(wrapper) {
   expect(btn).toBeTruthy()
   await btn.trigger('click')
   await settle()
+  const mode = wrapper.find('[data-testid="object-mask-mode"]')
+  if (mode.exists()) { await mode.setValue('exact'); await settle() }
 }
 
 async function paint(wrapper) {

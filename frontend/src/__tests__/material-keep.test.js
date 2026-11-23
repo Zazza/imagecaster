@@ -1,3 +1,4 @@
+import { mockInstalledEditor } from './helpers/post-editor.js'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
@@ -30,6 +31,7 @@ useFakeImage()
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockInstalledEditor()
   localStorage.clear()
   clearEventMocks()
   useRemixQueue().clearPostQueue()

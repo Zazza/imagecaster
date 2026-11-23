@@ -1,19 +1,14 @@
 <script setup>
-import { X } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
-import FoldBlock from './FoldBlock.vue'
-import { modelLoraText } from '../modelLora.js'
+import { usePostEditor, editorFamily } from '../composables/usePostEditor.js'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { listAvailablePresets } from '../composables/usePresets.js'
-import { serverModelsKnown, hasServerFile } from '../serverModels.js'
 import { parseSeedInput } from '../seed.js'
 import { b64Url } from '../imageDataUrl.js'
 import { t } from '../i18n/index.js'
 import { readImageFile } from '../imageFile.js'
-import { parseLoras, sanitizeWeight } from '../loraOverride.js'
-import { useServerLoras } from '../composables/useServerLoras.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import ResolutionSelector from './ResolutionSelector.vue'
 import RecipeComposition from './RecipeComposition.vue'
@@ -30,7 +25,12 @@ const emit = defineEmits(['result', 'apply-look', 'apply-edit', 'apply-recipe', 
 const editLookMode = ref(false)
 const lookWay = ref('effects')
 const lookText = ref('')
-const lookStrength = ref(0.5)
+const lookChangeScene = ref(false)
+const LOOK_STRENGTH_MIN = 0.35
+const LOOK_STRENGTH_MAX = 1
+const LOOK_STRENGTH_DEFAULT = LOOK_STRENGTH_MAX
+const LOOK_STRENGTH_STEP = 0.01
+const lookStrength = ref(LOOK_STRENGTH_DEFAULT)
 const lookCompiling = ref(false)
 const lookRecipe = ref(null)
 const lookRecipeName = ref('')
@@ -40,11 +40,8 @@ const describingGarment = ref(false)
 const isRefDragOver = ref(false)
 const instruction = ref('')
 const seedInput = ref('')
-const loraRows = ref([])
-const editModel = ref('klein')
-const lorasByModel = { klein: [], qwen: [] }
-const QWEN_VISION_FILE = 'mmproj-Qwen3VL-8B-Instruct-F16.gguf'
-const { loras: serverLoras, error: loraLoadError, load: loadLoras } = useServerLoras()
+const editor = usePostEditor()
+const editModel = editor.model
 const allPresets = ref([])
 const stylesLoadError = ref(false)
 const stylePresetId = ref(0)
@@ -59,51 +56,15 @@ const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
 const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
 
-const isQwenModel = (name) => /qwen[-_ ]image/i.test(name || '')
-const qwenAvailable = computed(() => (Array.isArray(allPresets.value) ? allPresets.value : []).some(p => isQwenModel(p?.model_name)))
-watch(qwenAvailable, ok => { if (!ok) editModel.value = 'klein' })
-watch(editModel, (next, prev) => {
-  lorasByModel[prev] = loraRows.value
-  loraRows.value = lorasByModel[next] || []
-  stylePresetId.value = 0
-})
-const qwenVisionMissing = computed(() => editModel.value === 'qwen' && serverModelsKnown.text_encoder === true && !hasServerFile('text_encoder', QWEN_VISION_FILE))
-
-const stylePresets = computed(() => {
-  const list = Array.isArray(allPresets.value) ? allPresets.value : []
-  if (editModel.value === 'qwen') return list.filter((p) => isQwenModel(p?.model_name) && !String(p?.preset_type || '').startsWith('post'))
-  return list.filter((p) => (p?.model_name || '').toLowerCase().includes('klein'))
-})
+const stylePresets = computed(() => (Array.isArray(allPresets.value) ? allPresets.value : []).filter(p => editorFamily(p.model_name) === editor.family.value && !String(p.preset_type || '').startsWith('post')))
+watch(editModel, () => { stylePresetId.value = 0 })
 
 const selectedStyle = computed(() => stylePresets.value.find((p) => p.id === stylePresetId.value) || null)
 watch(stylePresets, list => {
   if (stylePresetId.value && !list.some(p => p.id === stylePresetId.value)) stylePresetId.value = 0
 })
 
-const selectedStyleLoras = computed(() => parseLoras(selectedStyle.value?.loras || ''))
-
-const canGenerate = computed(() => !!props.source && !!instruction.value.trim() && !generatingImage.value && !qwenVisionMissing.value && !(props.batch && props.lookBusy))
-
-function addLora() {
-  if (loraRows.value.length >= 8) return
-  loraRows.value.push({ name: '', weight: 0.6 })
-}
-
-function removeLora(idx) {
-  loraRows.value.splice(idx, 1)
-}
-
-function onLorasToggle(open) {
-  if (open) loadLoras()
-}
-
-const modelLoraSummary = computed(() => modelLoraText(editModel.value === 'qwen' ? 'Qwen-Image' : 'Klein', loraRows.value))
-
-function editLorasPayload(rows = loraRows.value) {
-  return rows
-    .filter((r) => r && typeof r.name === 'string' && r.name.trim())
-    .map((r) => ({ name: r.name.trim(), weight: sanitizeWeight(r.weight) }))
-}
+const canGenerate = computed(() => !!props.source && !!instruction.value.trim() && !generatingImage.value && editor.ready.value && !(props.batch && props.lookBusy))
 
 async function describeGarment() {
   if (!referenceImage.value || describingGarment.value) return
@@ -127,11 +88,11 @@ function setReference(base64) {
 }
 
 const canCompileLook = computed(() => !!lookText.value.trim() && !lookCompiling.value)
-const canApplyLookFree = computed(() => !!lookText.value.trim() && !props.lookBusy)
+const canApplyLookFree = computed(() => editor.ready.value && !!lookText.value.trim() && !props.lookBusy)
 
 function applyLookFree() {
   if (!canApplyLookFree.value) return
-  emit('apply-look', { text: lookText.value.trim(), strength: lookStrength.value })
+  emit('apply-look', { text: lookText.value.trim(), strength: lookStrength.value, ...(lookChangeScene.value ? { change_scene: true } : {}) })
 }
 
 async function compileLook() {
@@ -199,15 +160,13 @@ function editParams(instr) {
   const params = {
     instruction: instr,
     seed: parseSeedInput(seedInput.value),
-    model: editModel.value,
+    editor: editor.snapshot(),
   }
   if (referenceImage.value) params.reference_image_base64 = referenceImage.value
   if (stylePresetId.value) {
     params.style_preset_id = stylePresetId.value
     if (styleTags.value) params.style_tags = true
   }
-  const loras = editLorasPayload()
-  if (loras.length) params.loras = loras
   if (qualityMode.value && selectedResolutionId.value) {
     params.output_mode = 'quality'
     params.resolution_id = selectedResolutionId.value
@@ -216,7 +175,7 @@ function editParams(instr) {
 }
 
 async function generate() {
-  if (generatingImage.value) return
+  if (generatingImage.value || !editor.ready.value) return
   if (!props.source) {
     error.value = t('edit.error_no_image')
     return
@@ -267,9 +226,6 @@ onMounted(() => {
   })
   api.getSettings().then(async s => {
     if (s?.edit_instruction) instruction.value = s.edit_instruction
-    if (s?.edit_loras_klein) lorasByModel.klein = parseLoras(s.edit_loras_klein)
-    if (s?.edit_loras_qwen) lorasByModel.qwen = parseLoras(s.edit_loras_qwen)
-    loraRows.value = lorasByModel[editModel.value] || []
     if (s?.edit_quality_mode) qualityMode.value = s.edit_quality_mode === 'true'
     if (s?.edit_style_tags) styleTags.value = s.edit_style_tags === 'true'
     if (s?.edit_look_mode) lookWay.value = s.edit_look_mode === 'free' ? 'free' : 'effects'
@@ -292,13 +248,6 @@ onUnmounted(() => {
   if (!settingsRestored) return
   api.updateSettings({
     edit_instruction: instruction.value,
-    ...(() => {
-      lorasByModel[editModel.value] = loraRows.value
-      return {
-        edit_loras_klein: JSON.stringify(editLorasPayload(lorasByModel.klein)),
-        edit_loras_qwen: JSON.stringify(editLorasPayload(lorasByModel.qwen)),
-      }
-    })(),
     edit_quality_mode: qualityMode.value ? 'true' : 'false',
     edit_resolution_id: selectedResolutionId.value ? String(selectedResolutionId.value) : '',
     edit_style_preset_id: stylePresetId.value ? String(stylePresetId.value) : '',
@@ -323,10 +272,16 @@ onUnmounted(() => {
         <button type="button" class="btn btn-sm" :class="lookWay === 'effects' ? 'btn-primary' : 'btn-secondary'" @click="lookWay = 'effects'">{{ t('edit.look_mode_effects') }}</button>
         <button type="button" class="btn btn-sm" :class="lookWay === 'free' ? 'btn-primary' : 'btn-secondary'" @click="lookWay = 'free'">{{ t('edit.look_mode_free') }}</button>
       </div>
-      <div class="field-hint look-way-hint">{{ lookWay === 'free' ? t('edit.look_mode_free_hint') : t('edit.look_mode_effects_hint') }}</div>
+      <div v-if="lookWay === 'free'" class="form-group">
+        <label class="form-label">
+          <input data-testid="edit-look-change-scene" class="accent-check" type="checkbox" v-model="lookChangeScene" :disabled="lookBusy" />
+          {{ t('edit.look_change_scene') }}
+        </label>
+      </div>
+      <div class="field-hint look-way-hint">{{ t(lookWay === 'free' ? lookChangeScene ? 'edit.look_change_scene_hint' : 'edit.look_mode_free_hint' : 'edit.look_mode_effects_hint') }}</div>
       <div class="form-group">
-        <label class="form-label">{{ t('edit.look_label') }}</label>
-        <textarea data-testid="edit-look-text" class="form-textarea" v-model="lookText" rows="4" maxlength="2000" :placeholder="t('edit.look_placeholder')"></textarea>
+        <label class="form-label">{{ t(lookWay === 'free' && lookChangeScene ? 'edit.look_scene_label' : 'edit.look_label') }}</label>
+        <textarea data-testid="edit-look-text" class="form-textarea" v-model="lookText" rows="4" maxlength="2000" :placeholder="t(lookWay === 'free' && lookChangeScene ? 'edit.look_scene_placeholder' : 'edit.look_placeholder')"></textarea>
       </div>
       <template v-if="lookWay === 'effects'">
         <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': lookCompiling }" :disabled="!canCompileLook" @click="compileLook">
@@ -344,7 +299,7 @@ onUnmounted(() => {
       <template v-else>
         <div class="form-group">
           <label class="form-label">{{ t('edit.look_strength', { value: lookStrength.toFixed(2) }) }}</label>
-          <input data-testid="edit-look-strength" type="range" class="form-range" v-model.number="lookStrength" min="0.35" max="0.65" step="0.01" />
+          <input data-testid="edit-look-strength" type="range" class="form-range" v-model.number="lookStrength" :min="LOOK_STRENGTH_MIN" :max="LOOK_STRENGTH_MAX" :step="LOOK_STRENGTH_STEP" />
         </div>
         <button class="btn btn-primary btn-generate" :class="{ 'btn-generating': lookBusy }" :disabled="!canApplyLookFree || !source" @click="applyLookFree">
           <span class="btn-generate-inner">
@@ -393,16 +348,6 @@ onUnmounted(() => {
       <input data-testid="edit-seed-input" class="form-input" type="number" v-model="seedInput" min="0" step="1" :placeholder="t('generate.seed_placeholder')" />
     </div>
 
-    <div v-if="qwenAvailable" class="form-group">
-      <label class="form-label" for="edit-model-select">{{ t('edit.model_label') }}</label>
-      <select id="edit-model-select" data-testid="edit-model-select" class="form-select" v-model="editModel">
-        <option value="klein">Flux.2 Klein</option>
-        <option value="qwen">Qwen-Image</option>
-      </select>
-      <div class="field-hint">{{ editModel === 'qwen' ? t('edit.model_hint_qwen') : t('edit.model_hint_klein') }}</div>
-      <div v-if="qwenVisionMissing" data-testid="edit-qwen-vision-missing" class="field-hint field-hint-warn">{{ t('edit.qwen_vision_missing') }}</div>
-    </div>
-
     <div class="form-group">
       <label class="form-label" for="edit-style-select">{{ t('edit.style_label') }}</label>
       <select id="edit-style-select" data-testid="edit-style-select" class="form-select" v-model="stylePresetId">
@@ -416,29 +361,9 @@ onUnmounted(() => {
       </label>
       <div v-if="selectedStyle" class="field-hint">
         {{ t('edit.style_hint') }}
-        <span v-if="selectedStyleLoras.length" class="style-lora-list">
-          <span v-for="l in selectedStyleLoras" :key="l.name + '@' + l.weight" class="style-lora-badge">{{ l.name }}@{{ l.weight }}</span>
-        </span>
+        {{ t('post_editor.style_prompt_only') }}
       </div>
     </div>
-
-    <FoldBlock class="edit-model-lora" :title="t('model.block_title')" :summary="modelLoraSummary" @toggle="onLorasToggle">
-      <div class="field-hint">{{ editModel === 'qwen' ? t('model.hint_qwen') : t('model.hint_klein') }}</div>
-      <div v-if="loraLoadError" class="field-hint field-hint-warn">{{ t('overrides.load_error') }}</div>
-      <div class="lora-head">
-        <label class="form-label">{{ t('edit.loras') }}</label>
-        <button data-testid="edit-lora-add" type="button" class="btn btn-sm btn-secondary" @click="addLora">{{ t('edit.loras_add') }}</button>
-      </div>
-      <div v-for="(row, idx) in loraRows" :key="idx" class="lora-row">
-        <input data-testid="edit-lora-name" class="form-input" type="text" v-model="row.name" list="edit-lora-names" :placeholder="t('edit.loras_name')" :aria-label="t('edit.loras_name')" />
-        <input data-testid="edit-lora-weight" class="form-input" type="number" v-model.number="row.weight" min="0" max="2" step="0.05" :placeholder="0.6" :aria-label="t('edit.loras_weight')" />
-        <button data-testid="edit-lora-remove" type="button" class="btn btn-sm btn-secondary lora-remove" @click="removeLora(idx)" :aria-label="t('edit.loras_remove')"><X :size="14" /></button>
-      </div>
-      <div class="lora-hint">{{ t('edit.loras_hint_klein') }}</div>
-    </FoldBlock>
-    <datalist id="edit-lora-names">
-      <option v-for="l in serverLoras" :key="l.name" :value="l.name" />
-    </datalist>
 
     <div class="form-group">
       <ResolutionSelector v-model="selectedResolutionId" :none-label="t('fi.resolution_original')" />

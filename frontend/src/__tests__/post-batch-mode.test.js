@@ -1,3 +1,4 @@
+import { mockInstalledEditor } from './helpers/post-editor.js'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { EventsEmit, clearEventMocks } from './mocks/runtime'
@@ -31,6 +32,7 @@ let jobCount
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockInstalledEditor()
   clearEventMocks()
   useRemixQueue().clearPostQueue()
   ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
@@ -118,8 +120,8 @@ describe('PostProcessPage batch mode', () => {
 
     expect(EnqueueFromImage).toHaveBeenCalledTimes(2)
     for (const [params] of EnqueueFromImage.mock.calls) {
-      expect(params.overrides.model_name).toBeFalsy()
-      expect(JSON.parse(params.overrides.loras)).toContainEqual({ name: 'LoraB', weight: 0.5 })
+      expect(params.editor.model).toBe('flux-2-klein-4b.safetensors')
+      expect(params.editor.loras).toEqual([{ name: 'LoraB', weight: 0.5 }])
     }
   })
 

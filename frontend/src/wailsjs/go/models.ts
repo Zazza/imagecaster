@@ -209,23 +209,78 @@ export namespace generation {
 	        this.describe_prompt = source["describe_prompt"];
 	    }
 	}
+	export class PostEditorParams {
+	    model: string;
+	    loras: preset.LoRAEntry[];
+
+	    static createFrom(source: any = {}) {
+	        return new PostEditorParams(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.model = source["model"];
+	        this.loras = this.convertValues(source["loras"], preset.LoRAEntry);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
 	export class ApplyLookParams {
+	    change_scene?: boolean;
+	    editor?: PostEditorParams;
 	    image_base64: string;
 	    text: string;
 	    strength: number;
 	    seed?: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ApplyLookParams(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.change_scene = source["change_scene"];
+	        this.editor = this.convertValues(source["editor"], PostEditorParams);
 	        this.image_base64 = source["image_base64"];
 	        this.text = source["text"];
 	        this.strength = source["strength"];
 	        this.seed = source["seed"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class RecipeStep {
 	    preset_id: number;
@@ -296,6 +351,7 @@ export namespace generation {
 	    }
 	}
 	export class EditImageParams {
+	    editor?: PostEditorParams;
 	    image_base64: string;
 	    reference_image_base64?: string;
 	    instruction: string;
@@ -306,13 +362,14 @@ export namespace generation {
 	    resolution_id?: number;
 	    seed?: number;
 	    model?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new EditImageParams(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.editor = this.convertValues(source["editor"], PostEditorParams);
 	        this.image_base64 = source["image_base64"];
 	        this.reference_image_base64 = source["reference_image_base64"];
 	        this.instruction = source["instruction"];
@@ -324,7 +381,7 @@ export namespace generation {
 	        this.seed = source["seed"];
 	        this.model = source["model"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -456,6 +513,7 @@ export namespace generation {
 		}
 	}
 	export class GenerateFromImageParams {
+	    editor?: PostEditorParams;
 	    image_base64: string;
 	    mode: string;
 	    gen_mode: string;
@@ -471,14 +529,16 @@ export namespace generation {
 	    seed?: number;
 	    overrides?: PresetOverrides;
 	    mask_base64?: string;
+	    mask_strict?: boolean;
 	    keep_color?: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new GenerateFromImageParams(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.editor = this.convertValues(source["editor"], PostEditorParams);
 	        this.image_base64 = source["image_base64"];
 	        this.mode = source["mode"];
 	        this.gen_mode = source["gen_mode"];
@@ -494,9 +554,10 @@ export namespace generation {
 	        this.seed = source["seed"];
 	        this.overrides = this.convertValues(source["overrides"], PresetOverrides);
 	        this.mask_base64 = source["mask_base64"];
+	        this.mask_strict = source["mask_strict"];
 	        this.keep_color = source["keep_color"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -650,19 +711,21 @@ export namespace generation {
 	    }
 	}
 	export class ObjectEditParams {
+	    editor?: PostEditorParams;
 	    image_base64: string;
 	    mask_base64: string;
 	    op: string;
 	    replacement: string;
 	    object: string;
 	    seed?: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ObjectEditParams(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.editor = this.convertValues(source["editor"], PostEditorParams);
 	        this.image_base64 = source["image_base64"];
 	        this.mask_base64 = source["mask_base64"];
 	        this.op = source["op"];
@@ -670,27 +733,65 @@ export namespace generation {
 	        this.object = source["object"];
 	        this.seed = source["seed"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	
 	
 	
 	export class RepairParams {
+	    editor?: PostEditorParams;
 	    image_base64: string;
 	    mask_base64: string;
 	    strength: number;
 	    seed?: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new RepairParams(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.editor = this.convertValues(source["editor"], PostEditorParams);
 	        this.image_base64 = source["image_base64"];
 	        this.mask_base64 = source["mask_base64"];
 	        this.strength = source["strength"];
 	        this.seed = source["seed"];
 	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class UpscaleImageParams {
 	    image_base64: string;
@@ -1025,6 +1126,22 @@ export namespace logger {
 }
 
 export namespace main {
+	export class ObjectMaskStatus {
+	    ready: boolean;
+	    encoder_url: string;
+	    decoder_url: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ObjectMaskStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ready = source["ready"];
+	        this.encoder_url = source["encoder_url"];
+	        this.decoder_url = source["decoder_url"];
+	    }
+	}
 	
 	export class PostBody {
 	    points: bodyshape.Point[];
@@ -1076,6 +1193,40 @@ export namespace main {
 	        this.error = source["error"];
 	    }
 	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StylistEditParams {
+	    job_id: number;
+	    instruction: string;
+	    editor?: generation.PostEditorParams;
+
+	    static createFrom(source: any = {}) {
+	        return new StylistEditParams(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.job_id = source["job_id"];
+	        this.instruction = source["instruction"];
+	        this.editor = this.convertValues(source["editor"], generation.PostEditorParams);
+	    }
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;

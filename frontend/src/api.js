@@ -1,5 +1,5 @@
 import {
-  AnalyzeImage, DescribePhoto, ApplyLookDirect, AutoAdjust, BatchReset, BatchSaveImage, BrowseDirectory,
+  AnalyzeImage, DescribePhoto, ApplyLookDirect, ApplyPostLook, AutoAdjust, BatchReset, BatchSaveImage, BrowseDirectory,
   CancelQueue, CancelQueueJob, CheckServer, ClearSession, CompilePostStyle, CreateCompoundPreset,
   CreateDescriptionFull, CreateHiresProfile, CreatePreset, CreateResolution, CreateSession,
   DeleteCompoundPreset, DeleteDescription, DeleteExportPreset, DeleteHiresProfile,
@@ -17,7 +17,7 @@ import {
   IsKidsModeActive, IsQueuePaused, ListCompoundPresets, ListDescriptions, ListExportPresets,
   ListHiresProfiles, ListHistory, ListPostRecipes, ListPresetTypes, ListPresets, ListResolutions,
   ListSessions, OpenImportCompoundFile, OpenImportFile, OpenInHistory, PauseQueue,
-  PrepareCompoundPresetsExport, PreparePresetsExport, PreviewAdjust, PreviewPost,
+  PrepareCompoundPresetsExport, PreparePresetsExport, PrepareObjectMask, PreviewAdjust, PreviewPost,
   PullServerLLMModel, PullServerLLMModelStream, ReadClipboardImage, ReadFileAsBase64,
   ReadImageFile, ReadThumbnail, RemoveQueueJob, RenameSession, RepairImage, RestartServerProcess,
   ResumePausedQueueJobs, ResumeQueue, RetryQueueJob, SaveExportPreset, SaveImage, SaveLLMChoice,
@@ -29,7 +29,7 @@ import {
   TrainPersonReplace, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson, SetPersonDisplay,
   AddPersonIdentity, FaceSwapStatus,
   PostFaceLandmarks, PostBodyPoints, PreviewPostRetouch, EnqueuePostSave, SavePostToHistory, EnqueuePost4K,
-  StylistPresets, StylistPlan, StylistPlans, StylistSaveNamedPlan, StylistRenamePlan, StylistDeletePlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, RollbackPerson, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
+  StylistPresets, StylistPlan, StylistPlans, StylistSaveNamedPlan, StylistRenamePlan, StylistDeletePlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistEdit, StylistEditWithEditor, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, RollbackPerson, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -52,6 +52,7 @@ async function streamServerJob(run, onProgress) {
 }
 
 export const api = {
+  prepareObjectMask: () => PrepareObjectMask(),
   listPresets: () => ListPresets(),
   createPreset: (data) => CreatePreset(data),
   updatePreset: (id, data) => UpdatePreset({ ...data, id }),
@@ -119,6 +120,7 @@ export const api = {
   compilePostStyle: (text) => CompilePostStyle(text),
   describeForStyle: (imageBase64) => DescribeForStyle(imageBase64),
   applyLookDirect: (imageBase64, text, strength, seed) => ApplyLookDirect(imageBase64, text, strength, seed ?? null),
+  applyPostLook: (params) => ApplyPostLook(params),
   browseDirectory: (path) => BrowseDirectory(path),
   readFileAsBase64: (path) => ReadFileAsBase64(path),
   readThumbnail: (path) => ReadThumbnail(path),
@@ -189,6 +191,7 @@ export const api = {
   stylistFrames: (ids) => StylistFrames(ids),
   stylistLastShoot: () => StylistLastShoot(),
   stylistReshoot: (jobId, size) => StylistReshoot(jobId, size),
+  stylistEdit: (jobId, instruction, editor) => editor ? StylistEditWithEditor({ job_id: jobId, instruction, editor }) : StylistEdit(jobId, instruction),
   stylistLoadPlan: () => StylistLoadPlan(),
   stylistSavePlan: (plan) => StylistSavePlan(plan),
   stylistPlans: () => StylistPlans(),

@@ -1,0 +1,1 @@
+export const MAX_OBJECT_MASK_PIXELS = 32 * 1024 * 1024

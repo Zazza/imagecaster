@@ -1,3 +1,4 @@
+import { mockInstalledEditor } from './helpers/post-editor.js'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks } from './mocks/runtime'
@@ -34,6 +35,7 @@ useFakeImage()
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockInstalledEditor()
   clearEventMocks()
   localStorage.clear()
   useRemixQueue().clearPostQueue()
@@ -72,61 +74,6 @@ function lastEditParams() {
   expect(EditImage).toHaveBeenCalled()
   return EditImage.mock.calls[EditImage.mock.calls.length - 1][0]
 }
-
-describe('Edit: Qwen-Image model choice', () => {
-  it('no Qwen preset: no model select, request goes with model klein', async () => {
-    const wrapper = await mountEdit([KLEIN_STYLE, Z_STYLE])
-    expect(wrapper.find('[data-testid="edit-model-select"]').exists()).toBe(false)
-    await runEdit(wrapper)
-    expect(lastEditParams().model).toBe('klein')
-  })
-
-  it('empty preset list: no model select', async () => {
-    const wrapper = await mountEdit([])
-    expect(wrapper.find('[data-testid="edit-model-select"]').exists()).toBe(false)
-  })
-
-  it('Qwen preset available: select offers klein and qwen, klein by default', async () => {
-    const wrapper = await mountEdit([KLEIN_STYLE, QWEN_STYLE])
-    const select = wrapper.find('[data-testid="edit-model-select"]')
-    expect(select.exists()).toBe(true)
-    const values = select.findAll('option').map(o => o.attributes('value'))
-    expect(values).toEqual(expect.arrayContaining(['klein', 'qwen']))
-    expect(values.length).toBe(2)
-    expect(select.element.value).toBe('klein')
-    await runEdit(wrapper)
-    expect(lastEditParams().model).toBe('klein')
-  })
-
-  it('Qwen preset name without model match does not enable Qwen', async () => {
-    const fake = { id: 5, name: 'Qwen-Image look', model_name: KLEIN, prompt: 'x', loras: '' }
-    const wrapper = await mountEdit([KLEIN_STYLE, fake])
-    expect(wrapper.find('[data-testid="edit-model-select"]').exists()).toBe(false)
-  })
-
-  it('qwen-image spelled with a dash also enables Qwen', async () => {
-    const dashed = { ...QWEN_STYLE, id: 6, model_name: 'qwen-image-2512-Q4_K_M' }
-    const wrapper = await mountEdit([KLEIN_STYLE, dashed])
-    expect(wrapper.find('[data-testid="edit-model-select"]').exists()).toBe(true)
-  })
-
-  it('choosing Qwen sends model qwen', async () => {
-    const wrapper = await mountEdit([KLEIN_STYLE, QWEN_STYLE])
-    await wrapper.find('[data-testid="edit-model-select"]').setValue('qwen')
-    await settle()
-    await runEdit(wrapper)
-    expect(lastEditParams().model).toBe('qwen')
-  })
-
-  it('Qwen preset hidden as not installed: no model select', async () => {
-    SyncPresets.mockImplementation(() => Promise.resolve({ statuses: [
-      { id: KLEIN_STYLE.id, installed: true, missing_sd: [], missing_lora: [] },
-      { id: QWEN_STYLE.id, installed: false, missing_sd: [QWEN], missing_lora: [] },
-    ] }))
-    const wrapper = await mountEdit([KLEIN_STYLE, QWEN_STYLE])
-    expect(wrapper.find('[data-testid="edit-model-select"]').exists()).toBe(false)
-  })
-})
 
 async function mountPost(settings = {}) {
   ListPresets.mockReturnValue(Promise.resolve([KLEIN_FX, QWEN_FX]))
@@ -172,8 +119,7 @@ function lastEnqueue() {
 }
 
 function sentLoraNames(params) {
-  if (!params.overrides || !params.overrides.loras) return []
-  return JSON.parse(params.overrides.loras).map(l => l.name)
+  return params.editor.loras.map(l => l.name)
 }
 
 describe('Effects: Qwen-Image presets', () => {
@@ -192,12 +138,12 @@ describe('Effects: Qwen-Image presets', () => {
     expect(klein.text()).not.toContain('Qwen')
   })
 
-  it('Klein effect LoRAs are not sent with a Qwen effect', async () => {
+  it('shared Klein editor LoRAs apply to a Qwen effect description', async () => {
     const wrapper = await mountPost({ effect_loras_klein: '[{"name":"LoraA","weight":0.7}]' })
     await applyEffect(wrapper, QWEN_FX)
     const p = lastEnqueue()
     expect(p.preset_id).toBe(QWEN_FX.id)
-    expect(sentLoraNames(p)).not.toContain('LoraA')
+    expect(sentLoraNames(p)).toEqual(['LoraA'])
   })
 
   it('Klein effect LoRAs are still sent with a Klein effect', async () => {

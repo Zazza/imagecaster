@@ -80,7 +80,7 @@ func TestHiDream_IsNewGenProseFamily(t *testing.T) {
 
 func TestResolveEditModel(t *testing.T) {
 	t.Parallel()
-	for _, in := range []string{"", "klein"} {
+	for _, in := range []string{"", "klein", "flux-2-klein-4b"} {
 		t.Run("klein/"+in, func(t *testing.T) {
 			t.Parallel()
 			p, err := resolveEditModel(in)
@@ -100,7 +100,7 @@ func TestResolveEditModel(t *testing.T) {
 		assert.InDelta(t, 6.0, p.cfg, 1e-9)
 	})
 
-	for _, in := range []string{"moss", "z-image", "unknown", "Qwen ", "flux-2-klein-4b"} {
+	for _, in := range []string{"moss", "z-image", "unknown", "Qwen "} {
 		t.Run("rejected/"+in, func(t *testing.T) {
 			t.Parallel()
 			_, err := resolveEditModel(in)

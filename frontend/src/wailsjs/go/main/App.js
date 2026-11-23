@@ -14,6 +14,10 @@ export function ApplyLookDirect(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['ApplyLookDirect'](arg1, arg2, arg3, arg4);
 }
 
+export function ApplyPostLook(arg1) {
+  return window['go']['main']['App']['ApplyPostLook'](arg1);
+}
+
 export function AutoAdjust(arg1) {
   return window['go']['main']['App']['AutoAdjust'](arg1);
 }
@@ -430,6 +434,10 @@ export function PrepareCompoundPresetsExport(arg1) {
   return window['go']['main']['App']['PrepareCompoundPresetsExport'](arg1);
 }
 
+export function PrepareObjectMask() {
+  return window['go']['main']['App']['PrepareObjectMask']();
+}
+
 export function PreparePresetsExport(arg1) {
   return window['go']['main']['App']['PreparePresetsExport'](arg1);
 }
@@ -592,6 +600,14 @@ export function StylistLoadGarment() {
 
 export function StylistReshoot(arg1, arg2) {
   return window['go']['main']['App']['StylistReshoot'](arg1, arg2);
+}
+
+export function StylistEditWithEditor(arg1) {
+  return window['go']['main']['App']['StylistEditWithEditor'](arg1);
+}
+
+export function StylistEdit(arg1, arg2) {
+  return window['go']['main']['App']['StylistEdit'](arg1, arg2);
 }
 
 export function StylistLoadPlan() {

@@ -306,27 +306,38 @@ func (s *Service) DescribeForStyle(imageBase64 string) (string, error) {
 // --- Look direct (klein reference restyle) ---
 
 const (
-	kleinLookSteps          = 8
-	kleinLookCfgScale       = 1.0
-	kleinLookSampler        = "euler"
-	kleinLookScheduler      = "simple"
-	kleinLookTemperature    = 0.3
-	kleinLookMaxPromptRunes = 500
-	kleinLookLabelMax       = 60
-	kleinLookMaxDim         = 2048
-	kleinLookAlign          = 16
+	kleinLookSteps           = 8
+	kleinLookCfgScale        = 1.0
+	kleinLookSampler         = "euler"
+	kleinLookScheduler       = "simple"
+	kleinLookTemperature     = 0.3
+	kleinLookMaxPromptRunes  = 500
+	kleinLookLabelMax        = 60
+	kleinLookMaxDim          = 2048
+	kleinLookAlign           = 16
+	lookReferenceStrengthMax = 1.0
 )
 
 const kleinLookSystemPrompt = "You translate a description of the desired look into a short English prose prompt for an image restyle model. Describe only the visual look: light, color, mood, texture, atmosphere. 1-2 sentences, at most 60 words. Reply with the prompt only."
+const lookReferenceSystemPrompt = "Translate the user's requested photographic changes into concise English. Preserve the requested lighting, colors, contrast, mood, texture, constraints and negations. Do not embellish the request or add a genre, effect, light source, object or detail that was not requested. Do not describe a new scene. Return only the translated description, at most 60 words."
+const lookReferencePromptPrefix = "Edit this existing photograph by applying the following photographic look: "
+const lookReferencePromptSuffix = " Keep the original people, facial features, clothing, poses, camera framing and scene layout. Change only the lighting, color grading, atmosphere and image texture as requested."
 
 type ApplyLookParams struct {
-	ImageBase64 string  `json:"image_base64"`
-	Text        string  `json:"text"`
-	Strength    float64 `json:"strength"`
-	Seed        *int64  `json:"seed"`
+	ChangeScene bool              `json:"change_scene,omitempty"`
+	Editor      *PostEditorParams `json:"editor,omitempty"`
+	ImageBase64 string            `json:"image_base64"`
+	Text        string            `json:"text"`
+	Strength    float64           `json:"strength"`
+	Seed        *int64            `json:"seed"`
 }
 
 func ValidateLook(p ApplyLookParams) error {
+	if p.ChangeScene {
+		if _, err := NormalizePostEditor(p.Editor); err != nil {
+			return err
+		}
+	}
 	_, err := validateLookParams(p.ImageBase64, p.Text)
 	return err
 }
@@ -403,6 +414,10 @@ func alignLookSize(w, h int) (int, int) {
 }
 
 func (s *Service) buildLookPrompt(text string) (string, error) {
+	return s.buildLookPromptWithSystem(text, kleinLookSystemPrompt)
+}
+
+func (s *Service) buildLookPromptWithSystem(text, systemPrompt string) (string, error) {
 	maxTokens := s.getMaxTokens()
 	generateModel := s.getGenerateModel()
 
@@ -412,7 +427,7 @@ func (s *Service) buildLookPrompt(text string) (string, error) {
 	defer s.emitter.Emit("llm:status", map[string]string{"status": "done"})
 
 	for attempt := 0; attempt < 2; attempt++ {
-		raw, err := s.llm.Chat(generateModel, kleinLookSystemPrompt, userMessage, kleinLookTemperature, maxTokens)
+		raw, err := s.llm.Chat(generateModel, systemPrompt, userMessage, kleinLookTemperature, maxTokens)
 		if err != nil {
 			return "", err
 		}
@@ -424,7 +439,19 @@ func (s *Service) buildLookPrompt(text string) (string, error) {
 }
 
 func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, seed *int64) (*GenerateImageResult, error) {
-	text, err := validateLookParams(imageBase64, text)
+	return s.ApplyPostLook(ApplyLookParams{ImageBase64: imageBase64, Text: text, Strength: strength, Seed: seed})
+}
+
+func (s *Service) ApplyPostLook(params ApplyLookParams) (*GenerateImageResult, error) {
+	if params.ChangeScene && params.Editor == nil {
+		return nil, errPostEditorModelRequired
+	}
+	prof, err := resolvePostEditor(params.Editor, kleinLookSteps)
+	if err != nil {
+		return nil, err
+	}
+	imageBase64, text, strength, seed := params.ImageBase64, params.Text, params.Strength, params.Seed
+	text, err = validateLookParams(imageBase64, text)
 	if err != nil {
 		return nil, err
 	}
@@ -433,12 +460,32 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	if filterErr != nil {
 		return nil, filterErr
 	}
-	strength = clampLookStrength(strength)
+	if params.Editor == nil {
+		strength = clampLookStrength(strength)
+	} else {
+		strength = clampFloat(strength, recipeStrengthMin, lookReferenceStrengthMax)
+	}
 
-	lookPrompt, err := s.buildLookPrompt(text)
-	if err != nil {
-		s.log.Warn("look: LLM rewrite failed, using original text: %s", err)
-		lookPrompt = truncateRunes(text, kleinLookMaxPromptRunes)
+	var lookPrompt string
+	if params.ChangeScene {
+		lookPrompt, err = s.PrepareStylistEdit(imageBase64, text)
+		if err != nil {
+			return nil, err
+		}
+		lookPrompt += FrameEditPreserveSuffix
+	} else {
+		if params.Editor == nil {
+			lookPrompt, err = s.buildLookPrompt(text)
+		} else {
+			lookPrompt, err = s.buildLookPromptWithSystem(text, lookReferenceSystemPrompt)
+		}
+		if err != nil {
+			s.log.Warn("look: LLM rewrite failed, using original text: %s", err)
+			lookPrompt = truncateRunes(text, kleinLookMaxPromptRunes)
+		}
+		if params.Editor != nil {
+			lookPrompt = lookReferencePromptPrefix + lookPrompt + lookReferencePromptSuffix
+		}
 	}
 
 	if err := s.sd.HealthCheck(); err != nil {
@@ -447,26 +494,27 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	s.beginProgress()
 	defer s.endProgress()
 
-	s.guard.EnsureHeadroom(kleinLookModel, "look")
+	s.guard.EnsureHeadroom(prof.model, "look")
 
 	srcW, srcH := filebrowser.DecodeImageSize(imageBase64)
 	if srcW <= 0 || srcH <= 0 {
 		return nil, errors.New("decode image size: invalid image")
 	}
 	outW, outH := alignLookSize(srcW, srcH)
-	width, height := kleinWorkSize(outW, outH)
+	width, height := refEditWorkSize(prof.model, outW, outH)
+	lookPrompt = prof.prompt(lookPrompt)
 
 	batchSize := 1
 	batchCount := 1
 	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
-		Model:             kleinRefSpec(),
+		Model:             withReference(modelSpec(prof.model)),
 		InitImages:        []string{imageBase64},
 		Prompt:            lookPrompt,
 		NegativePrompt:    s.kids.ApplyNegative(""),
 		SamplerName:       kleinLookSampler,
 		Scheduler:         kleinLookScheduler,
-		Steps:             kleinLookSteps,
-		CfgScale:          kleinLookCfgScale,
+		Steps:             prof.steps,
+		CfgScale:          prof.cfg,
 		Width:             width,
 		Height:            height,
 		Seed:              seed,
@@ -495,7 +543,7 @@ func (s *Service) ApplyLookDirect(imageBase64, text string, strength float64, se
 	}
 	result.SessionItemID = s.sessions.AddToSession(finalImage, resp.Info, "look", &preset.GenerationMeta{
 		Label: "Look: " + truncateRunes(text, kleinLookLabelMax),
-		Model: kleinLookModel,
+		Model: prof.model,
 	})
 	return result, nil
 }
