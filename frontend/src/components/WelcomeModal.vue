@@ -1,11 +1,14 @@
 <script setup>
 import { X } from 'lucide-vue-next'
+import { BrowserOpenURL } from '../wailsjs/runtime/runtime'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { api } from '../api.js'
 import { t, locale } from '../i18n/index.js'
 import { RELEASE_NOTES } from '../releaseNotes.js'
 import { defaultDownloads, loadDefaultPlan, runDefaultPlan } from '../modelDownloads.js'
 import DownloadProgress from './DownloadProgress.vue'
+
+const PROJECT_BLOG_URL = 'https://samotoy.ru/projects/imagecaster/'
 
 const props = defineProps({ tab: { type: String, default: 'about' } })
 const emit = defineEmits(['close', 'settings'])
@@ -73,6 +76,10 @@ const openSettings = () => emit('settings', dontShow.value)
         <p class="welcome-lead">{{ t('welcome.about_what') }}</p>
         <p class="welcome-lead">{{ t('welcome.about_how') }}</p>
         <p class="welcome-lead">{{ t('welcome.about_server') }}</p>
+        <p class="welcome-lead welcome-blog">
+          <a :href="PROJECT_BLOG_URL" @click.prevent="BrowserOpenURL(PROJECT_BLOG_URL)">{{ t('welcome.blog_link') }}</a>
+          <span>{{ t('welcome.blog_description') }}</span>
+        </p>
         <div class="welcome-models">
           <h3 class="welcome-subtitle">{{ t('welcome.models_title') }}</h3>
           <p class="welcome-lead">{{ t('welcome.models_lead') }}</p>
@@ -122,6 +129,8 @@ const openSettings = () => emit('settings', dontShow.value)
 .welcome-body { max-height: 65vh; overflow-y: auto; }
 .welcome-title { margin: 0 0 8px; font-size: var(--fs-xl); font-weight: 600; color: var(--text-bright); }
 .welcome-lead { margin: 0 0 12px; line-height: 1.55; }
+.welcome-blog { display: flex; flex-direction: column; gap: 4px; }
+.welcome-blog span { color: var(--text-dim); font-size: var(--fs-md); }
 .welcome-lead.dim { color: var(--text-dim); font-size: var(--fs-md); }
 .welcome-lead.ok { color: var(--success); }
 .welcome-lead.err { color: var(--danger); font-size: var(--fs-sm); }

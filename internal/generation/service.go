@@ -427,7 +427,7 @@ func (s *Service) checkSDInterrupted() error {
 func (s *Service) upscaleWithFallback(base64Img string, scale float64, targetW, targetH int, upscaler string) (string, error) {
 	upscaledB64 := ""
 	if upscaler != "" {
-		neural, err := s.sd.UpscaleImage(base64Img, upscaler, scale)
+		neural, err := s.measuredUpscale(base64Img, upscaler, scale)
 		if err != nil {
 			s.log.Warn("Neural upscale failed (%s), falling back to CatmullRom: %s", upscaler, err)
 		} else {
@@ -475,7 +475,7 @@ func (s *Service) img2imgRedenoise(base64Img string, req sd.Txt2ImgRequest, targ
 		BatchSize:         req.BatchSize,
 		BatchCount:        req.BatchCount,
 	}
-	return s.sd.Img2Img(i2iReq)
+	return s.measuredImg2Img(i2iReq)
 }
 
 func (s *Service) manualHiresUpscale(base64Img string, req sd.Txt2ImgRequest, scale float64, denoiseStrength float64, upscaler string) (*sd.Txt2ImgResponse, error) {
@@ -862,7 +862,7 @@ func (s *Service) doHiresFallback(req sd.Txt2ImgRequest, originalErr error, hire
 	req.HiresResizeX = 0
 	req.HiresResizeY = 0
 	req.HiresSecondPassSteps = 0
-	retryResult, retryErr := s.sd.Txt2Img(req)
+	retryResult, retryErr := s.measuredTxt2Img(req)
 	if retryErr != nil {
 		return hiresFallbackResult{Err: retryErr, HiresSkipped: true}
 	}
@@ -1000,7 +1000,7 @@ func (s *Service) presetTxt2Img(p *preset.Preset, spec sd.ModelSpec, prompt, neg
 }
 
 func (s *Service) txt2imgWithFallback(run txt2imgRun) (*txt2imgOutcome, error) {
-	result, err := s.sd.Txt2Img(run.req)
+	result, err := s.measuredTxt2Img(run.req)
 	if err == nil {
 		return &txt2imgOutcome{result: result}, nil
 	}
@@ -1556,7 +1556,7 @@ func (s *Service) UpscaleImage(params UpscaleImageParams) (*GenerateImageResult,
 	}
 	seed := info.Seed
 
-	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	result, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             spec,
 		InitImages:        []string{params.ImageBase64},
 		Prompt:            prompt,

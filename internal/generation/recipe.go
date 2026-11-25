@@ -506,7 +506,7 @@ func (s *Service) ApplyPostLook(params ApplyLookParams) (*GenerateImageResult, e
 
 	batchSize := 1
 	batchCount := 1
-	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	resp, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             withReference(modelSpec(prof.model)),
 		InitImages:        []string{imageBase64},
 		Prompt:            lookPrompt,

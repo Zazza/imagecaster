@@ -46,25 +46,29 @@ func (g *MemoryGuard) isHeavy(modelName string) bool {
 }
 
 func (g *MemoryGuard) EnsureHeadroom(modelName, logPrefix string) bool {
+	verbose := g.diagnosticsVerbose()
 	g.mu.Lock()
-	unload := g.decide(modelName, logPrefix)
+	unload := g.decide(modelName, logPrefix, verbose)
 	g.mu.Unlock()
 	if !unload {
 		return false
 	}
 
+	started := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), g.unloadTimeout)
 	defer cancel()
 	if err := g.llm.UnloadAll(ctx); err != nil {
 		g.log.Warn("%s: memory guard: unload: %s", logPrefix, err)
 	}
 	if !g.waitUnloaded(ctx) {
-		g.log.Warn("%s: memory guard: unload wait timeout, proceeding anyway", logPrefix)
+		g.log.Warn("%s: memory guard: unload wait timeout, proceeding anyway (duration_ms=%d)", logPrefix, time.Since(started).Milliseconds())
+	} else {
+		g.traceMemory(verbose, "%s: memory guard: LLM unload confirmed (duration_ms=%d)", logPrefix, time.Since(started).Milliseconds())
 	}
 	return true
 }
 
-func (g *MemoryGuard) decide(modelName, logPrefix string) bool {
+func (g *MemoryGuard) decide(modelName, logPrefix string, verbose bool) bool {
 	if modelName == "" {
 		return false
 	}
@@ -77,6 +81,7 @@ func (g *MemoryGuard) decide(modelName, logPrefix string) bool {
 		return false
 	}
 	if len(loaded) == 0 {
+		g.traceMemory(verbose, "%s: memory guard: no loaded LLM", logPrefix)
 		return false
 	}
 	stats, err := g.sd.MemoryInfo()
@@ -106,16 +111,16 @@ func (g *MemoryGuard) decide(modelName, logPrefix string) bool {
 	needRAM := float64(ramHeadroom)
 	deficit := cudaFree < needVRAM || ramFree < needRAM
 	if !deficit {
-		g.log.Info("%s: memory guard: enough headroom for %q (cuda_free=%.1fG ram_free=%.1fG need_vram=%.1fG need_ram=%.1fG), LLM kept warm", logPrefix, modelName, cudaFree/gib, ramFree/gib, needVRAM/gib, needRAM/gib)
+		g.traceMemory(verbose, "%s: memory guard: enough headroom for %q (cuda_free=%.1fG ram_free=%.1fG need_vram=%.1fG need_ram=%.1fG), LLM kept warm", logPrefix, modelName, cudaFree/gib, ramFree/gib, needVRAM/gib, needRAM/gib)
 		return false
 	}
-	relief := cudaFree+reclVRAM >= needVRAM && ramFree+reclRAM >= needRAM
+	relief := (cudaFree < needVRAM && reclVRAM > 0) || (ramFree < needRAM && reclRAM > 0)
 	if !relief {
-		g.log.Info("%s: memory guard: low memory for %q (cuda_free=%.1fG ram_free=%.1fG need_vram=%.1fG need_ram=%.1fG reclaimable cuda=%.1fG ram=%.1fG), unload would not free enough", logPrefix, modelName, cudaFree/gib, ramFree/gib, needVRAM/gib, needRAM/gib, reclVRAM/gib, reclRAM/gib)
+		g.traceMemory(verbose, "%s: memory guard: low memory for %q (cuda_free=%.1fG ram_free=%.1fG need_vram=%.1fG need_ram=%.1fG reclaimable cuda=%.1fG ram=%.1fG), LLM cannot relieve the constrained resource", logPrefix, modelName, cudaFree/gib, ramFree/gib, needVRAM/gib, needRAM/gib, reclVRAM/gib, reclRAM/gib)
 		return false
 	}
 
-	g.log.Info("%s: memory guard: unloading LLM before %q (cuda_free=%.1fG ram_free=%.1fG need_vram=%.1fG need_ram=%.1fG reclaimable cuda=%.1fG ram=%.1fG)", logPrefix, modelName, cudaFree/gib, ramFree/gib, needVRAM/gib, needRAM/gib, reclVRAM/gib, reclRAM/gib)
+	g.traceMemory(verbose, "%s: memory guard: unloading LLM before %q (cuda_free=%.1fG ram_free=%.1fG need_vram=%.1fG need_ram=%.1fG reclaimable cuda=%.1fG ram=%.1fG)", logPrefix, modelName, cudaFree/gib, ramFree/gib, needVRAM/gib, needRAM/gib, reclVRAM/gib, reclRAM/gib)
 	return true
 }
 

@@ -151,7 +151,7 @@ func refineShootFace(eng StylistEngine, refiner FaceRefiner, frameB64, prompt, n
 	if math.Abs(float64(rw)/float64(rh)-float64(rect.Dx())/float64(rect.Dy()))/(float64(rect.Dx())/float64(rect.Dy())) > shootFaceAspectFit {
 		return frameB64, facePassSkipped("аспект результата изменился"), false
 	}
-	fit, err := faceguard.Measure(remapPtsToCrop(pts, rect, fb.Dx(), fb.Dy()), resPts, rw, rh)
+	fit, err := faceguard.MeasurePosition(remapPtsToCrop(pts, rect, fb.Dx(), fb.Dy()), resPts, rw, rh)
 	if err != nil || fit.Mean > shootFaceMeanFit || fit.Key > shootFaceKeyFit {
 		return frameB64, facePassSkipped("лицо сместилось"), false
 	}

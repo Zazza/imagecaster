@@ -8,7 +8,7 @@ import {
 import { setLocale, t } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
 import { loadPeople } from '../peopleStore.js'
-import { resetStylistPlan } from '../composables/useStylistPlan.js'
+import { resetStylistPlan, useStylistPlan } from '../composables/useStylistPlan.js'
 import StylistPage from '../components/StylistPage.vue'
 
 enableAutoUnmount(afterEach)
@@ -56,6 +56,7 @@ beforeEach(async () => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 1
   GetModelCatalog.mockImplementation(() => Promise.resolve(structuredClone(CATALOG)))
   ListPresets.mockImplementation(() => Promise.resolve(structuredClone(PRESETS)))
   ListPresetTypes.mockImplementation(() => Promise.resolve([
@@ -250,6 +251,7 @@ describe('Stylist: coming back to the page', () => {
       expect(req.overrides).toBeUndefined()
       w.unmount()
       resetStylistPlan()
+      useStylistPlan().form.frames = 1
     }
   })
 })

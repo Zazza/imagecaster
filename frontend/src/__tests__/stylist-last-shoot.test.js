@@ -7,7 +7,7 @@ import {
 } from '../wailsjs/go/main/App.js'
 import { setLocale } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
-import { resetStylistPlan } from '../composables/useStylistPlan.js'
+import { resetStylistPlan, useStylistPlan } from '../composables/useStylistPlan.js'
 import { failedTrainings } from '../people.js'
 import StylistPage from '../components/StylistPage.vue'
 
@@ -36,6 +36,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 1
   deleted = new Set()
   StylistPresets.mockImplementation(() => Promise.resolve(structuredClone(BASE)))
   ListPeople.mockImplementation(() => Promise.resolve([{ name: 'anna', base: 'Z-Image', lora: 'anna_z', gender: 'woman' }]))

@@ -11,7 +11,7 @@ import StylistPage from '../components/StylistPage.vue'
 import AspectTab from '../components/stylist/AspectTab.vue'
 import {
   buildPlanRequest, defaultAspects, removeShot, removeSeries, regenerateRequest, stylistPeople, clampFrames,
-  framesFrom, latestDone, totalShots, resetStylistPlan, setRuField, setEnField, setShotRu, setShotEn, dirtyRefs, applyTranslations, planSnapshot,
+  framesFrom, latestDone, totalShots, useStylistPlan, resetStylistPlan, setRuField, setEnField, setShotRu, setShotEn, dirtyRefs, applyTranslations, planSnapshot,
 } from '../composables/useStylistPlan.js'
 
 enableAutoUnmount(afterEach)
@@ -46,6 +46,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 3
   StylistTranslateRu.mockImplementation((texts) => Promise.resolve(texts))
   StylistPresets.mockImplementation(() => Promise.resolve(structuredClone(BASE)))
   ListPeople.mockImplementation(() => Promise.resolve([{ ...ANNA }, { ...BOB }, { name: 'old', base: 'SD1.5', lora: 'x' }, { name: 'nolora', base: 'SDXL', lora: '' }]))
@@ -420,7 +421,7 @@ describe('StylistPage', () => {
     await w.find(tid('mode-keep')).trigger('click')
     await w.find(tid('stylist-plan')).trigger('click')
     await settle()
-    expect(StylistPlan.mock.calls[0][0]).toMatchObject({ person: 'anna', gender: 'woman', frames: 8 })
+    expect(StylistPlan.mock.calls[0][0]).toMatchObject({ person: 'anna', gender: 'woman', frames: 3 })
     expect(StylistPlan.mock.calls[0][0].aspects.outfit.mode).toBe('keep')
     expect(w.findAll(tid('series-card'))).toHaveLength(2)
     expect(w.findAll(tid('series-shot'))).toHaveLength(3)
@@ -433,7 +434,7 @@ describe('StylistPage', () => {
     await settle()
     expect(StylistRegenerateSeries).toHaveBeenCalledTimes(1)
     expect(StylistRegenerateSeries.mock.calls[0][1]).toBe(1)
-    expect(StylistRegenerateSeries.mock.calls[0][0]).toMatchObject({ frames: 8, shots: 1 })
+    expect(StylistRegenerateSeries.mock.calls[0][0]).toMatchObject({ frames: 2, shots: 1 })
     const cards = w.findAll(tid('series-card'))
     expect(cards[1].find(tid('series-outfit')).element.value).toBe('red gown')
     expect(cards[0].find(tid('series-outfit')).element.value).toBe('white dress')
@@ -848,6 +849,7 @@ describe('Russian plan text', () => {
     const s = { ...RU_SERIES()[0], shots: [{ pose: 'Анфас', prompt: 'facing camera', prompt_ru: 'Анфас', framing: 'close' }] }
     expect(setShotRu(s, 0, 'Сидит, в полный рост').shots[0].framing).toBeUndefined()
     expect(setShotEn(s, 0, 'sitting, full length').shots[0].framing).toBeUndefined()
+    useStylistPlan().form.frames = 2
     StylistPlan.mockImplementation(() => Promise.resolve({ series: [s, RU_SERIES()[1]], warnings: [], used_llm: true }))
     StylistTranslate.mockImplementation(() => Promise.resolve(['sitting, full length']))
     const w = await planned()

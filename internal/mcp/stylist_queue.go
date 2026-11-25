@@ -23,41 +23,46 @@ type ShootQueue interface {
 }
 
 type ShootFrameParams struct {
-	Editor          *generation.PostEditorParams `json:"editor,omitempty"`
-	SourceItemID    int64                        `json:"source_item_id,omitempty"`
-	SourceSessionID int64                        `json:"source_session_id,omitempty"`
-	EditInstruction string                       `json:"edit_instruction,omitempty"`
-	Person          string                       `json:"person"`
-	Base            string                       `json:"base"`
-	Model           string                       `json:"model"`
-	Shot            string                       `json:"shot"`
-	Prompt          string                       `json:"prompt"`
-	Index           int                          `json:"index"`
-	Total           int                          `json:"total"`
-	Seed            *int64                       `json:"seed,omitempty"`
-	GarmentBase64   string                       `json:"garment_base64,omitempty"`
-	Outfit          string                       `json:"outfit,omitempty"`
-	Wear            string                       `json:"wear,omitempty"`
-	FacePass        bool                         `json:"face_pass"`
-	FaceSwap        bool                         `json:"face_swap,omitempty"`
-	Width           int                          `json:"width,omitempty"`
-	Height          int                          `json:"height,omitempty"`
-	Pipeline        int64                        `json:"pipeline,omitempty"`
-	PipelineName    string                       `json:"pipeline_name,omitempty"`
-	PersonLoras     map[string]string            `json:"person_loras,omitempty"`
-	FaceSwapName    string                       `json:"face_swap_name,omitempty"`
-	ToFolder        bool                         `json:"to_folder,omitempty"`
-	Preset          int64                        `json:"preset,omitempty"`
-	PresetName      string                       `json:"preset_name,omitempty"`
-	PersonLora      string                       `json:"person_lora,omitempty"`
-	Overrides       *generation.PresetOverrides  `json:"overrides,omitempty"`
+	RestoreMaskBase64 string                       `json:"restore_mask_base64,omitempty"`
+	RestoreStage      string                       `json:"restore_stage,omitempty"`
+	RestoreAligned    bool                         `json:"restore_aligned,omitempty"`
+	Editor            *generation.PostEditorParams `json:"editor,omitempty"`
+	SourceItemID      int64                        `json:"source_item_id,omitempty"`
+	SourceSessionID   int64                        `json:"source_session_id,omitempty"`
+	EditInstruction   string                       `json:"edit_instruction,omitempty"`
+	Person            string                       `json:"person"`
+	Base              string                       `json:"base"`
+	Model             string                       `json:"model"`
+	Shot              string                       `json:"shot"`
+	Prompt            string                       `json:"prompt"`
+	Index             int                          `json:"index"`
+	Total             int                          `json:"total"`
+	Seed              *int64                       `json:"seed,omitempty"`
+	GarmentBase64     string                       `json:"garment_base64,omitempty"`
+	Outfit            string                       `json:"outfit,omitempty"`
+	Wear              string                       `json:"wear,omitempty"`
+	FaceRestoreBlend  *float64                     `json:"face_restore_blend,omitempty"`
+	FacePass          bool                         `json:"face_pass"`
+	FaceSwap          bool                         `json:"face_swap,omitempty"`
+	Width             int                          `json:"width,omitempty"`
+	Height            int                          `json:"height,omitempty"`
+	Pipeline          int64                        `json:"pipeline,omitempty"`
+	PipelineName      string                       `json:"pipeline_name,omitempty"`
+	PersonLoras       map[string]string            `json:"person_loras,omitempty"`
+	FaceSwapName      string                       `json:"face_swap_name,omitempty"`
+	ToFolder          bool                         `json:"to_folder,omitempty"`
+	Preset            int64                        `json:"preset,omitempty"`
+	PresetName        string                       `json:"preset_name,omitempty"`
+	PersonLora        string                       `json:"person_lora,omitempty"`
+	Overrides         *generation.PresetOverrides  `json:"overrides,omitempty"`
 }
 
 type StylistPresetShooter interface {
 	GeneratePresetShot(params generation.PresetShotParams) (*generation.PresetShotResult, error)
 }
 
-func presetShotBase(shooter StylistShooter, m shootModel, p ShootFrameParams, w, h int) frameBase {
+func presetShotBase(shooter StylistShooter, m shootModel, p ShootFrameParams, w, h int, settings ...**generation.FaceRefineParams) frameBase {
+	p.Seed = copyShootSeed(p.Seed)
 	return func() (string, json.RawMessage, int64, error) {
 		ps, ok := shooter.(StylistPresetShooter)
 		if !ok {
@@ -75,6 +80,10 @@ func presetShotBase(shooter StylistShooter, m shootModel, p ShootFrameParams, w,
 		if res == nil || res.Image == "" {
 			return "", nil, 0, errors.New("генерация не вернула картинку")
 		}
+		if len(settings) > 0 {
+			*settings[0] = res.FaceSettings
+		}
+		p.Seed = nextShootSeed(res.Seed, p.Seed)
 		return res.Image, res.Info, res.Seed, nil
 	}
 }
@@ -84,6 +93,7 @@ type StylistPipelineShooter interface {
 }
 
 func pipelineBase(shooter StylistShooter, p ShootFrameParams, w, h int) frameBase {
+	p.Seed = copyShootSeed(p.Seed)
 	return func() (string, json.RawMessage, int64, error) {
 		ps, ok := shooter.(StylistPipelineShooter)
 		if !ok {
@@ -113,17 +123,24 @@ func pipelineBase(shooter StylistShooter, p ShootFrameParams, w, h int) frameBas
 		if p.Seed != nil {
 			seed = *p.Seed
 		}
+		actualSeed := seed
+		var meta map[string]json.RawMessage
+		if json.Unmarshal(res.Info, &meta) == nil && meta["seed"] != nil {
+			actualSeed = infoSeed(res.Info)
+		}
+		p.Seed = nextShootSeed(actualSeed, p.Seed)
 		return res.Image, res.Info, seed, nil
 	}
 }
 
 type ShootFrameResult struct {
-	ID       int64  `json:"id"`
-	Shot     string `json:"shot"`
-	Prompt   string `json:"prompt"`
-	FacePass string `json:"face_pass"`
-	Garment  string `json:"garment,omitempty"`
-	FaceSwap string `json:"face_swap,omitempty"`
+	AnatomyWarning string `json:"anatomy_warning,omitempty"`
+	ID             int64  `json:"id"`
+	Shot           string `json:"shot"`
+	Prompt         string `json:"prompt"`
+	FacePass       string `json:"face_pass"`
+	Garment        string `json:"garment,omitempty"`
+	FaceSwap       string `json:"face_swap,omitempty"`
 }
 
 func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
@@ -169,6 +186,20 @@ func enqueueShoot(q ShootQueue, plan *shootPlan) (string, error) {
 	return toJSON(out), nil
 }
 
+type presetFaceRefiner struct {
+	refiner  FaceRefiner
+	settings **generation.FaceRefineParams
+}
+
+func (r presetFaceRefiner) FaceRefine(p generation.FaceRefineParams) (string, error) {
+	if *r.settings == nil {
+		return "", errors.New("параметры второго прохода пресета недоступны")
+	}
+	resolved := **r.settings
+	resolved.ImageBase64, resolved.Seed, resolved.DenoisingStrength = p.ImageBase64, p.Seed, p.DenoisingStrength
+	return r.refiner.FaceRefine(resolved)
+}
+
 func RunShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngine, refiner FaceRefiner, p ShootFrameParams) (*ShootFrameResult, error) {
 	return runShootFrame(shooter, sessions, eng, refiner, p, nil)
 }
@@ -192,30 +223,57 @@ func runShootFrame(shooter StylistShooter, sessions AppSessions, eng StylistEngi
 	if w == 0 || h == 0 {
 		w, h = shootWidth, shootHeight
 	}
+	if p.Model != "" {
+		m.Model = p.Model
+	}
+	if p.Overrides != nil {
+		ov := p.Overrides
+		if ov.Sampler != nil {
+			m.Sampler = *ov.Sampler
+		}
+		if ov.Steps != nil {
+			m.Steps = *ov.Steps
+		}
+		if ov.CfgScale != nil {
+			m.CFG = *ov.CfgScale
+		}
+	}
+	var faceSettings *generation.FaceRefineParams
 	base, facePass, swapName, model := txt2imgBase(shooter, m, p.Prompt, p.Seed, w, h), p.FacePass, p.Person, m.Model
 	switch {
 	case p.Pipeline > 0:
 		base, facePass, swapName, model = pipelineBase(shooter, p, w, h), false, p.FaceSwapName, p.PipelineName
 	case p.Preset > 0 || p.Overrides != nil:
-		base = presetShotBase(shooter, m, p, w, h)
+		base = presetShotBase(shooter, m, p, w, h, &faceSettings)
+		if refiner != nil {
+			refiner = presetFaceRefiner{refiner: refiner, settings: &faceSettings}
+		}
 		if p.PresetName != "" {
 			model = p.PresetName
 		}
 	}
-	out, err := shootFrame(base, eng, ge, refiner, m, p.Prompt, p.GarmentBase64, p.Outfit, p.Wear, facePass)
+	out, err := shootFrameChecked(base, eng, ge, refiner, m, p.Prompt, p.GarmentBase64, p.Outfit, p.Wear, facePass, stopped)
 	if err != nil {
 		if generation.IsInterrupted(err) {
 			return nil, err
 		}
 		return nil, errors.New(faceSkipReason(err))
 	}
-	shootFaceSwap(eng, &out, swapName, p.FaceSwap && swapName != "")
+	if p.FacePass && p.Pipeline > 0 {
+		out.facePass = facePassSkipped("второй проход недоступен для пайплайна")
+	}
+	defer out.closeTrace()
+	if shootStopped(eng, stopped) {
+		return nil, generation.ErrInterrupted
+	}
+	shootFaceSwap(eng, &out, swapName, p.FaceSwap && swapName != "", p.FaceRestoreBlend)
 	if out.stopped || (stopped != nil && stopped()) {
 		return nil, generation.ErrInterrupted
 	}
 	meta := &preset.GenerationMeta{Model: model, Label: truncateLabel("Стилист: " + p.Person + ", " + p.Shot)}
 	id := sessions.AddToNamedSession(StylistSessionName, out.img, out.info, "stylist", meta)
-	return &ShootFrameResult{ID: id, Shot: p.Shot, Prompt: p.Prompt, FacePass: out.facePass, Garment: out.garment, FaceSwap: out.faceSwap}, nil
+	out.finishTrace(id)
+	return &ShootFrameResult{ID: id, Shot: p.Shot, Prompt: p.Prompt, FacePass: out.facePass, Garment: out.garment, FaceSwap: out.faceSwap, AnatomyWarning: out.anatomyWarning}, nil
 }
 
 func NewShootFrameHandler(sessions AppSessions) queue.Handler {
@@ -285,6 +343,9 @@ func shootStatus(q ShootQueue, ids []int64) (string, error) {
 			var r queue.JobResult
 			var fr ShootFrameResult
 			if json.Unmarshal([]byte(job.Result), &r) == nil && json.Unmarshal(r.Frame, &fr) == nil {
+				if fr.AnatomyWarning != "" {
+					f["anatomy_warning"] = fr.AnatomyWarning
+				}
 				f["id"] = fr.ID
 				f["face_pass"] = fr.FacePass
 				if fr.Garment != "" {

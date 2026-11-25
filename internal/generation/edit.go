@@ -412,7 +412,7 @@ func (s *Service) EditImage(params EditImageParams) (*GenerateImageResult, error
 		BatchSize:         &batchSize,
 		BatchCount:        &batchCount,
 	}
-	resp, err := s.sd.Img2Img(baseReq)
+	resp, err := s.measuredImg2Img(baseReq)
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return nil, ierr

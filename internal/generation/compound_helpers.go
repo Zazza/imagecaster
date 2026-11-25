@@ -57,7 +57,7 @@ func (s *Service) runCompoundFirstStep(step preset.CompoundPresetStep, p *preset
 		HiresDenoisingStrength: hiresDenoising,
 		HiresUpscaler:          hiresUpscaler,
 	}
-	result, err := s.sd.Txt2Img(req)
+	result, err := s.measuredTxt2Img(req)
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return "", nil, ierr
@@ -85,7 +85,7 @@ func (s *Service) runCompoundStep(step preset.CompoundPresetStep, p *preset.Pres
 	}
 	batchSize := 1
 	batchCount := 1
-	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	result, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             presetSpec(p),
 		CacheMode:         s.cacheModeFor(p.ModelName),
 		InitImages:        []string{lastImage},
@@ -184,7 +184,7 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 			BatchSize:         &batchSize,
 			BatchCount:        &batchCount,
 		}
-		result, err := s.sd.Img2Img(req)
+		result, err := s.measuredImg2Img(req)
 		if err != nil {
 			if ierr := s.checkSDInterrupted(); ierr != nil {
 				return "", nil, ierr
@@ -199,7 +199,7 @@ func (s *Service) runFromImageCompoundFirstStep(p *preset.Preset, initImage, pro
 		}
 		return result.Images[0], result.Info, nil
 	}
-	result, err := s.sd.Txt2Img(sd.Txt2ImgRequest{
+	result, err := s.measuredTxt2Img(sd.Txt2ImgRequest{
 		Model:          presetSpec(p),
 		CacheMode:      s.cacheModeFor(p.ModelName),
 		Prompt:         prompt,
@@ -237,7 +237,7 @@ func (s *Service) runFromImageCompoundStep(step preset.CompoundPresetStep, p *pr
 	}
 	batchSize := 1
 	batchCount := 1
-	result, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	result, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             presetSpec(p),
 		CacheMode:         s.cacheModeFor(p.ModelName),
 		InitImages:        []string{lastImage},

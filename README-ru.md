@@ -2,7 +2,7 @@
 
 **Настольное приложение: описываете картинку обычными словами — получаете готовое изображение на своей видеокарте.**
 
-[English](README.md) · [Список изменений](CHANGELOG.md) · [Релизы](https://github.com/Zazza/imagecaster/releases) · [Imagecaster Server](https://github.com/Zazza/imagecaster-server)
+[English](README.md) · [Список изменений](CHANGELOG.md) · [Релизы](https://github.com/Zazza/imagecaster/releases) · [Imagecaster Server](https://github.com/Zazza/imagecaster-server) · [Статьи и руководства](https://samotoy.ru/projects/imagecaster/)
 
 Stable Diffusion умеет многое, но каждая картинка — это ручная настройка: модель, сэмплер, CFG, веса LoRA, теги. Нодовые редакторы умеют всё, но граф собираете сами. Imagecaster проще: выбрали стиль, описали сцену на любом языке, получили картинку. Промпт пишет локальная языковая модель, технические настройки хранятся в стиле.
 

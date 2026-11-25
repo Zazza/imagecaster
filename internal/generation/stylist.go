@@ -53,7 +53,7 @@ func (s *Service) postReferenceImg2Img(prof postEditorProfile, logPrefix string,
 		req.Width, req.Height = refEditWorkSize(prof.model, req.Width, req.Height)
 	}
 
-	resp, err := s.sd.Img2Img(req)
+	resp, err := s.measuredImg2Img(req)
 	if err != nil {
 		if ierr := s.checkSDInterrupted(); ierr != nil {
 			return nil, ierr

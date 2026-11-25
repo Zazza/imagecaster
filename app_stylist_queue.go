@@ -39,7 +39,11 @@ func stylistFrameHandler(sessions mcp.AppSessions, cfg *config.Config, shoots st
 				return nil, errors.New("изменить кадр: генерация или история недоступна")
 			}
 			var edited *mcp.ShootFrameResult
-			edited, err = runStylistEdit(gen, items, p, gen.Stopped)
+			if p.RestoreStage != "" || p.RestoreMaskBase64 != "" || p.RestoreAligned {
+				edited, err = runStylistRestoreDetails(gen, items, p, gen.Stopped)
+			} else {
+				edited, err = runStylistEdit(gen, items, p, gen.Stopped)
+			}
 			if err == nil {
 				var raw json.RawMessage
 				raw, err = json.Marshal(edited)

@@ -9,7 +9,7 @@ import {
 import { setLocale } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
 import StylistPage from '../components/StylistPage.vue'
-import { resetStylistPlan, planSnapshot } from '../composables/useStylistPlan.js'
+import { useStylistPlan, resetStylistPlan, planSnapshot } from '../composables/useStylistPlan.js'
 
 enableAutoUnmount(afterEach)
 
@@ -78,6 +78,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 3
   savedPlans = []
   StylistTranslateRu.mockImplementation((texts) => Promise.resolve(texts))
   StylistPresets.mockImplementation(() => Promise.resolve(structuredClone(BASE)))
@@ -205,6 +206,9 @@ describe('Stylist — saved plans', () => {
     await w.find(tid('stylist-appearance')).setValue('a woman, 160 cm, freckles')
     await w.find(tid('stylist-wish')).setValue('прогулка у моря')
     await w.find(tid('theme-beach')).trigger('click')
+    const sevenShotSeries = SERIES()
+    sevenShotSeries[0].shots.push(...Array.from({ length: 4 }, (_, index) => ({ prompt: `additional pose ${index}` })))
+    StylistPlan.mockResolvedValue({ series: sevenShotSeries, warnings: [], used_llm: true })
     await w.find(tid('stylist-frames')).setValue('7')
     await w.find(tid('stylist-frames')).trigger('change')
     await w.find(tid('stylist-frame-size')).setValue('large')

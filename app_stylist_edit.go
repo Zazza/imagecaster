@@ -20,9 +20,13 @@ const (
 )
 
 type StylistEditParams struct {
-	JobID       int64                        `json:"job_id"`
-	Instruction string                       `json:"instruction"`
-	Editor      *generation.PostEditorParams `json:"editor"`
+	validateSource    func(*preset.SessionItem) error
+	RestoreMaskBase64 string                       `json:"restore_mask_base64,omitempty"`
+	RestoreStage      string                       `json:"restore_stage,omitempty"`
+	RestoreAligned    bool                         `json:"restore_aligned,omitempty"`
+	JobID             int64                        `json:"job_id"`
+	Instruction       string                       `json:"instruction"`
+	Editor            *generation.PostEditorParams `json:"editor"`
 }
 
 type stylistReferenceEditEngine interface {
@@ -123,6 +127,11 @@ func enqueueStylistEditParams(st stylistSettings, q stylistEditQueue, items styl
 	if item == nil || item.ID != sourceID || item.SessionID <= 0 {
 		return 0, errors.New("исходного кадра больше нет в истории")
 	}
+	if params.validateSource != nil {
+		if err := params.validateSource(item); err != nil {
+			return 0, err
+		}
+	}
 	store, err := loadShootParams(st)
 	if err != nil {
 		return 0, err
@@ -140,10 +149,12 @@ func enqueueStylistEditParams(st stylistSettings, q stylistEditQueue, items styl
 		model = params.Editor.Model
 	}
 	p := mcp.ShootFrameParams{
-		Editor:       params.Editor,
+		Editor:            params.Editor,
+		RestoreMaskBase64: params.RestoreMaskBase64, RestoreStage: params.RestoreStage, RestoreAligned: params.RestoreAligned,
 		SourceItemID: item.ID, SourceSessionID: item.SessionID, EditInstruction: instruction,
 		Person: original.Params.Person, Base: original.Params.Base, Model: model,
 		FaceSwap: original.Params.FaceSwap, FaceSwapName: swapName,
+		FacePass: original.Params.FacePass, FaceRestoreBlend: original.Params.FaceRestoreBlend,
 		Shot: instruction, ToFolder: true,
 	}
 	label := clipRunes("Стилист: изменить кадр — "+instruction, stylistPageLabelMax)
@@ -243,7 +254,17 @@ func runStylistEdit(eng stylistEditEngine, sessions mcp.AppSessionItems, p mcp.S
 		if p.FaceSwapName == "" {
 			return nil, errors.New("не сохранено лицо для подмены")
 		}
-		res.Image, faceSwap = eng.FaceSwap(res.Image, p.FaceSwapName)
+		if p.FaceRestoreBlend != nil {
+			if !generation.ValidFaceRestoreBlend(*p.FaceRestoreBlend) {
+				faceSwap = generation.FaceSwapSkipped("invalid_restore_blend")
+			} else if restorer, ok := eng.(mcp.StylistFaceRestoreSwapper); ok {
+				res.Image, faceSwap = restorer.FaceSwapWithRestore(res.Image, p.FaceSwapName, *p.FaceRestoreBlend)
+			} else {
+				faceSwap = "skipped:настройка восстановления лица недоступна в этой сборке"
+			}
+		} else {
+			res.Image, faceSwap = eng.FaceSwap(res.Image, p.FaceSwapName)
+		}
 	}
 	if stopped() || faceSwap == generation.FaceSwapInterrupted {
 		return nil, generation.ErrInterrupted
@@ -266,7 +287,11 @@ func runStylistEdit(eng stylistEditEngine, sessions mcp.AppSessionItems, p mcp.S
 	if id <= 0 {
 		return nil, errors.New("изменённый кадр не сохранён в историю")
 	}
-	return &mcp.ShootFrameResult{ID: id, Shot: instruction, Prompt: prompt, FacePass: generation.FaceSwapOff, FaceSwap: faceSwap}, nil
+	facePass := generation.FaceSwapOff
+	if p.FacePass {
+		facePass = "skipped:второй проход недоступен для редактора"
+	}
+	return &mcp.ShootFrameResult{ID: id, Shot: instruction, Prompt: prompt, FacePass: facePass, FaceSwap: faceSwap}, nil
 }
 
 func (a *App) StylistEdit(jobID int64, instruction string) (int64, error) {

@@ -1,4 +1,4 @@
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { api } from '../api.js'
 import { TRAIN_BASES } from '../people.js'
 import { parseSeedInput } from '../seed.js'
@@ -11,6 +11,11 @@ export const PRESET_NAME_MAX = 60
 export const PLACE_ANY = 'any'
 export const PRESET_TEXT_MAX = 1000
 export const EDIT_INSTRUCTION_MAX = 2000
+export const FACE_RESTORE_DEFAULT = 0.6
+export const FACE_RESTORE_MIN = 0
+export const FACE_RESTORE_MAX = 1
+export const FACE_RESTORE_STEP = 0.05
+export const PLANNING_MODES = ['manual', 'auto', 'mixed']
 
 export function defaultAspects() {
   return Object.fromEntries(ASPECTS.map(a => [a, { mode: 'auto', ids: [], text: '' }]))
@@ -271,11 +276,16 @@ export function totalShots(series) {
   return (series || []).reduce((n, s) => n + (s.shots?.length || 0), 0)
 }
 
+function checkPlanFrameCount(plan, expected) {
+  const count = totalShots(plan)
+  if (count !== expected) throw new Error(t('stylist.frame_count_mismatch', { got: count, want: expected }))
+}
+
 export function framesFrom(list, ids) {
   const byId = new Map((list || []).map(f => [f.job_id, f]))
   return ids.map(id => {
     const f = byId.get(id)
-    return { jobId: id, status: f?.status || 'gone', itemId: f?.item_id || 0, error: f?.error || '', shot: f?.shot || '', garment: f?.garment || '', ...(f?.face_swap ? { faceSwap: f.face_swap } : {}) }
+    return { jobId: id, status: f?.status || 'gone', itemId: f?.item_id || 0, error: f?.error || '', shot: f?.shot || '', garment: f?.garment || '', ...(f?.face_swap ? { faceSwap: f.face_swap } : {}), ...(f?.face_pass ? { facePass: f.face_pass } : {}), ...(f?.anatomy_warning ? { anatomyWarning: f.anatomy_warning } : {}) }
   })
 }
 
@@ -295,14 +305,20 @@ const form = reactive({
   themes: [],
   aspects: defaultAspects(),
   garment: '',
+  garmentIdentity: '',
   garmentOutfit: '',
   seed: '',
   target: '',
   targetKind: 'base',
   presetGroup: null,
   faceSwap: true,
+  facePass: false,
+  faceRestoreBlend: FACE_RESTORE_DEFAULT,
   overrides: null,
   frameSize: 'normal',
+  planningMode: 'manual',
+  targetLocked: false,
+  shootConcept: null,
 })
 const series = ref([])
 const warnings = ref([])
@@ -318,12 +334,64 @@ const frames = ref([])
 const view = ref('plan')
 const planEpoch = ref(0)
 let framesSeq = 0
+const inputRevision = ref(0)
+let suggestionSequence = 0
+const suggestionInputs = computed(() => {
+  const source = form.planningMode === 'auto' ? { ...form, aspects: defaultAspects() } : form
+  return JSON.stringify({
+    mode: form.planningMode,
+    plan: buildPlanRequest(source, 0),
+    garment: form.garment ? form.garmentIdentity : '',
+    garmentOutfit: form.garment ? form.garmentOutfit : '',
+    targetLocked: form.targetLocked,
+    target: form.targetLocked ? form.target : '',
+  })
+})
+watch([suggestionInputs, series], () => { inputRevision.value++ }, { deep: true, flush: 'sync' })
+
+watch(() => form.garment, value => {
+  form.garmentIdentity = value ? (globalThis.crypto?.randomUUID?.() || `${Date.now()}:${randomSeed()}`) : ''
+}, { flush: 'sync' })
+const selectionSignature = computed(() => JSON.stringify({
+  mode: form.planningMode,
+  person: form.person,
+  gender: form.gender,
+  wish: form.wish,
+  themes: form.themes,
+  garment: form.garment ? form.garmentIdentity : '',
+  garmentOutfit: form.garmentOutfit,
+  aspects: form.planningMode === 'mixed' ? buildPlanRequest(form, 0).aspects : null,
+  targetLocked: form.targetLocked,
+  target: form.targetLocked ? form.target : '',
+}))
+const appliedSelectionCurrent = computed(() => form.planningMode === 'manual' || !!(
+  form.shootConcept?.selection_signature &&
+  form.shootConcept.selection_signature === selectionSignature.value &&
+  form.shootConcept.target === form.target
+))
+
+function invalidateSelection() {
+  if (form.shootConcept?.selection_signature) {
+    const { selection_signature, ...concept } = form.shootConcept
+    form.shootConcept = concept
+  }
+}
+
+
+function restorePlanningOptions(saved) {
+  form.planningMode = PLANNING_MODES.includes(saved.planningMode) ? saved.planningMode : 'manual'
+  form.targetLocked = saved.targetLocked === true
+  form.shootConcept = saved.shootConcept && typeof saved.shootConcept === 'object' ? saved.shootConcept : null
+  suggestionSequence++
+  planning.value = false
+}
 
 export function resetStylistPlan() {
   Object.assign(form, {
     person: '', gender: '', appearance: '', wish: '', frames: 8, themes: [],
-    aspects: defaultAspects(), garment: '', garmentOutfit: '', seed: '', target: '', targetKind: 'base', presetGroup: null, faceSwap: true, overrides: null, frameSize: 'normal',
+    aspects: defaultAspects(), garment: '', garmentIdentity: '', garmentOutfit: '', seed: '', target: '', targetKind: 'base', presetGroup: null, faceSwap: true, facePass: false, faceRestoreBlend: FACE_RESTORE_DEFAULT, overrides: null, frameSize: 'normal',
   })
+  restorePlanningOptions({})
   series.value = []
   warnings.value = []
   usedLLM.value = false
@@ -368,7 +436,7 @@ let planRestored = false
 let planTimer = null
 let lastSavedGarment = ''
 const PLAN_VERSION = 1
-const PLAN_FORM_KEYS = ['person', 'gender', 'appearance', 'wish', 'frames', 'themes', 'aspects', 'garmentOutfit', 'seed', 'target', 'targetKind', 'presetGroup', 'faceSwap', 'frameSize']
+const PLAN_FORM_KEYS = ['person', 'gender', 'appearance', 'wish', 'frames', 'themes', 'aspects', 'garmentIdentity', 'garmentOutfit', 'seed', 'target', 'targetKind', 'presetGroup', 'faceSwap', 'facePass', 'faceRestoreBlend', 'frameSize', 'planningMode', 'targetLocked', 'shootConcept']
 
 export function planSnapshot() {
   const f = {}
@@ -376,14 +444,14 @@ export function planSnapshot() {
   return JSON.stringify({ v: PLAN_VERSION, form: f, series: series.value })
 }
 
-const PERSON_KEYS = new Set(['person', 'gender', 'appearance', 'garmentOutfit'])
+const PERSON_KEYS = new Set(['person', 'gender', 'appearance', 'garmentIdentity', 'garmentOutfit'])
 const TEMPLATE_KEYS = PLAN_FORM_KEYS.filter(k => !PERSON_KEYS.has(k))
 let planBaseline = null
 export const currentPlanName = ref('')
 
 export function templateSnapshot() {
   const f = {}
-  for (const k of TEMPLATE_KEYS) f[k] = form[k]
+  for (const k of TEMPLATE_KEYS) f[k] = k === 'shootConcept' && form[k] ? withoutKey(form[k], 'selection_signature') : form[k]
   return JSON.stringify({ v: PLAN_VERSION, form: f, series: series.value })
 }
 
@@ -419,6 +487,10 @@ export function applyTemplate(raw, name) {
   for (const k of TEMPLATE_KEYS) {
     if (k in data.form) form[k] = data.form[k]
   }
+  restorePlanningOptions(data.form)
+  invalidateSelection()
+  form.facePass = data.form.facePass === true
+  form.faceRestoreBlend = Number.isFinite(data.form.faceRestoreBlend) && data.form.faceRestoreBlend >= FACE_RESTORE_MIN && data.form.faceRestoreBlend <= FACE_RESTORE_MAX ? data.form.faceRestoreBlend : FACE_RESTORE_DEFAULT
   form.aspects = { ...defaultAspects(), ...(data.form.aspects || {}) }
   series.value = Array.isArray(data.series) ? data.series : []
   warnings.value = []
@@ -437,9 +509,15 @@ export function applyPlanSnapshot(raw) {
     return false
   }
   if (!data || data.v !== PLAN_VERSION || typeof data.form !== 'object') return false
+  const currentGarmentIdentity = form.garment ? form.garmentIdentity : null
   for (const k of PLAN_FORM_KEYS) {
     if (k in data.form) form[k] = data.form[k]
   }
+  if (currentGarmentIdentity !== null) form.garmentIdentity = currentGarmentIdentity
+  else form.garmentIdentity = typeof data.form.garmentIdentity === 'string' ? data.form.garmentIdentity : ''
+  restorePlanningOptions(data.form)
+  form.facePass = data.form.facePass === true
+  form.faceRestoreBlend = Number.isFinite(data.form.faceRestoreBlend) && data.form.faceRestoreBlend >= FACE_RESTORE_MIN && data.form.faceRestoreBlend <= FACE_RESTORE_MAX ? data.form.faceRestoreBlend : FACE_RESTORE_DEFAULT
   form.aspects = { ...defaultAspects(), ...(data.form.aspects || {}) }
   series.value = Array.isArray(data.series) ? data.series : []
   return true
@@ -452,7 +530,9 @@ export async function restorePlan() {
     if (planRestored) return
     planRestored = true
     if (raw && !series.value.length && applyPlanSnapshot(raw) && garment && !form.garment) {
+      const savedGarmentIdentity = form.garmentIdentity
       form.garment = garment
+      form.garmentIdentity = savedGarmentIdentity || form.garmentIdentity
       lastSavedGarment = garment
     }
   } catch (e) {
@@ -495,6 +575,19 @@ export async function editFrame(jobId, instruction, editor) {
   return id
 }
 
+export async function restoreDetailsFrame(params) {
+  const context = jobIds.value
+  if (!context.includes(params.job_id)) throw new Error(t('stylist.edit_shoot_changed'))
+  const snapshot = { job_id: params.job_id, stage: params.stage, mask_base64: params.mask_base64, aligned: params.aligned === true }
+  const id = await api.stylistRestoreDetails(snapshot)
+  if (!id || jobIds.value !== context) return 0
+  framesSeq++
+  jobIds.value = [...context, id]
+  frames.value = [...frames.value, { jobId: id, status: 'pending', itemId: 0, error: '', shot: t('stylist.detail_title'), garment: '' }]
+  refreshFrames()
+  return id
+}
+
 export async function reshootFrame(jobId) {
   const newId = await api.stylistReshoot(jobId, form.frameSize || 'normal')
   if (!newId) return 0
@@ -527,9 +620,58 @@ function errText(e) {
 
 export function useStylistPlan() {
   const frameCount = computed(() => totalShots(series.value))
+  const frameCountMismatch = computed(() => series.value.length > 0 && frameCount.value !== clampFrames(form.frames))
   const outfitLocked = computed(() => !!form.garment)
 
+  async function suggestPlan() {
+    if (planning.value || shooting.value || regenerating.value >= 0 || form.planningMode === 'manual') return
+    planning.value = true
+    error.value = ''
+    notice.value = ''
+    const revision = inputRevision.value
+    const sequence = ++suggestionSequence
+    try {
+      if (form.targetLocked && !form.target) throw new Error(t('stylist.auto_need_target'))
+      const source = form.planningMode === 'auto' ? { ...form, aspects: defaultAspects() } : form
+      const plan = buildPlanRequest(source)
+      const garmentOutfit = form.garment ? form.garmentOutfit : ''
+      if (sequence !== suggestionSequence || revision !== inputRevision.value) {
+        if (sequence === suggestionSequence) error.value = t('stylist.auto_stale')
+        return
+      }
+      const result = await api.stylistSuggest({ plan, target: form.targetLocked ? form.target : '', garment_outfit: garmentOutfit })
+      if (sequence !== suggestionSequence) return
+      if (revision !== inputRevision.value) {
+        error.value = t('stylist.auto_stale')
+        return
+      }
+      if (!result?.target || !Array.isArray(result.series) || !result.series.length) throw new Error(t('stylist.auto_invalid'))
+      checkPlanFrameCount(result.series, plan.frames)
+      installSuggestedPlan(result)
+    } catch (e) {
+      if (sequence === suggestionSequence) error.value = errText(e)
+    } finally {
+      if (sequence === suggestionSequence) planning.value = false
+    }
+  }
+
+  function installSuggestedPlan(result) {
+    if (!form.targetLocked) form.overrides = null
+    form.targetKind = result.target.split(':')[0]
+    form.presetGroup = null
+    form.target = result.target
+    form.shootConcept = { concept: result.concept, concept_ru: result.concept_ru, light: result.light, light_ru: result.light_ru, focus: result.focus, focus_ru: result.focus_ru, target: result.target, target_name: result.target_name, target_model: result.target_model, target_reason: result.target_reason, target_reason_ru: result.target_reason_ru, selection_signature: selectionSignature.value }
+    series.value = JSON.parse(JSON.stringify(result.series))
+    warnings.value = [...(result.warnings || [])]
+    usedLLM.value = true
+    currentPlanName.value = ''
+    planEpoch.value++
+    view.value = 'plan'
+    return true
+  }
+
   async function makePlan() {
+    if (form.planningMode !== 'manual') return suggestPlan()
     if (planning.value || shooting.value) return
     planning.value = true
     error.value = ''
@@ -538,7 +680,10 @@ export function useStylistPlan() {
       const req = await withTranslatedCustom(buildPlanRequest(form))
       if (!req) return
       const res = await api.stylistPlan(req)
-      series.value = res?.series || []
+      const nextSeries = res?.series || []
+      checkPlanFrameCount(nextSeries, req.frames)
+      series.value = nextSeries
+      form.shootConcept = null
       planEpoch.value++
       currentPlanName.value = ''
       warnings.value = res?.warnings || []
@@ -552,7 +697,8 @@ export function useStylistPlan() {
   }
 
   async function regenerate(index) {
-    if (regenerating.value >= 0 || shooting.value) return
+    if (series.value[index]?.direction) return
+    if (regenerating.value >= 0 || shooting.value || planning.value) return
     regenerating.value = index
     error.value = ''
     try {
@@ -576,12 +722,14 @@ export function useStylistPlan() {
   function deleteSeries(index) {
     if (shooting.value) return
     series.value = removeSeries(series.value, index)
+    if (totalShots(series.value) > 0) form.frames = totalShots(series.value)
     planEpoch.value++
   }
 
   function deleteShot(index, shot) {
     if (shooting.value) return
     series.value = removeShot(series.value, index, shot)
+    if (totalShots(series.value) > 0) form.frames = totalShots(series.value)
     planEpoch.value++
   }
 
@@ -618,6 +766,8 @@ export function useStylistPlan() {
     error.value = ''
     notice.value = ''
     try {
+      if (!appliedSelectionCurrent.value) throw new Error(t('stylist.auto_apply_required'))
+      checkPlanFrameCount(series.value, clampFrames(form.frames))
       if (!(await translateDirty())) return []
       let outfitEn = ''
       if (form.garment) {
@@ -631,6 +781,8 @@ export function useStylistPlan() {
           translating.value = false
         }
       }
+      if (!appliedSelectionCurrent.value) throw new Error(t('stylist.auto_apply_required'))
+      checkPlanFrameCount(series.value, clampFrames(form.frames))
       const seed = parseSeedInput(form.seed)
       const req = {
         person: lora || form.person,
@@ -640,6 +792,8 @@ export function useStylistPlan() {
         series: series.value,
         face_swap: !!canFaceSwap,
         size: form.frameSize || 'normal',
+        ...(form.facePass ? { face_pass: true } : {}),
+        ...(canFaceSwap && form.faceRestoreBlend !== FACE_RESTORE_DEFAULT ? { face_restore_blend: form.faceRestoreBlend } : {}),
       }
       if (form.target.startsWith('pipe:')) req.pipeline = Number(form.target.slice(5))
       else if (form.target.startsWith('preset:')) req.preset = Number(form.target.slice(7))
@@ -686,9 +840,9 @@ export function useStylistPlan() {
   }
 
   return {
-    savePreset, planEpoch,
+    savePreset, planEpoch, appliedSelectionCurrent, invalidateSelection, suggestPlan,
     form, series, warnings, usedLLM, planning, regenerating, shooting, translating, error, notice, jobIds, frames, view,
-    frameCount, outfitLocked, refreshFrames,
+    frameCount, frameCountMismatch, outfitLocked, refreshFrames,
     makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot,
   }
 }

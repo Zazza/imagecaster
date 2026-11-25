@@ -4,7 +4,7 @@ import { TriangleAlert, Shirt, RotateCcw, Maximize2, SlidersHorizontal, Pencil }
 import { openInHistoryViewer } from '../historyViewer.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { api } from '../api.js'
-import { t } from '../i18n/index.js'
+import { locale, t } from '../i18n/index.js'
 import { people } from '../peopleStore.js'
 import { canFaceSwap, trainBaseLabel, peopleGroups, groupBases, groupLoraForBase, pipelinePerson, pipelineOverride } from '../people.js'
 import { usePresets } from '../composables/usePresets.js'
@@ -13,13 +13,14 @@ import { readImageFile } from '../imageFile.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { providePostEditor } from '../composables/usePostEditor.js'
 import EditorSettings from './post/SettingsPanel.vue'
-import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, editFrame, EDIT_INSTRUCTION_MAX, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
+import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, editFrame, restoreDetailsFrame, EDIT_INSTRUCTION_MAX, FACE_RESTORE_MIN, FACE_RESTORE_MAX, FACE_RESTORE_STEP, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
 import StatusMessage from './StatusMessage.vue'
 import GenProgress from './GenProgress.vue'
 import ImageViewer from './ImageViewer.vue'
 import AspectTab from './stylist/AspectTab.vue'
 import PlanLibrary from './stylist/PlanLibrary.vue'
 import SeriesCard from './stylist/SeriesCard.vue'
+import DetailRestorePanel from './stylist/DetailRestorePanel.vue'
 import PresetOverridesPanel from './PresetOverridesPanel.vue'
 import { modelBaseFor } from '../fastMode.js'
 import { isEffectType } from '../effectTypes.js'
@@ -27,7 +28,8 @@ import { parseLoras } from '../loraOverride.js'
 
 const {
   form, series, warnings, usedLLM, planning, regenerating, shooting, translating, error, jobIds, frames, view,
-  frameCount, outfitLocked, makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot, refreshFrames, savePreset, planEpoch,
+  appliedSelectionCurrent, invalidateSelection,
+  frameCount, frameCountMismatch, outfitLocked, makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot, refreshFrames, savePreset, planEpoch,
 } = useStylistPlan()
 const { sdProgress } = useGenerationProgress()
 const emit = defineEmits(['navigate'])
@@ -86,6 +88,14 @@ const targetsByKind = computed(() => {
   return out
 })
 const targetKinds = computed(() => TARGET_KINDS.filter(k => targetsByKind.value[k].length))
+const showTargetControls = computed(() => form.planningMode === 'manual' || form.targetLocked)
+function onPlanningModeChange(event) {
+  const nextMode = event.target.value
+  if (form.planningMode !== nextMode) invalidateSelection()
+  if (form.planningMode === 'manual' && nextMode !== 'manual') form.targetLocked = false
+  form.planningMode = nextMode
+}
+const conceptText = (key) => locale.value === 'ru' ? form.shootConcept?.[key + '_ru'] || form.shootConcept?.[key] : form.shootConcept?.[key]
 const presetGroups = computed(() => {
   const used = new Set(targetsByKind.value.preset.map(o => o.typeId).filter(Boolean))
   return presetTypes.value.filter(pt => !isEffectType(pt.name) && used.has(pt.id))
@@ -101,6 +111,7 @@ watch([presetGroups, listsReady], ([list, ready]) => {
 })
 form.overrides = null
 watch([targetKinds, listsReady], ([kinds, ready]) => {
+  if (form.planningMode !== 'manual' && !form.targetLocked) return
   if (ready && kinds.length && !kinds.includes(form.targetKind)) form.targetKind = kinds[0]
 })
 const targetPreset = computed(() => (form.target.startsWith('preset:') ? presets.value.find(p => 'preset:' + p.id === form.target) || null : null))
@@ -123,6 +134,7 @@ const person = computed(() => {
 })
 const pipelineMissing = computed(() => (targetPipeline.value && group.value ? pipelinePerson(modelCatalog.value, stepModels(targetPipeline.value), group.value).missing : []))
 watch([targets, listsReady], ([list, ready]) => {
+  if (form.planningMode !== 'manual' && !form.targetLocked) return
   if (ready && !list.some(x => x.id === form.target)) form.target = list[0]?.id || ''
 })
 const swapAvailable = computed(() => canFaceSwap(person.value, faceSwapOn.value))
@@ -140,9 +152,11 @@ const planBlocked = computed(() => {
   return ''
 })
 const garmentUnnamed = computed(() => !!form.garment && !(form.garmentOutfit || '').trim())
-const canShoot = computed(() => !!person.value && frameCount.value > 0 && frameCount.value <= FRAMES_MAX && !shooting.value && !planning.value && regenerating.value < 0 && !garmentUnnamed.value)
+const canShoot = computed(() => !!person.value && frameCount.value > 0 && frameCount.value <= FRAMES_MAX && !frameCountMismatch.value && appliedSelectionCurrent.value && !shooting.value && !planning.value && regenerating.value < 0 && !garmentUnnamed.value)
 const garmentMissed = (f) => !!f.garment && f.garment !== 'done'
 const garmentReason = (f) => f.garment.replace(/^skipped:\s*/, '')
+const anatomyWarningCodes = new Set(['base_defect', 'garment_defect', 'uncertain', 'unavailable'])
+const anatomyWarningText = (f) => t(`stylist.anatomy_${anatomyWarningCodes.has(f?.anatomyWarning) ? f.anatomyWarning : 'unavailable'}`)
 const runningIndex = computed(() => frames.value.findIndex(f => f.status === 'running'))
 const runningFrame = computed(() => runningIndex.value >= 0 ? frames.value[runningIndex.value] : null)
 const FINISHED = ['completed', 'failed', 'cancelled']
@@ -484,8 +498,8 @@ watch(frames, async (list) => {
 
 watch(bigItemId, async (id) => {
   showViewer.value = false
+  bigImage.value = ''
   if (!id) {
-    bigImage.value = ''
     return
   }
   try {
@@ -565,13 +579,16 @@ onUnmounted(() => {
         <template v-if="view === 'plan'">
           <StatusMessage v-for="(w, i) in warnings" :key="i" kind="warning" data-testid="stylist-warning" @close="dropWarning(i)">{{ w }}</StatusMessage>
           <StatusMessage v-if="presetNotice" kind="success" :timeout="8000" data-testid="stylist-preset-notice" @close="presetNotice = ''">{{ presetNotice }}</StatusMessage>
+          <div v-if="form.shootConcept && series.length" class="card" data-testid="stylist-applied-concept"><div class="card-body"><strong>{{ conceptText('concept') }}</strong><p>{{ conceptText('light') }} · {{ conceptText('focus') }}</p><p>{{ form.shootConcept.target_name || form.shootConcept.target }}<span v-if="form.shootConcept.target_model"> · {{ form.shootConcept.target_model }}</span></p><p v-if="conceptText('target_reason')">{{ conceptText('target_reason') }}</p><div class="form-hint">{{ t('stylist.auto_regenerate_hint') }}</div></div></div>
           <div v-if="series.length && usedLLM" class="form-hint">{{ t('stylist.used_llm') }}</div>
           <SeriesCard
-            v-for="(s, i) in series" :key="i" :series="s" :index="i" :outfit-locked="outfitLocked" :busy="regenerating === i" :locked="shooting" :places="places" :epoch="planEpoch"
+            v-for="(s, i) in series" :key="i" :series="s" :index="i" :outfit-locked="outfitLocked" :busy="regenerating === i" :locked="shooting" :can-regenerate="!s.direction" :places="places" :epoch="planEpoch"
             @update="updateSeries(i, $event)" @regenerate="regenerate" @delete="deleteSeries" @delete-shot="deleteShot" @save-preset="onSavePreset"
           />
           <div v-if="series.length" class="stylist-shoot-bar">
             <button class="btn btn-primary btn-generate" :disabled="!canShoot" data-testid="stylist-shoot" @click="onShoot">{{ translating ? t('stylist.translating') : shooting ? t('stylist.shooting') : t('stylist.shoot', { n: frameCount }) }}</button>
+            <div v-if="!appliedSelectionCurrent" class="form-hint stylist-blocked" data-testid="stylist-auto-apply-required">{{ t('stylist.auto_apply_required') }}</div>
+            <div v-if="frameCountMismatch" class="form-hint stylist-blocked" data-testid="stylist-frame-count-mismatch">{{ t('stylist.frame_count_mismatch', { got: frameCount, want: clampFrames(form.frames) }) }}</div>
             <div v-if="frameCount > FRAMES_MAX" class="form-hint stylist-blocked">{{ t('stylist.too_many', { n: FRAMES_MAX }) }}</div>
             <div v-else-if="garmentUnnamed" class="form-hint stylist-blocked" data-testid="stylist-garment-unnamed">{{ describing ? t('stylist.garment_describing') : t('stylist.need_garment_outfit') }}</div>
           </div>
@@ -619,6 +636,12 @@ onUnmounted(() => {
             <button class="btn btn-primary" :disabled="!canSubmitEdit" data-testid="stylist-edit-submit" @click="onEdit">{{ editing ? t('stylist.edit_submitting') : t('stylist.edit_create') }}</button>
           </div>
           <div v-if="selectedFrame?.faceSwap?.startsWith('skipped:')" class="form-hint" data-testid="stylist-face-swap-skipped">{{ t('stylist.edit_face_skipped', { reason: selectedFrame.faceSwap.slice('skipped:'.length) }) }}</div>
+          <div v-if="selectedFrame?.facePass?.startsWith('skipped:')" class="form-hint" data-testid="stylist-face-pass-skipped">{{ t('stylist.face_pass_skipped', { reason: selectedFrame.facePass.slice('skipped:'.length) }) }}</div>
+          <div v-if="selectedFrame?.anatomyWarning" class="form-hint" data-testid="stylist-anatomy-warning">{{ anatomyWarningText(selectedFrame) }}</div>
+          <details v-if="canEdit && bigImage" class="card stylist-more" data-testid="stylist-detail-panel">
+            <summary>{{ t('stylist.detail_title') }}</summary>
+            <DetailRestorePanel :frame="selectedFrame" :target="bigImage" :restore="restoreDetailsFrame" />
+          </details>
           <div v-if="frames.length" class="card stylist-strip-card">
             <div class="card-title">{{ t('stylist.results') }}</div>
             <div class="form-hint">{{ t('stylist.results_hint') }}</div>
@@ -630,6 +653,7 @@ onUnmounted(() => {
               >
                 <img v-if="f.itemId && thumbs[f.itemId]" :src="thumbs[f.itemId]" alt="" />
                 <span v-if="garmentMissed(f)" class="stylist-thumb-badge" data-testid="stylist-frame-no-garment">{{ t('stylist.frame_no_garment') }}</span>
+                <span v-if="f.anatomyWarning" class="stylist-thumb-badge stylist-anatomy-badge" :title="anatomyWarningText(f)" data-testid="stylist-anatomy-badge">{{ t('stylist.anatomy_badge') }}</span>
                 <span class="stylist-thumb-text" :class="{ 'on-image': f.itemId && thumbs[f.itemId] }" data-testid="stylist-frame-caption">{{ i + 1 }} · {{ t('stylist.frame_' + f.status) }}</span>
               </button>
             </div>
@@ -660,7 +684,48 @@ onUnmounted(() => {
                     <option v-for="g in groups" :key="g.key" :value="g.key">{{ g.key }}</option>
                   </select>
                 </div>
-                <div v-if="targetKinds.length" class="form-group">
+                <div class="form-group">
+                  <label class="form-label">{{ t('stylist.appearance') }}</label>
+                  <input class="form-input" type="text" v-model="form.appearance" maxlength="500" :placeholder="appearanceHint" data-testid="stylist-appearance" @change="saveAppearance" />
+                  <div class="form-hint">{{ t('stylist.appearance_hint') }}</div>
+                </div>
+                <label v-if="person && swapAvailable" class="stylist-face-toggle">
+                  <input type="checkbox" v-model="form.faceSwap" data-testid="stylist-face-swap-toggle" />
+                  {{ t('people.face_swap') }}
+                </label>
+                <div v-if="person" class="form-hint" :class="{ 'stylist-face-off': !swapAvailable || !form.faceSwap }" data-testid="stylist-face-swap">{{ faceSwapNote }}</div>
+                <details class="stylist-more">
+                  <summary>{{ t('stylist.more') }}</summary>
+                  <label class="stylist-face-toggle">
+                    <input type="checkbox" v-model="form.facePass" :disabled="form.targetKind === 'pipe'" data-testid="stylist-face-pass-toggle" />
+                    {{ t('stylist.face_pass_option') }}
+                  </label>
+                  <div class="form-hint">{{ t(form.targetKind === 'pipe' ? 'stylist.face_pass_pipeline' : 'stylist.face_pass_hint') }}</div>
+                  <label class="form-label">{{ t('stylist.face_restore_label') }} · {{ form.faceRestoreBlend }}</label>
+                  <input type="range" v-model.number="form.faceRestoreBlend" :min="FACE_RESTORE_MIN" :max="FACE_RESTORE_MAX" :step="FACE_RESTORE_STEP" :disabled="!swapAvailable || !form.faceSwap" data-testid="stylist-face-restore-blend" />
+                  <div class="form-hint">{{ t('stylist.face_restore_hint') }}</div>
+                </details>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" :class="{ collapsed: openSection !== 'task' }" data-testid="stylist-section-task">
+            <div class="card-header card-toggle" @click="setOpenSection('task')">
+              <span class="card-heading"><span class="card-num mono">02</span><span class="card-heading-text"><span class="card-title">{{ t('stylist.section_task') }}</span><span class="card-subtitle">{{ sectionSub.task }}</span></span></span>
+            </div>
+            <div class="card-collapse" :class="{ collapsed: openSection !== 'task' }">
+              <div class="card-body">
+                <div class="form-group">
+                  <label class="form-label" for="stylist-planning-mode">{{ t('stylist.planning_mode') }}</label>
+                  <select id="stylist-planning-mode" class="form-select" :value="form.planningMode" @change="onPlanningModeChange" :disabled="planning || shooting" data-testid="stylist-planning-mode">
+                    <option value="manual">{{ t('stylist.planning_manual') }}</option>
+                    <option value="auto">{{ t('stylist.planning_auto') }}</option>
+                    <option value="mixed">{{ t('stylist.planning_mixed') }}</option>
+                  </select>
+                  <div class="form-hint">{{ t('stylist.planning_' + form.planningMode + '_hint') }}</div>
+                  <label v-if="form.planningMode !== 'manual'" class="form-label"><input type="checkbox" v-model="form.targetLocked" data-testid="stylist-target-locked" /> {{ t('stylist.auto_lock_target') }}</label>
+                </div>
+                <div v-if="showTargetControls && targetKinds.length" class="form-group">
                   <label class="form-label">{{ t('stylist.target') }}</label>
                   <div class="stylist-target-kinds" role="group">
                     <button v-for="k in TARGET_KINDS" :key="k" type="button" class="btn btn-sm" :class="form.targetKind === k ? 'btn-primary' : 'btn-secondary'" :aria-pressed="form.targetKind === k ? 'true' : 'false'" :disabled="!targetsByKind[k].length" :title="targetsByKind[k].length ? '' : t('stylist.kind_none_' + k)" :data-testid="'stylist-kind-' + k" @click="form.targetKind = k">{{ t('stylist.kind_' + k) }}</button>
@@ -674,16 +739,7 @@ onUnmounted(() => {
                   </select>
                   <div v-if="pipelineMissing.length" class="form-hint" data-testid="stylist-target-missing">{{ t('people.pipeline_missing', { steps: pipelineMissing.join(', ') }) }}</div>
                 </div>
-                <div class="form-group">
-                  <label class="form-label">{{ t('stylist.appearance') }}</label>
-                  <input class="form-input" type="text" v-model="form.appearance" maxlength="500" :placeholder="appearanceHint" data-testid="stylist-appearance" @change="saveAppearance" />
-                  <div class="form-hint">{{ t('stylist.appearance_hint') }}</div>
-                </div>
-                <label v-if="person && swapAvailable" class="stylist-face-toggle">
-                  <input type="checkbox" v-model="form.faceSwap" data-testid="stylist-face-swap-toggle" />
-                  {{ t('people.face_swap') }}
-                </label>
-                <div v-if="person" class="form-hint" :class="{ 'stylist-face-off': !swapAvailable || !form.faceSwap }" data-testid="stylist-face-swap">{{ faceSwapNote }}</div>
+                <div v-if="!showTargetControls" class="form-hint" data-testid="stylist-auto-target-hint">{{ t('stylist.auto_target_hint') }}</div>
                 <details class="stylist-more">
                   <summary>{{ t('stylist.more') }}</summary>
                   <label class="form-label">{{ t('stylist.frame_size') }}</label>
@@ -693,19 +749,9 @@ onUnmounted(() => {
                   <div class="form-hint">{{ t('stylist.frame_size_hint') }}</div>
                   <label class="form-label">{{ t('stylist.seed') }}</label>
                   <input class="form-input stylist-narrow" type="text" v-model="form.seed" :placeholder="t('stylist.seed_hint')" />
-                  <PresetOverridesPanel v-if="form.targetKind !== 'pipe'" ref="overridesPanel" v-model="form.overrides" :preset-loras="targetPresetLoras" hide-model :title="t('stylist.overrides')" data-testid="stylist-overrides" />
-                  <div v-else class="form-hint" data-testid="stylist-overrides-pipe">{{ t('stylist.overrides_pipe') }}</div>
+                  <PresetOverridesPanel v-if="showTargetControls && form.targetKind !== 'pipe'" ref="overridesPanel" v-model="form.overrides" :preset-loras="targetPresetLoras" hide-model :title="t('stylist.overrides')" data-testid="stylist-overrides" />
+                  <div v-else-if="showTargetControls" class="form-hint" data-testid="stylist-overrides-pipe">{{ t('stylist.overrides_pipe') }}</div>
                 </details>
-              </div>
-            </div>
-          </div>
-
-          <div class="card" :class="{ collapsed: openSection !== 'task' }" data-testid="stylist-section-task">
-            <div class="card-header card-toggle" @click="setOpenSection('task')">
-              <span class="card-heading"><span class="card-num mono">02</span><span class="card-heading-text"><span class="card-title">{{ t('stylist.section_task') }}</span><span class="card-subtitle">{{ sectionSub.task }}</span></span></span>
-            </div>
-            <div class="card-collapse" :class="{ collapsed: openSection !== 'task' }">
-              <div class="card-body">
                 <div class="form-group">
                   <label class="form-label">{{ t('stylist.wish') }}</label>
                   <textarea class="form-textarea" v-model="form.wish" rows="3" maxlength="1000" :placeholder="t('stylist.wish_hint')" data-testid="stylist-wish"></textarea>
@@ -719,7 +765,7 @@ onUnmounted(() => {
                 </div>
                 <div class="form-group">
                   <label class="form-label">{{ t('stylist.frames') }}</label>
-                  <input class="form-input stylist-narrow" type="number" min="1" :max="FRAMES_MAX" :value="form.frames" data-testid="stylist-frames" @change="form.frames = clampFrames($event.target.value); $event.target.value = form.frames" />
+                  <input class="form-input stylist-narrow" type="number" min="1" :max="FRAMES_MAX" v-model.number="form.frames" data-testid="stylist-frames" @change="form.frames = clampFrames($event.target.value); $event.target.value = form.frames" />
                 </div>
                 <div ref="garmentBox" class="form-group stylist-garment-drop" :class="{ 'drop-zone-active': garmentDragOver }" data-testid="stylist-garment-drop" @dragover.prevent="garmentDragOver = true" @dragleave="garmentDragOver = false" @drop.prevent="onGarmentDrop">
                   <label class="form-label">{{ t('stylist.garment') }}</label>
@@ -750,11 +796,14 @@ onUnmounted(() => {
             </div>
             <div class="card-collapse" :class="{ collapsed: openSection !== 'look' }">
               <div class="card-body">
-                <div class="tabs stylist-tabs">
-                  <button v-for="a in ASPECTS" :key="a" class="tab" :class="{ active: tab === a }" :data-testid="'tab-' + a" @click="tab = a">{{ t('stylist.tab_' + a) }}</button>
-                </div>
-                <div v-if="tab === 'outfit' && outfitLocked" class="form-hint" data-testid="garment-outfit-tab">{{ t('stylist.garment_outfit_moved') }}</div>
-                <AspectTab v-else :aspect="tab" :choice="form.aspects[tab]" :items="itemsFor(tab)" :themes="base?.themes || []" @update:choice="form.aspects[tab] = $event" @rename="onRenamePreset" @delete="onDeletePreset" :places="places" @save-preset="onAddPreset" />
+                <div v-if="form.planningMode === 'auto'" id="stylist-auto-look-hint" class="form-hint" data-testid="stylist-auto-look-hint">{{ t('stylist.auto_look_disabled') }}</div>
+                <fieldset class="stylist-look-controls" :disabled="form.planningMode === 'auto'" :aria-label="t('stylist.section_look')" :aria-describedby="form.planningMode === 'auto' ? 'stylist-auto-look-hint' : undefined" data-testid="stylist-look-controls">
+                  <div class="tabs stylist-tabs">
+                    <button v-for="a in ASPECTS" :key="a" class="tab" :class="{ active: tab === a }" :data-testid="'tab-' + a" @click="tab = a">{{ t('stylist.tab_' + a) }}</button>
+                  </div>
+                  <div v-if="tab === 'outfit' && outfitLocked" class="form-hint" data-testid="garment-outfit-tab">{{ t('stylist.garment_outfit_moved') }}</div>
+                  <AspectTab v-else :aspect="tab" :choice="form.aspects[tab]" :items="itemsFor(tab)" :themes="base?.themes || []" @update:choice="form.aspects[tab] = $event" @rename="onRenamePreset" @delete="onDeletePreset" :places="places" @save-preset="onAddPreset" />
+                </fieldset>
               </div>
             </div>
           </div>
@@ -762,7 +811,7 @@ onUnmounted(() => {
 
         <div class="gen-actions">
           <div class="gen-actions-row">
-            <button class="btn btn-primary btn-generate stylist-action" :disabled="!canPlan" data-testid="stylist-plan" @click="makePlan">{{ planning ? t('stylist.planning') : t('stylist.plan') }}</button>
+            <button class="btn btn-primary btn-generate stylist-action" :disabled="!canPlan" data-testid="stylist-plan" @click="makePlan">{{ planning ? t('stylist.planning') : form.planningMode === 'manual' ? t('stylist.plan') : t('stylist.auto_suggest') }}</button>
           </div>
           <div v-if="planBlocked" class="form-hint stylist-blocked" data-testid="stylist-plan-blocked">{{ planBlocked }}</div>
           <div v-if="shotNotice" class="form-hint stylist-blocked" data-testid="stylist-shot-notice">{{ shotNotice }}</div>
@@ -808,6 +857,9 @@ onUnmounted(() => {
 .stylist-thumb { position: relative; }
 .stylist-thumb.no-garment { border-color: var(--warning, var(--danger)); }
 .stylist-thumb-badge { position: absolute; left: 2px; right: 2px; top: 2px; padding: 1px 2px; border-radius: var(--radius-sm); background: rgba(0, 0, 0, 0.7); color: var(--warning, #f0b429); font-size: 10px; line-height: 1.3; text-align: center; }
+.stylist-look-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.stylist-look-controls:disabled { opacity: 0.5; }
+.stylist-anatomy-badge { top: auto; bottom: 24px; }
 .stylist-thumb-text.on-image { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 3px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; line-height: 1.4; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stylist-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .stylist-thumb-text { font-size: var(--fs-xs); color: var(--text-dim); text-align: center; padding: 4px; }

@@ -9,6 +9,7 @@ import ConnectionTab from './settings/ConnectionTab.vue'
 import PromptsTab from './settings/PromptsTab.vue'
 import SafetyTab from './settings/SafetyTab.vue'
 import AdvancedTab from './settings/AdvancedTab.vue'
+import DiagnosticsTab from './settings/DiagnosticsTab.vue'
 
 const props = defineProps({
   initialTab: { type: String, default: 'connection' },
@@ -20,6 +21,7 @@ const TABS = [
   ['prompts', 'settings.tab_prompts'],
   ['safety', 'settings.tab_safety'],
   ['advanced', 'settings.tab_advanced'],
+  ['diagnostics', 'settings.tab_diagnostics'],
 ]
 
 const activeTab = ref(props.initialTab || 'connection')
@@ -178,5 +180,6 @@ onMounted(loadSettings)
     <PromptsTab v-if="activeTab === 'prompts'" />
     <SafetyTab v-if="activeTab === 'safety'" />
     <AdvancedTab v-if="activeTab === 'advanced'" />
+    <DiagnosticsTab v-if="activeTab === 'diagnostics'" />
   </div>
 </template>

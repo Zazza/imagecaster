@@ -26,10 +26,11 @@ type PresetShotParams struct {
 }
 
 type PresetShotResult struct {
-	Image string
-	Info  json.RawMessage
-	Seed  int64
-	Model string
+	FaceSettings *FaceRefineParams `json:"-"`
+	Image        string
+	Info         json.RawMessage
+	Seed         int64
+	Model        string
 }
 
 func (s *Service) presetForShot(params PresetShotParams) (*preset.Preset, error) {
@@ -96,7 +97,7 @@ func (s *Service) GeneratePresetShot(params PresetShotParams) (*PresetShotResult
 	if err != nil {
 		return nil, err
 	}
-	res := &PresetShotResult{Image: out.result.Images[0], Info: out.result.Info, Model: p.ModelName}
+	res := &PresetShotResult{FaceSettings: &FaceRefineParams{Model: p.ModelName, Sampler: p.Sampler, Steps: p.Steps, CfgScale: p.CfgScale, Prompt: bp.Prompt, NegativePrompt: bp.NegativePrompt}, Image: out.result.Images[0], Info: out.result.Info, Model: p.ModelName}
 	if p.Name != "" {
 		res.Model = p.Name
 	}

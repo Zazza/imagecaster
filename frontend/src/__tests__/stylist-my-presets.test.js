@@ -29,6 +29,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 1
   StylistPresets.mockImplementation(() => Promise.resolve(BASE()))
   ListPeople.mockImplementation(() => Promise.resolve([{ name: 'anna', base: 'Z-Image', lora: 'anna_z', gender: 'woman' }]))
   FaceSwapStatus.mockImplementation(() => Promise.resolve('ok'))

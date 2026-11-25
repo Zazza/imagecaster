@@ -56,6 +56,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 2
   StylistPresets.mockImplementation(() => Promise.resolve(BASE()))
   ListPeople.mockImplementation(() => Promise.resolve([{ ...ANNA }]))
   FaceSwapStatus.mockImplementation(() => Promise.resolve('ok'))
@@ -458,6 +459,7 @@ describe('StylistPage presets', () => {
   })
 
   it('deleting a series closes its open form, so the next series is not saved under that name', async () => {
+    useStylistPlan().form.frames = 4
     StylistPlan.mockImplementation(() => Promise.resolve({ series: [SERIES(), { ...SERIES(), hair: 'high ponytail', hair_ru: 'Хвост' }], warnings: [], used_llm: false }))
     const w = await planned()
     await w.findAll(tid('series-card'))[0].find(tid('save-preset-hair')).trigger('click')
@@ -470,6 +472,7 @@ describe('StylistPage presets', () => {
 
   it('deleting a shot closes an open pose form of another shot', async () => {
     const three = { ...SERIES(), shots: [...SERIES().shots, { pose: 'Сидя', prompt: 'sitting on sand', prompt_ru: 'Сидя', landscape: false, framing: 'knee' }] }
+    useStylistPlan().form.frames = 3
     StylistPlan.mockImplementation(() => Promise.resolve({ series: [three], warnings: [], used_llm: false }))
     const w = await planned()
     const card = () => w.find(tid('series-card'))

@@ -215,28 +215,32 @@ type StylistSeriesResult struct {
 }
 
 type StylistShootRequest struct {
-	Person        string                      `json:"person"`
-	Appearance    string                      `json:"appearance"`
-	Garment       string                      `json:"garment"`
-	GarmentOutfit string                      `json:"garment_outfit"`
-	Series        []stylist.Series            `json:"series"`
-	FaceSwap      bool                        `json:"face_swap"`
-	Seed          *int64                      `json:"seed"`
-	Base          string                      `json:"base,omitempty"`
-	Pipeline      int64                       `json:"pipeline,omitempty"`
-	Preset        int64                       `json:"preset,omitempty"`
-	Overrides     *generation.PresetOverrides `json:"overrides,omitempty"`
-	Size          string                      `json:"size,omitempty"`
+	FacePass         bool                        `json:"face_pass,omitempty"`
+	FaceRestoreBlend *float64                    `json:"face_restore_blend,omitempty"`
+	Person           string                      `json:"person"`
+	Appearance       string                      `json:"appearance"`
+	Garment          string                      `json:"garment"`
+	GarmentOutfit    string                      `json:"garment_outfit"`
+	Series           []stylist.Series            `json:"series"`
+	FaceSwap         bool                        `json:"face_swap"`
+	Seed             *int64                      `json:"seed"`
+	Base             string                      `json:"base,omitempty"`
+	Pipeline         int64                       `json:"pipeline,omitempty"`
+	Preset           int64                       `json:"preset,omitempty"`
+	Overrides        *generation.PresetOverrides `json:"overrides,omitempty"`
+	Size             string                      `json:"size,omitempty"`
 }
 
 type StylistFrame struct {
-	JobID    int64  `json:"job_id"`
-	Status   string `json:"status"`
-	ItemID   int64  `json:"item_id"`
-	Error    string `json:"error"`
-	Shot     string `json:"shot"`
-	FaceSwap string `json:"face_swap"`
-	Garment  string `json:"garment,omitempty"`
+	FacePass       string `json:"face_pass,omitempty"`
+	JobID          int64  `json:"job_id"`
+	Status         string `json:"status"`
+	ItemID         int64  `json:"item_id"`
+	Error          string `json:"error"`
+	Shot           string `json:"shot"`
+	FaceSwap       string `json:"face_swap"`
+	Garment        string `json:"garment,omitempty"`
+	AnatomyWarning string `json:"anatomy_warning,omitempty"`
 }
 
 func (a *App) StylistPresets() (*stylist.Base, error) {
@@ -476,6 +480,9 @@ func stylistPageLabel(name, pose string, i, total int) string {
 }
 
 func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPipelines, q stylistQueue, notLocal bool, req StylistShootRequest) ([]int64, error) {
+	if req.FaceRestoreBlend != nil && !generation.ValidFaceRestoreBlend(*req.FaceRestoreBlend) {
+		return nil, errors.New("сила восстановления лица должна быть от 0 до 1")
+	}
 	if notLocal {
 		return nil, errStylistPageNotLocal
 	}
@@ -554,11 +561,16 @@ func stylistShoot(ctx context.Context, peopleSvc stylistPeople, pipes stylistPip
 				Index:  i + 1, Total: total,
 				GarmentBase64: garment, Outfit: outfit, Wear: sh.Wear,
 				FaceSwap: target.faceSwapName != "",
+				FacePass: req.FacePass, FaceRestoreBlend: req.FaceRestoreBlend,
 				Pipeline: target.pipeline, PipelineName: target.pipelineName,
 				PersonLoras: target.loras, FaceSwapName: target.faceSwapName,
 				ToFolder: true,
 				Preset:   target.preset, PresetName: target.presetName,
 				PersonLora: personLora, Overrides: overrides,
+			}
+			if req.FaceRestoreBlend != nil {
+				blend := *req.FaceRestoreBlend
+				p.FaceRestoreBlend = &blend
 			}
 			p.Width, p.Height = stylist.FrameDims(req.Size, sh.Landscape)
 			if req.Seed != nil {
@@ -670,6 +682,8 @@ func stylistFrames(q stylistFrameResults, ids []int64) ([]StylistFrame, error) {
 				var fr mcp.ShootFrameResult
 				if json.Unmarshal([]byte(j.Result), &r) == nil && json.Unmarshal(r.Frame, &fr) == nil {
 					f.ItemID, f.Shot, f.FaceSwap, f.Garment = fr.ID, fr.Shot, fr.FaceSwap, fr.Garment
+					f.FacePass = fr.FacePass
+					f.AnatomyWarning = fr.AnatomyWarning
 				}
 			}
 		}

@@ -2,27 +2,31 @@ package generation
 
 import (
 	"context"
+	"math"
 
 	"github.com/Zazza/imagecaster/internal/lanonly"
 	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 const (
-	FaceSwapDone   = "done"
-	FaceSwapOff    = "off"
-	faceSwapBlend  = 0.6
-	faceSwapPrefix = "skipped:"
+	FaceSwapDone        = "done"
+	FaceSwapOff         = "off"
+	faceSwapBlend       = 0.6
+	faceRestoreBlendMin = 0.0
+	faceRestoreBlendMax = 1.0
+	faceSwapPrefix      = "skipped:"
 )
 
 var faceSwapReasons = map[string]string{
-	"no_face":             "лицо не найдено",
-	"face_small":          "лицо меньше 60 px",
-	"yaw":                 "голова повёрнута больше 65°",
-	"not_local":           "сервер не в локальной сети",
-	"face_models_missing": "модели подмены не установлены",
-	"identity_missing":    "у человека нет лица для подмены",
-	"person_not_found":    "человек не найден на сервере",
-	"interrupted":         "прервано",
+	"invalid_restore_blend": "сила восстановления лица должна быть от 0 до 1",
+	"no_face":               "лицо не найдено",
+	"face_small":            "лицо меньше 60 px",
+	"yaw":                   "голова повёрнута больше 65°",
+	"not_local":             "сервер не в локальной сети",
+	"face_models_missing":   "модели подмены не установлены",
+	"identity_missing":      "у человека нет лица для подмены",
+	"person_not_found":      "человек не найден на сервере",
+	"interrupted":           "прервано",
 }
 
 var FaceSwapInterrupted = FaceSwapSkipped("interrupted")
@@ -43,6 +47,17 @@ func (s *Service) sdLocal() bool {
 }
 
 func (s *Service) FaceSwap(imgB64, person string) (string, string) {
+	return s.FaceSwapWithRestore(imgB64, person, faceSwapBlend)
+}
+
+func ValidFaceRestoreBlend(blend float64) bool {
+	return !math.IsNaN(blend) && !math.IsInf(blend, 0) && blend >= faceRestoreBlendMin && blend <= faceRestoreBlendMax
+}
+
+func (s *Service) FaceSwapWithRestore(imgB64, person string, blend float64) (string, string) {
+	if !ValidFaceRestoreBlend(blend) {
+		return imgB64, FaceSwapSkipped("invalid_restore_blend")
+	}
 	if !s.sdLocal() {
 		return imgB64, FaceSwapSkipped("not_local")
 	}
@@ -50,7 +65,15 @@ func (s *Service) FaceSwap(imgB64, person string) (string, string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	res, err := s.sd.FaceSwap(ctx, imgB64, person, faceSwapBlend)
+	finish := s.startSDStage("faceswap", "", sdStageUnknown, sdStageUnknown, sdStageUnknown)
+	res, err := s.sd.FaceSwap(ctx, imgB64, person, blend)
+	stageErr := err
+	if stageErr == nil && res != nil && res.Status == sd.FaceSwapSkipped {
+		stageErr = errSDStageSkipped
+	} else if stageErr == nil && (res == nil || res.Status != sd.FaceSwapDone || res.Image == "") {
+		stageErr = errSDStageEmpty
+	}
+	finish(stageErr)
 	if err != nil && (IsInterrupted(err) || ctx.Err() != nil) {
 		return imgB64, FaceSwapInterrupted
 	}

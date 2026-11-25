@@ -508,7 +508,7 @@ func TestStylistFrames(t *testing.T) {
 	}{
 		{"empty", nil, []StylistFrame{}},
 		{"completed frame from the stored result", []int64{done}, []StylistFrame{
-			{JobID: done, Status: "completed", ItemID: 300, Shot: "Анфас", FaceSwap: "done"},
+			{JobID: done, Status: "completed", ItemID: 300, Shot: "Анфас", FacePass: "off", FaceSwap: "done"},
 		}},
 		{"order of ids, failed with error, pending, missing, foreign type, broken result", []int64{pending, failed, 9999, other, broken, done}, []StylistFrame{
 			{JobID: pending, Status: "pending"},
@@ -516,7 +516,7 @@ func TestStylistFrames(t *testing.T) {
 			{JobID: 9999, Status: "gone"},
 			{JobID: other, Status: "gone"},
 			{JobID: broken, Status: "completed"},
-			{JobID: done, Status: "completed", ItemID: 300, Shot: "Анфас", FaceSwap: "done"},
+			{JobID: done, Status: "completed", ItemID: 300, Shot: "Анфас", FacePass: "off", FaceSwap: "done"},
 		}},
 	}
 	for _, tc := range tests {

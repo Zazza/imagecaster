@@ -49,7 +49,7 @@ func (s *Service) FaceRefine(p FaceRefineParams) (string, error) {
 	}
 	s.guard.EnsureHeadroom(p.Model, "face refine")
 	denoise := p.DenoisingStrength
-	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	resp, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             modelSpec(p.Model),
 		InitImages:        []string{p.ImageBase64},
 		Prompt:            prompt,

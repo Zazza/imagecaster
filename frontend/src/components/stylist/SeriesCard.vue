@@ -10,6 +10,7 @@ const props = defineProps({
   index: { type: Number, required: true },
   outfitLocked: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
+  canRegenerate: { type: Boolean, default: true },
   locked: { type: Boolean, default: false },
   places: { type: Array, default: () => [] },
   epoch: { type: Number, default: 0 },
@@ -81,7 +82,7 @@ function setShot(j, value) {
       <div class="card-title">{{ t('stylist.series_title', { n: index + 1 }) }}</div>
       <div class="series-actions">
         <button v-if="ruMode" class="btn btn-sm" :class="showPrompt ? 'btn-primary' : 'btn-secondary'" :aria-pressed="showPrompt" :title="t('stylist.prompt_toggle_hint')" data-testid="series-prompt-toggle" @click="showPrompt = !showPrompt">{{ t('stylist.prompt_toggle') }}</button>
-        <button class="btn btn-secondary btn-sm" :disabled="busy || locked" data-testid="series-regenerate" @click="emit('regenerate', index)">{{ busy ? t('stylist.regenerating') : t('stylist.regenerate') }}</button>
+        <button class="btn btn-secondary btn-sm" :disabled="busy || locked || !canRegenerate" :title="canRegenerate ? '' : t('stylist.auto_regenerate_hint')" data-testid="series-regenerate" @click="emit('regenerate', index)">{{ busy ? t('stylist.regenerating') : t('stylist.regenerate') }}</button>
         <button class="btn btn-danger-quiet btn-sm" :disabled="locked" data-testid="series-delete" @click="emit('delete', index)">{{ t('stylist.delete_series') }}</button>
       </div>
     </div>

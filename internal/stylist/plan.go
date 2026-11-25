@@ -76,6 +76,8 @@ type Shot struct {
 }
 
 type Series struct {
+	Direction    string   `json:"direction,omitempty"`
+	DirectionRu  string   `json:"direction_ru,omitempty"`
 	Outfit       string   `json:"outfit"`
 	Hair         string   `json:"hair"`
 	Makeup       string   `json:"makeup"`
@@ -318,15 +320,22 @@ var framingStyled = map[string]string{
 }
 
 func framePrompt(base, lora, appearance string, s Series, sh Shot, styled bool) string {
+	if s.Direction != "" {
+		sh.Prompt = strings.TrimSpace(sh.Prompt + ". " + s.Direction)
+	}
 	outfit := s.Outfit
 	if sh.Framing == "close" || sh.Framing == "waist" {
 		outfit = upperOutfit(outfit)
 	}
 	outfit = WithWear(outfit, sh.Wear)
 	details := []string{Wearing(outfit), Labeled("Hair", s.Hair), Labeled("Makeup", s.Makeup)}
-	if styled {
+	if styled || s.Direction != "" {
+		kind := "image"
+		if !styled {
+			kind = "photograph"
+		}
 		if Prose(base) {
-			return composeProse(lora, subjectAs("image", framingProse[sh.Framing], appearance, sh.Prompt), details, s.Background, "")
+			return composeProse(lora, subjectAs(kind, framingProse[sh.Framing], appearance, sh.Prompt), details, s.Background, "")
 		}
 		return composeTags(lora, []string{framingStyled[sh.Framing], sh.Prompt, appearance, outfit, s.Hair, s.Makeup}, s.Background, "")
 	}

@@ -76,7 +76,7 @@ func (s *Service) neuralUpscale(b64 string, scale float64) (image.Image, error) 
 	if name == "" {
 		return nil, nil
 	}
-	up, err := s.sd.UpscaleImage(b64, name, scale)
+	up, err := s.measuredUpscale(b64, name, scale)
 	if err != nil {
 		if IsInterrupted(err) {
 			return nil, err

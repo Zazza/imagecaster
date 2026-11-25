@@ -40,6 +40,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 1
   localStorage.clear()
   vi.spyOn(api, 'getSettings').mockResolvedValue({})
   vi.spyOn(api, 'updateSettings').mockResolvedValue()

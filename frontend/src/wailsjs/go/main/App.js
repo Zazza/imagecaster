@@ -769,3 +769,31 @@ export function RollbackPerson(arg1) {
 export function AddPersonIdentityFromSet(arg1, arg2) {
   return window['go']['main']['App']['AddPersonIdentityFromSet'](arg1, arg2);
 }
+
+export function StylistDetailSource(arg1, arg2) {
+  return window['go']['main']['App']['StylistDetailSource'](arg1, arg2);
+}
+
+export function StylistRestoreDetails(arg1) {
+  return window['go']['main']['App']['StylistRestoreDetails'](arg1);
+}
+
+export function DiagnosticsStorage() {
+  return window['go']['main']['App']['DiagnosticsStorage']();
+}
+
+export function OpenDiagnosticsFolder() {
+  return window['go']['main']['App']['OpenDiagnosticsFolder']();
+}
+
+export function ClearDiagnostics(arg1) {
+  return window['go']['main']['App']['ClearDiagnostics'](arg1);
+}
+
+export function StylistSuggest(arg1) {
+  return window['go']['main']['App']['StylistSuggest'](arg1);
+}
+
+export function StylistShootOptions(arg1) {
+  return window['go']['main']['App']['StylistShootOptions'](arg1);
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/Zazza/imagecaster/internal/preset"
 	"github.com/Zazza/imagecaster/internal/serverclient"
 	"github.com/Zazza/imagecaster/internal/stylist"
+	"github.com/Zazza/imagecaster/internal/stylisttrace"
 )
 
 type StylistPeople interface {
@@ -251,20 +253,37 @@ func (p *shootPlan) frameSeed(i int) *int64 {
 	return &v
 }
 
+type stylistTracer interface {
+	NewStylistTrace() *stylisttrace.Recorder
+}
+
+func traceError(err error) {
+	if err != nil {
+		log.Printf("[stylist diagnostics] %v", err)
+	}
+}
+
+func (out *frameOut) closeTrace() { traceError(out.trace.Close()) }
+
+func (out *frameOut) finishTrace(id int64) { traceError(out.trace.Finish(id)) }
+
 type frameOut struct {
-	img      string
-	info     json.RawMessage
-	garment  string
-	facePass string
-	faceSwap string
-	stopped  bool
+	anatomyWarning string
+	trace          *stylisttrace.Recorder
+	img            string
+	info           json.RawMessage
+	garment        string
+	facePass       string
+	faceSwap       string
+	stopped        bool
 }
 
 type frameBase func() (string, json.RawMessage, int64, error)
 
 func txt2imgBase(shooter StylistShooter, m shootModel, prompt string, seed *int64, w, h int) frameBase {
+	seed = copyShootSeed(seed)
 	return func() (string, json.RawMessage, int64, error) {
-		return shootOne(shooter, generation.TestGenerateParams{
+		img, info, actualSeed, err := shootOne(shooter, generation.TestGenerateParams{
 			Mode:           "models",
 			SelectedModels: []string{m.Model},
 			Prompt:         prompt,
@@ -276,33 +295,96 @@ func txt2imgBase(shooter StylistShooter, m shootModel, prompt string, seed *int6
 			Height:         h,
 			Seed:           seed,
 		})
+		seed = nextShootSeed(actualSeed, seed)
+		return img, info, actualSeed, err
 	}
 }
 
 func shootFrame(base frameBase, eng StylistEngine, ge StylistGarmentEngine, refiner FaceRefiner, m shootModel, prompt string, garment, outfit, wear string, refineOn bool) (frameOut, error) {
-	img, info, frameSeed, err := base()
-	if err != nil {
-		return frameOut{}, err
+	return shootFrameChecked(base, eng, ge, refiner, m, prompt, garment, outfit, wear, refineOn, nil)
+}
+
+func shootFrameChecked(base frameBase, eng StylistEngine, ge StylistGarmentEngine, refiner FaceRefiner, m shootModel, prompt string, garment, outfit, wear string, refineOn bool, stopped func() bool) (frameOut, error) {
+	var out frameOut
+	var frameSeed int64
+	var err error
+	for attempt := 0; attempt < shootAnatomyAttempts; attempt++ {
+		if shootStopped(eng, stopped) {
+			return out, generation.ErrInterrupted
+		}
+		out.img, out.info, frameSeed, err = base()
+		if err != nil {
+			return out, err
+		}
+		out.anatomyWarning, err = checkShootAnatomy(eng, out.img, prompt, anatomyBaseDefect, stopped)
+		if err != nil {
+			return out, err
+		}
+		if out.anatomyWarning != anatomyBaseDefect {
+			break
+		}
 	}
-	out := frameOut{img: img, info: info}
+	if tracer, ok := eng.(stylistTracer); ok {
+		out.trace = tracer.NewStylistTrace()
+	}
+	traceError(out.trace.Save(stylisttrace.Base, out.img))
 	var passSeed *int64
 	if frameSeed != 0 {
 		passSeed = &frameSeed
 	}
-	if garment != "" {
-		res, err := tryOnGarment(ge, out.img, garment, outfit, wear, passSeed)
-		switch {
-		case err != nil && generation.IsInterrupted(err):
-			out.stopped = true
-			out.garment = facePassSkipped("прервано")
-		case err != nil:
-			out.garment = facePassSkipped(faceSkipReason(err))
-		case res == nil || res.Image == "":
-			out.garment = facePassSkipped("примерка не вернула картинку")
-		default:
-			out.img = res.Image
-			out.garment = shootFaceDone
+	if garment != "" && out.anatomyWarning == anatomyBaseDefect {
+		out.garment = facePassSkipped(anatomyBaseSkipped)
+	}
+	if garment != "" && out.anatomyWarning != anatomyBaseDefect {
+		acceptedBase, baseWarning := out.img, out.anatomyWarning
+		for attempt := 0; attempt < shootAnatomyAttempts; attempt++ {
+			if shootStopped(eng, stopped) {
+				out.closeTrace()
+				return out, generation.ErrInterrupted
+			}
+			res, tryErr := tryOnGarment(ge, acceptedBase, garment, outfit, wear, passSeed)
+			switch {
+			case tryErr != nil && generation.IsInterrupted(tryErr):
+				if _, checked := eng.(StylistAnatomyChecker); checked {
+					out.closeTrace()
+					return out, generation.ErrInterrupted
+				}
+				out.stopped = true
+				out.garment = facePassSkipped("прервано")
+			case tryErr != nil:
+				out.img, out.anatomyWarning = acceptedBase, baseWarning
+				out.garment = facePassSkipped(faceSkipReason(tryErr))
+			case res == nil || res.Image == "":
+				out.img, out.anatomyWarning = acceptedBase, baseWarning
+				out.garment = facePassSkipped("примерка не вернула картинку")
+			default:
+				out.img = res.Image
+				out.garment = shootFaceDone
+				warning, checkErr := checkShootAnatomy(eng, out.img, prompt, anatomyGarmentDefect, stopped)
+				if checkErr != nil {
+					out.closeTrace()
+					return out, checkErr
+				}
+				if warning != "" {
+					out.anatomyWarning = warning
+				}
+				if warning == anatomyGarmentDefect && attempt+1 < shootAnatomyAttempts {
+					passSeed = nextShootSeed(infoSeed(res.Info), passSeed)
+					continue
+				}
+				if warning == "" && out.anatomyWarning == anatomyGarmentDefect {
+					out.anatomyWarning = baseWarning
+				}
+			}
+			break
 		}
+		if out.garment == shootFaceDone {
+			traceError(out.trace.Save(stylisttrace.Garment, out.img))
+		}
+	}
+	if shootStopped(eng, stopped) {
+		out.closeTrace()
+		return out, generation.ErrInterrupted
 	}
 	out.facePass = shootFacePassMissing
 	if !refineOn {
@@ -312,6 +394,13 @@ func shootFrame(base frameBase, eng StylistEngine, ge StylistGarmentEngine, refi
 		out.facePass = facePassSkipped("прервано")
 	} else if refineOn && eng != nil && refiner != nil {
 		out.img, out.facePass, out.stopped = refineShootFace(eng, refiner, out.img, prompt, shootNegative, m, passSeed)
+	}
+	if _, checked := eng.(StylistAnatomyChecker); checked && (out.stopped || shootStopped(eng, stopped)) {
+		out.closeTrace()
+		return out, generation.ErrInterrupted
+	}
+	if out.facePass == shootFaceDone {
+		traceError(out.trace.Save(stylisttrace.FacePass, out.img))
 	}
 	return out, nil
 }
@@ -329,6 +418,9 @@ func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSess
 		out, err := shootFrame(txt2imgBase(shooter, plan.m, prompt, plan.frameSeed(i), plan.w, plan.h), eng, plan.ge, refiner, plan.m, prompt, plan.garment, plan.outfit, "", plan.refineOn)
 		if err != nil {
 			if generation.IsInterrupted(err) {
+				if _, checked := eng.(StylistAnatomyChecker); checked {
+					return "", err
+				}
 				break
 			}
 			if len(saved) > 0 {
@@ -336,12 +428,24 @@ func stylistShoot(people StylistPeople, shooter StylistShooter, sessions AppSess
 			}
 			return "", fmt.Errorf("кадр %d из %d не получился: %s", i+1, len(plan.shots), faceSkipReason(err))
 		}
+		defer out.closeTrace()
+		if shootStopped(eng, nil) {
+			return "", generation.ErrInterrupted
+		}
 		shootFaceSwap(eng, &out, plan.name, plan.faceSwap)
+		if _, checked := eng.(StylistAnatomyChecker); checked && (out.stopped || shootStopped(eng, nil)) {
+			return "", generation.ErrInterrupted
+		}
 		stopped = out.stopped
 		meta := &preset.GenerationMeta{Model: plan.m.Model, Label: truncateLabel("Стилист: " + plan.name + ", " + shot)}
 		id := sessions.AddToNamedSession(StylistSessionName, out.img, out.info, "stylist", meta)
+		out.finishTrace(id)
+		out.closeTrace()
 		saved = append(saved, fmt.Sprint(id))
 		v := map[string]any{"id": id, "shot": shot, "prompt": prompt, "face_pass": out.facePass, "face_swap": out.faceSwap}
+		if out.anatomyWarning != "" {
+			v["anatomy_warning"] = out.anatomyWarning
+		}
 		if out.garment != "" {
 			v["garment"] = out.garment
 		}

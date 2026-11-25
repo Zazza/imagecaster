@@ -116,14 +116,14 @@ describe('settings tabs', () => {
   it('has Connection, Prompts, Safety, Advanced and no Generation / Analyze tabs (ru)', async () => {
     const w = await mountSettings()
     const names = tabButtons(w).map(b => b.text().trim())
-    expect(names).toEqual([t('settings.tab_connection'), t('settings.tab_prompts'), t('settings.tab_safety'), t('settings.tab_advanced')])
+    expect(names).toEqual([t('settings.tab_connection'), t('settings.tab_prompts'), t('settings.tab_safety'), t('settings.tab_advanced'), t('settings.tab_diagnostics')])
   })
 
   it('en locale also shows a single Prompts tab from settings.tab_prompts', async () => {
     setLocale('en')
     const w = await mountSettings()
     const names = tabButtons(w).map(b => b.text().trim())
-    expect(names).toEqual([t('settings.tab_connection'), t('settings.tab_prompts'), t('settings.tab_safety'), t('settings.tab_advanced')])
+    expect(names).toEqual([t('settings.tab_connection'), t('settings.tab_prompts'), t('settings.tab_safety'), t('settings.tab_advanced'), t('settings.tab_diagnostics')])
   })
 })
 

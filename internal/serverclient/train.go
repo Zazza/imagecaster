@@ -221,7 +221,7 @@ func (c *Client) TrainingJobs(ctx context.Context, client string) ([]TrainJob, e
 		return nil, err
 	}
 	if out.Jobs == nil {
-		out.Jobs = []TrainJob{}
+		return nil, fmt.Errorf("training jobs response: jobs array is missing or null")
 	}
 	return out.Jobs, nil
 }

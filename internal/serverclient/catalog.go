@@ -27,6 +27,7 @@ type CatalogModule struct {
 }
 
 type CatalogModel struct {
+	CaptionOnly   bool    `json:"caption_only,omitempty"`
 	Name          string  `json:"name"`
 	Description   string  `json:"description"`
 	DescriptionRu string  `json:"description_ru,omitempty"`

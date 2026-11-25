@@ -86,7 +86,7 @@ func recordShootFrame(st stylistSettings, jobID int64, raw json.RawMessage) erro
 	stored := loadLastShoot(st)
 	for i := range stored {
 		if stored[i].JobID == jobID {
-			stored[i] = StylistFrame{JobID: jobID, Status: string(queue.StatusCompleted), ItemID: fr.ID, Shot: fr.Shot, FaceSwap: fr.FaceSwap, Garment: fr.Garment}
+			stored[i] = StylistFrame{JobID: jobID, Status: string(queue.StatusCompleted), ItemID: fr.ID, Shot: fr.Shot, FaceSwap: fr.FaceSwap, FacePass: fr.FacePass, Garment: fr.Garment, AnatomyWarning: fr.AnatomyWarning}
 			return saveLastShoot(st, stored)
 		}
 	}

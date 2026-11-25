@@ -1,6 +1,7 @@
 package config
 
 var AllowedSettings = map[string]bool{
+	DiagnosticsVerboseLogs: true, DiagnosticsIntermediateImages: true, StylistKeepOriginals: true, DiagnosticsRetention: true,
 	"post_editor_model": true, "post_editor_loras": true,
 	"stylist_edit_editor_model": true, "stylist_edit_editor_loras": true,
 	"llm_model": true, "sd_prompt_model": true,

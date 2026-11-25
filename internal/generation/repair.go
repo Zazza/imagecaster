@@ -192,7 +192,7 @@ func (s *Service) repairOneTile(src *image.RGBA, box image.Rectangle, strength f
 		return nil, nil, fmt.Errorf("encode tile: %w", err)
 	}
 	batchSize, batchCount := 1, 1
-	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	resp, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             withReference(modelSpec(prof.model)),
 		InitImages:        []string{b64},
 		Prompt:            prof.prompt(repairPrompt),

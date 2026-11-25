@@ -457,7 +457,7 @@ func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImagePar
 	rawW, rawH := src.size()
 	sz := s.fromImageWorkSize(p, params, rawW, rawH)
 	denoising := params.DenoisingStrength
-	resp, err := s.sd.Img2Img(sd.Img2ImgRequest{
+	resp, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             refSpec,
 		InitImages:        []string{params.ImageBase64},
 		CacheMode:         s.cacheModeFor(refSpec.Checkpoint),

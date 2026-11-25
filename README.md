@@ -2,7 +2,7 @@
 
 **A desktop app that turns a plain-language description into a finished image — on your own graphics card.**
 
-[Русский](README-ru.md) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/Zazza/imagecaster/releases) · [Imagecaster Server](https://github.com/Zazza/imagecaster-server)
+[Русский](README-ru.md) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/Zazza/imagecaster/releases) · [Imagecaster Server](https://github.com/Zazza/imagecaster-server) · [Articles and guides](https://samotoy.ru/projects/imagecaster/)
 
 Stable Diffusion can do a lot, but every image means hand-tuning: model, sampler, CFG, LoRA weights, tags. Node editors can do everything, but you wire the graph yourself. Imagecaster is simpler: pick a style, describe the scene in any language, get the image. A local language model writes the prompt; the technical settings live in the style.
 

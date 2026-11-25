@@ -1126,6 +1126,24 @@ export namespace logger {
 }
 
 export namespace main {
+	export class StylistRestoreDetailsParams {
+	    job_id: number;
+	    stage: string;
+	    mask_base64: string;
+	    aligned: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new StylistRestoreDetailsParams(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.job_id = source["job_id"];
+	        this.stage = source["stage"];
+	        this.mask_base64 = source["mask_base64"];
+	        this.aligned = source["aligned"];
+	    }
+	}
 	export class ObjectMaskStatus {
 	    ready: boolean;
 	    encoder_url: string;
@@ -1246,6 +1264,7 @@ export namespace main {
 		}
 	}
 	export class StylistFrame {
+	    face_pass?: string;
 	    job_id: number;
 	    status: string;
 	    item_id: number;
@@ -1253,6 +1272,7 @@ export namespace main {
 	    shot: string;
 	    face_swap: string;
 	    garment?: string;
+	    anatomy_warning?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new StylistFrame(source);
@@ -1260,6 +1280,7 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.face_pass = source["face_pass"];
 	        this.job_id = source["job_id"];
 	        this.status = source["status"];
 	        this.item_id = source["item_id"];
@@ -1267,6 +1288,7 @@ export namespace main {
 	        this.shot = source["shot"];
 	        this.face_swap = source["face_swap"];
 	        this.garment = source["garment"];
+	        this.anatomy_warning = source["anatomy_warning"];
 	    }
 	}
 	export class StylistPlanResult {
@@ -1338,6 +1360,8 @@ export namespace main {
 		}
 	}
 	export class StylistShootRequest {
+	    face_pass?: boolean;
+	    face_restore_blend?: number;
 	    person: string;
 	    appearance: string;
 	    garment: string;
@@ -1347,6 +1371,9 @@ export namespace main {
 	    seed?: number;
 	    base?: string;
 	    pipeline?: number;
+	    preset?: number;
+	    overrides?: generation.PresetOverrides;
+	    size?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new StylistShootRequest(source);
@@ -1354,6 +1381,8 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.face_pass = source["face_pass"];
+	        this.face_restore_blend = source["face_restore_blend"];
 	        this.person = source["person"];
 	        this.appearance = source["appearance"];
 	        this.garment = source["garment"];
@@ -1363,6 +1392,9 @@ export namespace main {
 	        this.seed = source["seed"];
 	        this.base = source["base"];
 	        this.pipeline = source["pipeline"];
+	        this.preset = source["preset"];
+	        this.overrides = this.convertValues(source["overrides"], generation.PresetOverrides);
+	        this.size = source["size"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2415,6 +2447,7 @@ export namespace serverclient {
 		}
 	}
 	export class CatalogModel {
+	    caption_only?: boolean;
 	    name: string;
 	    description: string;
 	    description_ru?: string;
@@ -2427,6 +2460,7 @@ export namespace serverclient {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.caption_only = source["caption_only"];
 	        this.name = source["name"];
 	        this.description = source["description"];
 	        this.description_ru = source["description_ru"];
@@ -2984,17 +3018,17 @@ export namespace settings {
 }
 
 export namespace stylist {
-	
+
 	export class AspectChoice {
 	    mode: string;
 	    ids: string[];
 	    text?: string;
 	    text_ru?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new AspectChoice(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.mode = source["mode"];
@@ -3012,11 +3046,11 @@ export namespace stylist {
 	    user?: boolean;
 	    male?: boolean;
 	    place: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Background(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -3039,11 +3073,11 @@ export namespace stylist {
 	    orientation: string;
 	    prompt_ru?: string;
 	    user?: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Pose(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -3065,11 +3099,11 @@ export namespace stylist {
 	    prompt_ru?: string;
 	    user?: boolean;
 	    male?: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Item(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -3084,11 +3118,11 @@ export namespace stylist {
 	export class Theme {
 	    id: string;
 	    name: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Theme(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -3103,11 +3137,11 @@ export namespace stylist {
 	    makeup: Item[];
 	    background: Background[];
 	    pose: Pose[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Base(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.version = source["version"];
@@ -3118,7 +3152,7 @@ export namespace stylist {
 	        this.background = this.convertValues(source["background"], Background);
 	        this.pose = this.convertValues(source["pose"], Pose);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -3137,7 +3171,7 @@ export namespace stylist {
 		    return a;
 		}
 	}
-	
+
 	export class PlanRequest {
 	    person: string;
 	    gender: string;
@@ -3148,11 +3182,11 @@ export namespace stylist {
 	    garment: boolean;
 	    seed: number;
 	    locale?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new PlanRequest(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.person = source["person"];
@@ -3165,7 +3199,7 @@ export namespace stylist {
 	        this.seed = source["seed"];
 	        this.locale = source["locale"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -3184,7 +3218,7 @@ export namespace stylist {
 		    return a;
 		}
 	}
-	
+
 	export class Shot {
 	    pose: string;
 	    prompt: string;
@@ -3192,11 +3226,11 @@ export namespace stylist {
 	    landscape: boolean;
 	    framing?: string;
 	    wear?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Shot(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.pose = source["pose"];
@@ -3208,6 +3242,8 @@ export namespace stylist {
 	    }
 	}
 	export class Series {
+	    direction?: string;
+	    direction_ru?: string;
 	    outfit: string;
 	    hair: string;
 	    makeup: string;
@@ -3219,13 +3255,15 @@ export namespace stylist {
 	    background_ru?: string;
 	    ru_ai?: string[];
 	    shots: Shot[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Series(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.direction = source["direction"];
+	        this.direction_ru = source["direction_ru"];
 	        this.outfit = source["outfit"];
 	        this.hair = source["hair"];
 	        this.makeup = source["makeup"];
@@ -3238,7 +3276,7 @@ export namespace stylist {
 	        this.ru_ai = source["ru_ai"];
 	        this.shots = this.convertValues(source["shots"], Shot);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -3257,8 +3295,8 @@ export namespace stylist {
 		    return a;
 		}
 	}
-	
-	
+
+
 	export class UserPreset {
 	    id: number;
 	    aspect: string;
@@ -3269,11 +3307,11 @@ export namespace stylist {
 	    framing: string;
 	    places: string[];
 	    orientation: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new UserPreset(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -3288,5 +3326,147 @@ export namespace stylist {
 	    }
 	}
 
+	export class ShootOption {
+	    profile?: string;
+	    model?: string;
+	    model_description?: string;
+	    category?: string;
+	    id: string;
+	    name: string;
+	    description: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ShootOption(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profile = source["profile"];
+	        this.model = source["model"];
+	        this.model_description = source["model_description"];
+	        this.category = source["category"];
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	    }
+	}
+
+	export class SuggestRequest {
+	    plan: PlanRequest;
+	    target?: string;
+	    garment_outfit?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new SuggestRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plan = this.convertValues(source["plan"], PlanRequest);
+	        this.target = source["target"];
+	        this.garment_outfit = source["garment_outfit"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+	export class SuggestResult {
+	    target_name: string;
+	    target_model: string;
+	    target_reason: string;
+	    target_reason_ru?: string;
+	    concept: string;
+	    concept_ru?: string;
+	    light: string;
+	    light_ru?: string;
+	    focus: string;
+	    focus_ru?: string;
+	    target: string;
+	    series: Series[];
+	    warnings: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new SuggestResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.target_name = source["target_name"];
+	        this.target_model = source["target_model"];
+	        this.target_reason = source["target_reason"];
+	        this.target_reason_ru = source["target_reason_ru"];
+	        this.concept = source["concept"];
+	        this.concept_ru = source["concept_ru"];
+	        this.light = source["light"];
+	        this.light_ru = source["light_ru"];
+	        this.focus = source["focus"];
+	        this.focus_ru = source["focus_ru"];
+	        this.target = source["target"];
+	        this.series = this.convertValues(source["series"], Series);
+	        this.warnings = source["warnings"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
 }
 
+
+export namespace stylisttrace {
+
+	export class StorageStats {
+	    path: string;
+	    exists: boolean;
+	    bytes: number;
+	    frames: number;
+	    active: number;
+	    orphans: number;
+
+	    static createFrom(source: any = {}) {
+	        return new StorageStats(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.exists = source["exists"];
+	        this.bytes = source["bytes"];
+	        this.frames = source["frames"];
+	        this.active = source["active"];
+	        this.orphans = source["orphans"];
+	    }
+	}
+
+}

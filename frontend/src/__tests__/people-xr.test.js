@@ -14,7 +14,7 @@ import { setLocale, t } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
 import { loadPeople } from '../peopleStore.js'
 import { peopleGroups, pipelineOverride } from '../people.js'
-import { resetStylistPlan } from '../composables/useStylistPlan.js'
+import { resetStylistPlan, useStylistPlan } from '../composables/useStylistPlan.js'
 
 enableAutoUnmount(afterEach)
 
@@ -193,6 +193,7 @@ describe('Stylist: «Снять» sends the LoRA name of the chosen model', () =
 
   beforeEach(() => {
     resetStylistPlan()
+    useStylistPlan().form.frames = 1
     StylistPresets.mockImplementation(() => Promise.resolve(structuredClone(BASE)))
     ListPeople.mockImplementation(() => Promise.resolve([{ ...NAT_Z }, { ...NAT_MOSS }, { ...NAT_F1 }]))
     FaceSwapStatus.mockImplementation(() => Promise.resolve('ok'))

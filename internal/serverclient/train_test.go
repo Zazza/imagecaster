@@ -419,3 +419,21 @@ func TestTrainJob_JSONRoundTrip(t *testing.T) {
 		assert.Contains(t, m, k)
 	}
 }
+
+func TestTrainingJobsRejectsUnknownQueueMetadata(t *testing.T) {
+	for _, body := range []string{`{}`, `{"jobs":null}`} {
+		t.Run(body, func(t *testing.T) {
+			client, _ := newTrServer(t, http.StatusOK, body)
+			jobs, err := client.TrainingJobs(context.Background(), "")
+			require.Error(t, err, "missing queue metadata must not prove an idle server")
+			assert.Nil(t, jobs)
+		})
+	}
+	t.Run("explicit empty queue", func(t *testing.T) {
+		client, _ := newTrServer(t, http.StatusOK, `{"jobs":[]}`)
+		jobs, err := client.TrainingJobs(context.Background(), "")
+		require.NoError(t, err)
+		require.NotNil(t, jobs)
+		assert.Empty(t, jobs)
+	})
+}

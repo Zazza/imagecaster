@@ -37,6 +37,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 1
   state = {
     1: { status: 'completed', item_id: 101 },
     2: { status: 'completed', item_id: 102 },
@@ -160,6 +161,7 @@ describe('Stylist: actions under the big frame (as in «Генерация»)', 
 describe('Stylist: regenerate uses the series slot', () => {
   it('after deleting a series the next one regenerates as itself', async () => {
     StylistLastShoot.mockImplementation(() => Promise.resolve([]))
+    useStylistPlan().form.frames = 3
     const three = [0, 1, 2].map(slot => ({ ...SERIES()[0], outfit: 'o' + slot, slot }))
     StylistPlan.mockImplementation(() => Promise.resolve({ series: three, warnings: [], used_llm: false }))
     StylistRegenerateSeries.mockImplementation((req, slot) => Promise.resolve({ series: { ...three[slot], outfit: 'new' + slot }, warnings: [] }))

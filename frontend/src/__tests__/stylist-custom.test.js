@@ -8,7 +8,7 @@ import { setLocale, t, ru, en } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
 import StylistPage from '../components/StylistPage.vue'
 import AspectTab from '../components/stylist/AspectTab.vue'
-import { buildPlanRequest, defaultAspects, resetStylistPlan } from '../composables/useStylistPlan.js'
+import { buildPlanRequest, defaultAspects, resetStylistPlan, useStylistPlan } from '../composables/useStylistPlan.js'
 
 enableAutoUnmount(afterEach)
 
@@ -43,6 +43,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  useStylistPlan().form.frames = 3
   StylistPresets.mockImplementation(() => Promise.resolve(BASE()))
   ListPeople.mockImplementation(() => Promise.resolve([{ ...ANNA }]))
   FaceSwapStatus.mockImplementation(() => Promise.resolve('ok'))
