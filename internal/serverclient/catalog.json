@@ -1,34 +1,40 @@
 {
   "llm_generate": [
     {
+      "name": "qwen2.5:7b",
+      "description": "For 8 GB GPUs and more. Writes prompts directly, without reasoning",
+      "description_ru": "Для видеокарт от 8 ГБ. Сразу пишет промпт, без рассуждений",
+      "size_gb": 4.7,
+      "recommended": true
+    },
+    {
       "name": "qwen3:4b",
-      "description": "For 8 GB GPUs. Small and fast, fine for everyday prompts",
-      "description_ru": "Для видеокарт 8 ГБ. Маленькая и быстрая, для обычных промптов",
+      "description": "Optional. This build always enables thinking and may return an empty prompt",
+      "description_ru": "Дополнительно. Эта сборка всегда рассуждает и может не вернуть готовый промпт",
       "size_gb": 2.5
     },
     {
       "name": "qwen3:8b",
-      "description": "For 12 GB GPUs. Good balance of quality and speed",
-      "description_ru": "Для видеокарт 12 ГБ. Хороший баланс качества и скорости",
-      "size_gb": 5.2,
-      "recommended": true
+      "description": "Optional. This build always enables thinking and may return an empty prompt",
+      "description_ru": "Дополнительно. Эта сборка всегда рассуждает и может не вернуть готовый промпт",
+      "size_gb": 5.2
     },
     {
       "name": "qwen3:14b",
-      "description": "For 16 GB GPUs. Larger, for complex scenes and long descriptions",
-      "description_ru": "Для видеокарт 16 ГБ. Крупнее — для сложных сцен и длинных описаний",
+      "description": "Optional. This build always enables thinking and may return an empty prompt",
+      "description_ru": "Дополнительно. Эта сборка всегда рассуждает и может не вернуть готовый промпт",
       "size_gb": 9.3
     },
     {
       "name": "qwen3:30b",
-      "description": "For 24 GB GPUs and more. The largest in the list; MoE, so it runs fast for its size",
-      "description_ru": "Для видеокарт от 24 ГБ. Самая крупная в списке; MoE-архитектура, поэтому быстрая для своего размера",
+      "description": "Optional. This build always enables thinking and may return an empty prompt",
+      "description_ru": "Дополнительно. Эта сборка всегда рассуждает и может не вернуть готовый промпт",
       "size_gb": 18.6
     },
     {
       "name": "huihui_ai/qwen2.5-abliterate:14b",
-      "description": "Text instruction model; available for photographic shoot planning",
-      "description_ru": "Текстовая модель: доступна для составления плана фотосъёмки",
+      "description": "For 16 GB GPUs. Writes prompts directly, without reasoning",
+      "description_ru": "Для видеокарт 16 ГБ. Сразу пишет промпт, без рассуждений",
       "size_gb": 8.4
     }
   ],

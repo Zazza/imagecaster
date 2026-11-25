@@ -72,10 +72,14 @@ The assistant needs two models: one writes prompts, the other reads photos (remi
 
 | Model | Graphics card | Size, GB |
 |---|---|---|
+| `qwen2.5:7b` ★ | 8 GB and more | 4.7 |
+| `huihui_ai/qwen2.5-abliterate:14b` | 16 GB | 8.4 |
 | `qwen3:4b` | 8 GB | 2.5 |
-| `qwen3:8b` ★ | 12 GB | 5.2 |
+| `qwen3:8b` | 12 GB | 5.2 |
 | `qwen3:14b` | 16 GB | 9.3 |
 | `qwen3:30b` | 24 GB and more | 18.6 |
+
+The recommended Qwen2.5 models write the final prompt directly. The Qwen3 builds currently in the catalog force reasoning: they can exhaust the 512-token response limit and return an empty prompt. They remain available as optional models rather than the recommended choice.
 
 **Photo model**
 

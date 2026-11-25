@@ -73,8 +73,10 @@ type ChatRequest struct {
 type ChatResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
 		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 }
 
@@ -340,7 +342,15 @@ func (c *Client) doChatRequest(base string, reqBody ChatRequest, logMsg string) 
 		return "", fmt.Errorf("empty response from LLM (body: %s)", string(respBody))
 	}
 
-	return strings.TrimSpace(stripThinkTags(chatResp.Choices[0].Message.Content)), nil
+	choice := chatResp.Choices[0]
+	content := strings.TrimSpace(stripThinkTags(choice.Message.Content))
+	if content != "" {
+		return content, nil
+	}
+	if choice.FinishReason == "length" && strings.TrimSpace(choice.Message.ReasoningContent) != "" {
+		return "", fmt.Errorf("LLM used the entire response limit for reasoning and returned no answer; use a model without thinking or increase max_tokens")
+	}
+	return "", nil
 }
 
 func CleanTags(s string) string {

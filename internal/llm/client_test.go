@@ -208,8 +208,10 @@ func TestChat_Success(t *testing.T) {
 		resp := ChatResponse{}
 		resp.Choices = append(resp.Choices, struct {
 			Message struct {
-				Content string `json:"content"`
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		}{})
 		resp.Choices[0].Message.Content = "generated prompt output"
 
@@ -257,8 +259,10 @@ func TestGenerateSDPrompt_Temperature(t *testing.T) {
 				resp := ChatResponse{}
 				resp.Choices = append(resp.Choices, struct {
 					Message struct {
-						Content string `json:"content"`
+						Content          string `json:"content"`
+						ReasoningContent string `json:"reasoning_content"`
 					} `json:"message"`
+					FinishReason string `json:"finish_reason"`
 				}{})
 				resp.Choices[0].Message.Content = "generated prompt output"
 
@@ -311,6 +315,47 @@ func TestChat_EmptyChoices(t *testing.T) {
 	if !strings.Contains(err.Error(), "empty response") {
 		t.Errorf("error = %q, want to contain 'empty response'", err.Error())
 	}
+}
+
+func TestChat_ReasoningExhaustsResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"","reasoning_content":"Planning the answer..."},"finish_reason":"length"}]}`)
+	}))
+	defer server.Close()
+
+	client := New(server.URL)
+	answer, err := client.Chat("model", "sys", "user", 0.5, 512)
+	assert.Empty(t, answer)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "used the entire response limit for reasoning")
+	assert.Contains(t, err.Error(), "model without thinking")
+}
+
+func TestChat_TruncatedAnswerNotReportedAsReasoning(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"red apple, wooden table"},"finish_reason":"length"}]}`)
+	}))
+	defer server.Close()
+
+	client := New(server.URL)
+	answer, err := client.Chat("model", "sys", "user", 0.5, 512)
+	require.NoError(t, err)
+	assert.Equal(t, "red apple, wooden table", answer)
+}
+
+func TestChat_EmptyAnswerWithoutReasoningKeepsLegacyBehavior(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}`)
+	}))
+	defer server.Close()
+
+	client := New(server.URL)
+	answer, err := client.Chat("model", "sys", "user", 0.5, 512)
+	require.NoError(t, err)
+	assert.Empty(t, answer)
 }
 
 func TestGetModels_Ollama(t *testing.T) {

@@ -74,6 +74,18 @@ func TestCatalogHasNoRemovedSDModels(t *testing.T) {
 	}
 }
 
+func TestCatalogRecommendsNonThinkingPromptModel(t *testing.T) {
+	c, err := LoadCatalog()
+	require.NoError(t, err)
+	var recommended []string
+	for _, m := range c.LLMGenerate {
+		if m.Recommended {
+			recommended = append(recommended, m.Name)
+		}
+	}
+	assert.Equal(t, []string{"qwen2.5:7b"}, recommended)
+}
+
 func TestBuiltinPresetsDoNotUseRemovedSDModels(t *testing.T) {
 	files, err := filepath.Glob("../../data/presets/*.json")
 	require.NoError(t, err)
