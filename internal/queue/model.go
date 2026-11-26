@@ -5,15 +5,16 @@ import "encoding/json"
 type JobType string
 
 const (
-	JobTxt2Img      JobType = "txt2img"
-	JobFromImage    JobType = "from_image"
-	JobCompound     JobType = "compound"
-	JobLook         JobType = "look"
-	JobEdit         JobType = "edit"
-	JobStylistFrame JobType = "stylist_frame"
-	JobRetouch      JobType = "retouch"
-	JobPostSave     JobType = "post_save"
-	JobUpscale4K    JobType = "upscale_4k"
+	JobTxt2Img           JobType = "txt2img"
+	JobFromImage         JobType = "from_image"
+	JobCompound          JobType = "compound"
+	JobLook              JobType = "look"
+	JobEdit              JobType = "edit"
+	JobStylistFrame      JobType = "stylist_frame"
+	JobRetouch           JobType = "retouch"
+	JobPostSave          JobType = "post_save"
+	JobUpscale4K         JobType = "upscale_4k"
+	JobResolutionUpscale JobType = "resolution_upscale"
 )
 
 type JobStatus string

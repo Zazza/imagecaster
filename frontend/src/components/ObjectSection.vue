@@ -32,7 +32,7 @@ const error = ref('')
 const detectedObject = ref('')
 const effectivePrompt = ref('')
 const moreOpen = ref(false)
-const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress({ acceptJob: () => false })
 let reqCounter = 0
 let lastEmitted = null
 
@@ -187,7 +187,7 @@ defineExpose({
       <span v-else>{{ op === 'replace' ? t('object.btn_replace') : t('object.btn_remove') }}</span>
     </button>
 
-    <GenProgress v-if="running && sdProgress && sdProgress.progress > 0" class="object-progress" :progress="sdProgress.progress" block @interrupt="interruptGeneration" />
+    <GenProgress v-if="running && sdProgress && sdProgress.progress > 0" class="object-progress" :progress="sdProgress.progress" :preview-available="sdProgress.preview_available" block @interrupt="interruptGeneration" />
 
     <div v-if="detectedObject && !running" class="object-detected">
       {{ t('object.detected', { object: detectedObject }) }}

@@ -3,6 +3,7 @@ import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks, EventsEmit } from './mocks/runtime'
 
 import GeneratePage from '../components/GeneratePage.vue'
+import FloatingGenerationPanel from '../components/FloatingGenerationPanel.vue'
 import RemixSection from '../components/RemixSection.vue'
 import {
   GetSettings, GetQueue, ListPresets, GenerateSDPrompt, EnqueueTxt2Img, EnqueueFromImage, GetSessionImage,
@@ -32,6 +33,14 @@ function cancelFromPanel(id) {
 
 const generatingText = () => t('generate.generating_image')
 
+function expectGenerating(w, active) {
+  const panel = w.findComponent(FloatingGenerationPanel)
+  expect(panel.exists()).toBe(true)
+  expect(panel.props('active')).toBe(active)
+  expect(panel.isVisible()).toBe(active)
+  if (active) expect(panel.text()).toContain(generatingText())
+}
+
 async function mountGenerate() {
   GetSettings.mockImplementation(() => Promise.resolve({ gen_mode: 'preset', gen_preset_id: '1' }))
   const w = mount(GeneratePage, { attachTo: document.body })
@@ -50,11 +59,11 @@ describe('GeneratePage: job cancelled from the queue panel', () => {
     await w.find('.btn-generate').trigger('click')
     await settle()
     expect(EnqueueTxt2Img).toHaveBeenCalledTimes(1)
-    expect(w.text()).toContain(generatingText())
+    expectGenerating(w, true)
 
     cancelFromPanel(101)
     await settle()
-    expect(w.text()).not.toContain(generatingText())
+    expectGenerating(w, false)
   })
 
   it('jobs restored on mount: cancelling all of them in the panel resets "generating"', async () => {
@@ -63,16 +72,16 @@ describe('GeneratePage: job cancelled from the queue panel', () => {
       { id: 8, type: 'txt2img', status: 'pending' },
     ]
     const w = await mountGenerate()
-    expect(w.text()).toContain(generatingText())
+    expectGenerating(w, true)
 
     cancelFromPanel(7)
     await settle()
-    expect(w.text()).toContain(generatingText())
+    expectGenerating(w, true)
 
     queue = queue.filter(j => j.id !== 8)
     EventsEmit('queue:changed')
     await settle()
-    expect(w.text()).not.toContain(generatingText())
+    expectGenerating(w, false)
   })
 
   it('a running job in the panel keeps "generating" on queue:changed', async () => {
@@ -81,7 +90,7 @@ describe('GeneratePage: job cancelled from the queue panel', () => {
     queue = [{ id: 9, type: 'txt2img', status: 'running' }]
     EventsEmit('queue:changed')
     await settle()
-    expect(w.text()).toContain(generatingText())
+    expectGenerating(w, true)
   })
 
   it('completed job shows the image by session item URL', async () => {
@@ -90,7 +99,7 @@ describe('GeneratePage: job cancelled from the queue panel', () => {
     EventsEmit('queue:completed', { job_id: 5, result: { session_item_id: 42, info: '{"seed":1}' } })
     await settle()
     expect(w.find('img[alt="Generated"]').attributes('src')).toBe('/api/img/42.jpg')
-    expect(w.text()).not.toContain(generatingText())
+    expectGenerating(w, false)
   })
 })
 

@@ -315,16 +315,19 @@ describe('PostProcessPage body shape', () => {
     expect(params.body_points).toEqual(BODY_A)
   })
 
-  it('"Up to 4K" job carries body and body points', async () => {
+  it('normal export carries body and finish', async () => {
     const wrapper = await mountPage()
     await openBody(wrapper)
     await slide(wrapper, 'height', 3)
     await openSection(wrapper, t('export.export_settings'))
-    await field(wrapper, 'post-upscale-4k').setValue(true)
+    await openSection(wrapper, t('post.finish_title'))
+    await field(wrapper, 'finish-ratio').setValue('4:5')
     await saveSingle(wrapper)
 
-    expect(EnqueuePostSave).toHaveBeenCalledTimes(1)
-    const params = EnqueuePostSave.mock.calls[0][0]
+    expect(EnqueuePostSave).not.toHaveBeenCalled()
+    expect(ExportImage).toHaveBeenCalledTimes(1)
+    expect(ExportImage.mock.calls[0][0].finish.ratio).toBe('4:5')
+    const params = ExportImage.mock.calls[0][0]
     expect(bodyOf(params.body)).toEqual({ width: 0, height: 3 })
     expect(params.body_points).toEqual(BODY_A)
   })

@@ -10,6 +10,7 @@ import { b64Url } from '../imageDataUrl.js'
 import { useRemixQueue } from '../remixQueue.js'
 import { usePresets } from '../composables/usePresets.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
+import ResolutionUpscaleOverlay from './ResolutionUpscaleOverlay.vue'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import { useJobTracker } from '../composables/useJobTracker.js'
 import { useImageInput } from '../composables/useImageInput.js'
@@ -45,6 +46,7 @@ const openSection = ref('effect')
 const settingsSectionRef = ref(null)
 const editSectionRef = ref(null)
 const remixSectionRef = ref(null)
+const remixCompRef = ref(null)
 const objectSectionRef = ref(null)
 const objectCompRef = ref(null)
 const repairSectionRef = ref(null)
@@ -97,6 +99,7 @@ const status = { error, successMsg }
 
 const appliedEffects = ref([])
 const applyingEffect = ref(false)
+const resolutionBusy = ref(false)
 const recipeRunning = ref(false)
 const lookBusy = ref(false)
 const lookResultPrompt = ref('')
@@ -367,9 +370,9 @@ function onPageKeydown(e) {
 
 const { postQueue, clearPostQueue } = useRemixQueue()
 
-const { sdProgress: genProgress, preview: genPreview } = useGenerationProgress()
+const { sdProgress: genProgress, preview: genPreview } = useGenerationProgress({ acceptJob: id => queueJobs.pending.value.has(id) || !!remixCompRef.value?.ownsJob(id) })
 const sectionBusy = reactive({ edit: false, remix: false, object: false, repair: false })
-const genBusy = computed(() => sectionBusy.edit || sectionBusy.remix || sectionBusy.object || sectionBusy.repair || applyingEffect.value || lookBusy.value || recipeRunning.value || batchBusy.value)
+const genBusy = computed(() => resolutionBusy.value || sectionBusy.edit || sectionBusy.remix || sectionBusy.object || sectionBusy.repair || applyingEffect.value || lookBusy.value || recipeRunning.value || batchBusy.value)
 const genActive = computed(() => !!genProgress.value && genProgress.value.progress > 0 && genProgress.value.progress < 1)
 const livePreview = computed(() => (genBusy.value && genActive.value && genPreview.value) || '')
 watch(genBusy, (busy) => {
@@ -458,7 +461,9 @@ onUnmounted(() => {
             @redo="redoView"
             @upload="input.uploadImage()"
             @drop="input.onDrop"
-          />
+          >
+
+          </PostViewer>
           <div v-if="sourceB64" class="split-meta">
             <span v-if="imageInfo.width">{{ imageInfo.width }} x {{ imageInfo.height }}</span>
             <button v-if="batchActive ? batchState.canUndo && !batchBusy && !batchExporting : currentB64 !== sourceB64" class="btn btn-sm btn-secondary" @click="resetLayer">{{ t('post.btn_reset_layer') }}</button>
@@ -487,7 +492,7 @@ onUnmounted(() => {
           <div class="card-collapse" :class="{ collapsed: openSection !== 'remix' }">
             <div class="card-body">
               <div class="form-hint">{{ t('post_editor.remix') }}</div>
-              <RemixSection :source="currentB64" :batch="batchActive" :batch-busy="batchBusy || batchExporting || recipeRunning || lookBusy || applyingEffect" @apply-batch="onRemixApplyBatch" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
+              <RemixSection ref="remixCompRef" :source="currentB64" :batch="batchActive" :batch-busy="batchBusy || batchExporting || recipeRunning || lookBusy || applyingEffect" @apply-batch="onRemixApplyBatch" :active="openSection === 'remix'" @result="onToolResult" @busy="v => sectionBusy.remix = v" @source="onRemixSource" />
             </div>
           </div>
         </div>
@@ -578,6 +583,11 @@ onUnmounted(() => {
           </div>
           <div class="card-collapse" :class="{ collapsed: openSection !== 'finish' }">
             <div class="card-body">
+              <div class="form-group" data-testid="post-format-resolution">
+                <label class="form-label">{{ t('post.resolution_title') }}</label>
+                <ResolutionUpscaleOverlay inline :image="currentB64" :batch="batch" :blocked="genBusy || previewing || batchExporting" @busy="v => resolutionBusy = v" @completed="onToolResult($event.image_base64)" />
+                <div class="form-hint">{{ t('post.resolution_hint') }}</div>
+              </div>
               <FinishPanel :post="post" />
             </div>
           </div>
@@ -598,6 +608,7 @@ onUnmounted(() => {
                 :post="post"
                 :status="status"
                 :queue-jobs="queueJobs"
+                :blocked="resolutionBusy"
               />
             </div>
           </div>

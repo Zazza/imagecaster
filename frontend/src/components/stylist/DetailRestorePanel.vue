@@ -106,14 +106,15 @@ async function apply() {
   <section class="detail-restore" data-testid="detail-restore-panel">
     <strong>{{ t('stylist.detail_title') }}</strong>
     <p class="form-hint">{{ t('stylist.detail_warning') }}</p>
-    <div class="detail-controls">
-      <label>{{ t('stylist.detail_source_stage') }}
-        <select v-model="stage" class="form-select" data-testid="detail-source-stage" :disabled="busy">
+    <div class="detail-source">
+      <label class="form-label" for="stylist-detail-source-stage">{{ t('stylist.detail_source_stage') }}</label>
+      <div class="detail-controls detail-source-controls">
+        <select id="stylist-detail-source-stage" v-model="stage" class="form-select" data-testid="detail-source-stage" :disabled="busy">
           <option value="base">{{ t('stylist.detail_source_base') }}</option>
           <option value="before_face">{{ t('stylist.detail_source_before_face') }}</option>
         </select>
-      </label>
-      <button type="button" class="btn btn-secondary" data-testid="detail-load-source" :disabled="!frameReady || busy" @click="loadSource">{{ t('stylist.detail_load_source') }}</button>
+        <button type="button" class="btn btn-secondary" data-testid="detail-load-source" :disabled="!frameReady || busy" @click="loadSource">{{ t('stylist.detail_load_source') }}</button>
+      </div>
     </div>
     <p class="form-hint">{{ t('stylist.detail_retention') }}</p>
     <template v-if="source">
@@ -122,7 +123,7 @@ async function apply() {
       </div>
       <div class="detail-controls">
         <button type="button" class="btn btn-secondary" data-testid="detail-paint-toggle" :aria-pressed="painting" :disabled="busy" @click="painting = !painting">{{ t(painting ? 'stylist.detail_compare' : 'stylist.detail_paint') }}</button>
-        <label>{{ t('stylist.detail_brush') }} <input v-model.number="maskAdapter.brushSize" type="range" :min="BRUSH_MIN" :max="BRUSH_MAX" :disabled="busy" /></label>
+        <label class="detail-brush">{{ t('stylist.detail_brush') }} <input v-model.number="maskAdapter.brushSize" type="range" :min="BRUSH_MIN" :max="BRUSH_MAX" :disabled="busy" /></label>
         <button type="button" class="btn btn-secondary" data-testid="detail-clear-mask" :disabled="busy || !maskAdapter.hasMask" @click="mask.clearMask()">{{ t('stylist.detail_clear') }}</button>
       </div>
     </template>
@@ -135,6 +136,9 @@ async function apply() {
 <style scoped>
 .detail-restore { display: flex; flex-direction: column; gap: 10px; }
 .detail-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.detail-source-controls { align-items: stretch; }
+.detail-source-controls .form-select { flex: 1 1 160px; min-width: 0; }
+.detail-brush { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .detail-viewer { display: flex; height: 420px; min-height: 240px; }
 .detail-busy { pointer-events: none; }
 </style>

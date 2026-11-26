@@ -76,18 +76,31 @@ func (e *JobError) Error() string {
 }
 
 type JobStatus struct {
-	ID         string      `json:"id"`
-	Kind       string      `json:"kind"`
-	Client     string      `json:"client"`
-	ClientRef  string      `json:"client_ref"`
-	Status     string      `json:"status"`
-	Position   int         `json:"position"`
-	Progress   JobProgress `json:"progress"`
-	Error      *JobError   `json:"error"`
-	CreatedAt  *time.Time  `json:"created_at"`
-	StartedAt  *time.Time  `json:"started_at"`
-	FinishedAt *time.Time  `json:"finished_at"`
-	ExpiresAt  *time.Time  `json:"expires_at"`
+	QueueJobID       int64       `json:"-"`
+	Stage            int64       `json:"-"`
+	PreviewDisabled  bool        `json:"preview_disabled"`
+	PreviewAvailable bool        `json:"preview_available"`
+	Preview          *JobPreview `json:"preview,omitempty"`
+	ID               string      `json:"id"`
+	Kind             string      `json:"kind"`
+	Client           string      `json:"client"`
+	ClientRef        string      `json:"client_ref"`
+	Status           string      `json:"status"`
+	Position         int         `json:"position"`
+	Progress         JobProgress `json:"progress"`
+	Error            *JobError   `json:"error"`
+	CreatedAt        *time.Time  `json:"created_at"`
+	StartedAt        *time.Time  `json:"started_at"`
+	FinishedAt       *time.Time  `json:"finished_at"`
+	ExpiresAt        *time.Time  `json:"expires_at"`
+}
+
+type JobPreview struct {
+	FrameID    int64  `json:"frame_id"`
+	Pass       int    `json:"pass"`
+	Step       int    `json:"step"`
+	TotalSteps int    `json:"total_steps"`
+	Base64     string `json:"b64_json"`
 }
 
 func (s *JobStatus) Terminal() bool {
@@ -160,6 +173,33 @@ func normalizeModel(m ModelSpec) ModelSpec {
 
 func (c *Client) SubmitJob(ctx context.Context, req JobRequest) (*JobStatus, error) {
 	body := submitBody{Kind: req.Kind, Client: c.clientName(), ClientRef: req.ClientRef, Params: req.Params}
+	if req.Kind == KindTxt2Img || req.Kind == KindImg2Img {
+		c.mu.RLock()
+		source := c.livePreview
+		c.mu.RUnlock()
+		if source != nil {
+			enabled, err := source()
+			if err != nil {
+				return nil, fmt.Errorf("read live preview preference: %w", err)
+			}
+			encoded, err := json.Marshal(req.Params)
+			if err != nil {
+				return nil, fmt.Errorf("encode generation params: %w", err)
+			}
+			var params map[string]json.RawMessage
+			if err := json.Unmarshal(encoded, &params); err != nil {
+				return nil, fmt.Errorf("decode generation params: %w", err)
+			}
+			if params == nil {
+				params = make(map[string]json.RawMessage)
+			}
+			params["live_preview"], err = json.Marshal(enabled)
+			if err != nil {
+				return nil, fmt.Errorf("encode live preview preference: %w", err)
+			}
+			body.Params = params
+		}
+	}
 	if (req.Kind != KindUpscale && req.Kind != KindFaceSwap) || req.Model.Checkpoint != "" {
 		m := normalizeModel(req.Model)
 		body.Model = &m
@@ -323,8 +363,12 @@ func (c *Client) runJob(ctx context.Context, req JobRequest, onProgress func(Job
 		return nil
 	}
 	for {
-		if onProgress != nil && !st.Terminal() {
-			onProgress(*st)
+		if onProgress != nil {
+			snapshot := *st
+			if st.Terminal() {
+				snapshot.Preview = nil
+			}
+			onProgress(snapshot)
 		}
 		switch {
 		case st.Status == JobCompleted:
@@ -615,8 +659,15 @@ func QueueClientRef(installID string, queueJobID int64, seq int64, job JobReques
 }
 
 func (q *queueScoped) run(job JobRequest) (*JobResult, error) {
-	job.ClientRef = QueueClientRef(q.Client.InstallID(), q.queueJobID, q.seq.Add(1), job)
-	return q.Client.runJob(q.ctx, job, q.Client.progressHandler(), false)
+	stage := q.seq.Add(1)
+	job.ClientRef = QueueClientRef(q.Client.InstallID(), q.queueJobID, stage, job)
+	handler := q.Client.progressHandler()
+	return q.Client.runJob(q.ctx, job, func(st JobStatus) {
+		if handler != nil {
+			st.QueueJobID, st.Stage = q.queueJobID, stage
+			handler(st)
+		}
+	}, false)
 }
 
 func (c *Client) CleanupQueueJob(ctx context.Context, queueJobID int64) error {

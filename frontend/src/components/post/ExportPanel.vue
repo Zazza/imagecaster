@@ -3,10 +3,11 @@ import { ref, computed, watch } from 'vue'
 import { Pencil, X } from 'lucide-vue-next'
 import { api } from '../../api.js'
 import { t } from '../../i18n/index.js'
-import { batchExportSize, batchFileName } from '../../postBatch.js'
+import { batchFileName } from '../../postBatch.js'
 
 const props = defineProps({
   source: { type: String, default: '' },
+  blocked: Boolean,
   sourceName: { type: String, default: 'image' },
   imageInfo: { type: Object, required: true },
   batch: { type: Object, required: true },
@@ -17,16 +18,12 @@ const props = defineProps({
 
 const { batch: batchState, batchActive, batchBusy, batchExporting } = props.batch
 const { error, successMsg } = props.status
-const { upscale4k } = props.post
 
 const exportPresets = ref([])
 const selectedPresetId = ref(null)
-const format = ref('png')
-const width = ref(0)
-const height = ref(0)
-const lockRatio = ref(true)
-const quality = ref(90)
-const interpolation = ref('lanczos')
+const format = ref('jpeg')
+const DEFAULT_EXPORT_QUALITY = 90
+const quality = ref(DEFAULT_EXPORT_QUALITY)
 const filename = ref('')
 const exporting = ref(false)
 
@@ -39,35 +36,7 @@ const formats = [
   { value: 'jpeg', label: 'JPEG' },
 ]
 
-const interpolations = [
-  { value: 'nearest', label: 'Nearest' },
-  { value: 'linear', label: 'Linear' },
-  { value: 'lanczos', label: 'Lanczos' },
-]
-
 const showQuality = computed(() => format.value !== 'png')
-
-const aspectRatio = computed(() => {
-  if (!props.imageInfo.width || !props.imageInfo.height) return 1
-  return props.imageInfo.width / props.imageInfo.height
-})
-
-watch(() => props.imageInfo, (info) => {
-  width.value = info.width
-  height.value = info.height
-})
-
-watch(width, (w) => {
-  if (lockRatio.value && w > 0 && aspectRatio.value) {
-    height.value = Math.round(w / aspectRatio.value)
-  }
-})
-
-watch(height, (h) => {
-  if (lockRatio.value && h > 0 && aspectRatio.value) {
-    width.value = Math.round(h * aspectRatio.value)
-  }
-})
 
 watch(format, () => {
   updateFilename()
@@ -81,27 +50,12 @@ function updateFilename(name = props.sourceName) {
 function applyPreset(preset) {
   selectedPresetId.value = preset.id
   format.value = preset.format
-  interpolation.value = preset.interpolation
-  quality.value = preset.quality || 90
-  lockRatio.value = preset.lock_ratio
-
-  if (preset.width > 0 || preset.height > 0) {
-    if (preset.lock_ratio && preset.width > 0 && preset.height === 0) {
-      width.value = preset.width
-    } else if (preset.lock_ratio && preset.height > 0 && preset.width === 0) {
-      height.value = preset.height
-    } else {
-      width.value = preset.width || props.imageInfo.width
-      height.value = preset.height || props.imageInfo.height
-    }
-  } else {
-    width.value = props.imageInfo.width
-    height.value = props.imageInfo.height
-  }
+  quality.value = preset.quality || DEFAULT_EXPORT_QUALITY
   updateFilename()
 }
 
 function onPresetSelect(id) {
+  if (!id) { selectedPresetId.value = null; return }
   const p = exportPresets.value.find(ep => ep.id === Number(id))
   if (p) applyPreset(p)
 }
@@ -111,11 +65,11 @@ async function savePreset() {
     const data = {
       name: presetName.value,
       format: format.value,
-      width: width.value === props.imageInfo.width ? 0 : width.value,
-      height: height.value === props.imageInfo.height ? 0 : height.value,
-      lock_ratio: lockRatio.value,
+      width: 0,
+      height: 0,
+      lock_ratio: true,
       quality: quality.value,
-      interpolation: interpolation.value,
+      interpolation: 'lanczos',
     }
     if (editingPreset.value) {
       data.id = editingPreset.value.id
@@ -154,11 +108,6 @@ async function loadExportPresets() {
   }
 }
 
-function resetSize() {
-  width.value = props.imageInfo.width
-  height.value = props.imageInfo.height
-}
-
 function openSavePreset() {
   editingPreset.value = null
   presetName.value = ''
@@ -169,11 +118,11 @@ function exportParamsFor(name, imageBase64, outputDir) {
   return {
     image_base64: imageBase64,
     format: format.value,
-    width: width.value,
-    height: height.value,
-    lock_ratio: lockRatio.value,
+    width: 0,
+    height: 0,
+    lock_ratio: true,
     quality: quality.value,
-    interpolation: interpolation.value,
+    interpolation: 'lanczos',
     filename: name,
     ...(props.post.finishActive.value ? { finish: props.post.finishParams() } : {}),
     ...(outputDir ? { output_dir: outputDir } : {}),
@@ -216,71 +165,14 @@ async function withRetouch(params, b64) {
   return { ...params, ...(await props.post.retouchFor(b64)) }
 }
 
-function upscaleNote(info) {
-  return info && info.upscale === 'resized' ? ' — ' + t('post.up4k_resized') : ''
-}
-
-function track4K(id) {
-  if (!props.queueJobs) return Promise.resolve(null)
-  return props.queueJobs.track(id)
-}
-
-async function enqueue4K(params, b64, adj) {
-  const p = await withRetouch(params, b64)
-  return api.enqueuePostSave({ ...p, width: 0, height: 0 }, adj)
-}
-
-async function export4K() {
-  const id = await enqueue4K(exportParamsFor(filename.value, props.source), props.source, props.post.adjustParams())
-  if (!id) return
-  successMsg.value = t('post.up4k_queued')
-  track4K(id).then(outcome => {
-    if (!outcome) return
-    if (outcome.status === 'completed') {
-      const info = outcome.result?.info
-      if (info?.path) successMsg.value = t('export.saved_to', { path: info.path }) + upscaleNote(info)
-    } else if (outcome.status === 'failed') {
-      error.value = t('post.up4k_failed', { error: outcome.error || '' })
-    }
-  })
-}
-
-async function exportBatch4K() {
-  const ids = []
-  const adj = props.post.adjustParams()
-  await props.batch.exportBatch(resolveBatchFolder, (folder) => async (b64, item) => {
-    const id = await enqueue4K(exportParamsFor(batchFileName(item.name, format.value), b64, folder), b64, adj)
-    if (id) ids.push(id)
-    return id
-  })
-  if (!ids.length) return
-  const folder = batchFolder.value
-  successMsg.value = t('post.up4k_batch_queued', { n: ids.length })
-  Promise.all(ids.map(track4K)).then(outcomes => {
-    if (outcomes.some(o => !o)) return
-    const saved = outcomes.filter(o => o.status === 'completed').length
-    successMsg.value = t('post.up4k_batch_done', { k: saved, n: ids.length, path: folder })
-  })
-}
-
 function batchExporter(folder) {
-  const size = batchExportSize({
-    width: width.value,
-    height: height.value,
-    lockRatio: lockRatio.value,
-    previewWidth: props.imageInfo.width,
-    previewHeight: props.imageInfo.height,
-  })
   const adj = props.post.adjustParams()
-  return async (b64, item) => api.exportImage({ ...(await withRetouch(exportParamsFor(batchFileName(item.name, format.value), b64, folder), b64)), width: size.width, height: size.height }, adj)
+  return async (b64, item) => api.exportImage({ ...(await withRetouch(exportParamsFor(batchFileName(item.name, format.value), b64, folder), b64)) }, adj)
 }
 
 async function doExport() {
+  if (props.blocked || exporting.value || batchBusy.value || batchExporting.value) return
   if (batchActive.value) {
-    if (upscale4k.value) {
-      await exportBatch4K()
-      return
-    }
     await props.batch.exportBatch(resolveBatchFolder, batchExporter)
     return
   }
@@ -291,16 +183,6 @@ async function doExport() {
   exporting.value = true
   error.value = ''
   successMsg.value = ''
-  if (upscale4k.value) {
-    try {
-      await export4K()
-    } catch (e) {
-      error.value = String(e)
-    } finally {
-      exporting.value = false
-    }
-    return
-  }
   try {
     const path = await api.exportImage(await withRetouch(exportParamsFor(filename.value, props.source), props.source), props.post.adjustParams())
     if (path) {
@@ -320,56 +202,26 @@ defineExpose({ updateFilename, load: loadExportPresets })
   <div class="form-group">
     <label class="form-label">{{ t('export.label_preset') }}</label>
     <div class="preset-row">
-      <select class="form-select" :value="selectedPresetId" @change="onPresetSelect($event.target.value)">
-        <option :value="null">{{ t('export.custom') }}</option>
+      <select class="form-select" data-testid="export-preset" :value="selectedPresetId ?? ''" @change="onPresetSelect($event.target.value)">
+        <option value="">{{ t('export.custom') }}</option>
         <option v-for="p in exportPresets" :key="p.id" :value="p.id">{{ p.name }}</option>
       </select>
-      <button class="btn btn-sm btn-secondary" @click="openSavePreset">{{ t('export.btn_save_preset') }}</button>
+      <button class="btn btn-sm btn-secondary" data-testid="export-save-preset" @click="openSavePreset">{{ t('export.btn_save_preset') }}</button>
     </div>
   </div>
 
   <div class="form-group">
     <label class="form-label">{{ t('export.label_format') }}</label>
-    <select class="form-select" v-model="format">
+    <select class="form-select" v-model="format" data-testid="export-format">
       <option v-for="f in formats" :key="f.value" :value="f.value">{{ f.label }}</option>
     </select>
   </div>
 
-  <div class="form-row">
-    <div class="form-group form-group-half">
-      <label class="form-label">{{ t('export.label_width') }}</label>
-      <input class="form-control" type="number" v-model.number="width" min="1" :disabled="upscale4k" />
-    </div>
-    <div class="form-group form-group-half">
-      <label class="form-label">{{ t('export.label_height') }}</label>
-      <input class="form-control" type="number" v-model.number="height" min="1" :disabled="upscale4k" />
-    </div>
-  </div>
-
-  <div class="form-group form-inline">
-    <label class="form-label">
-      <input type="checkbox" v-model="lockRatio" /> {{ t('export.lock_aspect') }}
-    </label>
-    <button class="btn btn-sm btn-secondary" @click="resetSize" v-if="imageInfo.width">{{ t('export.btn_reset') }}</button>
-  </div>
+  <p class="form-hint" data-testid="export-current-size">{{ t('export.current_size_hint') }}</p>
 
   <div class="form-group" v-if="showQuality">
     <label class="form-label">{{ t('export.label_quality', { value: quality }) }}</label>
     <input type="range" min="1" max="100" v-model.number="quality" class="form-range" />
-  </div>
-
-  <div class="form-group">
-    <label class="form-label">{{ t('export.label_interpolation') }}</label>
-    <select class="form-select" v-model="interpolation">
-      <option v-for="i in interpolations" :key="i.value" :value="i.value">{{ i.label }}</option>
-    </select>
-  </div>
-
-  <div class="form-group">
-    <label class="form-label">
-      <input type="checkbox" v-model="upscale4k" data-testid="post-upscale-4k" /> {{ t('post.up4k_label') }}
-    </label>
-    <div v-if="upscale4k" class="form-hint">{{ t('post.up4k_hint') }}</div>
   </div>
 
   <template v-if="batchActive">
@@ -379,7 +231,7 @@ defineExpose({ updateFilename, load: loadExportPresets })
       <button class="btn btn-sm btn-secondary" @click="changeBatchFolder">{{ t('post.pipeline_change_folder') }}</button>
     </div>
     <div class="form-hint">{{ t('post.batch_save_hint') }}</div>
-    <button class="btn btn-primary btn-block" :disabled="batchBusy || batchExporting" @click="doExport">
+    <button class="btn btn-primary btn-block" :disabled="blocked || batchBusy || batchExporting" @click="doExport">
       {{ batchExporting ? t('export.exporting') : t('post.batch_save_all', { n: batchState.items.length }) }}
     </button>
   </template>
@@ -389,7 +241,7 @@ defineExpose({ updateFilename, load: loadExportPresets })
     <input class="form-control" type="text" v-model="filename" />
   </div>
 
-  <button class="btn btn-primary btn-block" :disabled="exporting || !source" @click="doExport">
+  <button class="btn btn-primary btn-block" :disabled="blocked || exporting || !source" @click="doExport">
     {{ exporting ? t('export.exporting') : t('post.btn_save_file') }}
   </button>
   </template>
@@ -407,7 +259,7 @@ defineExpose({ updateFilename, load: loadExportPresets })
     >
       <div class="preset-info">
         <span class="preset-name">{{ p.name }}</span>
-        <span class="preset-meta">{{ p.format.toUpperCase() }} {{ p.width || 'orig' }}x{{ p.height || 'orig' }} Q{{ p.quality }}</span>
+        <span class="preset-meta">{{ p.format.toUpperCase() }} · Q{{ p.quality }}</span>
       </div>
       <div class="preset-actions">
         <button class="btn-icon" @click.stop="startEditPreset(p)" :title="t('presets.btn_edit')"><Pencil :size="14" /></button>
@@ -419,7 +271,7 @@ defineExpose({ updateFilename, load: loadExportPresets })
   <div class="preset-form" v-if="showPresetForm">
     <div class="form-divider"></div>
     <div class="form-group">
-      <input class="form-control" type="text" v-model="presetName" :placeholder="t('export.placeholder_preset_name')" />
+      <input class="form-control" type="text" v-model="presetName" data-testid="export-preset-name" :placeholder="t('export.placeholder_preset_name')" />
     </div>
     <div class="preset-form-actions">
       <button class="btn btn-sm btn-primary" @click="savePreset" :disabled="!presetName">

@@ -415,3 +415,8 @@ export function ClearDiagnostics(arg1:boolean):Promise<void>;
 export function StylistSuggest(arg1:stylist.SuggestRequest):Promise<stylist.SuggestResult>;
 
 export function StylistShootOptions(arg1:string):Promise<Array<stylist.ShootOption>>;
+
+export function EnqueueResolutionUpscale(arg1:number,arg2:number):Promise<number>;
+export function EnqueueImageResolutionUpscale(arg1:string,arg2:number):Promise<number>;
+
+export function GetQueueJobResult(arg1:number):Promise<queue.Job>;

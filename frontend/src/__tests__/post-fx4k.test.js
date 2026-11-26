@@ -4,9 +4,10 @@ import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { EventsEmit, clearEventMocks } from './mocks/runtime'
 
 import PostProcessPage from '../components/PostProcessPage.vue'
+import ResolutionUpscaleOverlay from '../components/ResolutionUpscaleOverlay.vue'
 import {
   GetSettings, GetActiveSessionItem, GetSessionImage, ListPresets, ListPresetTypes, ListHiresProfiles,
-  EnqueueFromImage, EnqueuePost4K, ListPostRecipes, SavePostRecipe, GetQueue, CancelQueueJob,
+  EnqueueFromImage, EnqueuePost4K, EnqueueImageResolutionUpscale, GetQueueJobResult, ListPostRecipes, SavePostRecipe, GetQueue,
   ReadFileAsBase64, BatchSaveImage, BatchReset,
 } from '../wailsjs/go/main/App.js'
 import { useRemixQueue } from '../remixQueue.js'
@@ -47,6 +48,12 @@ beforeEach(() => {
   files = { '/photos/a.png': IMG_A, '/photos/b.png': IMG_B }
   ListHiresProfiles.mockImplementation(() => Promise.resolve([]))
   GetQueue.mockImplementation(() => Promise.resolve(queue.map(j => ({ ...j }))))
+  GetQueueJobResult.mockImplementation(id => Promise.resolve(queue.find(j => j.id === id)))
+  EnqueueImageResolutionUpscale.mockImplementation(() => {
+    jobId++
+    queue.push({ id: jobId, type: 'resolution_upscale', status: 'pending' })
+    return Promise.resolve(jobId)
+  })
   EnqueuePost4K.mockImplementation(() => {
     jobId++
     queue.push({ id: jobId, type: 'upscale_4k', status: 'pending' })
@@ -70,7 +77,7 @@ beforeEach(() => {
   BatchReset.mockImplementation(() => Promise.resolve())
 })
 
-async function mountPage({ section = 'effect', image = SRC } = {}) {
+async function mountPage({ section = 'finish', image = SRC } = {}) {
   GetSettings.mockReturnValue(Promise.resolve({}))
   GetActiveSessionItem.mockReturnValue(Promise.resolve(image ? { id: 3 } : null))
   GetSessionImage.mockImplementation(id => Promise.resolve(id === 3 ? image : ''))
@@ -81,7 +88,7 @@ async function mountPage({ section = 'effect', image = SRC } = {}) {
   return wrapper
 }
 
-async function mountBatch({ section = 'effect' } = {}) {
+async function mountBatch({ section = 'finish' } = {}) {
   GetSettings.mockReturnValue(Promise.resolve({}))
   GetActiveSessionItem.mockReturnValue(Promise.resolve(null))
   GetSessionImage.mockReturnValue(Promise.resolve(''))
@@ -99,154 +106,98 @@ const previewSrc = w => w.find('.split-img.split-after').attributes('src') || ''
 const undoButton = w => w.findAll('button').find(b => b.attributes('title') === t('post.undo'))
 
 async function complete(id, image, upscale) {
-  const result = { image_base64: image }
+  const result = { image_base64: image, session_item_id: id + 100 }
   if (upscale) result.info = JSON.stringify({ upscale })
-  queue = queue.map(j => (j.id === id ? { ...j, status: 'completed' } : j))
+  queue = queue.map(j => (j.id === id ? { ...j, status: 'completed', result } : j))
   EventsEmit('queue:completed', { job_id: id, result: JSON.stringify(result) })
   await settle()
 }
 
-async function run4K(w, upscale = 'done', image = BIG) {
-  const btn = fx4k(w)
-  expect(btn.exists()).toBe(true)
-  expect(btn.element.disabled).toBe(false)
-  await btn.trigger('click')
+const resolution = w => w.findComponent(ResolutionUpscaleOverlay)
+const resolutionButton = (w, label) => resolution(w).findAll('button').find(b => b.text().startsWith(label))
+
+async function runResolution(w, label = '4K', image = BIG) {
+  await resolutionButton(w, label).trigger('click')
   await settle()
-  expect(EnqueuePost4K).toHaveBeenCalledTimes(1)
-  const id = await EnqueuePost4K.mock.results[0].value
-  await complete(id, image, upscale)
+  const id = await EnqueueImageResolutionUpscale.mock.results.at(-1).value
+  await complete(id, image)
   return id
 }
 
-describe('Post-processing: 4K without redrawing as an effect', () => {
-  it('the button is shown with its label in the effects card', async () => {
+describe('Post-processing: resolution belongs to Format', () => {
+  it('places 1080p, 2K and 4K inside card09 and removes the separate Effects4K button', async () => {
     const w = await mountPage()
-    expect(fx4k(w).exists()).toBe(true)
-    expect(fx4k(w).text()).toContain(t('post.fx4k_btn'))
+    const controls = resolution(w)
+    expect(controls.exists()).toBe(true)
+    const card = controls.element.closest('.card')
+    expect(card.querySelector('.card-num').textContent).toBe('09')
+    for (const label of ['1080p', '2K', '4K']) expect(resolutionButton(w, label)).toBeTruthy()
+    expect(fx4k(w).exists()).toBe(false)
+    expect(controls.props('inline')).toBe(true)
   })
 
-  it('the button is disabled without an image', async () => {
+  it('never starts upscale without an image', async () => {
     const w = await mountPage({ image: '' })
-    expect(fx4k(w).exists()).toBe(true)
-    expect(fx4k(w).element.disabled).toBe(true)
-    await fx4k(w).trigger('click')
+    const controls = resolution(w)
+    if (controls.exists()) {
+      for (const button of controls.findAll('button')) expect(button.element.disabled).toBe(true)
+    }
+    expect(EnqueueImageResolutionUpscale).not.toHaveBeenCalled()
+  })
+
+  it.each([['1080p', 1920], ['2K', 2560], ['4K', 3840]])('explicit %s uses the current image and the requested long edge', async (label, target) => {
+    const w = await mountPage()
+    expect(EnqueueImageResolutionUpscale).not.toHaveBeenCalled()
+    await resolutionButton(w, label).trigger('click')
     await settle()
+    expect(EnqueueImageResolutionUpscale).toHaveBeenCalledTimes(1)
+    expect(strip(EnqueueImageResolutionUpscale.mock.calls[0][0])).toBe(SRC)
+    expect(EnqueueImageResolutionUpscale.mock.calls[0][1]).toBe(target)
+    expect(EnqueueFromImage).not.toHaveBeenCalled()
     expect(EnqueuePost4K).not.toHaveBeenCalled()
   })
 
-  it('click enqueues one 4K job with the current image and nothing else', async () => {
+  it('shows the completed size operation and undo returns the prior current image', async () => {
     const w = await mountPage()
-    await fx4k(w).trigger('click')
-    await settle()
-    expect(EnqueuePost4K).toHaveBeenCalledTimes(1)
-    expect(strip(EnqueuePost4K.mock.calls[0][0])).toBe(SRC)
-    expect(EnqueueFromImage).not.toHaveBeenCalled()
-  })
-
-  it('the job result becomes the current layer, undo returns the source', async () => {
-    const w = await mountPage()
-    await run4K(w)
+    await runResolution(w)
     await waitUntil(() => previewSrc(w).includes(BIG))
-    const undo = undoButton(w)
-    expect(undo).toBeTruthy()
-    expect(undo.element.disabled).toBe(false)
-    await undo.trigger('click')
+    await undoButton(w).trigger('click')
     await settle()
     expect(previewSrc(w)).toContain(SRC)
-  })
-
-  it('the step goes into the applied effects log', async () => {
-    const w = await mountPage()
     expect(w.text()).not.toContain(t('post.recipe_log', { n: 1 }))
-    await run4K(w)
-    expect(w.text()).toContain(t('post.recipe_log', { n: 1 }))
   })
 
-  it('already 4K says so', async () => {
+  it('does not enqueue twice while a size operation is pending', async () => {
     const w = await mountPage()
-    await run4K(w, 'skipped', SRC)
-    expect(w.text()).toContain(t('post.fx4k_skipped'))
-    expect(w.text()).not.toContain(t('post.recipe_log', { n: 1 }))
-    expect(previewSrc(w)).toContain(SRC)
-  })
-
-  it('no ESRGAN reports a plain resize', async () => {
-    const w = await mountPage()
-    await run4K(w, 'resized')
-    expect(w.text()).toContain(t('post.fx4k_resized'))
-    await waitUntil(() => previewSrc(w).includes(BIG))
-  })
-
-  it('ESRGAN result shows neither the skipped nor the resized message', async () => {
-    const w = await mountPage()
-    await run4K(w, 'done')
-    expect(w.text()).not.toContain(t('post.fx4k_skipped'))
-    expect(w.text()).not.toContain(t('post.fx4k_resized'))
-  })
-
-  it('a second click while the job runs does not enqueue again', async () => {
-    const w = await mountPage()
-    await fx4k(w).trigger('click')
+    await resolutionButton(w, '2K').trigger('click')
     await settle()
-    const btn = fx4k(w)
-    if (btn.exists()) {
-      expect(btn.element.disabled).toBe(true)
-      await btn.trigger('click')
-      await settle()
-    }
-    expect(EnqueuePost4K).toHaveBeenCalledTimes(1)
+    expect(resolutionButton(w, '4K').element.disabled).toBe(true)
+    await resolutionButton(w, '4K').trigger('click')
+    await settle()
+    expect(EnqueueImageResolutionUpscale).toHaveBeenCalledTimes(1)
   })
 
-  it('the button is disabled while an effect is running', async () => {
+  it('an error or cancellation leaves the source image available', async () => {
     const w = await mountPage()
+    await resolutionButton(w, '4K').trigger('click')
+    await settle()
+    const id = await EnqueueImageResolutionUpscale.mock.results[0].value
+    queue = queue.map(j => j.id === id ? { ...j, status: 'cancelled' } : j)
+    EventsEmit('queue:changed')
+    await settle()
+    expect(previewSrc(w)).toContain(SRC)
+    expect(resolutionButton(w, '2K').element.disabled).toBe(false)
+  })
+
+  it('blocks size changes while an effect is running', async () => {
+    const w = await mountPage({ section: 'effect' })
     await w.findAll('.fx-card').find(c => c.attributes('title') === 'Soft Focus').trigger('click')
     await settle()
     await buttonWith(w, t('post.btn_apply_effect')).trigger('click')
     await settle()
     expect(EnqueueFromImage).toHaveBeenCalledTimes(1)
-    const btn = fx4k(w)
-    expect(!btn.exists() || btn.element.disabled).toBe(true)
-  })
-
-  it('the button is disabled while a recipe is running', async () => {
-    ListPostRecipes.mockImplementation(() => Promise.resolve([{
-      id: 7, name: 'Soft Recipe', steps: JSON.stringify([{ preset_id: 10, strength: 0.5 }]), adjust: '{}',
-    }]))
-    const w = await mountPage({ section: 'recipes' })
-    await w.findAll('.preset-item').find(i => i.text().includes('Soft Recipe')).trigger('click')
-    await settle()
-    expect(EnqueueFromImage).toHaveBeenCalledTimes(1)
-    const btn = fx4k(w)
-    expect(!btn.exists() || btn.element.disabled).toBe(true)
-  })
-
-  it('interrupt during the job cancels it in the queue', async () => {
-    const w = await mountPage()
-    await fx4k(w).trigger('click')
-    await settle()
-    const id = await EnqueuePost4K.mock.results[0].value
-    const stop = buttonWith(w, t('post.applying'))
-    expect(stop).toBeTruthy()
-    await stop.trigger('click')
-    await settle()
-    expect(CancelQueueJob.mock.calls.map(c => c[0])).toContain(id)
-  })
-
-  it('saving a recipe after it stores the 4K step, not the save-time 4K option', async () => {
-    const w = await mountPage()
-    await run4K(w)
-    const header = w.findAll('.card-header.card-toggle').find(h => h.text().includes(t('post.recipes_title')))
-    await header.trigger('click')
-    await settle()
-    await buttonWith(w, t('post.recipe_save')).trigger('click')
-    await settle()
-    await w.find('input[placeholder="' + t('post.recipe_name') + '"]').setValue('Big')
-    await w.find('.preset-form .btn-primary').trigger('click')
-    await settle()
-    expect(SavePostRecipe).toHaveBeenCalledTimes(1)
-    const rec = SavePostRecipe.mock.calls[0][0]
-    expect(JSON.parse(rec.steps)).toEqual([{ upscale_4k: true }])
-    expect(JSON.parse(rec.adjust || '{}').upscale_4k).toBeFalsy()
+    expect(resolutionButton(w, '4K').element.disabled).toBe(true)
+    expect(EnqueueImageResolutionUpscale).not.toHaveBeenCalled()
   })
 
   it('applying a recipe with the 4K step enqueues a 4K job, not a from-image job', async () => {
@@ -298,22 +249,22 @@ describe('Post-processing: 4K without redrawing as an effect', () => {
   })
 })
 
-describe('Post-processing: 4K effect in batch mode', () => {
-  it('the button enqueues a 4K job per photo and records one batch step', async () => {
+describe('Post-processing: resolution in batch mode', () => {
+  it('upscales each current photo and records a single undoable batch step', async () => {
     const w = await mountBatch()
-    const btn = fx4k(w)
-    expect(btn.exists()).toBe(true)
-    expect(btn.element.disabled).toBe(false)
-    await btn.trigger('click')
+    await resolutionButton(w, '2K').trigger('click')
     await settle()
-    expect(EnqueuePost4K).toHaveBeenCalledTimes(2)
-    expect(EnqueuePost4K.mock.calls.map(c => strip(c[0]))).toEqual([IMG_A, IMG_B])
-    expect(EnqueueFromImage).not.toHaveBeenCalled()
-    const ids = await Promise.all(EnqueuePost4K.mock.results.map(r => r.value))
-    await complete(ids[0], BIG_A, 'done')
-    await complete(ids[1], BIG_B, 'done')
+    expect(EnqueueImageResolutionUpscale).toHaveBeenCalledTimes(2)
+    expect(EnqueueImageResolutionUpscale.mock.calls.map(c => strip(c[0]))).toEqual([IMG_A, IMG_B])
+    expect(EnqueueImageResolutionUpscale.mock.calls.map(c => c[1])).toEqual([2560, 2560])
+    const ids = await Promise.all(EnqueueImageResolutionUpscale.mock.results.map(r => r.value))
+    await complete(ids[0], BIG_A)
+    await complete(ids[1], BIG_B)
+    await waitUntil(() => w.find('.batch-steps').text() === t('post.batch_steps', { n: 1 }))
     expect(BatchSaveImage.mock.calls.map(c => strip(c[0])).sort()).toEqual([BIG_A, BIG_B].sort())
-    expect(w.find('.batch-steps').text()).toBe(t('post.batch_steps', { n: 1 }))
+    await undoButton(w).trigger('click')
+    await settle()
+    expect(previewSrc(w)).toContain(IMG_A)
   })
 
   it('a recipe with the 4K step runs it for every photo', async () => {

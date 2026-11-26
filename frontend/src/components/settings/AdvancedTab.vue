@@ -12,7 +12,24 @@ import {
 } from '../../serverModels.js'
 import { t } from '../../i18n/index.js'
 
-const { memoryForm, fastGeneration, serverModelDownload, llmPullName } = inject('settingsState')
+const { memoryForm, livePreview, fastGeneration, serverModelDownload, llmPullName } = inject('settingsState')
+
+const previewError = ref('')
+const previewSaving = ref(false)
+async function onPreviewToggle(on) {
+  previewError.value = ''
+  const previous = livePreview.value
+  livePreview.value = on
+  previewSaving.value = true
+  try {
+    await api.updateSettings({ generation_live_preview: String(on) })
+  } catch (e) {
+    livePreview.value = previous
+    previewError.value = String(e)
+  } finally {
+    previewSaving.value = false
+  }
+}
 
 const fastError = ref('')
 
@@ -56,6 +73,14 @@ async function pullFromForm() {
 
 <template>
   <div>
+    <div class="card mb-4">
+      <h3 class="text-bright mb-3">{{ t('settings.live_preview') }}</h3>
+      <StatusMessage v-if="previewError" @close="previewError = ''">{{ previewError }}</StatusMessage>
+      <div class="flex gap-3">
+        <ToggleSwitch data-testid="settings-live-preview" :modelValue="livePreview" :disabled="previewSaving" @update:modelValue="onPreviewToggle" />
+        <div class="flex-1"><div class="text-bright">{{ livePreview ? t('settings.enabled') : t('settings.disabled') }}</div><div class="form-hint">{{ t('settings.live_preview_hint') }}</div></div>
+      </div>
+    </div>
     <div class="card mb-4">
       <h3 class="text-bright mb-3">{{ t('fast.section') }}</h3>
       <StatusMessage v-if="fastError" class="mb-3" @close="fastError = ''">{{ fastError }}</StatusMessage>
@@ -133,7 +158,7 @@ async function pullFromForm() {
             <button class="btn btn-sm btn-danger-quiet" @click="deleteLLMModel(m.name)" :disabled="modelActionLoading[`del_llm_${m.name}`]">{{ t('settings.btn_delete_model') }}</button>
           </div>
           <div class="flex gap-2 mt-3">
-            <input class="form-input flex-1 fs-sm" v-model="llmPullName" placeholder="e.g. qwen3:8b" :disabled="modelActionLoading['pull_llm']" />
+            <input class="form-input flex-1 fs-sm" v-model="llmPullName" placeholder="e.g. qwen2.5:7b" :disabled="modelActionLoading['pull_llm']" />
             <button class="btn btn-primary btn-sm" @click="pullFromForm" :disabled="!llmPullName || modelActionLoading['pull_llm']">
               {{ modelActionLoading['pull_llm'] ? t('settings.btn_pulling') : t('settings.btn_pull_llm') }}
             </button>

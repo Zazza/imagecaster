@@ -23,6 +23,14 @@ type UpscaleResult struct {
 }
 
 func (s *Service) UpscaleLong(imageBase64 string, targetLong int) (*UpscaleResult, error) {
+	return s.upscaleLong(imageBase64, targetLong, false)
+}
+
+func (s *Service) UpscaleLongStrict(imageBase64 string, targetLong int) (*UpscaleResult, error) {
+	return s.upscaleLong(imageBase64, targetLong, true)
+}
+
+func (s *Service) upscaleLong(imageBase64 string, targetLong int, strict bool) (*UpscaleResult, error) {
 	if imageBase64 == "" {
 		return nil, errors.New("image is required")
 	}
@@ -40,7 +48,10 @@ func (s *Service) UpscaleLong(imageBase64 string, targetLong int) (*UpscaleResul
 		return res, nil
 	}
 	tw, th := fitLong(w, h, targetLong)
-	img, err := s.neuralUpscale(imageBase64, float64(targetLong)/float64(long))
+	if strict {
+		tw, th = max(1, tw), max(1, th)
+	}
+	img, err := s.neuralUpscaleMode(imageBase64, float64(targetLong)/float64(long), strict)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +83,20 @@ func resizeExact(img image.Image, w, h int) image.Image {
 }
 
 func (s *Service) neuralUpscale(b64 string, scale float64) (image.Image, error) {
+	return s.neuralUpscaleMode(b64, scale, false)
+}
+
+func (s *Service) neuralUpscaleMode(b64 string, scale float64, strict bool) (image.Image, error) {
 	name := s.resolveQualityUpscaler()
 	if name == "" {
+		if strict {
+			return nil, errors.New("нейросетевой апскейлер недоступен")
+		}
 		return nil, nil
 	}
 	up, err := s.measuredUpscale(b64, name, scale)
 	if err != nil {
-		if IsInterrupted(err) {
+		if strict || IsInterrupted(err) {
 			return nil, err
 		}
 		s.log.Warn("upscale: %s failed, resizing: %s", name, err)
@@ -86,6 +104,9 @@ func (s *Service) neuralUpscale(b64 string, scale float64) (image.Image, error) 
 	}
 	img, err := imgcodec.Decode(up, imgcodec.Options{Name: "upscaled", MaxDim: upscaleMaxDim * 2})
 	if err != nil {
+		if strict {
+			return nil, err
+		}
 		s.log.Warn("upscale: %s result unreadable, resizing: %s", name, err)
 		return nil, nil
 	}

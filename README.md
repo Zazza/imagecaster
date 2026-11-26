@@ -129,7 +129,7 @@ A graphics card is recommended: NVIDIA uses the CUDA build, other cards the Vulk
 | Linux x64 | `imagecaster-linux-amd64.tar.gz` | `imagecaster`, `imagecaster-mcp` | GTK 3 and WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`) |
 | macOS (Apple Silicon) | `imagecaster-darwin-arm64.tar.gz` | `imagecaster.app` (`imagecaster-mcp` inside `Contents/MacOS`) | macOS 11 or newer |
 
-No installer: unpack and run. The app keeps its data in a `data` folder next to the program, so unpack it where you can write.
+No installer: unpack and run. The app keeps its data in a `data` folder next to the program, so unpack it where you can write. Opening it again with the same database activates the existing window; see [desktop instance protection](docs/desktop-instance.md).
 
 The builds are not signed. Windows SmartScreen may warn on first start ("More info" → "Run anyway"). On a Mac, if the system refuses to open the app, remove the quarantine flag: `xattr -dr com.apple.quarantine imagecaster.app`. The macOS build has not been tested on a real Mac yet.
 

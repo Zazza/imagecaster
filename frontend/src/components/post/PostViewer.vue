@@ -283,6 +283,7 @@ onUnmounted(() => {
           @click="emit('redo')"
         ><Redo2 :size="14" /></button>
       </ZoomControls>
+      <slot />
       <div v-if="maskMode" class="mask-history" @pointerdown.stop>
         <button class="btn btn-sm btn-secondary" data-testid="mask-undo" :title="t(pointSelection ? 'wand_mask.undo' : 'post.mask_undo')" :disabled="!maskComp?.canUndoMask" @click="maskComp?.undoMask()">{{ t(pointSelection ? 'wand_mask.undo' : 'post.mask_undo') }}</button>
         <button class="btn btn-sm btn-secondary" data-testid="mask-redo" :title="t(pointSelection ? 'wand_mask.redo' : 'post.mask_redo')" :disabled="!maskComp?.canRedoMask" @click="maskComp?.redoMask()">{{ t(pointSelection ? 'wand_mask.redo' : 'post.mask_redo') }}</button>

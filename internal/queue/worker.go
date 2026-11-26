@@ -100,6 +100,16 @@ func (w *Worker) CancelCurrent() {
 	}
 }
 
+func (w *Worker) CancelJob(id int64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.current == nil || w.current.ID != id || w.cancelFn == nil {
+		return false
+	}
+	w.cancelFn(sd.ErrUserCancel)
+	return true
+}
+
 func (w *Worker) CurrentJob() *Job {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -153,17 +163,19 @@ func (w *Worker) processNext(parentCtx context.Context) {
 	if parentCtx.Err() != nil {
 		return
 	}
+	w.mu.Lock()
 	job, err := w.store.ClaimNext()
 	if err != nil {
+		w.mu.Unlock()
 		log.Printf("[queue] claim next job: %v", err)
 		return
 	}
 	if job == nil {
+		w.mu.Unlock()
 		return
 	}
 
 	jobCtx, cancel := context.WithCancelCause(parentCtx)
-	w.mu.Lock()
 	w.current = job
 	w.cancelFn = cancel
 	w.mu.Unlock()

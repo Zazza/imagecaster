@@ -46,6 +46,7 @@ func (s *Service) GetSettings() (map[string]string, error) {
 
 	defaults := map[string]string{
 		config.DiagnosticsVerboseLogs: "false", config.DiagnosticsIntermediateImages: "false", config.StylistKeepOriginals: "true", config.DiagnosticsRetention: strconv.Itoa(config.DefaultDiagnosticsRetention),
+		config.GenerationLivePreview:  "true",
 		"llm_model":                   s.cfg.LLMModel,
 		"sd_prompt_model":             s.cfg.SDPromptModel,
 		"vision_model":                s.cfg.VisionModel,
@@ -88,6 +89,9 @@ func NormalizeServerURL(raw string) string {
 func (s *Service) UpdateSettings(data map[string]string) error {
 	if err := config.ValidateDiagnostics(data); err != nil {
 		return err
+	}
+	if v, ok := data[config.GenerationLivePreview]; ok && v != "true" && v != "false" {
+		return fmt.Errorf("invalid %s: expected true or false", config.GenerationLivePreview)
 	}
 	if v, ok := data["server_url"]; ok {
 		data["server_url"] = NormalizeServerURL(v)

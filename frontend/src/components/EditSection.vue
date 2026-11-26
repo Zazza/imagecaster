@@ -54,7 +54,7 @@ const effectivePrompt = ref('')
 const qualityUpscaleSkipped = ref(false)
 const qualityRedenoiseSkipped = ref(false)
 const error = ref('')
-const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress({ acceptJob: () => false })
 
 const stylePresets = computed(() => (Array.isArray(allPresets.value) ? allPresets.value : []).filter(p => editorFamily(p.model_name) === editor.family.value && !String(p.preset_type || '').startsWith('post')))
 watch(editModel, () => { stylePresetId.value = 0 })
@@ -389,7 +389,7 @@ onUnmounted(() => {
         <span class="spinner spinner-sm"></span>
         <span class="edit-progress-label">{{ t('edit.generating') }}</span>
       </div>
-      <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="edit-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats @interrupt="interruptGeneration" />
+      <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="edit-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" :preview-available="sdProgress.preview_available" stats @interrupt="interruptGeneration" />
     </div>
 
     <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>

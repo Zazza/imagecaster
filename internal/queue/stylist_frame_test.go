@@ -436,7 +436,7 @@ func TestService_CancelCurrentFrame(t *testing.T) {
 	svc.worker.processNext(context.Background())
 
 	mu.Lock()
-	assert.Equal(t, 1, interrupts, "cancel must interrupt generation on the server")
+	assert.Equal(t, 0, interrupts, "targeted cancellation uses the job context instead of a global interrupt")
 	mu.Unlock()
 	j1 := sfGet(t, store, first)
 	assert.NotEqual(t, StatusCompleted, j1.Status)

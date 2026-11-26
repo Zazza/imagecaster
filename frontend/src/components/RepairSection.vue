@@ -29,7 +29,7 @@ const error = ref('')
 const moreOpen = ref(false)
 const tileDone = ref(0)
 const tileTotal = ref(0)
-const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+const { sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress({ acceptJob: () => false })
 let reqCounter = 0
 let lastEmitted = null
 

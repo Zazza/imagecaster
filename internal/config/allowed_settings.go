@@ -1,5 +1,7 @@
 package config
 
+const GenerationLivePreview = "generation_live_preview"
+
 var AllowedSettings = map[string]bool{
 	DiagnosticsVerboseLogs: true, DiagnosticsIntermediateImages: true, StylistKeepOriginals: true, DiagnosticsRetention: true,
 	"post_editor_model": true, "post_editor_loras": true,
@@ -14,6 +16,7 @@ var AllowedSettings = map[string]bool{
 	"llm_analyze_top_p":   true, "llm_analyze_num_thread": true,
 	"llm_auto_unload":             true,
 	"fast_generation":             true,
+	GenerationLivePreview:         true,
 	"sd_prompt_instruction_prose": true,
 	"sd_prompt_instruction":       true,
 	"analyze_system_prompt":       true, "analyze_prompt": true, "analyze_describe_prompt": true,

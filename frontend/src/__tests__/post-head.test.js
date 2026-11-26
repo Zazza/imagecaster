@@ -204,17 +204,20 @@ describe('head size and height in face retouch', () => {
     expect(params.face_points).toEqual(PTS_A)
   })
 
-  it('"Up to 4K" job carries head_size and head_shift', async () => {
+  it('normal export carries head changes and finish', async () => {
     const wrapper = await mountPage()
     await openRetouch(wrapper)
     await slide(wrapper, 'head_size', 4)
     await slide(wrapper, 'head_shift', -3)
     await openSection(wrapper, t('export.export_settings'))
-    await field(wrapper, 'post-upscale-4k').setValue(true)
+    await openSection(wrapper, t('post.finish_title'))
+    await field(wrapper, 'finish-ratio').setValue('4:5')
     await saveSingle(wrapper)
 
-    expect(EnqueuePostSave).toHaveBeenCalledTimes(1)
-    expect(EnqueuePostSave.mock.calls[0][0].retouch).toEqual({ head_size: 4, head_shift: -3 })
+    expect(EnqueuePostSave).not.toHaveBeenCalled()
+    expect(ExportImage).toHaveBeenCalledTimes(1)
+    expect(ExportImage.mock.calls[0][0].finish.ratio).toBe('4:5')
+    expect(ExportImage.mock.calls[0][0].retouch).toEqual({ head_size: 4, head_shift: -3 })
   })
 
   it('double click resets each slider to 0 on its own', async () => {

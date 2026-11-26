@@ -797,3 +797,15 @@ export function StylistSuggest(arg1) {
 export function StylistShootOptions(arg1) {
   return window['go']['main']['App']['StylistShootOptions'](arg1);
 }
+
+export function EnqueueResolutionUpscale(arg1, arg2) {
+  return window['go']['main']['App']['EnqueueResolutionUpscale'](arg1, arg2);
+}
+
+export function EnqueueImageResolutionUpscale(arg1, arg2) {
+  return window['go']['main']['App']['EnqueueImageResolutionUpscale'](arg1, arg2);
+}
+
+export function GetQueueJobResult(arg1) {
+  return window['go']['main']['App']['GetQueueJobResult'](arg1);
+}

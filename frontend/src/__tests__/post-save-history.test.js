@@ -199,22 +199,23 @@ describe('PostProcessPage save to history', () => {
     expect(EnqueuePostSave).not.toHaveBeenCalled()
   })
 
-  it('ignores export settings size and format', async () => {
+  it.each(['jpeg', 'png'])('history stays full-size PNG when file export uses %s', async format => {
     const wrapper = await mountPage()
     await openSection(wrapper, t('export.export_settings'))
-    const sel = wrapper.findAll('select').find(x => [...x.element.options].some(o => o.value === 'jpeg'))
-    expect(sel).toBeTruthy()
-    await sel.setValue('jpeg')
-    const nums = wrapper.findAll('input[type="number"]').filter(i => sel.element.compareDocumentPosition(i.element) & Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(nums.length).toBeGreaterThanOrEqual(2)
-    await nums[0].setValue(640)
-    await nums[1].setValue(480)
+    const select = field(wrapper, 'export-format')
+    expect(select.element.value).toBe('jpeg')
+    await select.setValue(format)
     await settle()
     await clickSave(wrapper)
+
+    expect(SavePostToHistory).toHaveBeenCalledTimes(1)
     const p = lastCall()
     expect(p.format).toBe('png')
     expect(p.width).toBe(0)
     expect(p.height).toBe(0)
+    expect(strip(p.image_base64)).toBe(IMG_A)
+    expect(ExportImage).not.toHaveBeenCalled()
+    expect(EnqueuePostSave).not.toHaveBeenCalled()
   })
 
   it('saves the image currently shown', async () => {

@@ -56,7 +56,7 @@ let analyzeTimer = null
 
 const generatingImage = ref(false)
 watch(generatingImage, v => emit('busy', v))
-const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+const { llmStatus, sdProgress, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress({ acceptJob: id => enqueuedJobIds.value.has(id) })
 const generationStage = ref('')
 const error = ref('')
 const genCount = ref(1)
@@ -67,6 +67,7 @@ const jobs = useJobTracker({
   onCancelled: stopIfIdle,
 })
 const enqueuedJobIds = jobs.pending
+defineExpose({ ownsJob: id => enqueuedJobIds.value.has(id) })
 const batchDone = jobs.done
 
 const { kidsModeActive, loadKidsMode } = useKidsMode()
@@ -271,20 +272,39 @@ function onQueueFailed(data, { tracked }) {
 
 async function interruptBatch() {
   if (enqueuedJobIds.value.size > 0) {
-    const ids = [...enqueuedJobIds.value]
-    jobs.clear()
-    for (const id of ids) {
+    for (const id of [...enqueuedJobIds.value]) {
       try {
         await api.cancelQueueJob(id)
+        jobs.untrack(id)
       } catch (e) {
-        error.value = String(e)
+        let finished = false
+        try {
+          const job = await api.getQueueJobResult(id)
+          finished = !!job && ['completed', 'failed', 'cancelled'].includes(job.status)
+        } catch (readError) {
+          console.warn('cancelled job status unavailable:', readError)
+        }
+        if (finished) jobs.untrack(id)
+        else error.value = String(e)
       }
     }
-    generatingImage.value = false
-    generationStage.value = ''
+    if (!enqueuedJobIds.value.size) {
+      generatingImage.value = false
+      generationStage.value = ''
+    }
     return
   }
   await interruptGeneration()
+}
+
+async function interruptCurrentImage() {
+  try {
+    const id = sdProgress.value?.queue_job_id
+    if (id && enqueuedJobIds.value.has(id)) await api.cancelQueueJob(id)
+    else if (!enqueuedJobIds.value.size) await interruptGeneration()
+  } catch (e) {
+    error.value = String(e?.message || e)
+  }
 }
 
 let settingsRestored = false
@@ -495,7 +515,8 @@ function onKeydown(e) {
         <span class="spinner spinner-sm"></span>
         <span class="remix-progress-label">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ progressLabel }}</span>
       </div>
-      <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="remix-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats block @interrupt="interruptBatch" />
+      <button v-if="batchTotal > 1 && enqueuedJobIds.size > 0" class="btn btn-sm btn-secondary" @click="interruptBatch">{{ t('progress.stop_series') }}</button>
+      <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="remix-progress-info" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" :preview-available="sdProgress.preview_available" stats block @interrupt="interruptCurrentImage" />
     </div>
 
     <StatusMessage v-if="qualityUpscaleSkipped" kind="warning" class="mt-2" @close="qualityUpscaleSkipped = false">{{ t('fi.quality_upscale_skipped') }}</StatusMessage>

@@ -107,7 +107,7 @@ func getJobError(t *testing.T, db *sql.DB, id int64) string {
 	return errMsg
 }
 
-func TestCancelJob_InterruptFnCalled(t *testing.T) {
+func TestCancelJob_DoesNotInterruptOtherWork(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 
@@ -128,8 +128,8 @@ func TestCancelJob_InterruptFnCalled(t *testing.T) {
 		t.Fatalf("CancelJob returned error: %v", err)
 	}
 
-	if interruptCalled.Load() != 1 {
-		t.Errorf("interruptFn called %d times, want 1", interruptCalled.Load())
+	if interruptCalled.Load() != 0 {
+		t.Errorf("interruptFn called %d times, want 0", interruptCalled.Load())
 	}
 }
 

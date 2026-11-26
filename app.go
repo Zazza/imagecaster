@@ -96,6 +96,12 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	a.emitter = appEmitter{ctx: &a.ctx}
 	a.sessions = session.New(presets, a.dataDir, &a.emitter)
 	a.settingsSvc = settings.New(presets, llmClient, sdClient, cfg, a.log, srvClient)
+	if sink, ok := sdClient.(interface{ SetLivePreviewSource(func() (bool, error)) }); ok {
+		sink.SetLivePreviewSource(func() (bool, error) {
+			values, err := a.settingsSvc.GetSettings()
+			return values[config.GenerationLivePreview] != "false", err
+		})
+	}
 	a.ieSvc = importexport.New(presets, a.log)
 	a.gen = generation.New(
 		presets, llmClient, sdClient, cfg,
@@ -110,6 +116,7 @@ func NewApp(presets *preset.DB, llmClient llm.Service, sdClient sd.Service, srvC
 	a.queueSvc.Handle(queue.JobRetouch, retouchHandler(a.sessions, cfg))
 	a.queueSvc.Handle(queue.JobPostSave, postSaveHandler(a.ieSvc, cfg))
 	a.queueSvc.Handle(queue.JobUpscale4K, post4KHandler(cfg))
+	a.queueSvc.Handle(queue.JobResolutionUpscale, resolutionUpscaleHandler())
 	if scoper == nil {
 		a.queueSvc.SetInterruptFn(func() { _ = a.gen.InterruptGeneration() })
 	} else {

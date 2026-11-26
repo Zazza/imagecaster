@@ -179,10 +179,11 @@ describe('PostProcessPage batch mode', () => {
 
     expect(ExportImage).toHaveBeenCalledTimes(2)
     const calls = ExportImage.mock.calls.map(c => c[0])
-    expect(calls.map(c => c.filename)).toEqual(['a.png', 'b.png'])
+    expect(calls.map(c => c.filename)).toEqual(['a.jpeg', 'b.jpeg'])
     for (const c of calls) {
       expect(c.output_dir).toBe('/out')
-      expect(c.format).toBe('png')
+      expect(c.format).toBe('jpeg')
+      expect(c.quality).toBe(90)
       expect(c.width).toBe(0)
       expect(c.height).toBe(0)
     }

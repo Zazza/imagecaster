@@ -346,8 +346,9 @@ describe('PostProcessPage queue from history', () => {
 
     expect(ExportImage).toHaveBeenCalledTimes(2)
     const calls = ExportImage.mock.calls.map(c => c[0])
-    expect(calls.map(c => c.filename)).toEqual(['history_501.png', 'history_502.png'])
-    expect(calls.map(c => c.format)).toEqual(['png', 'png'])
+    expect(calls.map(c => c.filename)).toEqual(['history_501.jpeg', 'history_502.jpeg'])
+    expect(calls.map(c => c.format)).toEqual(['jpeg', 'jpeg'])
+    expect(calls.map(c => c.quality)).toEqual([90, 90])
     expect(strip(calls[0].image_base64)).toBe(IMG[501])
     expect(strip(calls[1].image_base64)).toBe(IMG[502])
   })

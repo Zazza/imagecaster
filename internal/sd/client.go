@@ -29,9 +29,10 @@ func redactBase64(s string) string {
 }
 
 type Client struct {
-	mu         sync.RWMutex
-	baseURL    string
-	httpClient *http.Client
+	livePreview func() (bool, error)
+	mu          sync.RWMutex
+	baseURL     string
+	httpClient  *http.Client
 
 	PollInterval time.Duration
 
@@ -414,4 +415,11 @@ func (c *Client) GetLoRAs() ([]LoRA, error) {
 		body.LoRAs = []LoRA{}
 	}
 	return body.LoRAs, nil
+}
+
+// SetLivePreviewSource configures the preference read before each submission.
+func (c *Client) SetLivePreviewSource(source func() (bool, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.livePreview = source
 }

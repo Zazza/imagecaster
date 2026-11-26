@@ -253,3 +253,58 @@ func TestUpscaleLong_QueueCancelledBeforeStart(t *testing.T) {
 	n, _ := rec.upscaleCalls()
 	assert.Zero(t, n)
 }
+
+func TestUpscaleLongStrict_NoResizeFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		rec  *udRec
+	}{
+		{"no neural upscaler", &udRec{}},
+		{"resize only", &udRec{upscalers: []sd.Upscaler{{Name: "Lanczos"}}}},
+		{"neural failure", &udRec{upscalers: udQuality(), upscaleErr: errors.New("neural unavailable")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, _ := udSetup(t, tc.rec)
+			out, err := svc.UpscaleLongStrict(udImage(t, 32, 48), 1920)
+			require.Error(t, err)
+			require.Nil(t, out, "a failed neural upscale must not return a resized substitute")
+		})
+	}
+}
+
+func TestUpscaleLongStrict_LevelsAndAspect(t *testing.T) {
+	for _, target := range []int{1920, 2560, 3840} {
+		for _, shape := range []struct {
+			name string
+			w, h int
+		}{{"portrait", 30, 40}, {"square", 40, 40}, {"landscape", 40, 30}} {
+			t.Run(fmt.Sprintf("%s/%d", shape.name, target), func(t *testing.T) {
+				rec := &udRec{upscalers: udQuality()}
+				svc, _ := udSetup(t, rec)
+				out, err := svc.UpscaleLongStrict(udImage(t, shape.w, shape.h), target)
+				require.NoError(t, err)
+				w, h := udSize(t, out.Image)
+				require.Equal(t, target, max(w, h))
+				require.Equal(t, shape.w*h, shape.h*w)
+				require.True(t, out.Upscaled)
+				require.False(t, out.Resized)
+			})
+		}
+	}
+}
+
+func TestUpscaleLongStrict_AlreadyLargeLeavesOriginal(t *testing.T) {
+	rec := &udRec{upscalers: udQuality(), upscaleErr: errors.New("must not run")}
+	svc, m := udSetup(t, rec)
+	m.getUpscalers = func() ([]sd.Upscaler, error) {
+		t.Fatal("already large image must not query neural service")
+		return nil, nil
+	}
+	src := udImage(t, 1920, 16)
+	out, err := svc.UpscaleLongStrict(src, 1920)
+	require.NoError(t, err)
+	require.Equal(t, src, out.Image)
+	require.False(t, out.Upscaled)
+	n, _ := rec.upscaleCalls()
+	require.Zero(t, n)
+}

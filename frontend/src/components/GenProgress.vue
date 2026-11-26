@@ -11,6 +11,7 @@ const props = defineProps({
   label: { type: String, default: '' },
   small: { type: Boolean, default: false },
   block: { type: Boolean, default: false },
+  previewAvailable: { type: Boolean, default: undefined },
 })
 defineEmits(['interrupt'])
 
@@ -21,6 +22,7 @@ const etaSec = computed(() => Math.ceil(props.eta))
 
 <template>
   <div class="gen-progress" :class="{ small, 'has-stats': stats }">
+    <span v-if="previewAvailable === false" class="gp-preview-hint">{{ t('progress.preview_unavailable') }}</span>
     <div v-if="label" class="gp-label">{{ label }}</div>
     <div v-if="stats" class="gp-stats">
       <span>{{ percent }}%</span>
@@ -33,6 +35,7 @@ const etaSec = computed(() => Math.ceil(props.eta))
 </template>
 
 <style scoped>
+.gp-preview-hint { display: block; color: var(--text-dim); font-size: var(--fs-sm); margin-bottom: 8px; }
 .gp-label {
   font-size: var(--fs-sm);
   color: var(--text-dim);

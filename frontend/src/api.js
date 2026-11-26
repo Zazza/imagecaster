@@ -6,7 +6,7 @@ import {
   DeleteHistoryItems, MoveSessionItems, DeletePostRecipe, DeletePreset, DeleteResolution, DeleteServerLLMModel,
   DeleteServerModel, DeleteSession, DeleteSessionItem, DescribeForStyle, DiscoverServers,
   DownloadServerModel, DownloadServerModelStream, EditImage, EditObject, EnqueueCompound,
-  EnqueueEdit, EnqueueFromImage, EnqueueLook, EnqueueTxt2Img, ExportImage, GenerateCompoundImage,
+  EnqueueEdit, EnqueueFromImage, EnqueueLook, EnqueueTxt2Img, EnqueueResolutionUpscale, EnqueueImageResolutionUpscale, GetQueueJobResult, ExportImage, GenerateCompoundImage,
   GenerateImage, GenerateSDPrompt, GetActiveSessionItem, GetDefaultAnalyzePrompts,
   GetDefaultDownloadPlan, GetDefaultEditGarmentPrompt, GetDefaultPromptInstruction,
   GetDefaultPromptInstructionProse, GetFooterHeight, GetKidsCategories, GetLLMSetup, GetLogEntries,
@@ -240,6 +240,9 @@ export const api = {
   updateHiresProfile: (data) => UpdateHiresProfile(data),
   deleteHiresProfile: (id) => DeleteHiresProfile(id),
 
+  enqueueResolutionUpscale: EnqueueResolutionUpscale,
+  enqueueImageResolutionUpscale: EnqueueImageResolutionUpscale,
+  getQueueJobResult: GetQueueJobResult,
   enqueueTxt2Img: (params) => EnqueueTxt2Img(params),
   enqueueFromImage: (params) => EnqueueFromImage(params),
   enqueueLook: (params) => EnqueueLook(params),

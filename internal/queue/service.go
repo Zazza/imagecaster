@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/Zazza/imagecaster/internal/sd"
 )
 
 type Service struct {
@@ -140,23 +142,19 @@ func (s *Service) CancelJob(id int64) error {
 		return fmt.Errorf("job not found")
 	}
 
-	if job.Status == StatusRunning {
-		if s.interruptFn != nil {
-			s.interruptFn()
+	if job.Status == StatusRunning || job.Status == StatusPending {
+		s.worker.mu.Lock()
+		if s.worker.current != nil && s.worker.current.ID == id && s.worker.cancelFn != nil {
+			s.worker.cancelFn(sd.ErrUserCancel)
 		}
-		s.worker.CancelCurrent()
-		if err := s.store.UpdateStatus(id, StatusFailed, "cancelled by user"); err != nil {
-			log.Printf("[queue] job %d: mark cancelled: %v", id, err)
-		}
-		s.emit.Emit(EventQueueChanged)
-		return nil
-	}
-
-	if job.Status == StatusPending {
-		if err := s.store.UpdateStatus(id, StatusCancelled, ""); err != nil {
+		err := s.store.CancelActive(id)
+		s.worker.mu.Unlock()
+		if err != nil {
 			return err
 		}
-		s.cleanupJob(id)
+		if job.Status == StatusPending {
+			s.cleanupJob(id)
+		}
 		s.emit.Emit(EventQueueChanged)
 		return nil
 	}

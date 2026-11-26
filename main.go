@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -16,8 +18,10 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Zazza/imagecaster/internal/config"
+	"github.com/Zazza/imagecaster/internal/instance"
 	"github.com/Zazza/imagecaster/internal/llm"
 	"github.com/Zazza/imagecaster/internal/objectmask"
 	"github.com/Zazza/imagecaster/internal/preset"
@@ -53,6 +57,23 @@ var windowIcon []byte
 
 func main() {
 	cfg := config.Load()
+	guard, err := instance.Acquire(cfg.DBPath)
+	if errors.Is(err, instance.ErrAlreadyRunning) {
+		if err := instance.Notify(cfg.DBPath); err != nil {
+			log.Printf("Imagecaster уже открыт или запускается; активация окна: %v", err)
+		}
+		return
+	}
+	if err != nil {
+		log.Fatalf("Не удалось защитить очередь от повторного запуска: %v", err)
+	}
+	defer func() {
+		if err := guard.Close(); err != nil {
+			log.Printf("Instance lock close: %v", err)
+		}
+	}()
+	activationCtx, stopActivation := context.WithCancel(context.Background())
+	defer stopActivation()
 
 	presets, err := preset.Open(cfg.DBPath)
 	if err != nil {
@@ -92,7 +113,20 @@ func main() {
 			Assets:  assets,
 			Handler: imgHandler,
 		},
-		OnStartup:  app.startup,
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+			go func() {
+				for {
+					select {
+					case <-activationCtx.Done():
+						return
+					case <-guard.Activations():
+						wailsruntime.WindowUnminimise(ctx)
+						wailsruntime.WindowShow(ctx)
+					}
+				}
+			}()
+		},
 		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,

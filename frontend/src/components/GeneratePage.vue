@@ -1,7 +1,8 @@
 <script setup>
+import ResolutionUpscaleOverlay from './ResolutionUpscaleOverlay.vue'
 import { Check, Sparkles, TriangleAlert, Maximize2, SlidersHorizontal, Zap } from 'lucide-vue-next'
 import StatusMessage from './StatusMessage.vue'
-import GenProgress from './GenProgress.vue'
+import FloatingGenerationPanel from './FloatingGenerationPanel.vue'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { setGenerateDescriptionSink } from '../describeToGenerate.js'
 import { EventsOn } from '../wailsjs/runtime/runtime'
@@ -60,7 +61,7 @@ const effectivePrompt = ref('')
 const effectiveNegative = ref('')
 
 const generatingImage = ref(false)
-const { llmStatus, sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress()
+const { llmStatus, sdProgress, preview, interrupt: interruptGeneration, reset: resetProgress } = useGenerationProgress({ acceptJob: id => enqueuedJobIds.value.has(id) })
 const generationStage = ref('')
 const error = ref('')
 const successMsg = ref('')
@@ -89,6 +90,11 @@ const jobs = useJobTracker({
 })
 const enqueuedJobIds = jobs.pending
 const batchDone = jobs.done
+const generationPanelLabel = computed(() => {
+  const count = batchTotal.value > 1 || generatedImage.value ? `${batchDone.value + 1} / ${batchTotal.value} — ` : ''
+  const label = llmStatus.value === 'thinking' ? 'generate.generating_prompt' : upscalingX2.value ? 'generate.upscaling_x2' : 'generate.generating_image'
+  return count + t(label)
+})
 
 const showViewer = ref(false)
 const shownItemId = ref(null)
@@ -509,6 +515,15 @@ async function generateImage() {
   }
 }
 
+function onResolutionUpscaled(result) {
+  if (!result?.image_base64) return
+  generatedImage.value = result.image_base64
+  shownItemId.value = result.session_item_id
+  genInfo.value = result.info
+  sourceImage.value = result.image_base64
+  sourceGenInfo.value = result.info
+}
+
 async function upscaleImageX2() {
   if (!generatedImage.value) return
   const byItem = !genInfo.value && !!shownItemId.value
@@ -592,17 +607,39 @@ function onQueueFailed(data, { tracked, paused }) {
 async function interruptBatch() {
   stopIdeasBatch()
   if (enqueuedJobIds.value.size > 0) {
-    try {
-      await api.cancelQueue()
-    } catch (e) {
-      error.value = String(e)
+    for (const id of [...enqueuedJobIds.value]) {
+      try {
+        await api.cancelQueueJob(id)
+        jobs.untrack(id)
+      } catch (e) {
+        let finished = false
+        try {
+          const job = await api.getQueueJobResult(id)
+          finished = !!job && ['completed', 'failed', 'cancelled'].includes(job.status)
+        } catch (readError) {
+          console.warn('cancelled job status unavailable:', readError)
+        }
+        if (finished) jobs.untrack(id)
+        else error.value = String(e)
+      }
     }
-    jobs.clear()
-    generatingImage.value = false
-    generationStage.value = ''
+    if (!enqueuedJobIds.value.size) {
+      generatingImage.value = false
+      generationStage.value = ''
+    }
     return
   }
   await interruptGeneration()
+}
+
+async function interruptCurrentImage() {
+  try {
+    const id = sdProgress.value?.queue_job_id
+    if (id && enqueuedJobIds.value.has(id)) await api.cancelQueueJob(id)
+    else if (!enqueuedJobIds.value.size) await interruptGeneration()
+  } catch (e) {
+    error.value = String(e?.message || e)
+  }
 }
 
 async function onSessionAdded(data) {
@@ -743,20 +780,17 @@ function onKeydown(e) {
 
     <div class="gen-workspace">
       <div class="gen-preview-col">
+        <button v-if="generatingImage && batchTotal > 1 && enqueuedJobIds.size > 0" class="btn btn-sm btn-secondary" @click="interruptBatch">{{ t('progress.stop_series') }}</button>
         <div class="generate-image-area" :class="{ 'loading': generatingImage && !generatedImage, 'empty': !generatedImage && !generatingImage }">
           <div v-if="generatingImage && !generatedImage" class="gen-loading">
-            <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" class="gen-loading-preview" />
+            <img v-if="preview && sdProgress" :src="preview" :alt="t('progress.preview')" class="gen-stage-img gen-loading-preview" />
             <span v-else class="spinner gen-spinner-lg"></span>
-            <p class="gen-loading-text">{{ batchTotal > 1 ? (batchDone + 1) + ' / ' + batchTotal + ' — ' : '' }}{{ llmStatus === 'thinking' ? t('generate.generating_prompt') : upscalingX2 ? t('generate.upscaling_x2') : t('generate.generating_image') }}</p>
-            <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="gen-loading-progress" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats @interrupt="interruptBatch" />
           </div>
           <div v-else-if="generatingImage && generatedImage && enqueuedJobIds.size > 0" class="gen-batch">
             <img :src="imageSrc" alt="Generating..." class="gen-batch-img" />
             <div class="gen-batch-overlay">
-              <img v-if="preview && sdProgress && sdProgress.progress > 0 && sdProgress.progress < 1" :src="preview" alt="preview" class="gen-batch-preview" />
+              <img v-if="preview && sdProgress" :src="preview" :alt="t('progress.preview')" class="gen-stage-img gen-batch-preview" />
               <span v-else class="spinner gen-spinner-md"></span>
-              <p class="gen-batch-count">{{ (batchDone + 1) + ' / ' + batchTotal }}</p>
-              <GenProgress v-if="sdProgress && sdProgress.progress > 0" class="gen-batch-progress" :progress="sdProgress.progress" :steps="sdProgress.steps" :eta="sdProgress.etaRelative" stats small :show-step="false" @interrupt="interruptBatch" />
             </div>
           </div>
           <div v-else-if="generatedImage" class="gen-result">
@@ -774,6 +808,7 @@ function onKeydown(e) {
                 @wheel="genZoom.onWheel"
               >
                 <img :src="imageSrc" alt="Generated" class="img-fade-in gen-stage-img" :style="genLayerStyle" draggable="false" @load="genZoom.onImgLoad" @click="onResultClick" />
+                <ResolutionUpscaleOverlay :image="imageSrc" :item-id="shownItemId || 0" @completed="onResolutionUpscaled" />
                 <div class="split-zoom" @pointerdown.stop @click.stop @dblclick.stop @wheel.stop>
                   <button class="split-zoom-btn" :title="t('viewer.zoom_out')" :aria-label="t('viewer.zoom_out')" :disabled="genZoomFit && genZoom.fitPercent() <= ZOOM_MIN" @click="genZoom.zoomBy(-10)">&minus;</button>
                   <button class="split-zoom-btn split-zoom-label" :title="t('viewer.zoom_presets')" :aria-expanded="genZoomMenuOpen" aria-haspopup="menu" @click="genZoom.onZoomIndicatorClick">{{ genZoomLabel }}</button>
@@ -802,6 +837,12 @@ function onKeydown(e) {
             <div class="generate-placeholder-title">{{ t('generate.placeholder_image') }}</div>
             <div class="generate-placeholder-hint">{{ t('generate.placeholder_image_hint') }}</div>
           </div>
+          <FloatingGenerationPanel
+            :active="generatingImage"
+            :label="generationPanelLabel"
+            :progress="sdProgress?.progress || 0" :steps="sdProgress?.steps || 0" :eta="sdProgress?.etaRelative || 0"
+            :preview-available="sdProgress?.preview_available" @interrupt="interruptCurrentImage"
+          />
         </div>
 
         <details v-if="genInfo" class="gen-info card">
@@ -1024,6 +1065,7 @@ function onKeydown(e) {
 </template>
 
 <style scoped>
+.generate-image-area { position: relative; }
 .gen-face-swap { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
 
 .card-collapse.collapsed {
@@ -1094,70 +1136,60 @@ function onKeydown(e) {
   pointer-events: none;
 }
 .gen-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   text-align: center;
-  padding: 24px;
+  padding: 12px;
 }
 .gen-loading-preview {
-  max-width: 100%;
-  border-radius: var(--radius-sm);
-  opacity: 0.6;
-  image-rendering: pixelated;
+  position: absolute;
+  inset: 0;
 }
 .gen-spinner-lg {
   width: 32px;
   height: 32px;
   border-width: 3px;
 }
-.gen-loading-text {
-  margin-top: 12px;
-  color: var(--text-dim);
-}
-.gen-loading-progress {
-  margin-top: 12px;
-  max-width: 300px;
-  margin-left: auto;
-  margin-right: auto;
-}
+
+
 .gen-batch {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  padding: 12px;
-  position: relative;
 }
 .gen-batch-img {
   border-radius: var(--radius-sm);
   opacity: 0.4;
   width: 100%;
+  height: 100%;
 }
 .gen-batch-overlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   text-align: center;
-  background: rgba(0,0,0,0.6);
-  padding: 16px 24px;
-  border-radius: 8px;
+  padding: 12px;
 }
 .gen-batch-preview {
-  max-width: 200px;
-  border-radius: var(--radius-sm);
-  opacity: 0.8;
-  image-rendering: pixelated;
+  position: absolute;
+  inset: 0;
 }
 .gen-spinner-md {
   width: 24px;
   height: 24px;
   border-width: 2px;
 }
-.gen-batch-count {
-  margin-top: 8px;
-  color: var(--text-dim);
-  font-size: var(--fs-md);
-}
-.gen-batch-progress {
-  margin-top: 8px;
-  min-width: 180px;
-}
+
+
 .gen-hires-warning {
   margin-bottom: 8px;
   text-align: center;

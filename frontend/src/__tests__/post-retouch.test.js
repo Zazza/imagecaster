@@ -221,37 +221,29 @@ describe('PostProcessPage face retouch', () => {
     expect(EnqueuePostSave).not.toHaveBeenCalled()
   })
 
-  it('"Up to 4K" queues a job with the settings and does not block the save button', async () => {
+  it('normal export carries retouch and finish together', async () => {
     const wrapper = await mountPage()
     await openSection(wrapper, t('post.retouch_title'))
     await check(wrapper, 'teeth')
-    await openSection(wrapper, t('export.export_settings'))
-    await field(wrapper, 'post-upscale-4k').setValue(true)
-    const btn = await saveSingle(wrapper)
+    await openSection(wrapper, t('post.finish_title'))
+    await field(wrapper, 'finish-ratio').setValue('4:5')
+    await saveSingle(wrapper)
 
-    expect(ExportImage).not.toHaveBeenCalled()
-    expect(EnqueuePostSave).toHaveBeenCalledTimes(1)
-    const params = EnqueuePostSave.mock.calls[0][0]
+    expect(EnqueuePostSave).not.toHaveBeenCalled()
+    const params = ExportImage.mock.calls[0][0]
     expect(strip(params.image_base64)).toBe(IMG_A)
     expect(params.width).toBe(0)
     expect(params.height).toBe(0)
     expect(params.retouch).toEqual({ teeth: true })
     expect(params.face_points).toEqual(PTS_A)
-    expect(params.adjust).toBeTruthy()
-    expect(btn.element.disabled).toBe(false)
-    expect(wrapper.text()).toContain(t('post.up4k_queued'))
-
-    EventsEmit('queue:completed', { job_id: 41, result: JSON.stringify({ info: JSON.stringify({ path: '/out/a_4k.png', upscale: 'done' }) }) })
-    await settle()
-    expect(wrapper.text()).toContain(t('export.saved_to', { path: '/out/a_4k.png' }))
+    expect(params.finish.ratio).toBe('4:5')
   })
 
-  it('recipe saves the retouch and 4K', async () => {
+  it('recipe saves the retouch', async () => {
     const wrapper = await mountPage()
     await openSection(wrapper, t('post.retouch_title'))
     await check(wrapper, 'eye_whites')
     await openSection(wrapper, t('export.export_settings'))
-    await field(wrapper, 'post-upscale-4k').setValue(true)
     await openSection(wrapper, t('post.recipes_title'))
     await buttonWith(wrapper, t('post.recipe_save')).trigger('click')
     await settle()
@@ -262,11 +254,10 @@ describe('PostProcessPage face retouch', () => {
     expect(SavePostRecipe).toHaveBeenCalledTimes(1)
     const adjust = JSON.parse(SavePostRecipe.mock.calls[0][0].adjust)
     expect(adjust.retouch).toEqual({ eye_whites: true })
-    expect(adjust.upscale_4k).toBe(true)
     expect(adjust.brightness).toBe(0)
   })
 
-  it('applying a recipe restores the retouch and 4K', async () => {
+  it('legacy 4K recipe restores retouch without restoring the removed checkbox', async () => {
     const adjust = { brightness: 0, retouch: { eye_whites: true, face_width: -4 }, upscale_4k: true }
     ListPostRecipes.mockImplementation(() => Promise.resolve([{ id: 1, name: 'Face', steps: '[]', adjust: JSON.stringify(adjust) }]))
     const wrapper = await mountPage()
@@ -276,7 +267,7 @@ describe('PostProcessPage face retouch', () => {
 
     expect(field(wrapper, 'retouch-eye_whites').element.checked).toBe(true)
     expect(Number(field(wrapper, 'retouch-face_width').element.value)).toBe(-4)
-    expect(field(wrapper, 'post-upscale-4k').element.checked).toBe(true)
+    expect(wrapper.find('[data-testid="post-upscale-4k"]').exists()).toBe(false)
     expect(lastPreview()[2]).toEqual({ eye_whites: true, face_width: -4 })
   })
 
@@ -308,23 +299,23 @@ describe('PostProcessPage face retouch', () => {
     expect(byImage[IMG_B].retouch).toEqual({ teeth: true })
   })
 
-  it('batch save in 4K queues one job per photo with its own points', async () => {
+  it('batch normal export preserves finish and each photo’s face points', async () => {
     const wrapper = await mountPage({ items: TWO, settings: { file_browser_path: '/out' } })
     await openSection(wrapper, t('post.retouch_title'))
     await check(wrapper, 'teeth')
     await openSection(wrapper, t('export.export_settings'))
-    await field(wrapper, 'post-upscale-4k').setValue(true)
-    let id = 50
-    EnqueuePostSave.mockImplementation(() => Promise.resolve(++id))
+    await openSection(wrapper, t('post.finish_title'))
+    await field(wrapper, 'finish-ratio').setValue('4:5')
     await buttonWith(wrapper, t('post.batch_save_all', { n: 2 })).trigger('click')
     await settle()
 
-    expect(ExportImage).not.toHaveBeenCalled()
-    expect(EnqueuePostSave).toHaveBeenCalledTimes(2)
-    const byImage = Object.fromEntries(EnqueuePostSave.mock.calls.map(c => [strip(c[0].image_base64), c[0]]))
+    expect(EnqueuePostSave).not.toHaveBeenCalled()
+    expect(ExportImage).toHaveBeenCalledTimes(2)
+    const byImage = Object.fromEntries(ExportImage.mock.calls.map(c => [strip(c[0].image_base64), c[0]]))
     expect(byImage[IMG_A].face_points).toEqual(PTS_A)
     expect(byImage[IMG_B].face_points).toEqual(PTS_B)
     expect(byImage[IMG_B].output_dir).toBe('/out')
-    expect(wrapper.text()).toContain(t('post.up4k_batch_queued', { n: 2 }))
+    expect(byImage[IMG_A].finish.ratio).toBe('4:5')
+    expect(byImage[IMG_B].finish.ratio).toBe('4:5')
   })
 })

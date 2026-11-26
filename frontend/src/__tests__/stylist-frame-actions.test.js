@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
-import { clearEventMocks } from './mocks/runtime'
+import { clearEventMocks, EventsEmit } from './mocks/runtime'
 import {
   StylistPresets, StylistPlan, StylistShoot, StylistAppearance, ListPeople, FaceSwapStatus, GetQueue,
   GetSessionThumb, GetSessionImage, StylistFrames, StylistLastShoot, StylistReshoot, UpscaleSessionItem, OpenInHistory,
   StylistLoadPlan, StylistSavePlan, StylistLoadGarment, StylistSaveGarment, StylistRegenerateSeries,
+  CancelQueueJob,
 } from '../wailsjs/go/main/App.js'
 import { setLocale, t } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
 import { resetStylistPlan, useStylistPlan, planSnapshot, applyPlanSnapshot } from '../composables/useStylistPlan.js'
 import { registerHistoryViewer } from '../historyViewer.js'
 import StylistPage from '../components/StylistPage.vue'
+import FloatingGenerationPanel from '../components/FloatingGenerationPanel.vue'
 
 enableAutoUnmount(afterEach)
 
@@ -64,6 +66,169 @@ beforeEach(() => {
 
 const tiles = (w) => w.findAll(tid('stylist-frame'))
 const bigSrc = (w) => w.find(tid('stylist-big')).attributes('src')
+const LIVE_IMAGE = 'data:image/png;base64,iVBORw0KGgo-live-frame'
+const emitLive = (jobId = 2) => EventsEmit('sd:progress', {
+  queue_job_id: jobId, job: `remote-${jobId}`, stage: 1, preview_pass: 1,
+  preview_frame: 1, preview: LIVE_IMAGE, progress: 0.5, steps: 20, eta_relative: 3,
+})
+
+describe('Stylist: full decoded live frame in the main image area', () => {
+  beforeEach(() => {
+    state[2] = { status: 'running', item_id: 0 }
+    CancelQueueJob.mockResolvedValue(undefined)
+  })
+
+  it('Stylist uses the shared floating panel and retains collapse through a stage change', async () => {
+    const w = mount(StylistPage)
+    await settle()
+    emitLive()
+    await settle()
+    const panel = w.findComponent(FloatingGenerationPanel)
+    expect(panel.exists()).toBe(true)
+    await panel.get('[data-testid="progress-panel-toggle"]').trigger('click')
+    expect(panel.get('[data-testid="progress-panel-toggle"]').attributes('aria-expanded')).toBe('false')
+    EventsEmit('sd:progress', { queue_job_id: 2, job: 'garment', stage: 2, progress: 0.1, steps: 30, preview_available: true })
+    await settle()
+    expect(w.findComponent(FloatingGenerationPanel).get('[data-testid="progress-panel-toggle"]').attributes('aria-expanded')).toBe('false')
+    await panel.get('.gp-interrupt').trigger('click')
+    await settle()
+    expect(CancelQueueJob).toHaveBeenCalledWith(2)
+  })
+
+  it('replaces the previous completed image in its full image area, retaining progress and cancel', async () => {
+    const w = mount(StylistPage)
+    await settle()
+    const finalImage = w.find(tid('stylist-big'))
+    const imageArea = finalImage.element.parentElement
+    const imageClasses = finalImage.classes()
+    expect(finalImage.attributes('src')).toContain('img101')
+
+    emitLive()
+    await settle()
+    const liveImage = w.find(`.generate-image-area img[src="${LIVE_IMAGE}"]`)
+    expect(liveImage.exists()).toBe(true)
+    expect(liveImage.element.parentElement).toBe(imageArea)
+    expect(liveImage.classes()).toEqual(expect.arrayContaining(imageClasses))
+    expect(w.find(`${tid('stylist-progress')} img`).exists()).toBe(false)
+    expect(imageArea.querySelector('img[src*="img101"]')).toBeNull()
+    expect(w.find(tid('stylist-upscale')).exists()).toBe(false)
+    expect(w.find(tid('stylist-to-post')).exists()).toBe(false)
+    expect(w.find('.resolution-upscale').exists()).toBe(false)
+    expect(w.find(tid('stylist-progress')).text()).toContain('50%')
+    expect(w.find(tid('stylist-progress')).text()).toContain(t('progress.sd_step', { current: 10, total: 20 }))
+    await w.find(`${tid('stylist-progress')} .gp-interrupt`).trigger('click')
+    await settle()
+    expect(CancelQueueJob).toHaveBeenCalledWith(2)
+  })
+
+  it('ignores another job and drops the live frame when the user selects a finished frame', async () => {
+    const w = mount(StylistPage)
+    await settle()
+    emitLive(999)
+    await settle()
+    expect(w.find(`img[src="${LIVE_IMAGE}"]`).exists()).toBe(false)
+    expect(bigSrc(w)).toContain('img101')
+    emitLive()
+    await settle()
+    expect(w.find(`.generate-image-area img[src="${LIVE_IMAGE}"]`).exists()).toBe(true)
+    await tiles(w)[0].trigger('click')
+    await settle()
+    expect(w.find(`img[src="${LIVE_IMAGE}"]`).exists()).toBe(false)
+    expect(bigSrc(w)).toContain('img101')
+    expect(w.find(tid('stylist-upscale')).exists()).toBe(true)
+  })
+
+  it('returns to the running frame immediately from a completed frame without another progress event', async () => {
+    const w = mount(StylistPage)
+    await settle()
+    emitLive()
+    await settle()
+    await tiles(w)[0].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toContain('img101')
+    expect(tiles(w)[0].classes()).toContain('active')
+
+    await tiles(w)[1].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toBe(LIVE_IMAGE)
+    expect(tiles(w)[1].classes()).toContain('active')
+    expect(tiles(w)[0].classes()).not.toContain('active')
+    expect(w.find(tid('stylist-actions')).exists()).toBe(false)
+    expect(w.find('.resolution-upscale').exists()).toBe(false)
+
+    await tiles(w)[0].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toContain('img101')
+    expect(tiles(w)[0].classes()).toContain('active')
+    expect(tiles(w)[1].classes()).not.toContain('active')
+    expect(w.find(tid('stylist-upscale')).exists()).toBe(true)
+  })
+
+  it('does not let a pending frame capture either the finished selection or the running view', async () => {
+    state[3] = { status: 'pending', item_id: 0 }
+    const w = mount(StylistPage)
+    await settle()
+    emitLive()
+    await settle()
+    await tiles(w)[0].trigger('click')
+    await settle()
+    await tiles(w)[2].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toContain('img101')
+    expect(tiles(w)[0].classes()).toContain('active')
+    expect(tiles(w)[2].classes()).not.toContain('active')
+
+    await tiles(w)[1].trigger('click')
+    await settle()
+    await tiles(w)[2].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toBe(LIVE_IMAGE)
+    expect(tiles(w)[1].classes()).toContain('active')
+    expect(tiles(w)[2].classes()).not.toContain('active')
+  })
+
+  it('keeps the current generated image through the garment-stage gap instead of an earlier result', async () => {
+    const w = mount(StylistPage)
+    await settle()
+    emitLive()
+    await settle()
+    const progressEvents = [
+      { queue_job_id: 2, job: 'remote-2', stage: 1, progress: 1, steps: 20, preview_available: true },
+      { queue_job_id: 2, job: 'garment-stage', stage: 2, progress: 0, steps: 0, preview_available: false },
+      { queue_job_id: 2, job: 'garment-stage', stage: 2, progress: 0, steps: 20, preview_available: true },
+    ]
+    for (const event of progressEvents) {
+      EventsEmit('sd:progress', event)
+      await settle()
+      expect(bigSrc(w)).toBe(LIVE_IMAGE)
+      expect(w.find(tid('stylist-actions')).exists()).toBe(false)
+      expect(w.find(tid('stylist-progress')).text()).not.toContain(t('progress.preview_unavailable'))
+    }
+    const garmentImage = 'data:image/png;base64,iVBORw0KGgo-garment-frame'
+    EventsEmit('sd:progress', { queue_job_id: 2, job: 'garment-stage', stage: 2, progress: 0.5, steps: 20, preview_available: true, preview: garmentImage, preview_frame: 1, preview_pass: 1 })
+    await settle()
+    expect(bigSrc(w)).toBe(garmentImage)
+    await tiles(w)[0].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toContain('img101')
+    await tiles(w)[1].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toBe(garmentImage)
+  })
+
+  it('clears the live frame when its job is no longer running', async () => {
+    const w = mount(StylistPage)
+    await settle()
+    emitLive()
+    await settle()
+    expect(w.find(`.generate-image-area img[src="${LIVE_IMAGE}"]`).exists()).toBe(true)
+    state[2] = { status: 'cancelled', item_id: 0 }
+    EventsEmit('queue:changed')
+    await settle()
+    expect(w.find(`img[src="${LIVE_IMAGE}"]`).exists()).toBe(false)
+    expect(bigSrc(w)).toContain('img101')
+  })
+})
 
 describe('Stylist: actions under the big frame (as in «Генерация»)', () => {
   it('shows the last finished frame with Reshoot, Upscale ×2 and «В постобработку»', async () => {

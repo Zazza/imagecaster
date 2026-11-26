@@ -70,14 +70,20 @@ func stepMeta(idx int, p *preset.Preset, step preset.CompoundPresetStep) preset.
 // --- Types ---
 
 type SDProgressEvent struct {
-	Progress    float64 `json:"progress"`
-	ETARelative float64 `json:"eta_relative"`
-	Job         string  `json:"job"`
-	JobCount    int     `json:"job_count"`
-	JobNo       int     `json:"job_no"`
-	Steps       int     `json:"steps"`
-	SamplerName string  `json:"sampler_name"`
-	Preview     string  `json:"preview,omitempty"`
+	QueueJobID       int64   `json:"queue_job_id,omitempty"`
+	Stage            int64   `json:"stage,omitempty"`
+	PreviewDisabled  bool    `json:"preview_disabled"`
+	PreviewAvailable bool    `json:"preview_available"`
+	PreviewFrame     int64   `json:"preview_frame,omitempty"`
+	PreviewPass      int     `json:"preview_pass,omitempty"`
+	Progress         float64 `json:"progress"`
+	ETARelative      float64 `json:"eta_relative"`
+	Job              string  `json:"job"`
+	JobCount         int     `json:"job_count"`
+	JobNo            int     `json:"job_no"`
+	Steps            int     `json:"steps"`
+	SamplerName      string  `json:"sampler_name"`
+	Preview          string  `json:"preview,omitempty"`
 }
 
 type GenerateSDPromptParams struct {
@@ -384,7 +390,14 @@ func (s *Service) onSDProgress(st sd.JobStatus) {
 }
 
 func sdProgressEvent(st sd.JobStatus, now time.Time) SDProgressEvent {
-	ev := SDProgressEvent{Job: st.ID, JobCount: 1, Steps: st.Progress.Steps}
+	ev := SDProgressEvent{Job: st.ID, JobCount: 1, Steps: st.Progress.Steps, QueueJobID: st.QueueJobID, Stage: st.Stage}
+	ev.PreviewAvailable = st.PreviewAvailable
+	ev.PreviewDisabled = st.PreviewDisabled
+	if st.Preview != nil {
+		ev.Preview = st.Preview.Base64
+		ev.PreviewFrame = st.Preview.FrameID
+		ev.PreviewPass = st.Preview.Pass
+	}
 	if st.Progress.Steps > 0 {
 		ev.Progress = float64(st.Progress.Step) / float64(st.Progress.Steps)
 		if ev.Progress > 1 {

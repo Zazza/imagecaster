@@ -38,6 +38,7 @@ const state = {
   analyzeParams: reactive({ num_ctx: 4096, top_p: 0.9, num_thread: 0 }),
   kidsMode: ref(false),
   kidsCategories: ref([]),
+  livePreview: ref(true),
   memoryForm: reactive({ llm_auto_unload: true }),
   fastGeneration,
   processActionLoading: reactive({}),
@@ -123,6 +124,7 @@ async function loadSettings() {
     s.analyzeParams.num_thread = parseInt(settings.llm_analyze_num_thread) || 0
     s.kidsMode.value = await api.isKidsModeActive()
     loadKidsCategories()
+    s.livePreview.value = settings.generation_live_preview !== 'false'
     s.memoryForm.llm_auto_unload = settings.llm_auto_unload !== 'false'
     applyFastSetting(settings)
     s.promptInstruction.value = settings.sd_prompt_instruction || ''

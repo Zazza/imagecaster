@@ -1,6 +1,7 @@
 package generation
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -136,4 +137,25 @@ func TestGenerateImage_DefaultModelSendsEmptyCheckpoint(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "img", result.Image)
 	assert.Equal(t, "", got.Model.Checkpoint)
+}
+
+func TestSDProgressEvent_NativePreviewJSON(t *testing.T) {
+	var status sd.JobStatus
+	require.NoError(t, json.Unmarshal([]byte(`{"id":"native","preview_available":true,"progress":{"step":3,"steps":8},"preview":{"frame_id":4294967297,"pass":2,"step":3,"total_steps":8,"b64_json":"aW1hZ2U="}}`), &status))
+	status.QueueJobID, status.Stage = 71, 2
+	event := sdProgressEvent(status, time.Now())
+	require.Equal(t, int64(71), event.QueueJobID)
+	require.Equal(t, int64(2), event.Stage)
+	require.Equal(t, int64(4294967297), event.PreviewFrame)
+	require.Equal(t, 2, event.PreviewPass)
+	require.Equal(t, "aW1hZ2U=", event.Preview)
+	require.True(t, event.PreviewAvailable)
+	raw, err := json.Marshal(event)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	require.Equal(t, float64(2), payload["preview_pass"])
+	require.Equal(t, "aW1hZ2U=", payload["preview"])
+	require.Equal(t, float64(71), payload["queue_job_id"])
+	require.Equal(t, float64(2), payload["stage"])
 }

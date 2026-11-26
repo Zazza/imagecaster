@@ -151,6 +151,17 @@ func (s *Store) UpdateCompleted(id int64, result string) error {
 	return err
 }
 
+func (s *Store) CancelActive(id int64) error {
+	_, err := s.db.Exec(`UPDATE job_queue SET
+		status = CASE WHEN status = ? THEN ? ELSE ? END,
+		error = CASE WHEN status = ? THEN '' ELSE ? END,
+		params = CASE WHEN status = ? THEN `+stripImageParams+` ELSE params END,
+		completed_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND status IN (?, ?)`, StatusPending, StatusCancelled, StatusFailed,
+		StatusPending, "cancelled by user", StatusPending, id, StatusPending, StatusRunning)
+	return err
+}
+
 func (s *Store) HasClaimable() (bool, error) {
 	var ok bool
 	err := s.db.QueryRow(

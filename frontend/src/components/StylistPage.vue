@@ -1,4 +1,5 @@
 <script setup>
+import ResolutionUpscaleOverlay from './ResolutionUpscaleOverlay.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { TriangleAlert, Shirt, RotateCcw, Maximize2, SlidersHorizontal, Pencil } from 'lucide-vue-next'
 import { openInHistoryViewer } from '../historyViewer.js'
@@ -15,7 +16,7 @@ import { providePostEditor } from '../composables/usePostEditor.js'
 import EditorSettings from './post/SettingsPanel.vue'
 import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, editFrame, restoreDetailsFrame, EDIT_INSTRUCTION_MAX, FACE_RESTORE_MIN, FACE_RESTORE_MAX, FACE_RESTORE_STEP, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
 import StatusMessage from './StatusMessage.vue'
-import GenProgress from './GenProgress.vue'
+import FloatingGenerationPanel from './FloatingGenerationPanel.vue'
 import ImageViewer from './ImageViewer.vue'
 import AspectTab from './stylist/AspectTab.vue'
 import PlanLibrary from './stylist/PlanLibrary.vue'
@@ -31,7 +32,7 @@ const {
   appliedSelectionCurrent, invalidateSelection,
   frameCount, frameCountMismatch, outfitLocked, makePlan, regenerate, deleteSeries, deleteShot, updateSeries, shoot, refreshFrames, savePreset, planEpoch,
 } = useStylistPlan()
-const { sdProgress } = useGenerationProgress()
+const { sdProgress, preview } = useGenerationProgress({ acceptJob: id => frames.value.some(frame => frame.jobId === id) })
 const emit = defineEmits(['navigate'])
 const toPeople = () => emit('navigate', { page: 'people' })
 
@@ -159,6 +160,12 @@ const anatomyWarningCodes = new Set(['base_defect', 'garment_defect', 'uncertain
 const anatomyWarningText = (f) => t(`stylist.anatomy_${anatomyWarningCodes.has(f?.anatomyWarning) ? f.anatomyWarning : 'unavailable'}`)
 const runningIndex = computed(() => frames.value.findIndex(f => f.status === 'running'))
 const runningFrame = computed(() => runningIndex.value >= 0 ? frames.value[runningIndex.value] : null)
+const liveImage = computed(() => {
+  const frame = runningFrame.value
+  if (!frame || sdProgress.value?.queue_job_id !== frame.jobId) return ''
+  if (pickedJobId.value && pickedJobId.value !== frame.jobId) return ''
+  return preview.value
+})
 const FINISHED = ['completed', 'failed', 'cancelled']
 const selectedFrame = computed(() => {
   const f = pickedJobId.value ? frames.value.find(x => x.jobId === pickedJobId.value) : null
@@ -171,6 +178,9 @@ const bigItemId = computed(() => {
   if (upscaled.value && upscaled.value.fromJobId === f.jobId) return upscaled.value.itemId
   return f.itemId || 0
 })
+function onResolutionUpscaled(result) {
+  if (result?.session_item_id && selectedFrame.value) upscaled.value = { fromJobId: selectedFrame.value.jobId, itemId: result.session_item_id }
+}
 const sectionSub = computed(() => ({
   person: person.value ? person.value.name : t('stylist.need_person'),
   task: t('stylist.sub_task', { n: form.frames }),
@@ -381,11 +391,12 @@ async function cancelRunning() {
 }
 
 function pickFrame(f) {
-  if (!FINISHED.includes(f.status)) return
+  if (f.status !== 'running' && !FINISHED.includes(f.status)) return
   selectionEpoch++
   autoPickEditId.value = 0
   pickedJobId.value = f.jobId
   upscaled.value = null
+  editOpen.value = false
 }
 
 function toggleEdit() {
@@ -602,11 +613,9 @@ onUnmounted(() => {
         </template>
 
         <template v-else>
-          <div v-if="runningFrame" class="card stylist-progress" data-testid="stylist-progress">
-            <GenProgress :label="t('stylist.frame_of', { i: runningIndex + 1, n: frames.length })" :progress="sdProgress?.progress || 0" :steps="sdProgress?.steps || 0" :eta="sdProgress?.etaRelative || 0" stats @interrupt="cancelRunning" />
-          </div>
-          <div class="generate-image-area" :class="{ empty: !bigImage, loading: !bigImage && !!runningFrame }">
-            <img v-if="bigImage && bigItemId" :src="b64Url(bigImage)" alt="" class="img-fade-in stylist-big" data-testid="stylist-big" @click="openBig" />
+          <div class="generate-image-area" style="position: relative" :class="{ empty: !bigImage && !liveImage, loading: !!runningFrame }">
+            <img v-if="liveImage" :src="liveImage" :alt="t('progress.preview')" class="img-fade-in stylist-big" data-testid="stylist-big" data-live="true" />
+            <img v-else-if="bigImage && bigItemId" :src="b64Url(bigImage)" alt="" class="img-fade-in stylist-big" data-testid="stylist-big" @click="openBig" />
             <div v-else-if="selectedFrame && selectedFrame.status !== 'completed'" class="generate-placeholder" data-testid="stylist-frame-failed">
               <div class="generate-placeholder-icon"><TriangleAlert :size="56" :stroke-width="1.25" /></div>
               <div class="generate-placeholder-title">{{ t('stylist.frame_not_made') }}</div>
@@ -617,8 +626,15 @@ onUnmounted(() => {
               <div class="generate-placeholder-title">{{ frames.length ? t('stylist.empty_frames_wait') : t('stylist.empty_frames_title') }}</div>
               <div class="generate-placeholder-hint">{{ frames.length ? t('stylist.results_hint') : t('stylist.empty_frames_hint') }}</div>
             </div>
+            <FloatingGenerationPanel
+              :active="!!runningFrame" data-testid="stylist-progress"
+              :label="t('stylist.frame_of', { i: runningIndex + 1, n: frames.length })"
+              :progress="sdProgress?.progress || 0" :steps="sdProgress?.steps || 0" :eta="sdProgress?.etaRelative || 0"
+              :preview-available="sdProgress?.preview_available" @interrupt="cancelRunning"
+            />
+            <ResolutionUpscaleOverlay v-if="!liveImage" :image="bigImage" :item-id="bigItemId" @completed="onResolutionUpscaled" />
           </div>
-          <div v-if="selectedFrame" class="action-row gen-result-actions stylist-actions" data-testid="stylist-actions">
+          <div v-if="selectedFrame && !liveImage" class="action-row gen-result-actions stylist-actions" data-testid="stylist-actions">
             <button class="btn btn-sm btn-secondary" :disabled="reshooting" data-testid="stylist-reshoot" @click="onReshoot"><RotateCcw :size="14" /> {{ t('stylist.reshoot') }}</button>
             <button v-if="bigItemId" class="btn btn-sm btn-secondary" :disabled="upscaling" data-testid="stylist-upscale" @click="onUpscale">
               <span v-if="upscaling" class="spinner gen-action-spinner"></span>
@@ -638,7 +654,7 @@ onUnmounted(() => {
           <div v-if="selectedFrame?.faceSwap?.startsWith('skipped:')" class="form-hint" data-testid="stylist-face-swap-skipped">{{ t('stylist.edit_face_skipped', { reason: selectedFrame.faceSwap.slice('skipped:'.length) }) }}</div>
           <div v-if="selectedFrame?.facePass?.startsWith('skipped:')" class="form-hint" data-testid="stylist-face-pass-skipped">{{ t('stylist.face_pass_skipped', { reason: selectedFrame.facePass.slice('skipped:'.length) }) }}</div>
           <div v-if="selectedFrame?.anatomyWarning" class="form-hint" data-testid="stylist-anatomy-warning">{{ anatomyWarningText(selectedFrame) }}</div>
-          <details v-if="canEdit && bigImage" class="card stylist-more" data-testid="stylist-detail-panel">
+          <details v-if="canEdit && bigImage && !liveImage" class="card stylist-more" data-testid="stylist-detail-panel">
             <summary>{{ t('stylist.detail_title') }}</summary>
             <DetailRestorePanel :frame="selectedFrame" :target="bigImage" :restore="restoreDetailsFrame" />
           </details>
@@ -648,7 +664,7 @@ onUnmounted(() => {
             <div class="stylist-strip" data-testid="stylist-results">
               <button
                 v-for="(f, i) in frames" :key="f.jobId" type="button" class="stylist-thumb"
-                :class="['is-' + f.status, { active: selectedFrame && f.jobId === selectedFrame.jobId, 'no-garment': garmentMissed(f) }]"
+                :class="['is-' + f.status, { active: f.jobId === (pickedJobId || (liveImage ? runningFrame?.jobId : selectedFrame?.jobId)), 'no-garment': garmentMissed(f) }]"
                 :title="f.error || (garmentMissed(f) ? t('stylist.frame_no_garment_title', { reason: garmentReason(f) }) : f.shot)" data-testid="stylist-frame" @click="pickFrame(f)"
               >
                 <img v-if="f.itemId && thumbs[f.itemId]" :src="thumbs[f.itemId]" alt="" />
@@ -845,7 +861,6 @@ onUnmounted(() => {
 .stylist-tabs { margin-bottom: 8px; }
 .stylist-action { flex: 1 1 0; }
 .stylist-blocked { margin-top: 6px; }
-.stylist-progress { flex-shrink: 0; }
 .stylist-big { cursor: zoom-in; margin: auto; align-self: center; min-height: 0; }
 .stylist-strip-card { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
 .stylist-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
