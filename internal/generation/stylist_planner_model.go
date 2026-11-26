@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	plannerIdleReleaseTimeout  = 75 * time.Second
-	plannerMemoryRefreshWait   = 6 * time.Second
-	plannerCaptionPollInterval = 250 * time.Millisecond
+	plannerIdleReleaseTimeout   = 75 * time.Second
+	plannerMemoryRefreshWait    = 6 * time.Second
+	plannerCaptionPollInterval  = 250 * time.Millisecond
+	plannerCaptionRetryInterval = time.Second
 )
 
 type plannerIdleUnloader interface {
@@ -164,6 +165,7 @@ func (s *Service) releasePlannerCaption(ctx context.Context, serverURL string) e
 	if err := unloader.UnloadModel(ctx, configured); err != nil {
 		return err
 	}
+	nextRetry := time.Now().Add(plannerCaptionRetryInterval)
 	ticker := time.NewTicker(plannerCaptionPollInterval)
 	defer ticker.Stop()
 	for {
@@ -176,6 +178,12 @@ func (s *Service) releasePlannerCaption(ctx context.Context, serverURL string) e
 		}
 		if !slices.ContainsFunc(loaded, isCaption) {
 			return nil
+		}
+		if !time.Now().Before(nextRetry) {
+			if err := unloader.UnloadModel(ctx, configured); err != nil {
+				return err
+			}
+			nextRetry = time.Now().Add(plannerCaptionRetryInterval)
 		}
 		select {
 		case <-ctx.Done():
