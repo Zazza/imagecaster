@@ -29,7 +29,7 @@ import {
   TrainPersonReplace, ListTrainingJobs, CancelTraining, PauseTraining, ResumeTraining, ListPeople, DeletePerson, RenamePerson, SetPersonDisplay,
   AddPersonIdentity, FaceSwapStatus,
   PostFaceLandmarks, PostBodyPoints, PreviewPostRetouch, EnqueuePostSave, SavePostToHistory, EnqueuePost4K,
-  StylistSuggest, StylistShootOptions, StylistPresets, StylistPlan, StylistPlans, StylistSaveNamedPlan, StylistRenamePlan, StylistDeletePlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistEdit, StylistEditWithEditor, StylistDetailSource, StylistRestoreDetails, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, RollbackPerson, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
+  StylistSourcePlan, StylistSourceShoot, StylistSuggest, StylistShootOptions, StylistPresets, StylistPlan, StylistPlans, StylistSaveNamedPlan, StylistRenamePlan, StylistDeletePlan, StylistRegenerateSeries, StylistPickGarment, StylistShoot, StylistAppearance, StylistFrames, StylistLastShoot, StylistReshoot, StylistEdit, StylistEditWithEditor, StylistDetailSource, StylistRestoreDetails, StylistLoadPlan, StylistSavePlan, UpscaleSessionItem, StylistSaveGarment, StylistLoadGarment, SetStylistAppearance, StylistTranslate, StylistTranslateRu, PersonSetAdd, PersonSetList, PersonSetThumb, PersonSetRemove, PersonSetSummary, PersonSetRename, TrainPersonFromSet, AddPersonIdentityFromSet, RollbackPerson, StylistSavePreset, StylistRenamePreset, StylistDeletePreset, StylistDescribeGarment,
 } from './wailsjs/go/main/App.js'
 import { parseProgress } from './downloadProgress.js'
 import { EventsOn } from './wailsjs/runtime/runtime'
@@ -187,6 +187,8 @@ export const api = {
   faceSwapStatus: () => FaceSwapStatus(),
   stylistPresets: () => StylistPresets(),
   stylistPlan: (req) => StylistPlan(req),
+  stylistSourcePlan: (req) => StylistSourcePlan(req),
+  stylistSourceShoot: (req) => StylistSourceShoot(req),
   stylistSuggest: (req) => StylistSuggest(req),
   stylistShootOptions: (person) => StylistShootOptions(person),
   stylistRegenerateSeries: (req, index) => StylistRegenerateSeries(req, index),

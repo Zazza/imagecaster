@@ -308,6 +308,8 @@ function closeViewer() {
 async function openViewerById(id) {
   let idx = items.value.findIndex(i => i.id === id)
   if (idx < 0) {
+    await api.openInHistory(id)
+    await loadSessions()
     await loadItems()
     idx = items.value.findIndex(i => i.id === id)
   }

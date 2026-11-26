@@ -1,4 +1,5 @@
 <script setup>
+import SourceVariantsPanel from './stylist/SourceVariantsPanel.vue'
 import ResolutionUpscaleOverlay from './ResolutionUpscaleOverlay.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { TriangleAlert, Shirt, RotateCcw, Maximize2, SlidersHorizontal, Pencil } from 'lucide-vue-next'
@@ -14,10 +15,9 @@ import { readImageFile } from '../imageFile.js'
 import { useGenerationProgress } from '../composables/useGenerationProgress.js'
 import { providePostEditor } from '../composables/usePostEditor.js'
 import EditorSettings from './post/SettingsPanel.vue'
-import { useStylistPlan, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, editFrame, restoreDetailsFrame, EDIT_INSTRUCTION_MAX, FACE_RESTORE_MIN, FACE_RESTORE_MAX, FACE_RESTORE_STEP, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
+import { useStylistPlan, sourceSubmitting, restoreLastShoot, restorePlan, savePlanSoon, reshootFrame, editFrame, restoreDetailsFrame, EDIT_INSTRUCTION_MAX, FACE_RESTORE_MIN, FACE_RESTORE_MAX, FACE_RESTORE_STEP, garmentOutfitShown, FRAME_SIZES, stylistPeople, ASPECTS, FRAMES_MAX, clampFrames, latestDone, dropChoiceId } from '../composables/useStylistPlan.js'
 import StatusMessage from './StatusMessage.vue'
 import FloatingGenerationPanel from './FloatingGenerationPanel.vue'
-import ImageViewer from './ImageViewer.vue'
 import AspectTab from './stylist/AspectTab.vue'
 import PlanLibrary from './stylist/PlanLibrary.vue'
 import SeriesCard from './stylist/SeriesCard.vue'
@@ -34,6 +34,15 @@ const {
 } = useStylistPlan()
 const { sdProgress, preview } = useGenerationProgress({ acceptJob: id => frames.value.some(frame => frame.jobId === id) })
 const emit = defineEmits(['navigate'])
+const sourceMode = ref(false)
+const sourcePhoto = ref('')
+const sourceBusy = ref(false)
+const modeLocked = computed(() => sourceSubmitting.value || sourceBusy.value || shooting.value || planning.value || frames.value.some(f => ['pending', 'running'].includes(f.status)))
+function sourceQueued(result) {
+  pickedJobId.value = 0
+  upscaled.value = null
+  error.value = result.error || ''
+}
 const toPeople = () => emit('navigate', { page: 'people' })
 
 const QUEUE_EVENTS = ['queue:changed', 'queue:started', 'queue:completed', 'queue:failed']
@@ -54,14 +63,13 @@ const upscaled = ref(null)
 const reshooting = ref(false)
 const upscaling = ref(false)
 const bigImage = ref('')
-const showViewer = ref(false)
 const editOpen = ref(false)
 const editInstruction = ref('')
 const editEditor = providePostEditor({ settingsPrefix: 'stylist_edit_editor', restoreLegacy: false })
 const editing = ref(false)
 const autoPickEditId = ref(0)
 let selectionEpoch = 0
-const canEdit = computed(() => selectedFrame.value?.status === 'completed' && !!selectedFrame.value?.itemId)
+const canEdit = computed(() => !sourceSubmitting.value && selectedFrame.value?.status === 'completed' && !!selectedFrame.value?.itemId)
 const canSubmitEdit = computed(() => canEdit.value && editEditor.ready.value && !!editInstruction.value.trim() && [...editInstruction.value.trim()].length <= EDIT_INSTRUCTION_MAX && !editing.value && !shooting.value)
 
 
@@ -145,7 +153,7 @@ const faceSwapNote = computed(() => {
   return faceSwapStatus.value === 'not_installed' ? t('stylist.face_swap_no_server') : t('stylist.face_swap_unknown')
 })
 const appearanceHint = computed(() => person.value?.gender === 'man' ? 'a man' : person.value?.gender === 'person' ? 'a person' : 'a woman')
-const canPlan = computed(() => !!person.value && !!base.value && !planning.value && !shooting.value)
+const canPlan = computed(() => !sourceSubmitting.value && !!person.value && !!base.value && !planning.value && !shooting.value)
 const planBlocked = computed(() => {
   if (baseLoading.value) return t('stylist.base_loading')
   if (!base.value) return t('stylist.base_failed')
@@ -153,7 +161,7 @@ const planBlocked = computed(() => {
   return ''
 })
 const garmentUnnamed = computed(() => !!form.garment && !(form.garmentOutfit || '').trim())
-const canShoot = computed(() => !!person.value && frameCount.value > 0 && frameCount.value <= FRAMES_MAX && !frameCountMismatch.value && appliedSelectionCurrent.value && !shooting.value && !planning.value && regenerating.value < 0 && !garmentUnnamed.value)
+const canShoot = computed(() => !sourceSubmitting.value && !!person.value && frameCount.value > 0 && frameCount.value <= FRAMES_MAX && !frameCountMismatch.value && appliedSelectionCurrent.value && !shooting.value && !planning.value && regenerating.value < 0 && !garmentUnnamed.value)
 const garmentMissed = (f) => !!f.garment && f.garment !== 'done'
 const garmentReason = (f) => f.garment.replace(/^skipped:\s*/, '')
 const anatomyWarningCodes = new Set(['base_defect', 'garment_defect', 'uncertain', 'unavailable'])
@@ -491,8 +499,7 @@ async function toPostProcess() {
 }
 
 async function openBig() {
-  if (await openInHistoryViewer(bigItemId.value)) return
-  showViewer.value = true
+  await openInHistoryViewer(bigItemId.value)
 }
 
 watch(frames, async (list) => {
@@ -508,7 +515,6 @@ watch(frames, async (list) => {
 }, { immediate: true })
 
 watch(bigItemId, async (id) => {
-  showViewer.value = false
   bigImage.value = ''
   if (!id) {
     return
@@ -575,19 +581,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page-enter gen-page" data-testid="stylist-page">
+  <div class="page-enter gen-page stylist-page" data-testid="stylist-page">
     <StatusMessage v-if="baseError" :text="baseError" @close="baseError = ''" />
     <StatusMessage v-if="error" data-testid="stylist-error" @close="clearError"><TriangleAlert :size="14" class="inline-icon" /> {{ error }}</StatusMessage>
 
     <div class="gen-workspace">
       <div class="gen-preview-col">
         <div class="stylist-switch">
-          <button class="btn btn-sm" :class="view === 'plan' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="view === 'plan'" data-testid="stylist-view-plan" @click="setView('plan')">{{ t('stylist.view_plan') }}<span v-if="series.length" class="stylist-count">{{ frameCount }}</span></button>
+          <button class="btn btn-sm" :class="view === 'plan' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="view === 'plan'" data-testid="stylist-view-plan" @click="setView('plan')">{{ t('stylist.view_plan') }}<span v-if="series.length && !sourceMode" class="stylist-count">{{ frameCount }}</span></button>
           <button class="btn btn-sm" :class="view === 'frames' ? 'btn-primary' : 'btn-secondary'" :aria-pressed="view === 'frames'" data-testid="stylist-view-frames" @click="setView('frames')">{{ t('stylist.view_frames') }}<span v-if="frames.length" class="stylist-count">{{ frames.length }}</span></button>
-          <PlanLibrary v-if="view === 'plan'" :themes="base?.themes || []" :selected-themes="form.themes" :can-save="series.length > 0" :locked="shooting || planning || regenerating >= 0" />
+          <PlanLibrary v-if="view === 'plan' && !sourceMode" :themes="base?.themes || []" :selected-themes="form.themes" :can-save="series.length > 0" :locked="shooting || planning || regenerating >= 0" />
         </div>
 
-        <template v-if="view === 'plan'">
+        <div v-if="view === 'plan' && sourceMode" class="generate-image-area" :class="{ empty: !sourcePhoto }">
+          <img v-if="sourcePhoto" :src="b64Url(sourcePhoto)" :alt="t('source.photo')" class="stylist-big" />
+          <p v-else class="form-hint">{{ t('source.upload_hint') }}</p>
+        </div>
+        <template v-else-if="view === 'plan'">
           <StatusMessage v-for="(w, i) in warnings" :key="i" kind="warning" data-testid="stylist-warning" @close="dropWarning(i)">{{ w }}</StatusMessage>
           <StatusMessage v-if="presetNotice" kind="success" :timeout="8000" data-testid="stylist-preset-notice" @close="presetNotice = ''">{{ presetNotice }}</StatusMessage>
           <div v-if="form.shootConcept && series.length" class="card" data-testid="stylist-applied-concept"><div class="card-body"><strong>{{ conceptText('concept') }}</strong><p>{{ conceptText('light') }} · {{ conceptText('focus') }}</p><p>{{ form.shootConcept.target_name || form.shootConcept.target }}<span v-if="form.shootConcept.target_model"> · {{ form.shootConcept.target_model }}</span></p><p v-if="conceptText('target_reason')">{{ conceptText('target_reason') }}</p><div class="form-hint">{{ t('stylist.auto_regenerate_hint') }}</div></div></div>
@@ -635,7 +645,7 @@ onUnmounted(() => {
             <ResolutionUpscaleOverlay v-if="!liveImage" :image="bigImage" :item-id="bigItemId" @completed="onResolutionUpscaled" />
           </div>
           <div v-if="selectedFrame && !liveImage" class="action-row gen-result-actions stylist-actions" data-testid="stylist-actions">
-            <button class="btn btn-sm btn-secondary" :disabled="reshooting" data-testid="stylist-reshoot" @click="onReshoot"><RotateCcw :size="14" /> {{ t('stylist.reshoot') }}</button>
+            <button class="btn btn-sm btn-secondary" :disabled="reshooting || sourceSubmitting" data-testid="stylist-reshoot" @click="onReshoot"><RotateCcw :size="14" /> {{ t('stylist.reshoot') }}</button>
             <button v-if="bigItemId" class="btn btn-sm btn-secondary" :disabled="upscaling" data-testid="stylist-upscale" @click="onUpscale">
               <span v-if="upscaling" class="spinner gen-action-spinner"></span>
               <Maximize2 v-else :size="14" />
@@ -678,7 +688,13 @@ onUnmounted(() => {
       </div>
 
       <div class="gen-controls">
-        <div class="gen-sections accordion">
+        <div class="stylist-switch stylist-mode" data-testid="stylist-work-mode">
+          <button class="btn btn-sm" :class="!sourceMode ? 'btn-primary' : 'btn-secondary'" :disabled="modeLocked" :aria-pressed="!sourceMode" @click="sourceMode = false">{{ t('source.new_shoot') }}</button>
+          <button class="btn btn-sm" :class="sourceMode ? 'btn-primary' : 'btn-secondary'" :disabled="modeLocked" :aria-pressed="sourceMode" data-testid="stylist-source-mode" @click="sourceMode = true">{{ t('source.mode') }}</button>
+        </div>
+        <p v-if="sourceSubmitting" class="form-hint" role="status">{{ t('source.submitting') }}</p>
+        <SourceVariantsPanel v-show="sourceMode" :face-swap-on="faceSwapOn" :locked="shooting || frames.some(f => ['pending', 'running'].includes(f.status))" @source="sourcePhoto = $event" @busy="sourceBusy = $event" @queued="sourceQueued" />
+        <div v-show="!sourceMode" class="gen-sections accordion">
           <div class="card" :class="{ collapsed: openSection !== 'person' }" data-testid="stylist-section-person">
             <div class="card-header card-toggle" @click="setOpenSection('person')">
               <span class="card-heading"><span class="card-num mono">01</span><span class="card-heading-text"><span class="card-title">{{ t('stylist.section_person') }}</span><span class="card-subtitle">{{ sectionSub.person }}</span></span></span>
@@ -825,7 +841,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="gen-actions">
+        <div v-if="!sourceMode" class="gen-actions">
           <div class="gen-actions-row">
             <button class="btn btn-primary btn-generate stylist-action" :disabled="!canPlan" data-testid="stylist-plan" @click="makePlan">{{ planning ? t('stylist.planning') : form.planningMode === 'manual' ? t('stylist.plan') : t('stylist.auto_suggest') }}</button>
           </div>
@@ -835,12 +851,26 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <ImageViewer v-if="showViewer && bigImage" :image-base64="bigImage" @close="showViewer = false" />
   </div>
 </template>
 
 <style scoped>
+.stylist-page { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.stylist-page > .gen-workspace { flex: 1; height: auto; min-height: 0; }
+.stylist-page .gen-preview-col .generate-image-area { min-height: 12rem; }
+@media (min-width: 900px) {
+  .stylist-page > .gen-workspace { flex-direction: row; }
+  .stylist-page .gen-controls { width: 360px; }
+}
+@media (max-width: 899px) {
+  .stylist-page { overflow-y: auto; }
+  .stylist-page > .gen-workspace { flex: none; min-height: 100%; }
+  .stylist-page .gen-preview-col { flex: none; height: 40vh; min-height: 16rem; }
+  .stylist-page .gen-controls { flex: none; height: 70vh; min-height: 20rem; }
+}
+
 .stylist-switch { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+.stylist-mode { padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .stylist-shoot-bar { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .stylist-count { margin-left: 6px; opacity: 0.7; }
 .stylist-narrow { max-width: 120px; }

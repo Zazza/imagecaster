@@ -13,6 +13,8 @@ import { resetStylistPlan, useStylistPlan, planSnapshot, applyPlanSnapshot } fro
 import { registerHistoryViewer } from '../historyViewer.js'
 import StylistPage from '../components/StylistPage.vue'
 import FloatingGenerationPanel from '../components/FloatingGenerationPanel.vue'
+import { api } from '../api.js'
+import * as imageFile from '../imageFile.js'
 
 enableAutoUnmount(afterEach)
 
@@ -70,6 +72,109 @@ const LIVE_IMAGE = 'data:image/png;base64,iVBORw0KGgo-live-frame'
 const emitLive = (jobId = 2) => EventsEmit('sd:progress', {
   queue_job_id: jobId, job: `remote-${jobId}`, stage: 1, preview_pass: 1,
   preview_frame: 1, preview: LIVE_IMAGE, progress: 0.5, steps: 20, eta_relative: 3,
+})
+
+describe('Stylist: source variants share the current generation preview', () => {
+  const SOURCE_JOB = 41
+  const COMPLETED_SOURCE_JOB = 42
+  const SOURCE_ITEM = 141
+  const COMPLETED_SOURCE_ITEM = 142
+  const EDITOR_MODEL = 'flux-2-klein-4b-Q8_0.gguf'
+  const NEXT_IMAGE = 'data:image/png;base64,iVBORw0KGgo-next-source-frame'
+
+  beforeEach(() => {
+    vi.spyOn(imageFile, 'readImageFile').mockResolvedValue('synthetic-source-photo')
+    vi.spyOn(api, 'getModelCatalog').mockResolvedValue({ sd_models: [{ name: 'flux-2-klein-4b', filename: EDITOR_MODEL, modules: [] }] })
+    vi.spyOn(api, 'getServerModels').mockImplementation(async type => type === 'sd' ? [{ name: EDITOR_MODEL }] : [])
+    vi.spyOn(api, 'stylistSourcePlan').mockResolvedValue(['Turn left.', 'Look up.'])
+    vi.spyOn(api, 'stylistSourceShoot').mockResolvedValue({ job_ids: [SOURCE_JOB, COMPLETED_SOURCE_JOB], error: '' })
+    state[SOURCE_JOB] = { status: 'running', item_id: 0 }
+    state[COMPLETED_SOURCE_JOB] = { status: 'completed', item_id: COMPLETED_SOURCE_ITEM }
+    CancelQueueJob.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  async function startSourceSeries(w) {
+    await w.get(tid('stylist-source-mode')).trigger('click')
+    const input = w.get(tid('source-photo-input'))
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['source'], 'source.png', { type: 'image/png' })] })
+    await input.trigger('change')
+    await settle()
+    await w.get(tid('source-count')).setValue('2')
+    await w.get(tid('source-plan')).trigger('click')
+    await settle()
+    expect(w.get(tid('source-run')).element.disabled).toBe(false)
+    await w.get(tid('source-run')).trigger('click')
+    await settle()
+    expect(api.stylistSourceShoot).toHaveBeenCalledWith(expect.objectContaining({ image_base64: 'synthetic-source-photo', instructions: ['Turn left.', 'Look up.'] }))
+    expect(StylistFrames).toHaveBeenLastCalledWith([SOURCE_JOB, COMPLETED_SOURCE_JOB])
+    EventsEmit('queue:started', { job_id: SOURCE_JOB })
+    await settle()
+  }
+
+  it.each(['selected', 'upscaled'])('automatically shows new source previews after an explicitly %s old frame', async oldSelection => {
+    const w = mount(StylistPage)
+    await settle()
+    await tiles(w)[0].trigger('click')
+    await settle()
+    if (oldSelection === 'upscaled') {
+      await w.get(tid('stylist-upscale')).trigger('click')
+      await settle()
+      expect(bigSrc(w)).toContain('img500')
+    } else expect(bigSrc(w)).toContain('img101')
+
+    await startSourceSeries(w)
+    emitLive(SOURCE_JOB)
+    await settle()
+    expect(bigSrc(w)).toBe(LIVE_IMAGE)
+    expect(w.get(tid('stylist-progress')).text()).toContain('50%')
+    EventsEmit('sd:progress', { queue_job_id: SOURCE_JOB, job: `remote-${SOURCE_JOB}`, stage: 1, preview_frame: 2, preview: NEXT_IMAGE, progress: 0.75, steps: 20 })
+    await settle()
+    expect(bigSrc(w)).toBe(NEXT_IMAGE)
+    emitLive(SOURCE_JOB)
+    emitLive(1)
+    emitLive(999)
+    await settle()
+    expect(bigSrc(w)).toBe(NEXT_IMAGE)
+
+    await tiles(w)[1].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toContain(`img${COMPLETED_SOURCE_ITEM}`)
+    EventsEmit('sd:progress', { queue_job_id: SOURCE_JOB, job: `remote-${SOURCE_JOB}`, stage: 1, preview_frame: 3, preview: LIVE_IMAGE, progress: 0.8, steps: 20 })
+    await settle()
+    expect(bigSrc(w)).toContain(`img${COMPLETED_SOURCE_ITEM}`)
+    await tiles(w)[0].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toBe(LIVE_IMAGE)
+    await w.get(`${tid('stylist-progress')} .gp-interrupt`).trigger('click')
+    await settle()
+    expect(CancelQueueJob).toHaveBeenCalledWith(SOURCE_JOB)
+    state[SOURCE_JOB] = { status: 'completed', item_id: SOURCE_ITEM }
+    EventsEmit('queue:completed', { job_id: SOURCE_JOB })
+    await settle()
+    expect(bigSrc(w)).toContain(`img${SOURCE_ITEM}`)
+  })
+
+  it('keeps progress and final source results when the shared preview is disabled', async () => {
+    const w = mount(StylistPage)
+    await settle()
+    await tiles(w)[0].trigger('click')
+    await settle()
+    await startSourceSeries(w)
+    EventsEmit('sd:progress', { queue_job_id: SOURCE_JOB, job: `remote-${SOURCE_JOB}`, progress: 0.5, steps: 20, preview_disabled: true, preview_available: false })
+    await settle()
+    expect(w.get(tid('stylist-progress')).text()).toContain('50%')
+    expect(w.find(`img[src="${LIVE_IMAGE}"]`).exists()).toBe(false)
+    expect(bigSrc(w)).toContain(`img${COMPLETED_SOURCE_ITEM}`)
+    expect(w.get(tid('stylist-progress')).text()).not.toContain(t('progress.preview_unavailable'))
+    state[SOURCE_JOB] = { status: 'completed', item_id: SOURCE_ITEM }
+    EventsEmit('queue:completed', { job_id: SOURCE_JOB })
+    await settle()
+    await tiles(w)[0].trigger('click')
+    await settle()
+    expect(bigSrc(w)).toContain(`img${SOURCE_ITEM}`)
+  })
 })
 
 describe('Stylist: full decoded live frame in the main image area', () => {

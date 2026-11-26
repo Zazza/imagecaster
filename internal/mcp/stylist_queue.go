@@ -27,6 +27,7 @@ type ShootFrameParams struct {
 	RestoreStage      string                       `json:"restore_stage,omitempty"`
 	RestoreAligned    bool                         `json:"restore_aligned,omitempty"`
 	Editor            *generation.PostEditorParams `json:"editor,omitempty"`
+	SourcePose        bool                         `json:"source_pose,omitempty"`
 	SourceItemID      int64                        `json:"source_item_id,omitempty"`
 	SourceSessionID   int64                        `json:"source_session_id,omitempty"`
 	EditInstruction   string                       `json:"edit_instruction,omitempty"`

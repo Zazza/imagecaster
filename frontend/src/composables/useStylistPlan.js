@@ -329,6 +329,7 @@ const shooting = ref(false)
 const translating = ref(false)
 const error = ref('')
 const notice = ref('')
+export const sourceSubmitting = ref(false)
 const jobIds = ref([])
 const frames = ref([])
 const view = ref('plan')
@@ -596,6 +597,14 @@ export async function reshootFrame(jobId) {
   frames.value = frames.value.map(f => (f.jobId === jobId ? { jobId: newId, status: 'pending', itemId: 0, error: '', shot: f.shot, garment: '' } : f))
   refreshFrames()
   return newId
+}
+
+export function adoptSourceFrames(ids) {
+  framesSeq++
+  jobIds.value = [...ids]
+  frames.value = ids.map(id => ({ jobId: id, status: 'pending', itemId: 0, error: '', shot: '' }))
+  view.value = 'frames'
+  refreshFrames()
 }
 
 export async function restoreLastShoot() {

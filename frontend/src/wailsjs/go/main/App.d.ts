@@ -420,3 +420,6 @@ export function EnqueueResolutionUpscale(arg1:number,arg2:number):Promise<number
 export function EnqueueImageResolutionUpscale(arg1:string,arg2:number):Promise<number>;
 
 export function GetQueueJobResult(arg1:number):Promise<queue.Job>;
+
+export function StylistSourcePlan(arg1: {image_base64: string; wish: string; count: number; locale: string}): Promise<Array<string>>;
+export function StylistSourceShoot(arg1: {image_base64: string; instructions: Array<string>; editor: generation.PostEditorParams; person?: string; base?: string; face_swap?: boolean}): Promise<{job_ids: Array<number>; error?: string}>;

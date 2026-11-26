@@ -809,3 +809,11 @@ export function EnqueueImageResolutionUpscale(arg1, arg2) {
 export function GetQueueJobResult(arg1) {
   return window['go']['main']['App']['GetQueueJobResult'](arg1);
 }
+
+export function StylistSourcePlan(arg1) {
+  return window['go']['main']['App']['StylistSourcePlan'](arg1);
+}
+
+export function StylistSourceShoot(arg1) {
+  return window['go']['main']['App']['StylistSourceShoot'](arg1);
+}

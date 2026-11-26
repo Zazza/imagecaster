@@ -102,7 +102,19 @@ func remapPtsToCrop(pts []faceguard.Point, rect image.Rectangle, w, h int) []fac
 	return out
 }
 
-func refineShootFace(eng StylistEngine, refiner FaceRefiner, frameB64, prompt, negative string, m shootModel, seed *int64) (string, string, bool) {
+type StylistFaceLandmarker interface {
+	FaceLandmarks(string) ([]faceguard.Point, error)
+}
+
+func RefineStylistFace(eng StylistFaceLandmarker, refiner FaceRefiner, image, prompt, base string, seed *int64) (string, string, bool) {
+	model, ok := shootModels[base]
+	if !ok {
+		return image, facePassSkipped("модель лица недоступна"), false
+	}
+	return refineShootFace(eng, refiner, image, prompt, shootNegative, model, seed)
+}
+
+func refineShootFace(eng StylistFaceLandmarker, refiner FaceRefiner, frameB64, prompt, negative string, m shootModel, seed *int64) (string, string, bool) {
 	frame, err := imgcodec.Decode(frameB64, imgcodec.Options{Name: "frame", DataURL: true, MaxDim: 8192})
 	if err != nil {
 		return frameB64, facePassSkipped("кадр не прочитан"), false

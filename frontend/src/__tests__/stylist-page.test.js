@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { clearEventMocks, EventsEmit } from './mocks/runtime'
 import {
@@ -9,9 +9,10 @@ import { setLocale, t } from '../i18n/index.js'
 import { settle } from './helpers/index.js'
 import StylistPage from '../components/StylistPage.vue'
 import AspectTab from '../components/stylist/AspectTab.vue'
+import { registerHistoryViewer } from '../historyViewer.js'
 import {
   buildPlanRequest, defaultAspects, removeShot, removeSeries, regenerateRequest, stylistPeople, clampFrames,
-  framesFrom, latestDone, totalShots, useStylistPlan, resetStylistPlan, setRuField, setEnField, setShotRu, setShotEn, dirtyRefs, applyTranslations, planSnapshot,
+  framesFrom, latestDone, totalShots, useStylistPlan, resetStylistPlan, setRuField, setEnField, setShotRu, setShotEn, dirtyRefs, applyTranslations, planSnapshot, sourceSubmitting,
 } from '../composables/useStylistPlan.js'
 
 enableAutoUnmount(afterEach)
@@ -46,6 +47,7 @@ beforeEach(() => {
   clearEventMocks()
   setLocale('ru')
   resetStylistPlan()
+  sourceSubmitting.value = false
   useStylistPlan().form.frames = 3
   StylistTranslateRu.mockImplementation((texts) => Promise.resolve(texts))
   StylistPresets.mockImplementation(() => Promise.resolve(structuredClone(BASE)))
@@ -146,6 +148,40 @@ describe('StylistPage', () => {
     await settle()
     return w
   }
+
+  it('offers source photo variants without a saved person and hides the new-shoot plan action', async () => {
+    ListPeople.mockResolvedValue([])
+    const w = await mountPage()
+    expect(useStylistPlan().form.person).toBe('')
+    await w.get(tid('stylist-source-mode')).trigger('click')
+    await settle()
+    expect(w.get(tid('source-photo-pick')).isVisible()).toBe(true)
+    await w.findAll('[role="button"]').find(header => header.text().includes(t('source.task'))).trigger('click')
+    expect(w.get(tid('source-plan')).isVisible()).toBe(true)
+    expect(w.findAll(tid('stylist-plan')).filter(button => button.isVisible())).toHaveLength(0)
+    expect(StylistPlan).not.toHaveBeenCalled()
+  })
+
+  it('keeps ordinary shoot actions and mode switching locked after remount during a source enqueue', async () => {
+    const first = await mountPage()
+    await first.get(tid('stylist-plan')).trigger('click')
+    await settle()
+    first.unmount()
+    sourceSubmitting.value = true
+    const second = await mountPage()
+    expect(second.get(tid('stylist-plan')).element.disabled).toBe(true)
+    expect(second.get(tid('stylist-shoot')).element.disabled).toBe(true)
+    expect(second.get(tid('stylist-source-mode')).element.disabled).toBe(true)
+    await second.get(tid('stylist-plan')).trigger('click')
+    await second.get(tid('stylist-shoot')).trigger('click')
+    expect(StylistPlan).toHaveBeenCalledTimes(1)
+    expect(StylistShoot).not.toHaveBeenCalled()
+    sourceSubmitting.value = false
+    await settle()
+    expect(second.get(tid('stylist-plan')).element.disabled).toBe(false)
+    expect(second.get(tid('stylist-shoot')).element.disabled).toBe(false)
+    expect(second.get(tid('stylist-source-mode')).element.disabled).toBe(false)
+  })
 
   it('lists only supported people; face swap is on by default for a person with a face', async () => {
     const w = await mountPage()
@@ -598,6 +634,8 @@ describe('StylistPage', () => {
   })
 
   it('clicking a finished tile shows it large and opens the viewer', async () => {
+    const opener = vi.fn(() => true)
+    onTestFinished(registerHistoryViewer(opener))
     StylistShoot.mockImplementation(() => Promise.resolve([41, 42]))
     GetSessionThumb.mockImplementation((id) => Promise.resolve('/9j/t' + id))
     GetSessionImage.mockImplementation((id) => Promise.resolve('/9j/f' + id))
@@ -617,7 +655,8 @@ describe('StylistPage', () => {
     expect(w.findComponent({ name: 'ImageViewer' }).exists()).toBe(false)
     await w.find(tid('stylist-big')).trigger('click')
     await settle()
-    expect(w.findComponent({ name: 'ImageViewer' }).props('imageBase64')).toBe('/9j/f300')
+    expect(opener).toHaveBeenCalledWith(300)
+    expect(w.findComponent({ name: 'ImageViewer' }).exists()).toBe(false)
   })
 })
 

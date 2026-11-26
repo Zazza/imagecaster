@@ -152,7 +152,7 @@ func enqueueStylistEditParams(st stylistSettings, q stylistEditQueue, items styl
 		Editor:            params.Editor,
 		RestoreMaskBase64: params.RestoreMaskBase64, RestoreStage: params.RestoreStage, RestoreAligned: params.RestoreAligned,
 		SourceItemID: item.ID, SourceSessionID: item.SessionID, EditInstruction: instruction,
-		Person: original.Params.Person, Base: original.Params.Base, Model: model,
+		Person: original.Params.Person, Base: original.Params.Base, Model: model, Prompt: original.Params.Prompt,
 		FaceSwap: original.Params.FaceSwap, FaceSwapName: swapName,
 		FacePass: original.Params.FacePass, FaceRestoreBlend: original.Params.FaceRestoreBlend,
 		Shot: instruction, ToFolder: true,
@@ -222,7 +222,17 @@ func runStylistEdit(eng stylistEditEngine, sessions mcp.AppSessionItems, p mcp.S
 	if source == "" {
 		return nil, errors.New("исходное изображение не прочитано")
 	}
-	prepared, err := eng.PrepareStylistEdit(source, instruction)
+	prepare := eng.PrepareStylistEdit
+	if p.SourcePose {
+		strict, ok := eng.(interface {
+			PrepareSourcePose(string, string) (string, error)
+		})
+		if !ok {
+			return nil, errors.New("подготовка поз исходного фото недоступна")
+		}
+		prepare = strict.PrepareSourcePose
+	}
+	prepared, err := prepare(source, instruction)
 	if stopped() {
 		return nil, generation.ErrInterrupted
 	}
@@ -248,6 +258,21 @@ func runStylistEdit(eng stylistEditEngine, sessions mcp.AppSessionItems, p mcp.S
 	}
 	if res == nil || res.Image == "" {
 		return nil, errors.New("правка не вернула изображение")
+	}
+	facePass := generation.FaceSwapOff
+	if p.FacePass {
+		if faceEngine, ok := eng.(interface {
+			mcp.StylistFaceLandmarker
+			mcp.FaceRefiner
+		}); ok {
+			var interrupted bool
+			res.Image, facePass, interrupted = mcp.RefineStylistFace(faceEngine, faceEngine, res.Image, p.Prompt, p.Base, p.Seed)
+			if interrupted || stopped() {
+				return nil, generation.ErrInterrupted
+			}
+		} else {
+			facePass = "skipped:второй проход недоступен"
+		}
 	}
 	faceSwap := generation.FaceSwapOff
 	if p.FaceSwap {
@@ -286,10 +311,6 @@ func runStylistEdit(eng stylistEditEngine, sessions mcp.AppSessionItems, p mcp.S
 	id := sessions.AddToSessionID(p.SourceSessionID, res.Image, res.Info, stylistPageSource, meta)
 	if id <= 0 {
 		return nil, errors.New("изменённый кадр не сохранён в историю")
-	}
-	facePass := generation.FaceSwapOff
-	if p.FacePass {
-		facePass = "skipped:второй проход недоступен для редактора"
 	}
 	return &mcp.ShootFrameResult{ID: id, Shot: instruction, Prompt: prompt, FacePass: facePass, FaceSwap: faceSwap}, nil
 }
