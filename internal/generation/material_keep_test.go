@@ -220,6 +220,7 @@ func TestGenerateFromImage_MaterialMask_ItemFromVisionInPrompt(t *testing.T) {
 	e := mkSetup(t, "post_material", func() (string, error) { return "  a blue denim jacket \n", nil }, nil)
 	p := e.params(makePNGBase64(t, w, h))
 	p.MaskBase64 = mkMask(t, w, h, image.Rect(128, 128, 384, 384))
+	p.KeepColor = true
 
 	result, err := e.svc.GenerateFromImage(p)
 	require.NoError(t, err)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	"strings"
 
@@ -27,7 +28,8 @@ const (
 	postEffectPromptSuffix            = ". Retain the original subject, people, pose, camera framing and scene, except for changes explicitly required by the effect."
 	materialPresetType                = "post_material"
 	materialKeepColorSigma            = 0.02
-	materialObjectTemplate            = "Change only the material of %s, keep its color exactly the same: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
+	materialObjectTemplate            = "Change only the material of %s by retexturing its existing surface. Material description: [%s]. Use this description only for surface grain, texture and sheen. Any stitching or construction cues in the description apply only where already present in the source photo. Preserve the same item, its silhouette, cut, folds, and the exact positions of all existing seams and fasteners. Never create new openings, seams, zippers, buttons, buckles, rings or other hardware. %sKeep all other clothes, the face, the background and everything else exactly as they are."
+	materialKeepColorInstruction      = "keep its color exactly the same. "
 	patternPresetType                 = "post_pattern"
 	patternObjectTemplate             = "Change only the print pattern of %s, keep its cut and shape: make it %s. Keep all other clothes, the face, the background and everything else exactly as they are."
 )
@@ -216,9 +218,54 @@ RESPONSE LENGTH: your response is limited to ~%d tokens. You MUST fit within thi
 // --- GenerateFromImage ---
 
 type fromImageSource struct {
-	b64  string
-	img  image.Image
-	mask image.Image
+	b64          string
+	img          image.Image
+	mask         image.Image
+	original     image.Image
+	originalMask image.Image
+	crop         image.Rectangle
+}
+
+func (f *fromImageSource) prepareCrop() error {
+	if f.mask == nil {
+		return nil
+	}
+	b := f.img.Bounds()
+	rect, mask := maskcomp.ContextCrop(f.mask, b.Dx(), b.Dy())
+	if rect.Empty() {
+		return errors.New("mask is empty at image size — paint over the area")
+	}
+	cropped := image.NewNRGBA(image.Rect(0, 0, rect.Dx(), rect.Dy()))
+	draw.Draw(cropped, cropped.Bounds(), f.img, rect.Min.Add(b.Min), draw.Src)
+	b64, err := imgcodec.EncodePNG(cropped, png.DefaultCompression)
+	if err != nil {
+		return err
+	}
+	f.original, f.originalMask, f.crop = f.img, f.mask, rect
+	f.img, f.mask, f.b64 = cropped, mask, b64
+	return nil
+}
+
+func (f *fromImageSource) restoreCrop(resultB64 string, keepColor, strict bool) (string, error) {
+	edited, err := imgcodec.Decode(resultB64, imgcodec.Options{Name: "result"})
+	if err != nil {
+		return "", err
+	}
+	edited = resizeExact(edited, f.crop.Dx(), f.crop.Dy())
+	if keepColor {
+		edited = maskcomp.KeepColor(f.img, edited, materialKeepColorSigma)
+	}
+	b := f.original.Bounds()
+	canvas := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	draw.Draw(canvas, canvas.Bounds(), f.original, b.Min, draw.Src)
+	draw.Draw(canvas, f.crop, edited, edited.Bounds().Min, draw.Src)
+	var out image.Image
+	if strict {
+		out = maskcomp.BlendStrict(f.original, canvas, f.originalMask)
+	} else {
+		out = maskcomp.Blend(f.original, canvas, f.originalMask)
+	}
+	return imgcodec.EncodePNG(out, png.DefaultCompression)
 }
 
 func (f *fromImageSource) decode() (image.Image, error) {
@@ -274,9 +321,17 @@ func (s *Service) GenerateFromImage(params GenerateFromImageParams) (*GenerateIm
 		return nil, fmt.Errorf("preserve identity requires a FLUX.2 Klein, FLUX.3 Klein or Qwen Image model, got %q", p.ModelName)
 	}
 
+	if err := src.prepareCrop(); err != nil {
+		return nil, err
+	}
 	prompt, negativePrompt, err := s.fromImagePrompts(p, params, tags, src)
 	if err != nil {
 		return nil, err
+	}
+	if src.original != nil {
+		if err := s.checkSDInterrupted(); err != nil {
+			return nil, err
+		}
 	}
 	spec := s.prepareSDContext(p, "from-image")
 	seed := p.Seed
@@ -395,11 +450,15 @@ func (s *Service) fromImagePrompts(p *preset.Preset, params GenerateFromImagePar
 		if err != nil {
 			return "", "", err
 		}
-		template := materialObjectTemplate
 		if p.PresetType == patternPresetType {
-			template = patternObjectTemplate
+			prompt = fmt.Sprintf(patternObjectTemplate, object, prompt)
+		} else {
+			colorInstruction := ""
+			if params.KeepColor {
+				colorInstruction = materialKeepColorInstruction
+			}
+			prompt = fmt.Sprintf(materialObjectTemplate, object, prompt, colorInstruction)
 		}
-		prompt = fmt.Sprintf(template, object, prompt)
 	}
 	if params.Editor != nil {
 		prompt = postEffectPromptPrefix + strings.TrimRight(strings.TrimSpace(prompt), ". ") + postEffectPromptSuffix
@@ -459,7 +518,7 @@ func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImagePar
 	denoising := params.DenoisingStrength
 	resp, err := s.measuredImg2Img(sd.Img2ImgRequest{
 		Model:             refSpec,
-		InitImages:        []string{params.ImageBase64},
+		InitImages:        []string{src.b64},
 		CacheMode:         s.cacheModeFor(refSpec.Checkpoint),
 		Prompt:            prompt,
 		NegativePrompt:    negativePrompt,
@@ -504,7 +563,13 @@ func (s *Service) fromImageImg2Img(p *preset.Preset, params GenerateFromImagePar
 		result.QualityUpscaleSkipped = upscaleSkipped
 		result.QualityRedenoiseSkipped = redenoiseSkipped
 	}
-	if src.mask != nil || keepColor {
+	if src.original != nil {
+		if result.Image, err = src.restoreCrop(result.Image, keepColor, params.MaskStrict); err != nil {
+			return nil, err
+		}
+		b := src.original.Bounds()
+		result.Info = patchInfoSize(result.Info, b.Dx(), b.Dy())
+	} else if keepColor {
 		if result.Image, err = blendFromImageResultWithMaskStrict(src.img, result.Image, src.mask, keepColor, params.MaskStrict); err != nil {
 			return nil, err
 		}

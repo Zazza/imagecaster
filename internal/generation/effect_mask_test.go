@@ -362,7 +362,7 @@ func TestGenerateFromImage_EffectMask_AppliedOnlyInPaintedArea(t *testing.T) {
 	}
 }
 
-func TestGenerateFromImage_EffectMask_EffectRunsOnWholeFrame(t *testing.T) {
+func TestGenerateFromImage_EffectMask_SendsContextCropWithoutSDMask(t *testing.T) {
 	t.Parallel()
 	const w, h = 256, 256
 	e := emSetup(t, emStripesPNG)
@@ -378,8 +378,11 @@ func TestGenerateFromImage_EffectMask_EffectRunsOnWholeFrame(t *testing.T) {
 	require.Len(t, e.sd.img2img, 1)
 	req := e.sd.img2img[0]
 	require.Len(t, req.InitImages, 1)
-	assert.Equal(t, src, req.InitImages[0], "effect is computed on the whole source frame")
+	crop := decodePNGBase64(t, req.InitImages[0])
+	assert.Greater(t, crop.Bounds().Dx(), w/2, "crop includes context beside the selection")
+	assert.Less(t, crop.Bounds().Dx(), w, "local selection does not send the entire frame")
+	assert.Equal(t, h, crop.Bounds().Dy())
 	assert.Empty(t, req.Mask, "mask is not sent to SD: compositing is done afterwards")
-	assert.Equal(t, w, req.Width)
+	assert.Positive(t, req.Width)
 	assert.Equal(t, h, req.Height)
 }

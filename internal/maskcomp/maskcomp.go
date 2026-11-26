@@ -9,12 +9,17 @@ import (
 )
 
 const (
-	keepColorWorkSide = 512
-	cellSize          = 8
-	diffThreshold     = 28.0
-	maskCellCover     = 0.5
-	featherCells      = 2
-	outlineHalfLine   = 3
+	keepColorWorkSide  = 512
+	cellSize           = 8
+	diffThreshold      = 28.0
+	maskCellCover      = 0.5
+	featherCells       = 2
+	outlineHalfLine    = 3
+	cropContextDivisor = 8
+	cropContextMin     = 8
+	cropContextMax     = 128
+	blendFeatherMin    = 2
+	blendFeatherScale  = 200
 )
 
 var outlineColor = color.RGBA{R: 255, A: 255}
@@ -51,6 +56,37 @@ func HasPaint(mask image.Image) bool {
 		}
 	}
 	return false
+}
+
+func ContextCrop(mask image.Image, w, h int) (image.Rectangle, *image.Gray) {
+	values := maskValues(mask, w, h)
+	bounds := image.Rectangle{Min: image.Pt(w, h)}
+	for i, painted := range values {
+		if painted {
+			x, y := i%w, i/w
+			bounds.Min.X, bounds.Min.Y = min(bounds.Min.X, x), min(bounds.Min.Y, y)
+			bounds.Max.X, bounds.Max.Y = max(bounds.Max.X, x+1), max(bounds.Max.Y, y+1)
+		}
+	}
+	if bounds.Empty() {
+		return image.Rectangle{}, nil
+	}
+	padding := max(cropContextMin, min(cropContextMax, max(bounds.Dx(), bounds.Dy())/cropContextDivisor))
+	padding = max(padding, blendFeatherRadius(w, h))
+	bounds = bounds.Inset(-padding).Intersect(image.Rect(0, 0, w, h))
+	cropped := image.NewGray(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			if values[(bounds.Min.Y+y)*w+bounds.Min.X+x] {
+				cropped.Pix[y*cropped.Stride+x] = 255
+			}
+		}
+	}
+	return bounds, cropped
+}
+
+func blendFeatherRadius(w, h int) int {
+	return max(blendFeatherMin, min(w, h)/blendFeatherScale)
 }
 
 func Outline(img, mask image.Image) *image.RGBA {
@@ -267,7 +303,7 @@ func Blend(orig, edited, mask image.Image) *image.RGBA {
 			a[i] = 1
 		}
 	}
-	r := max(2, min(w, h)/200)
+	r := blendFeatherRadius(w, h)
 	soft := boxBlurSep(a, w, h, r)
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 	for i := 0; i < w*h; i++ {
